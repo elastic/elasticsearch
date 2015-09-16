@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.shield.test;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -47,6 +47,6 @@ public class ShieldTestUtils {
     }
 
     public static String writeFile(Path folder, String name, String content) {
-        return writeFile(folder, name, content.getBytes(Charsets.UTF_8));
+        return writeFile(folder, name, content.getBytes(StandardCharsets.UTF_8));
     }
 }

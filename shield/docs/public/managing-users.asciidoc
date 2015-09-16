@@ -1,3 +1,4 @@
+[[managing-users]]
 == Managing Users in an esusers Realm
 
 The `esusers` command line tool is located in `ES_HOME/bin/shield` and enables several

@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.license;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SysGlobals;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -21,7 +20,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.history.HistoryStore;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.transport.actions.service.WatcherServiceResponse;
@@ -44,7 +43,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
+public class LicenseIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     static final License DUMMY_LICENSE = License.builder()
             .feature(LicenseService.FEATURE_NAME)
@@ -161,9 +160,9 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         assertThat(docCount("idx", "type", matchAllQuery()), is(docCountBeforeDisable));
 
         // and last... lets verify that we have throttled watches due to license expiration
-        long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE, filteredQuery(
-                matchQuery("result.actions.reason", "watcher license expired"),
-                termQuery("result.actions.status", "throttled")));
+        long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE, boolQuery()
+                .must(matchQuery("result.actions.reason", "watcher license expired"))
+                .must(termQuery("result.actions.status", "throttled")));
         assertThat(throttledCount, is(1L));
 
         //=====

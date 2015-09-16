@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.watch;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -19,6 +20,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.throttler.AckThrottler;
+import org.elasticsearch.watcher.support.clock.SystemClock;
+import org.elasticsearch.watcher.support.xcontent.WatcherXContentParser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -36,6 +39,8 @@ public class WatchStatus implements ToXContent, Streamable {
 
     private transient long version;
 
+    private State state;
+
     private @Nullable DateTime lastChecked;
     private @Nullable DateTime lastMetCondition;
     private ImmutableMap<String, ActionStatus> actions;
@@ -46,19 +51,24 @@ public class WatchStatus implements ToXContent, Streamable {
     private WatchStatus() {
     }
 
-    public WatchStatus(ImmutableMap<String, ActionStatus> actions) {
-        this(-1, null, null, actions);
+    public WatchStatus(DateTime now, ImmutableMap<String, ActionStatus> actions) {
+        this(-1, new State(true, now), null, null, actions);
     }
 
     public WatchStatus(WatchStatus other) {
-        this(other.version, other.lastChecked, other.lastMetCondition, other.actions);
+        this(other.version, other.state, other.lastChecked, other.lastMetCondition, other.actions);
     }
 
-    private WatchStatus(long version, DateTime lastChecked, DateTime lastMetCondition, ImmutableMap<String, ActionStatus> actions) {
+    private WatchStatus(long version, State state, DateTime lastChecked, DateTime lastMetCondition, ImmutableMap<String, ActionStatus> actions) {
         this.version = version;
         this.lastChecked = lastChecked;
         this.lastMetCondition = lastMetCondition;
         this.actions = actions;
+        this.state = state;
+    }
+
+    public State state() {
+        return state;
     }
 
     public long version() {
@@ -186,6 +196,15 @@ public class WatchStatus implements ToXContent, Streamable {
         return changed;
     }
 
+    boolean setActive(boolean active, DateTime now) {
+        boolean change = this.state.active != active;
+        if (change) {
+            this.dirty = true;
+            this.state = new State(active, now);
+        }
+        return change;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
@@ -195,6 +214,10 @@ public class WatchStatus implements ToXContent, Streamable {
         for (Map.Entry<String, ActionStatus> entry : actions.entrySet()) {
             out.writeString(entry.getKey());
             ActionStatus.writeTo(entry.getValue(), out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            out.writeBoolean(state.active);
+            writeDate(out, state.timestamp);
         }
     }
 
@@ -209,6 +232,11 @@ public class WatchStatus implements ToXContent, Streamable {
             builder.put(in.readString(), ActionStatus.readFrom(in));
         }
         actions = builder.build();
+        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            state = new State(in.readBoolean(), readDate(in, DateTimeZone.UTC));
+        } else {
+            state = new State(true, new DateTime(SystemClock.INSTANCE.millis(), DateTimeZone.UTC));
+        }
     }
 
     public static WatchStatus read(StreamInput in) throws IOException {
@@ -223,6 +251,7 @@ public class WatchStatus implements ToXContent, Streamable {
         if (params.paramAsBoolean(INCLUDE_VERSION_KEY, false)) {
             builder.field(Field.VERSION.getPreferredName(), version);
         }
+        builder.field(Field.STATE.getPreferredName(), state, params);
         if (lastChecked != null) {
             builder.field(Field.LAST_CHECKED.getPreferredName(), lastChecked);
         }
@@ -241,6 +270,7 @@ public class WatchStatus implements ToXContent, Streamable {
 
     public static WatchStatus parse(String watchId, XContentParser parser) throws IOException {
 
+        State state = null;
         DateTime lastChecked = null;
         DateTime lastMetCondition = null;
         ImmutableMap.Builder<String, ActionStatus> actions = null;
@@ -250,6 +280,12 @@ public class WatchStatus implements ToXContent, Streamable {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.STATE)) {
+                try {
+                    state = State.parse(parser);
+                } catch (ElasticsearchParseException e) {
+                    throw new ElasticsearchParseException("could not parse watch status for [{}]. failed to parse field [{}]", e, watchId, currentFieldName);
+                }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LAST_CHECKED)) {
                 if (token.isValue()) {
                     lastChecked = parseDate(currentFieldName, parser, DateTimeZone.UTC);
@@ -279,15 +315,70 @@ public class WatchStatus implements ToXContent, Streamable {
             }
         }
 
-        return new WatchStatus(-1, lastChecked, lastMetCondition, actions.build());
+        // if the watch status doesn't have a state, we assume active
+        // this is to support old watches that weren't upgraded yet to
+        // contain the state
+        if (state == null) {
+            state = new State(true, WatcherXContentParser.clock(parser).nowUTC());
+        }
+
+        return new WatchStatus(-1, state, lastChecked, lastMetCondition, actions.build());
     }
 
+    public static class State implements ToXContent {
+
+        final boolean active;
+        final DateTime timestamp;
+
+        public State(boolean active, DateTime timestamp) {
+            this.active = active;
+            this.timestamp = timestamp;
+        }
+
+        public boolean isActive() {
+            return active;
+        }
+
+        public DateTime getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(Field.ACTIVE.getPreferredName(), active);
+            writeDate(Field.TIMESTAMP.getPreferredName(), builder, timestamp);
+            return builder.endObject();
+        }
+
+        public static State parse(XContentParser parser) throws IOException {
+            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                throw new ElasticsearchParseException("expected an object but found [{}] instead", parser.currentToken());
+            }
+            boolean active = true;
+            DateTime timestamp = SystemClock.INSTANCE.nowUTC();
+            String currentFieldName = null;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIVE)) {
+                    active = parser.booleanValue();
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMESTAMP)) {
+                    timestamp = parseDate(currentFieldName, parser, DateTimeZone.UTC);
+                }
+            }
+            return new State(active, timestamp);
+        }
+    }
 
     interface Field {
         ParseField VERSION = new ParseField("version");
+        ParseField STATE = new ParseField("state");
+        ParseField ACTIVE = new ParseField("active");
+        ParseField TIMESTAMP = new ParseField("timestamp");
         ParseField LAST_CHECKED = new ParseField("last_checked");
         ParseField LAST_MET_CONDITION = new ParseField("last_met_condition");
         ParseField ACTIONS = new ParseField("actions");
     }
-
 }

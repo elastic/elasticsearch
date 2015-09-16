@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import com.google.common.collect.Iterables;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -13,6 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.TriggerService;
+
+import java.util.stream.StreamSupport;
 
 /**
  */
@@ -33,7 +34,7 @@ public class SyncTriggerListener implements TriggerEngine.Listener {
         try {
             executionService.processEventsSync(events);
         } catch (Exception e) {
-            logger.error("failed to process triggered events [{}]", e, Iterables.toArray(events, TriggerEvent.class));
+            logger.error("failed to process triggered events [{}]", e, (Object) StreamSupport.stream(events.spliterator(), false).toArray(size -> new TriggerEvent[size]));
         }
     }
 

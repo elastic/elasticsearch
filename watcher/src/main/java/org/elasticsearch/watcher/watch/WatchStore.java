@@ -31,9 +31,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -182,8 +186,22 @@ public class WatchStore extends AbstractComponent {
         return new WatchDelete(response);
     }
 
-    public ConcurrentMap<String, Watch> watches() {
+    public Collection<Watch> watches() {
+        return watches.values();
+    }
+
+    public Collection<Watch> activeWatches() {
+        Set<Watch> watches = new HashSet<>();
+        for (Watch watch : watches()) {
+            if (watch.status().state().isActive()) {
+                watches.add(watch);
+            }
+        }
         return watches;
+    }
+
+    public int watchCount() {
+        return watches.size();
     }
 
     IndexRequest createIndexRequest(String id, BytesReference source, long version) {
@@ -213,10 +231,10 @@ public class WatchStore extends AbstractComponent {
         SearchRequest searchRequest = new SearchRequest(INDEX)
                 .types(DOC_TYPE)
                 .preference("_primary")
-                .searchType(SearchType.SCAN)
                 .scroll(scrollTimeout)
                 .source(new SearchSourceBuilder()
                         .size(scrollSize)
+                        .sort(SortBuilders.fieldSort("_doc"))
                         .version(true));
         SearchResponse response = client.search(searchRequest, null);
         try {
@@ -224,23 +242,20 @@ public class WatchStore extends AbstractComponent {
                 throw new ElasticsearchException("Partial response while loading watches");
             }
 
-            if (response.getHits().getTotalHits() > 0) {
-                response = client.searchScroll(response.getScrollId(), scrollTimeout);
-                while (response.getHits().hits().length != 0) {
-                    for (SearchHit hit : response.getHits()) {
-                        String id = hit.getId();
-                        try {
-                            Watch watch = watchParser.parse(id, true, hit.getSourceRef());
-                            watch.status().version(hit.version());
-                            watch.version(hit.version());
-                            watches.put(id, watch);
-                            count++;
-                        } catch (Exception e) {
-                            logger.error("couldn't load watch [{}], ignoring it...", e, id);
-                        }
+            while (response.getHits().hits().length != 0) {
+                for (SearchHit hit : response.getHits()) {
+                    String id = hit.getId();
+                    try {
+                        Watch watch = watchParser.parse(id, true, hit.getSourceRef());
+                        watch.status().version(hit.version());
+                        watch.version(hit.version());
+                        watches.put(id, watch);
+                        count++;
+                    } catch (Exception e) {
+                        logger.error("couldn't load watch [{}], ignoring it...", e, id);
                     }
-                    response = client.searchScroll(response.getScrollId(), scrollTimeout);
                 }
+                response = client.searchScroll(response.getScrollId(), scrollTimeout);
             }
         } finally {
             client.clearScroll(response.getScrollId());

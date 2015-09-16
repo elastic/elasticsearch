@@ -34,12 +34,27 @@ The default role definitions in the `roles.yml` file may need to be changed to e
 applications such as Marvel and Kibana. Any role changes will be found in `roles.yml.new` after upgrading to the new
 version of Shield. We recommend copying the changes listed below to your `roles.yml` file.
 
+* added[2.0.0-beta2] The permission on all the roles are updated to the verbose format to make it easier to enable field level and document level security. `transport_client` role updated to work with Elasticsearch 2.0.0-beta2. `kibana3`, `marvel_user`, and `marvel_agent` roles removed.
 * added[1.1.0] `kibana4_server` role added that defines the minimum set of permissions necessary for the Kibana 4 server.
 * added[1.0.1] `kibana4` role updated to work with new features in Kibana 4 RC1
 
 [float]
 [[changelist]]
 === Change List
+
+[float]
+==== 2.0.0-beta2
+
+.new features
+* <<setting-up-field-and-document-level-security, Document and Field Level Security>> support has been added and can be
+configured per role.
+* Support for <<custom-realms, custom authentication realms>> has been added, allowing Shield to integrate with more authentication sources and methods.
+* <<submitting-requests-for-other-users, User impersonation support>> has also been added, which allows a user to send a request to elasticsearch that will be run
+with the specified user's permissions.
+
+.bug fixes
+* `esusers` and `syskeygen` work when spaces are in the elasticsearch installation path.
+* Fixed a rare issue where authentication fails even when the username and password are correct.
 
 [float]
 ==== 2.0.0-beta1

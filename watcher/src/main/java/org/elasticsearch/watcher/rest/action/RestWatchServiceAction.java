@@ -22,7 +22,7 @@ import org.elasticsearch.watcher.transport.actions.service.WatcherServiceRespons
 public class RestWatchServiceAction extends WatcherRestHandler {
 
     @Inject
-    protected RestWatchServiceAction(Settings settings, RestController controller, Client client) {
+    public RestWatchServiceAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_restart", this);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_start", new StartRestHandler(settings, controller, client));

@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherModule;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -23,7 +23,7 @@ import static org.hamcrest.core.Is.is;
  */
 @TestLogging("cluster:DEBUG,action.admin.cluster.settings:DEBUG,watcher:DEBUG")
 @ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
-public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTests {
+public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCase {
 
     @Test
     public void testChangeSettings() throws Exception {

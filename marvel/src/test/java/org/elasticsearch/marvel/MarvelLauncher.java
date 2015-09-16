@@ -5,8 +5,14 @@
  */
 package org.elasticsearch.marvel;
 
-import org.elasticsearch.bootstrap.Elasticsearch;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.node.MockNode;
+import org.elasticsearch.node.Node;
+
+import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Main class to easily run Marvel from a IDE.
@@ -17,13 +23,24 @@ import org.elasticsearch.license.plugin.LicensePlugin;
 public class MarvelLauncher {
 
     public static void main(String[] args) throws Throwable {
-        System.setProperty("es.script.inline", "on");
-        System.setProperty("es.security.manager.enabled", "false");
-        System.setProperty("es.plugins.load_classpath_plugins", "false");
-        System.setProperty("es.plugin.types", MarvelPlugin.class.getName() + "," + LicensePlugin.class.getName());
-        System.setProperty("es.cluster.name", MarvelLauncher.class.getSimpleName());
+        Settings.Builder settings = Settings.builder();
+        settings.put("script.inline", "on");
+        settings.put("security.manager.enabled", "false");
+        settings.put("plugins.load_classpath_plugins", "false");
+        settings.put("cluster.name", MarvelLauncher.class.getSimpleName());
 
-        Elasticsearch.main(new String[]{"start"});
+        final CountDownLatch latch = new CountDownLatch(1);
+        final Node node = new MockNode(settings.build(), Version.CURRENT, Arrays.asList(MarvelPlugin.class, LicensePlugin.class));
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+
+            @Override
+            public void run() {
+                node.close();
+                latch.countDown();
+            }
+        });
+        node.start();
+        latch.await();
     }
 
 }

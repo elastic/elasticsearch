@@ -16,7 +16,7 @@ import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchRequestBuilder;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class ExecuteWatchTests extends AbstractWatcherIntegrationTests {
+public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
 
 
     @Test(expected = ActionRequestValidationException.class)

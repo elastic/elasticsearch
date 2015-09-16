@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.watcher.support.text.xmustache;
 
-import com.google.common.collect.ImmutableList;
-
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.elasticsearch.common.bytes.BytesReference;
 import com.google.common.collect.ImmutableMap;
@@ -22,6 +20,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -46,7 +46,7 @@ public class XMustacheTests extends ESTestCase {
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
                 new String[] { "foo", "bar" },
-                ImmutableList.of("foo", "bar"),
+                Arrays.asList("foo", "bar"),
                 ImmutableSet.of("foo", "bar"));
         vars.put("data", data);
         Object output = engine.execute(mustache, vars);
@@ -62,9 +62,9 @@ public class XMustacheTests extends ESTestCase {
         CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
-                new String[][] { new String[] {"foo", "bar" }},
-                ImmutableList.of(new String[] {"foo", "bar" }),
-                ImmutableSet.of(new String[] {"foo", "bar" })
+                new String[][] { new String[] { "foo", "bar" }},
+                Collections.singletonList(new String[] { "foo", "bar" }),
+                ImmutableSet.of(new String[] { "foo", "bar" })
         );
         vars.put("data", data);
         Object output = engine.execute(mustache, vars);
@@ -81,7 +81,7 @@ public class XMustacheTests extends ESTestCase {
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
                 new Map[] { ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar") },
-                ImmutableList.of(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")),
+                Arrays.asList(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")),
                 ImmutableSet.of(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")));
         vars.put("data", data);
         Object output = engine.execute(mustache, vars);

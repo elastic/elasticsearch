@@ -25,7 +25,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestWatcherStatsAction extends WatcherRestHandler {
 
     @Inject
-    protected RestWatcherStatsAction(Settings settings, RestController controller, Client client) {
+    public RestWatcherStatsAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
         controller.registerHandler(GET, URI_BASE + "/stats", this);
         controller.registerHandler(GET, URI_BASE + "/stats/{metric}", this);

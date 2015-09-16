@@ -122,9 +122,8 @@ public final class WatcherTestUtils {
     }
 
     public static SearchRequest matchAllRequest(IndicesOptions indicesOptions) {
-        // TODO (2.0 upgrade): move back to BytesReference, instead of converting to a string
         SearchRequest request = new SearchRequest(Strings.EMPTY_ARRAY)
-                .source(SearchSourceBuilder.searchSource().query(matchAllQuery()).buildAsBytes(XContentType.JSON).toUtf8());
+                .source(SearchSourceBuilder.searchSource().query(matchAllQuery()).buildAsBytes(XContentType.JSON));
         if (indicesOptions != null) {
             request.indicesOptions(indicesOptions);
         }
@@ -227,7 +226,7 @@ public final class WatcherTestUtils {
                 new TimeValue(0),
                 new ExecutableActions(actions),
                 metadata,
-                new WatchStatus(ImmutableMap.<String, ActionStatus>builder()
+                new WatchStatus(now, ImmutableMap.<String, ActionStatus>builder()
                         .put("_webhook", new ActionStatus(now))
                         .put("_email", new ActionStatus(now))
                         .build()));
@@ -244,10 +243,7 @@ public final class WatcherTestUtils {
         Set<ScriptEngineService> engineServiceSet = new HashSet<>();
         engineServiceSet.add(mustacheScriptEngineService);
         engineServiceSet.add(groovyScriptEngineService);
-        Class scriptContextRegistryClass = Class.forName("org.elasticsearch.script.ScriptContextRegistry");
-        Constructor scriptContextRegistryConstructor = scriptContextRegistryClass.getDeclaredConstructors()[0];
-        scriptContextRegistryConstructor.setAccessible(true);
-        ScriptContextRegistry registry = (ScriptContextRegistry) scriptContextRegistryConstructor.newInstance(Arrays.asList(ScriptServiceProxy.INSTANCE));
+        ScriptContextRegistry registry = new ScriptContextRegistry(Arrays.asList(ScriptServiceProxy.INSTANCE));
 
         return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), engineServiceSet, new ResourceWatcherService(settings, tp), registry));
     }

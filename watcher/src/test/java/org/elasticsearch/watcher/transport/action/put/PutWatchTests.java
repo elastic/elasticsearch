@@ -9,7 +9,7 @@ package org.elasticsearch.watcher.transport.action.put;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.Test;
 
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class PutWatchTests extends AbstractWatcherIntegrationTests {
+public class PutWatchTests extends AbstractWatcherIntegrationTestCase {
 
     @Test
 

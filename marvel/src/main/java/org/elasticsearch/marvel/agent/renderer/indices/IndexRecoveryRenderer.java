@@ -6,10 +6,10 @@
 package org.elasticsearch.marvel.agent.renderer.indices;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.AbstractRenderer;
 
@@ -30,13 +30,13 @@ public class IndexRecoveryRenderer extends AbstractRenderer<IndexRecoveryMarvelD
         RecoveryResponse recovery = marvelDoc.getRecoveryResponse();
         if (recovery != null) {
             builder.startArray(Fields.SHARDS);
-            Map<String, List<ShardRecoveryResponse>> shards = recovery.shardResponses();
+            Map<String, List<RecoveryState>> shards = recovery.shardRecoveryStates();
             if (shards != null) {
-                for (Map.Entry<String, List<ShardRecoveryResponse>> shard : shards.entrySet()) {
+                for (Map.Entry<String, List<RecoveryState>> shard : shards.entrySet()) {
 
-                    List<ShardRecoveryResponse> indexShards = shard.getValue();
+                    List<RecoveryState> indexShards = shard.getValue();
                     if (indexShards != null) {
-                        for (ShardRecoveryResponse indexShard : indexShards) {
+                        for (RecoveryState indexShard : indexShards) {
                             builder.startObject();
                             builder.field(Fields.INDEX_NAME, shard.getKey());
                             indexShard.toXContent(builder, params);

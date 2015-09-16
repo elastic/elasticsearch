@@ -84,12 +84,12 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
         out.writeStringArrayNullable(usernames);
     }
 
-    static class Node extends BaseNodeRequest {
+    public static class Node extends BaseNodeRequest {
 
         String[] realms;
         String[] usernames;
 
-        Node() {
+        public Node() {
         }
 
         Node(ClearRealmCacheRequest request, String nodeId) {

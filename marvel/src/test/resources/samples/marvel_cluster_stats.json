@@ -3,6 +3,7 @@
   "timestamp": "2015-07-22T15:54:02.979Z",
   "cluster_stats": {
     "indices": {
+      "count": 10,
       "shards": {
         "total": 1,
         "index": {

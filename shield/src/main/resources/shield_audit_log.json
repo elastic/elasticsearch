@@ -56,6 +56,16 @@
           "index": "not_analyzed",
           "doc_values": true
         },
+        "run_by_principal": {
+          "type": "string",
+          "index": "not_analyzed",
+          "doc_values": true
+        },
+        "run_as_principal": {
+          "type": "string",
+          "index": "not_analyzed",
+          "doc_values": true
+        },
         "action": {
           "type": "string",
           "index": "not_analyzed",

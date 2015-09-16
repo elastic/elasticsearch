@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.shield.transport.netty;
 
-import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.netty.NettyHttpServerTransport;
+import org.elasticsearch.http.netty.NettyHttpMockUtil;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.SSLClientAuth;
@@ -22,7 +21,6 @@ import org.jboss.netty.handler.ssl.SslHandler;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.Locale;
 
@@ -50,7 +48,7 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
     public void testDefaultClientAuth() throws Exception {
         Settings settings = Settings.builder().put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true).build();
         ShieldNettyHttpServerTransport transport = new ShieldNettyHttpServerTransport(settings, mock(NetworkService.class), mock(BigArrays.class), mock(IPFilter.class), serverSSLService);
-        setOpenChannelsHandlerToMock(transport);
+        NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
@@ -63,7 +61,7 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
                 .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
                 .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, value).build();
         ShieldNettyHttpServerTransport transport = new ShieldNettyHttpServerTransport(settings, mock(NetworkService.class), mock(BigArrays.class), mock(IPFilter.class), serverSSLService);
-        setOpenChannelsHandlerToMock(transport);
+        NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(true));
@@ -76,7 +74,7 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
                 .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
                 .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, value).build();
         ShieldNettyHttpServerTransport transport = new ShieldNettyHttpServerTransport(settings, mock(NetworkService.class), mock(BigArrays.class), mock(IPFilter.class), serverSSLService);
-        setOpenChannelsHandlerToMock(transport);
+        NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(true));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
@@ -89,19 +87,9 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
                 .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
                 .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, value).build();
         ShieldNettyHttpServerTransport transport = new ShieldNettyHttpServerTransport(settings, mock(NetworkService.class), mock(BigArrays.class), mock(IPFilter.class), serverSSLService);
-        setOpenChannelsHandlerToMock(transport);
+        NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
-    }
-
-    /*
-     * We don't really need to start Netty for these tests, but we can't create a pipeline
-     * with a null handler. So we set it to a mock for this test using reflection.
-     */
-    private void setOpenChannelsHandlerToMock(NettyHttpServerTransport transport) throws Exception {
-        Field serverOpenChannels = NettyHttpServerTransport.class.getDeclaredField("serverOpenChannels");
-        serverOpenChannels.setAccessible(true);
-        serverOpenChannels.set(transport, mock(OpenChannelsHandler.class));
     }
 }

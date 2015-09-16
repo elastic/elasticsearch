@@ -125,7 +125,7 @@ public class HttpInputTests extends ESTestCase {
                 null,
                 new ExecutableActions(new ArrayList<ActionWrapper>()),
                 null,
-                new WatchStatus(ImmutableMap.<String, ActionStatus>of()));
+                new WatchStatus(new DateTime(0, UTC), ImmutableMap.<String, ActionStatus>of()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch,
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
@@ -156,7 +156,7 @@ public class HttpInputTests extends ESTestCase {
                 null,
                 new ExecutableActions(new ArrayList<ActionWrapper>()),
                 null,
-                new WatchStatus(ImmutableMap.<String, ActionStatus>of()));
+                new WatchStatus(new DateTime(0, UTC), ImmutableMap.<String, ActionStatus>of()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch,
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),

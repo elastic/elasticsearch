@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.actions.email;
 import org.elasticsearch.action.get.GetResponse;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
@@ -17,7 +16,7 @@ import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.shield.ShieldSecretService;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
@@ -43,7 +42,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTests {
+public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";

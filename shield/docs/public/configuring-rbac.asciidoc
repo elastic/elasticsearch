@@ -47,24 +47,28 @@ The following snippet shows an example configuration:
 admin:
   cluster: all
   indices:
-    '*': all
+    '*':
+      privileges: all
 
 # Monitoring cluster privileges
 # All operations on all indices
 power_user:
   cluster: monitor
   indices:
-    '*': all
+    '*':
+      privileges: all
 
 # Only read operations on indices
 user:
   indices:
-    '*': read
+    '*':
+      privileges: read
 
 # Only read operations on indices named events_*
 events_user:
   indices:
-    'events_*': read
+    'events_*':
+      privileges: read
 -----------------------------------
 
 [[valid-role-name]]
@@ -100,7 +104,8 @@ The role in the following example allows access to document `GET` actions for a 
 # Only GET read action on index named events_index
 get_user:
   indices:
-    'events_index': 'indices:data/read/get'
+    'events_index':
+      privileges: 'indices:data/read/get'
 ---------------------------------------------------
 
 See the complete list of available <<ref-actions-list, cluster and indices actions>>.
@@ -129,6 +134,22 @@ TIP: Once the roles are defined, users can then be associated with any number of
 <<setting-up-authentication,Setting Up Authentication>> we'll learn more about authentication and see how users can be associated with the 
 configured roles.
 
+The privileges can also directly be set on an index expression. This notation is useful if no other security features
+are configured.
+
+.Shorter privileges notation
+[source,yaml]
+---------------------------------------------------
+# Only GET read action on index named events_index
+get_user:
+  indices:
+    'events_index': 'indices:data/read/get'
+---------------------------------------------------
+
 include::granting-alias-privileges.asciidoc[]
 
 include::mapping-roles.asciidoc[]
+
+include::setting-up-field-and-document-level-security.asciidoc[]
+
+include::submitting-requests-for-other-users.asciidoc[]

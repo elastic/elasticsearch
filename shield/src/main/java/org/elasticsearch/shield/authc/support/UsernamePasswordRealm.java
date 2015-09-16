@@ -5,14 +5,11 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.transport.TransportMessage;
-
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 
 /**
  *
@@ -39,9 +36,8 @@ public abstract class UsernamePasswordRealm extends Realm<UsernamePasswordToken>
 
     public static abstract class Factory<R extends UsernamePasswordRealm> extends Realm.Factory<R> {
 
-        protected Factory(String type, boolean internal, RestController restController) {
+        protected Factory(String type, boolean internal) {
             super(type, internal);
-            restController.registerRelevantHeaders(BASIC_AUTH_HEADER);
         }
     }
 }

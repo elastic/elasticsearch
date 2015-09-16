@@ -148,8 +148,8 @@ file, `/config/kibana.yml`.
 +
 [source,yaml]
 --------------------------------------------------------------------------------
-kibana_elasticsearch_username: kibana4-server
-kibana_elasticsearch_password: password
+elasticsearch.username: kibana4-server
+elasticsearch.password: password
 --------------------------------------------------------------------------------
 
 [[kibana4-roles]]
@@ -229,31 +229,31 @@ kibana4_monitoring:
 
 . If you have enabled SSL encryption in Shield, configure Kibana 4 to connect to Elasticsearch via HTTPS. To do this:
 
-.. Specify the HTTPS protocol in the `elasticsearch` URL setting in the Kibana configuration file, `kibana.yml`:
+.. Specify the HTTPS protocol in the `elasticsearch.url` setting in the Kibana configuration file, `kibana.yml`:
 +
 [source,yaml]
 --------------------------------------------------------------------------------
-elasticsearch: "https://<your_elasticsearch_host>.com:9200"
+elasticsearch.url: "https://<your_elasticsearch_host>.com:9200"
 --------------------------------------------------------------------------------
 
-.. If you are using your own CA to sign certificates for Elasticsearch, set the `ca` property in `kibana.yml` to specify the location of the PEM file. 
+.. If you are using your own CA to sign certificates for Elasticsearch, set the `elasticsearch.ssl.ca` setting in `kibana.yml` to specify the location of the PEM file. 
 +
 [source,yaml]
 --------------------------------------------------------------------------------
-ca: /path/to/your/ca/cacert.pem
+elasticsearch.ssl.ca: /path/to/your/cacert.pem
 --------------------------------------------------------------------------------
 
-. Configure Kibana 4 to encrypt communications between the browser and the Kibana server. To do this, configure the `ssl_key_file` and `ssl_cert_file` properties in `kibana.yml` and restart Kibana:
+. Configure Kibana 4 to encrypt communications between the browser and the Kibana server. To do this, configure the `server.ssl.key` and `server.ssl.cert` properties in `kibana.yml`:
 +
 [source,yaml]
 --------------------------------------------------------------------------------
-ssl_key_file: /path/to/your/server.key
-ssl_cert_file: /path/to/your/server.crt
+server.ssl.key: /path/to/your/server.key
+server.ssl.cert: /path/to/your/server.crt
 --------------------------------------------------------------------------------
 +
 Once you enable SSL encryption between the browser and the Kibana server, access Kibana via HTTPS. For example, `https://localhost:5601`.
 +
-NOTE: Enabling browser encryption is required to prevent passing user credentials in the clear in Kibana 4.0 and 4.1.
+NOTE: Enabling browser encryption is required to prevent passing user credentials in the clear.
 
 . Restart Kibana and verify that you can sign in as a user. If you are running Kibana locally,
 go to `localhost:5601` and enter the credentials for a user you've assigned a Kibana user role. For example, you could log in as the `jacknich` user created in step 3.

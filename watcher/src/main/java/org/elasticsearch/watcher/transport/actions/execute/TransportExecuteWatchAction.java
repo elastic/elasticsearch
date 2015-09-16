@@ -59,7 +59,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                                        ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, ExecutionService executionService,
                                        Clock clock, LicenseService licenseService, WatchStore watchStore, TriggerService triggerService,
                                        Watch.Parser watchParser) {
-        super(settings, ExecuteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, ExecuteWatchRequest.class);
+        super(settings, ExecuteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, ExecuteWatchRequest::new);
         this.executionService = executionService;
         this.watchStore = watchStore;
         this.clock = clock;

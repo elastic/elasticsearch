@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 
 import java.io.IOException;
@@ -250,21 +251,18 @@ public class TriggeredWatchStore extends AbstractComponent {
                 throw illegalState("scan search was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards, response.getSuccessfulShards());
             }
 
-            if (response.getHits().getTotalHits() > 0) {
-                response = client.searchScroll(response.getScrollId(), scrollTimeout);
-                while (response.getHits().hits().length != 0) {
-                    for (SearchHit sh : response.getHits()) {
-                        String id = sh.getId();
-                        try {
-                            TriggeredWatch triggeredWatch = triggeredWatchParser.parse(id, sh.version(), sh.getSourceRef());
-                            logger.debug("loaded triggered watch [{}/{}/{}]", sh.index(), sh.type(), sh.id());
-                            triggeredWatches.add(triggeredWatch);
-                        } catch (Exception e) {
-                            logger.error("couldn't load triggered watch [{}], ignoring it...", e, id);
-                        }
+            while (response.getHits().hits().length != 0) {
+                for (SearchHit sh : response.getHits()) {
+                    String id = sh.getId();
+                    try {
+                        TriggeredWatch triggeredWatch = triggeredWatchParser.parse(id, sh.version(), sh.getSourceRef());
+                        logger.debug("loaded triggered watch [{}/{}/{}]", sh.index(), sh.type(), sh.id());
+                        triggeredWatches.add(triggeredWatch);
+                    } catch (Exception e) {
+                        logger.error("couldn't load triggered watch [{}], ignoring it...", e, id);
                     }
-                    response = client.searchScroll(response.getScrollId(), scrollTimeout);
                 }
+                response = client.searchScroll(response.getScrollId(), scrollTimeout);
             }
         } finally {
             client.clearScroll(response.getScrollId());
@@ -274,11 +272,11 @@ public class TriggeredWatchStore extends AbstractComponent {
 
     private SearchRequest createScanSearchRequest() {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-                .size(scrollSize);
+                .size(scrollSize)
+                .sort(SortBuilders.fieldSort("_doc"));
 
         SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
         searchRequest.source(sourceBuilder);
-        searchRequest.searchType(SearchType.SCAN);
         searchRequest.types(DOC_TYPE);
         searchRequest.scroll(scrollTimeout);
         searchRequest.preference("_primary");

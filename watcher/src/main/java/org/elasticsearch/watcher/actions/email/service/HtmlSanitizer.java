@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.owasp.html.CssSchema;
@@ -38,6 +39,7 @@ public class HtmlSanitizer {
     };
 
     private final boolean enabled;
+    @SuppressForbidden( reason = "PolicyFactory uses guava Function")
     private final PolicyFactory policy;
 
     @Inject
@@ -55,6 +57,7 @@ public class HtmlSanitizer {
         return policy.sanitize(html);
     }
 
+    @SuppressForbidden( reason = "PolicyFactory uses guava Function")
     static PolicyFactory createCommonPolicy(String[] allow, String[] disallow) {
         HtmlPolicyBuilder policyBuilder = new HtmlPolicyBuilder();
 

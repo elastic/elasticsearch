@@ -5,17 +5,24 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.function.Predicate;
 
-import static org.elasticsearch.shield.authz.Privilege.Index.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.shield.authz.Privilege.Index.Cluster;
+import static org.elasticsearch.shield.authz.Privilege.Index.MONITOR;
+import static org.elasticsearch.shield.authz.Privilege.Index.READ;
+import static org.elasticsearch.shield.authz.Privilege.Index.SEARCH;
+import static org.elasticsearch.shield.authz.Privilege.Index.union;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -48,10 +55,10 @@ public class PermissionTests extends ESTestCase {
     @Test
     public void testIndicesGlobalsIterator() {
         Permission.Global.Role.Builder builder = Permission.Global.Role.builder("tc_role");
-        builder.set(Cluster.action("cluster:monitor/nodes/info"));
+        builder.cluster(Cluster.action("cluster:monitor/nodes/info"));
         Permission.Global.Role noIndicesPermission = builder.build();
 
-        Permission.Indices.Globals indicesGlobals = new Permission.Indices.Globals(ImmutableList.<Permission.Global>of(noIndicesPermission, permission));
+        Permission.Indices.Globals indicesGlobals = new Permission.Indices.Globals(Collections.<Permission.Global>unmodifiableList(Arrays.asList(noIndicesPermission, permission)));
         Iterator<Permission.Indices.Group> iterator = indicesGlobals.iterator();
         assertThat(iterator.hasNext(), is(equalTo(true)));
         int count = 0;
@@ -67,16 +74,27 @@ public class PermissionTests extends ESTestCase {
         Permission.Global.Role.Builder permission = Permission.Global.Role.builder("some_role");
         Permission.Global.Role role = permission.build();
         assertThat(role, notNullValue());
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.indices(), notNullValue());
+        assertThat(role.runAs(), notNullValue());
+    }
+
+    @Test
+    public void testRunAs() {
+        Permission.Global.Role permission = Permission.Global.Role.builder("some_role")
+                .runAs(new Privilege.General("name", "user1", "run*"))
+                .build();
+        assertThat(permission.runAs().check("user1"), is(true));
+        assertThat(permission.runAs().check("user"), is(false));
+        assertThat(permission.runAs().check("run" + randomAsciiOfLengthBetween(1, 10)), is(true));
     }
 
     // "baz_*foo", "/fool.*bar/"
     private void testAllowedIndicesMatcher(Predicate<String> indicesMatcher) {
-        assertThat(indicesMatcher.apply("foobar"), is(false));
-        assertThat(indicesMatcher.apply("fool"), is(false));
-        assertThat(indicesMatcher.apply("fool2bar"), is(true));
-        assertThat(indicesMatcher.apply("baz_foo"), is(true));
-        assertThat(indicesMatcher.apply("barbapapa"), is(false));
+        assertThat(indicesMatcher.test("foobar"), is(false));
+        assertThat(indicesMatcher.test("fool"), is(false));
+        assertThat(indicesMatcher.test("fool2bar"), is(true));
+        assertThat(indicesMatcher.test("baz_foo"), is(true));
+        assertThat(indicesMatcher.test("barbapapa"), is(false));
     }
-
-
 }

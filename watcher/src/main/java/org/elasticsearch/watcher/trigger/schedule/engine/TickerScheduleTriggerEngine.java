@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
@@ -78,7 +77,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
                 logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name, new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC));
                 events.add(new ScheduleTriggerEvent(schedule.name, new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC)));
                 if (events.size() >= 1000) {
-                    notifyListeners(ImmutableList.copyOf(events));
+                    notifyListeners(events);
                     events.clear();
                 }
             }

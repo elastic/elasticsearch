@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.transport;
 
-import com.google.common.collect.ImmutableSet;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -27,6 +27,7 @@ import org.junit.Test;
 import org.mockito.InOrder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -48,10 +49,23 @@ public class TransportFilterTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
-                .put("plugins.load_classpath_plugins", false)
-                .putArray("plugin.types", InternalPlugin.class.getName(), InternalPluginServerTransportService.TestPlugin.class.getName())
                 .put("node.mode", "network")
                 .build();
+    }
+
+    @Override
+    protected boolean enableMockModules() {
+        return false;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(InternalPlugin.class, InternalPluginServerTransportService.TestPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
 
     @Test
@@ -65,12 +79,12 @@ public class TransportFilterTests extends ESIntegTestCase {
         TransportService targetService = internalCluster().getInstance(TransportService.class, target);
 
         CountDownLatch latch = new CountDownLatch(2);
-        targetService.registerRequestHandler("_action", Request.class, ThreadPool.Names.SAME, new RequestHandler(new Response("trgt_to_src"), latch));
+        targetService.registerRequestHandler("_action", Request::new, ThreadPool.Names.SAME, new RequestHandler(new Response("trgt_to_src"), latch));
         sourceService.sendRequest(targetNode, "_action", new Request("src_to_trgt"), new ResponseHandler(new Response("trgt_to_src"), latch));
         await(latch);
 
         latch = new CountDownLatch(2);
-        sourceService.registerRequestHandler("_action", Request.class, ThreadPool.Names.SAME, new RequestHandler(new Response("src_to_trgt"), latch));
+        sourceService.registerRequestHandler("_action", Request::new, ThreadPool.Names.SAME, new RequestHandler(new Response("src_to_trgt"), latch));
         targetService.sendRequest(sourceNode, "_action", new Request("trgt_to_src"), new ResponseHandler(new Response("src_to_trgt"), latch));
         await(latch);
 
@@ -114,11 +128,11 @@ public class TransportFilterTests extends ESIntegTestCase {
         }
     }
 
-    static class Request extends TransportRequest {
+    public static class Request extends TransportRequest {
 
         private String msg;
 
-        Request() {
+        public Request() {
         }
 
         Request(String msg) {
@@ -263,7 +277,7 @@ public class TransportFilterTests extends ESIntegTestCase {
     }
 
     // Sub class the Shield transport to always inject a mock for testing
-    static class InternalPluginServerTransportService extends ShieldServerTransportService {
+    public static class InternalPluginServerTransportService extends ShieldServerTransportService {
         public static class TestPlugin extends Plugin {
             @Override
             public String name() {
@@ -283,7 +297,7 @@ public class TransportFilterTests extends ESIntegTestCase {
         }
 
         @Inject
-        InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool, AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, ClientTransportFilter clientTransportFilter) {
+        public InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool, AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, ClientTransportFilter clientTransportFilter) {
             super(settings, transport, threadPool, authcService, authzService, actionMapper, clientTransportFilter);
         }
 

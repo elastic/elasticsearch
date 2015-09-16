@@ -43,15 +43,17 @@ To install a signed certificate, you need to:
 ===== Creating a Keystore and Generating a Certificate
 To create a keystore and generate a node certificate:
 
-. Create a node keystore and import your CA's certificate with https://docs.oracle.com/javase/8/docs/technotes/tools/unix/keytool.html[Java Keytool]. This configures the node to trust certificates signed by the CA. For example, the following command creates a keystore for `node01` and and imports the CA certificate `cacert.pem`. 
+. Create a node keystore and import your CA's certificate with https://docs.oracle.com/javase/8/docs/technotes/tools/unix/keytool.html[Java Keytool]. This configures the node to trust certificates signed by the CA. For Elasticsearch
+to access the keystore, it must be located under the Elasticsearch configuration directory. For example, the following command creates a keystore for `node01` and and imports the CA certificate `cacert.pem`. 
 +
 [source,shell]
 --------------------------------------------------
+cd CONFIG_DIR/shield
 keytool -importcert -keystore node01.jks -file cacert.pem -alias my_ca
 --------------------------------------------------
 +
 The Java keystore file (.jks) securely stores certificates for the node. The CA cert must be a 
-PEM encoded certificate.
+PEM encoded certificate. 
 +
 When you create a keystore, you are prompted to set a password. This password protects the 
 integrity of the keystore. You need to provide it whenever you interact with the keystore.
@@ -73,7 +75,7 @@ keytool -genkey -alias node01 -keystore node01.jks -keyalg RSA -keysize 2048 -va
 This command creates an RSA private key with a key size of 2048 bits and a public certificate that 
 is valid for 712 days. The key and certificate are stored in the `node01.jks` keystore. 
 +
-The `san` value specifies all alternative names for the node. The generated certificate is valid for the DNS names and IP addresses specified as alternative names. You can specify multiple DNS or IP address entries as a comma-separated list. 
+The `san` value specifies all alternative names for the node. The generated certificate is valid for the DNS names and IP addresses specified as alternative names. You can specify multiple DNS or IP address entries as a comma-separated list.
 +
 [IMPORTANT]
 .Specifying the Node Identity
@@ -121,6 +123,12 @@ Enter key password for <node01> <2>
 --------------------------------------------------
 <1> Provides information about the node that this certificate is intended for. In the past, this field specified the node's identity using a DNS name, but that behavior has been deprecated.
 <2> If you don't specify a password for the certificate, the keystore password is used. 
++
+[IMPORTANT]
+.Extended Key Usage
+==========================
+The Extended Key Usage attribute in a certificate is used to indicate the purpose of the key. By default `keytool` does not set this attribute in the certificate. If you are generating your certificates with another tool, please ensure the certificates support both `serverAuth` and `clientAuth` if the Extended Key Usage attribute is set.
+==========================
 
 [float]
 [[generate-csr]]
@@ -153,6 +161,7 @@ specify the same alias and keystore that you used when you created the node cert
 
 [source, shell]
 --------------------------------------------------
+cd CONFIG_DIR/shield
 keytool -importcert -keystore node01.jks -file node01-signed.crt -alias node01
 --------------------------------------------------
 
@@ -186,11 +195,12 @@ certificate. For example:
 +
 [source, yaml]
 --------------------------------------------------
-shield.ssl.keystore.path:          /home/es/config/node01.jks <1>
+shield.ssl.keystore.path:          /home/es/config/shield/node01.jks <1>
 shield.ssl.keystore.password:      myPass <2>
 shield.ssl.keystore.key_password:  myKeyPass <3>
 --------------------------------------------------
-<1> The full path to the node keystore file.
+<1> The full path to the node keystore file. This must be a location within the Elasticsearch
+configuration directory.
 <2> The password used to access the keystore.
 <3> The password used to access the certificate. This is only required if you specified a separate 
 certificate password when generating the certificate.
@@ -237,7 +247,8 @@ To use a separate truststore:
 +
 [source,shell]
 --------------------------------------------------
-keytool -importcert -keystore /home/es/config/truststore.jks -file /Users/Download/cacert.pem  
+cd CONFIG_DIR/shield
+keytool -importcert -keystore truststore.jks -file cacert.pem  
 --------------------------------------------------
 +
 When you create a truststore, you are prompted to set a password. This password protects the 
@@ -248,8 +259,9 @@ access it. For example:
 +
 [source, yaml]
 --------------------------------------------------
-shield.ssl.truststore.path:          /home/es/config/truststore.jks <1>
+shield.ssl.truststore.path:          /home/es/config/shield/truststore.jks <1>
 shield.ssl.truststore.password:      myPass <2>
 --------------------------------------------------
-<1> The full path to the truststore file.
+<1> The full path to the truststore file. This must be a location within the 
+Elasticsearch configuration directory.
 <2> The password needed to access the truststore.

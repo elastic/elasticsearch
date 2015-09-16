@@ -19,7 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.After;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 
 /**
  */
-public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTests {
+public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCase {
 
     private ThreadPool tp = null;
     private ScriptServiceProxy scriptService;

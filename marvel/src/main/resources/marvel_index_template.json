@@ -25,6 +25,40 @@
         }
       }
     },
+    "marvel_indices_stats": {
+      "properties": {
+        "indices_stats": {
+          "properties": {
+            "_all": {
+              "properties": {
+                "primaries": {
+                  "properties": {
+                    "docs": {
+                      "properties": {
+                        "count": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "total": {
+                  "properties": {
+                    "docs": {
+                      "properties": {
+                        "count": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "marvel_index_stats": {
       "properties": {
         "index_stats": {
@@ -152,7 +186,7 @@
         }
       }
     },
-    "cluster_licenses": {
+    "cluster_info": {
       "enabled": false
     },
     "marvel_node_stats": {

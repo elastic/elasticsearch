@@ -17,8 +17,8 @@ A successful call returns a JSON structure similar to the following example:
 --------------------------------------------------
 {
    "version": {
-      "name": "2.0.0",
-      "number": "2.0.0", <1>
+      "name": "{version}",
+      "number": "{version}", <1>
       "build_hash": "41f64213d2d370bf66f0e9b839a30a19", <2>
       "build_timestamp": "2015-04-07T13:34:42Z", <3>
       "build_snapshot": true <4>

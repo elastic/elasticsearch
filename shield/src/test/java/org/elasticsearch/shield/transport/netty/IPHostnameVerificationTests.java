@@ -73,7 +73,7 @@ public class IPHostnameVerificationTests extends ShieldIntegTestCase {
 
     @Test
     public void testTransportClientConnectionWorksWithIPOnlyHostnameVerification() throws Exception {
-        Client client = internalTestCluster().transportClient();
+        Client client = internalCluster().transportClient();
         assertGreenClusterState(client);
     }
 }

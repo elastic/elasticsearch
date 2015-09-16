@@ -11,6 +11,8 @@ import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.condition.always.AlwaysConditionFactory;
 import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.condition.compare.CompareConditionFactory;
+import org.elasticsearch.watcher.condition.compare.array.ArrayCompareCondition;
+import org.elasticsearch.watcher.condition.compare.array.ArrayCompareConditionFactory;
 import org.elasticsearch.watcher.condition.never.NeverCondition;
 import org.elasticsearch.watcher.condition.never.NeverConditionFactory;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
@@ -46,6 +48,9 @@ public class ConditionModule extends AbstractModule {
 
         bind(CompareConditionFactory.class).asEagerSingleton();
         factoriesBinder.addBinding(CompareCondition.TYPE).to(CompareConditionFactory.class);
+
+        bind(ArrayCompareConditionFactory.class).asEagerSingleton();
+        factoriesBinder.addBinding(ArrayCompareCondition.TYPE).to(ArrayCompareConditionFactory.class);
 
         for (Map.Entry<String, Class<? extends ConditionFactory>> entry : factories.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();

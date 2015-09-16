@@ -66,15 +66,13 @@ public class TribeShieldLoadedTests extends ESTestCase {
     private static Settings.Builder defaultSettings() {
         return addTribeSettings(Settings.builder()
                 .put("node.name", "tribe_node")
-                .put("path.home", createTempDir()), "t1")
-                .put("plugin.types", ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName());
+                .put("path.home", createTempDir()), "t1");
     }
 
     private static Settings.Builder addTribeSettings(Settings.Builder settingsBuilder, String tribe) {
         String tribePrefix = "tribe." + tribe + ".";
         return settingsBuilder.put(tribePrefix + "cluster.name", "non_existing_cluster")
                 .put(tribePrefix + "discovery.type", "local")
-                .put(tribePrefix + "discovery.initial_state_timeout", 0)
-                .put(tribePrefix + "plugin.types", ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName());
+                .put(tribePrefix + "discovery.initial_state_timeout", 0);
     }
 }

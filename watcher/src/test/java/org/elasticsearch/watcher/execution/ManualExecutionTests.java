@@ -21,7 +21,7 @@ import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.xcontent.ObjectPath;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
+public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean enableShield() {

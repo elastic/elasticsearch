@@ -231,9 +231,6 @@ public final class WatcherUtils {
                     searchRequest.types(Strings.delimitedListToStringArray(typesStr, ",", " \t"));
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, SEARCH_TYPE_FIELD)) {
                     searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT), ParseFieldMatcher.EMPTY);
-                    if (searchType == SearchType.SCAN){
-                        throw new ElasticsearchParseException("could not read search request. value [" + searchType.name() + "] is not supported for field [" + SEARCH_TYPE_FIELD.getPreferredName() + "]" );
-                    }
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected string field [" + currentFieldName + "]");
                 }
@@ -248,9 +245,8 @@ public final class WatcherUtils {
         searchRequest.searchType(searchType);
         searchRequest.indicesOptions(indicesOptions);
         if (searchBody != null) {
-            // TODO (2.0 upgrade): move back to BytesReference instead of dealing with the array directly
             assert searchBody.hasArray();
-            searchRequest.source(searchBody.array(), searchBody.arrayOffset(), searchBody.length());
+            searchRequest.source(searchBody);
         }
         if (templateBody != null) {
             // Unfortunately because of SearchRequest#templateSource(BytesReference, boolean) has been removed in 1.6 and

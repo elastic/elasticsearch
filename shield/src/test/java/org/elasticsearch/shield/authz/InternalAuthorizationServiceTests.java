@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -31,9 +30,10 @@ import org.elasticsearch.transport.TransportRequest;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.List;
+
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;
 
@@ -63,6 +63,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
 
         internalAuthorizationService.authorize(User.SYSTEM, "internal:whatever", request);
         verify(auditTrail).accessGranted(User.SYSTEM, "internal:whatever", request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     @Test
@@ -74,6 +75,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:] is unauthorized for user [" + User.SYSTEM.principal() + "]"));
             verify(auditTrail).accessDenied(User.SYSTEM, "indices:", request);
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 
@@ -86,6 +88,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [cluster:admin/whatever] is unauthorized for user [" + User.SYSTEM.principal() + "]"));
             verify(auditTrail).accessDenied(User.SYSTEM, "cluster:admin/whatever", request);
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 
@@ -98,39 +101,42 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [cluster:admin/snapshot/status] is unauthorized for user [" + User.SYSTEM.principal() + "]"));
             verify(auditTrail).accessDenied(User.SYSTEM, "cluster:admin/snapshot/status", request);
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 
     @Test
     public void testNoRolesCausesDenial() {
         TransportRequest request = mock(TransportRequest.class);
-        User user = new User.Simple("test user");
+        User user = new User.Simple("test user", null);
         try {
             internalAuthorizationService.authorize(user, "indices:a", request);
             fail("user without roles should be denied");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, "indices:a", request);
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 
     @Test
     public void testUnknownRoleCausesDenial() {
         TransportRequest request = mock(TransportRequest.class);
-        User user = new User.Simple("test user", "non-existent-role");
+        User user = new User.Simple("test user", new String[] { "non-existent-role" });
         try {
             internalAuthorizationService.authorize(user, "indices:a", request);
             fail("user with unknown role only should have been denied");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, "indices:a", request);
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 
     @Test
     public void testThatNonIndicesAndNonClusterActionIsDenied() {
         TransportRequest request = mock(TransportRequest.class);
-        User user = new User.Simple("test user", "a_all");
+        User user = new User.Simple("test user", new String[] { "a_all" });
         when(rolesStore.role("a_all")).thenReturn(Permission.Global.Role.builder("a_role").add(Privilege.Index.ALL, "a").build());
 
         try {
@@ -139,14 +145,15 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [whatever] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, "whatever", request);
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 
     @Test
     public void testThatRoleWithNoIndicesIsDenied() {
         TransportRequest request = new IndicesExistsRequest("a");
-        User user = new User.Simple("test user", "no_indices");
-        when(rolesStore.role("no_indices")).thenReturn(Permission.Global.Role.builder("no_indices").set(Privilege.Cluster.action("")).build());
+        User user = new User.Simple("test user", new String[] { "no_indices" });
+        when(rolesStore.role("no_indices")).thenReturn(Permission.Global.Role.builder("no_indices").cluster(Privilege.Cluster.action("")).build());
 
         try {
             internalAuthorizationService.authorize(user, "indices:a", request);
@@ -154,12 +161,13 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, "indices:a", request);
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 
     @Test
     public void testScrollRelatedRequestsAllowed() {
-        User user = new User.Simple("test user", "a_all");
+        User user = new User.Simple("test user", new String[] { "a_all" });
         when(rolesStore.role("a_all")).thenReturn(Permission.Global.Role.builder("a_role").add(Privilege.Index.ALL, "a").build());
 
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
@@ -175,9 +183,6 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         internalAuthorizationService.authorize(user, SearchServiceTransportAction.CLEAR_SCROLL_CONTEXTS_ACTION_NAME, request);
         verify(auditTrail).accessGranted(user, SearchServiceTransportAction.CLEAR_SCROLL_CONTEXTS_ACTION_NAME, request);
 
-        internalAuthorizationService.authorize(user, SearchServiceTransportAction.SCAN_SCROLL_ACTION_NAME, request);
-        verify(auditTrail).accessGranted(user, SearchServiceTransportAction.SCAN_SCROLL_ACTION_NAME, request);
-
         internalAuthorizationService.authorize(user, SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME, request);
         verify(auditTrail).accessGranted(user, SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME, request);
 
@@ -189,13 +194,14 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
 
         internalAuthorizationService.authorize(user, SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME, request);
         verify(auditTrail).accessGranted(user, SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME, request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     @Test
     public void testAuthorizeIndicesFailures() {
         TransportRequest request = new IndicesExistsRequest("b");
         ClusterState state = mock(ClusterState.class);
-        User user = new User.Simple("test user", "a_all");
+        User user = new User.Simple("test user", new String[] { "a_all" });
         when(rolesStore.role("a_all")).thenReturn(Permission.Global.Role.builder("a_all").add(Privilege.Index.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
@@ -206,8 +212,9 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, "indices:a", request);
+            verifyNoMoreInteractions(auditTrail);
             verify(clusterService, times(2)).state();
-            verify(state, times(2)).metaData();
+            verify(state, times(3)).metaData();
         }
     }
 
@@ -216,7 +223,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         CreateIndexRequest request = new CreateIndexRequest("a");
         request.alias(new Alias("a2"));
         ClusterState state = mock(ClusterState.class);
-        User user = new User.Simple("test user", "a_all");
+        User user = new User.Simple("test user", new String[] { "a_all" });
         when(rolesStore.role("a_all")).thenReturn(Permission.Global.Role.builder("a_all").add(Privilege.Index.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
@@ -227,8 +234,9 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [" + IndicesAliasesAction.NAME + "] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, IndicesAliasesAction.NAME, request);
+            verifyNoMoreInteractions(auditTrail);
             verify(clusterService).state();
-            verify(state).metaData();
+            verify(state, times(2)).metaData();
         }
     }
 
@@ -237,7 +245,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         CreateIndexRequest request = new CreateIndexRequest("a");
         request.alias(new Alias("a2"));
         ClusterState state = mock(ClusterState.class);
-        User user = new User.Simple("test user", "a_all");
+        User user = new User.Simple("test user", new String[] { "a_all" });
         when(rolesStore.role("a_all")).thenReturn(Permission.Global.Role.builder("a_all").add(Privilege.Index.ALL, "a", "a2").build());
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
@@ -247,20 +255,20 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         verify(auditTrail).accessGranted(user, CreateIndexAction.NAME, request);
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService).state();
-        verify(state).metaData();
+        verify(state, times(2)).metaData();
     }
 
     @Test
     public void testIndicesAliasesWithNoRolesUser() {
-        User user = new User.Simple("test user");
+        User user = new User.Simple("test user", null);
 
-        ImmutableList<String> list = internalAuthorizationService.authorizedIndicesAndAliases(user, "");
+        List<String> list = internalAuthorizationService.authorizedIndicesAndAliases(user, "");
         assertThat(list.isEmpty(), is(true));
     }
 
     @Test
     public void testIndicesAliasesWithUserHavingRoles() {
-        User user = new User.Simple("test user", "a_star", "b");
+        User user = new User.Simple("test user", new String[] { "a_star", "b" });
         ClusterState state = mock(ClusterState.class);
         when(rolesStore.role("a_star")).thenReturn(Permission.Global.Role.builder("a_star").add(Privilege.Index.ALL, "a*").build());
         when(rolesStore.role("b")).thenReturn(Permission.Global.Role.builder("a_star").add(Privilege.Index.SEARCH, "b").build());
@@ -280,7 +288,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
                         .build(), true)
                 .build());
 
-        ImmutableList<String> list = internalAuthorizationService.authorizedIndicesAndAliases(user, SearchAction.NAME);
+        List<String> list = internalAuthorizationService.authorizedIndicesAndAliases(user, SearchAction.NAME);
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
         assertThat(list.contains("bbbbb"), is(false));
         assertThat(list.contains("ba"), is(false));
@@ -303,8 +311,9 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [" + anonymousService.anonymousUser().principal() + "]"));
             verify(auditTrail).accessDenied(anonymousService.anonymousUser(), "indices:a", request);
+            verifyNoMoreInteractions(auditTrail);
             verify(clusterService, times(2)).state();
-            verify(state, times(2)).metaData();
+            verify(state, times(3)).metaData();
         }
     }
 
@@ -328,8 +337,109 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertAuthenticationException(e, containsString("action [indices:a] requires authentication"));
             verify(auditTrail).accessDenied(anonymousService.anonymousUser(), "indices:a", request);
+            verifyNoMoreInteractions(auditTrail);
             verify(clusterService, times(2)).state();
-            verify(state, times(2)).metaData();
+            verify(state, times(3)).metaData();
         }
+    }
+
+    @Test
+    public void testRunAsRequestWithNoRolesUser() {
+        TransportRequest request = mock(TransportRequest.class);
+        User user = new User.Simple("test user", null, new User.Simple("run as me", new String[] { "admin" }));
+        assertThat(user.runAs(), is(notNullValue()));
+        try {
+            internalAuthorizationService.authorize(user, "indices:a", request);
+            fail("user without roles should be denied for run as");
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user] run as [run as me]"));
+            verify(auditTrail).runAsDenied(user, "indices:a", request);
+            verifyNoMoreInteractions(auditTrail);
+        }
+    }
+
+    @Test
+    public void testRunAsRequestRunningAsUnAllowedUser() {
+        TransportRequest request = mock(TransportRequest.class);
+        User user = new User.Simple("test user", new String[] { "can run as" }, new User.Simple("run as me", new String[] { "doesn't exist" }));
+        assertThat(user.runAs(), is(notNullValue()));
+        when(rolesStore.role("can run as")).thenReturn(Permission.Global.Role
+                .builder("can run as")
+                .runAs(new Privilege.General("", "not the right user"))
+                .add(Privilege.Index.ALL, "a")
+                .build());
+
+        try {
+            internalAuthorizationService.authorize(user, "indices:a", request);
+            fail("user without roles should be denied for run as");
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user] run as [run as me]"));
+            verify(auditTrail).runAsDenied(user, "indices:a", request);
+            verifyNoMoreInteractions(auditTrail);
+        }
+    }
+
+    @Test
+    public void testRunAsRequestWithRunAsUserWithoutPermission() {
+        TransportRequest request = new IndicesExistsRequest("a");
+        User user = new User.Simple("test user", new String[] { "can run as" }, new User.Simple("run as me", new String[] { "b" }));
+        assertThat(user.runAs(), is(notNullValue()));
+        when(rolesStore.role("can run as")).thenReturn(Permission.Global.Role
+                .builder("can run as")
+                .runAs(new Privilege.General("", "run as me"))
+                .add(Privilege.Index.ALL, "a")
+                .build());
+
+        if (randomBoolean()) {
+            ClusterState state = mock(ClusterState.class);
+            when(clusterService.state()).thenReturn(state);
+            when(state.metaData()).thenReturn(MetaData.builder()
+                    .put(new IndexMetaData.Builder("a")
+                            .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                            .numberOfShards(1).numberOfReplicas(0).build(), true)
+                    .build());
+            when(rolesStore.role("b")).thenReturn(Permission.Global.Role
+                    .builder("b")
+                    .add(Privilege.Index.ALL, "b")
+                    .build());
+        }
+
+        try {
+            internalAuthorizationService.authorize(user, "indices:a", request);
+            fail("the run as user's role doesn't exist so they should not get authorized");
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user] run as [run as me]"));
+            verify(auditTrail).runAsGranted(user, "indices:a", request);
+            verify(auditTrail).accessDenied(user, "indices:a", request);
+            verifyNoMoreInteractions(auditTrail);
+        }
+    }
+
+    @Test
+    public void testRunAsRequestWithValidPermissions() {
+        TransportRequest request = new IndicesExistsRequest("b");
+        User user = new User.Simple("test user", new String[] { "can run as" }, new User.Simple("run as me", new String[] { "b" }));
+        assertThat(user.runAs(), is(notNullValue()));
+        when(rolesStore.role("can run as")).thenReturn(Permission.Global.Role
+                .builder("can run as")
+                .runAs(new Privilege.General("", "run as me"))
+                .add(Privilege.Index.ALL, "a")
+                .build());
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+        when(state.metaData()).thenReturn(MetaData.builder()
+                .put(new IndexMetaData.Builder("b")
+                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .numberOfShards(1).numberOfReplicas(0).build(), true)
+                .build());
+        when(rolesStore.role("b")).thenReturn(Permission.Global.Role
+                .builder("b")
+                .add(Privilege.Index.ALL, "b")
+                .build());
+
+        internalAuthorizationService.authorize(user, "indices:a", request);
+        verify(auditTrail).runAsGranted(user, "indices:a", request);
+        verify(auditTrail).accessGranted(user, "indices:a", request);
+        verifyNoMoreInteractions(auditTrail);
     }
 }

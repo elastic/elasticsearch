@@ -11,7 +11,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.Test;
@@ -19,7 +19,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -39,7 +38,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class TransformIntegrationTests extends AbstractWatcherIntegrationTests {
+public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {

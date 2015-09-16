@@ -157,9 +157,10 @@ during its execution:
 
 image::images/action-throttling.jpg[align="center"]
 
-Watcher supports five action types: <<actions-email, Email>>,
+Watcher supports six action types: <<actions-email, Email>>,
 <<actions-webhook, Webhook>>, <<actions-index, Index>>,
-<<actions-logging, Logging>> and <<actions-hipchat, HipChat>>
+<<actions-logging, Logging>>, <<actions-hipchat, HipChat>>
+and <<actions-slack, Slack>>.
 
 include::actions/email.asciidoc[]
 
@@ -170,3 +171,5 @@ include::actions/index.asciidoc[]
 include::actions/logging.asciidoc[]
 
 include::actions/hipchat.asciidoc[]
+
+include::actions/slack.asciidoc[]

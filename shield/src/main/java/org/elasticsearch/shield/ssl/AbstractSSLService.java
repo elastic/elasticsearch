@@ -5,11 +5,7 @@
  */
 package org.elasticsearch.shield.ssl;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import com.google.common.primitives.Ints;
-import com.google.common.util.concurrent.UncheckedExecutionException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLogger;
@@ -24,11 +20,13 @@ import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This service houses the private key and trust managers needed for SSL/TLS negotiation.  It is the central place to
@@ -46,8 +44,9 @@ public abstract class AbstractSSLService extends AbstractComponent {
     static final int DEFAULT_SESSION_CACHE_SIZE = 1000;
     static final String DEFAULT_PROTOCOL = "TLSv1.2";
 
-    protected final Environment env;
-    protected final LoadingCache<SSLSettings, SSLContext> sslContexts = CacheBuilder.newBuilder().build(new SSLContextCacheLoader());
+    private final ConcurrentHashMap<SSLSettings, SSLContext> sslContexts = new ConcurrentHashMap<>();
+    private final SSLContextCacheLoader cacheLoader = new SSLContextCacheLoader();
+    protected Environment env;
 
     public AbstractSSLService(Settings settings, Environment environment) {
         super(settings);
@@ -90,16 +89,8 @@ public abstract class AbstractSSLService extends AbstractComponent {
 
     protected SSLContext sslContext(Settings settings) {
         SSLSettings sslSettings = sslSettings(settings);
-        try {
-            return sslContexts.getUnchecked(sslSettings);
-        } catch (UncheckedExecutionException e) {
-            // Unwrap ElasticsearchSSLException
-            if (e.getCause() instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e.getCause();
-            } else {
-                throw new ElasticsearchException("failed to load SSLContext", e);
-            }
-        }
+        return sslContexts.computeIfAbsent(sslSettings, (theSettings) ->
+            cacheLoader.load(theSettings));
     }
 
     /**
@@ -174,10 +165,13 @@ public abstract class AbstractSSLService extends AbstractComponent {
         return requestedCiphersList.toArray(new String[requestedCiphersList.size()]);
     }
 
-    private class SSLContextCacheLoader extends CacheLoader<SSLSettings, SSLContext> {
+    protected Path resolvePath(String location) {
+        return env.configFile().resolve(location);
+    }
 
-        @Override
-        public SSLContext load(SSLSettings sslSettings) throws Exception {
+    private class SSLContextCacheLoader  {
+
+        public SSLContext load(SSLSettings sslSettings) {
             if (logger.isDebugEnabled()) {
                 logger.debug("using keystore[{}], key_algorithm[{}], truststore[{}], truststore_algorithm[{}], tls_protocol[{}], session_cache_size[{}], session_cache_timeout[{}]",
                         sslSettings.keyStorePath, sslSettings.keyStoreAlgorithm, sslSettings.trustStorePath, sslSettings.trustStoreAlgorithm, sslSettings.sslProtocol, sslSettings.sessionCacheSize, sslSettings.sessionCacheTimeout);
@@ -238,7 +232,7 @@ public abstract class AbstractSSLService extends AbstractComponent {
         }
 
         private KeyStore readKeystore(String path, String password) throws Exception {
-            try (InputStream in = Files.newInputStream(env.binFile().getParent().resolve(path))) {
+            try (InputStream in = Files.newInputStream(resolvePath(path))) {
                 // Load TrustStore
                 KeyStore ks = KeyStore.getInstance("jks");
                 assert password != null;

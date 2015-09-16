@@ -332,8 +332,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, transport, logger);
             TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
-            String origins = LoggingAuditTrail.originAttributes(message, transport);;
-            auditTrail.accessGranted(new User.Simple("_username", "r1"), "_action", message);
+            String origins = LoggingAuditTrail.originAttributes(message, transport);
+            boolean runAs = randomBoolean();
+            User user;
+            if (runAs) {
+                user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+            } else {
+                user = new User.Simple("_username", new String[]{"r1"});
+            }
+            String userInfo = runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]";
+            auditTrail.accessGranted(user, "_action", message);
             switch (level) {
                 case ERROR:
                 case WARN:
@@ -341,17 +349,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     break;
                 case INFO:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[_action], indices=[idx1,idx2]");
+                        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo + ", action=[_action], indices=[idx1,idx2]");
                     } else {
-                        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[_action]");
+                        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo + ", action=[_action]");
                     }
                     break;
                 case DEBUG:
                 case TRACE:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo + ", action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
-                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[_action], request=[MockMessage]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo + ", action=[_action], request=[MockMessage]");
                     }
             }
         }
@@ -388,8 +396,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, transport, logger);
             TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
-            String origins = LoggingAuditTrail.originAttributes(message, transport);;
-            auditTrail.accessGranted(new User.Simple("_username"), "internal:_action", message);
+            String origins = LoggingAuditTrail.originAttributes(message, transport);
+            boolean runAs = randomBoolean();
+            User user;
+            if (runAs) {
+                user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+            } else {
+                user = new User.Simple("_username", new String[]{"r1"});
+            }
+            String userInfo = runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]";
+            auditTrail.accessGranted(user, "internal:_action", message);
             switch (level) {
                 case ERROR:
                 case WARN:
@@ -397,17 +413,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     break;
                 case INFO:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[internal:_action], indices=[idx1,idx2]");
+                        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo + ", action=[internal:_action], indices=[idx1,idx2]");
                     } else {
-                        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[internal:_action]");
+                        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo + ", action=[internal:_action]");
                     }
                     break;
                 case DEBUG:
                 case TRACE:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[internal:_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo + ", action=[internal:_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
-                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[internal:_action], request=[MockMessage]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo + ", action=[internal:_action], request=[MockMessage]");
                     }
             }
         }
@@ -419,24 +435,32 @@ public class LoggingAuditTrailTests extends ESTestCase {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, transport, logger);
             TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
-            String origins = LoggingAuditTrail.originAttributes(message, transport);;
-            auditTrail.accessDenied(new User.Simple("_username", "r1"), "_action", message);
+            String origins = LoggingAuditTrail.originAttributes(message, transport);
+            boolean runAs = randomBoolean();
+            User user;
+            if (runAs) {
+                user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+            } else {
+                user = new User.Simple("_username", new String[]{"r1"});
+            }
+            String userInfo = runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]";
+            auditTrail.accessDenied(user, "_action", message);
             switch (level) {
                 case ERROR:
                 case WARN:
                 case INFO:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.ERROR, prefix + "[transport] [access_denied]\t" + origins + ", principal=[_username], action=[_action], indices=[idx1,idx2]");
+                        assertMsg(logger, Level.ERROR, prefix + "[transport] [access_denied]\t" + origins + ", " + userInfo + ", action=[_action], indices=[idx1,idx2]");
                     } else {
-                        assertMsg(logger, Level.ERROR, prefix + "[transport] [access_denied]\t"  + origins + ", principal=[_username], action=[_action]");
+                        assertMsg(logger, Level.ERROR, prefix + "[transport] [access_denied]\t"  + origins + ", " + userInfo + ", action=[_action]");
                     }
                     break;
                 case DEBUG:
                 case TRACE:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_denied]\t" + origins + ", principal=[_username], action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_denied]\t" + origins + ", " + userInfo + ", action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
-                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_denied]\t" + origins + ", principal=[_username], action=[_action], request=[MockMessage]");
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_denied]\t" + origins + ", " + userInfo + ", action=[_action], request=[MockMessage]");
                     }
             }
         }
@@ -482,6 +506,54 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     assertMsg(logger, Level.TRACE, String.format(Locale.ROOT,
                             prefix + "[ip_filter] [connection_granted]\torigin_address=[%s], transport_profile=[default], rule=[allow default:accept_all]",
                             NetworkAddress.formatAddress(inetAddress)));
+            }
+        }
+    }
+
+    @Test
+    public void testRunAsGranted() throws Exception {
+        for (Level level : Level.values()) {
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, transport, logger);
+            TransportMessage message = new MockMessage();
+            String origins = LoggingAuditTrail.originAttributes(message, transport);
+            User user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+            auditTrail.runAsGranted(user, "_action", message);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                    assertEmptyLog(logger);
+                    break;
+                case INFO:
+                        assertMsg(logger, Level.INFO, prefix + "[transport] [run_as_granted]\t" + origins + ", principal=[_username], run_as_principal=[running as], action=[_action]");
+                    break;
+                case DEBUG:
+                case TRACE:
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [run_as_granted]\t" + origins + ", principal=[_username], run_as_principal=[running as], action=[_action], request=[MockMessage]");
+            }
+        }
+    }
+
+    @Test
+    public void testRunAsDenied() throws Exception {
+        for (Level level : Level.values()) {
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, transport, logger);
+            TransportMessage message = new MockMessage();
+            String origins = LoggingAuditTrail.originAttributes(message, transport);
+            User user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+            auditTrail.runAsDenied(user, "_action", message);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                    assertEmptyLog(logger);
+                    break;
+                case INFO:
+                    assertMsg(logger, Level.INFO, prefix + "[transport] [run_as_denied]\t" + origins + ", principal=[_username], run_as_principal=[running as], action=[_action]");
+                    break;
+                case DEBUG:
+                case TRACE:
+                    assertMsg(logger, Level.DEBUG, prefix + "[transport] [run_as_denied]\t" + origins + ", principal=[_username], run_as_principal=[running as], action=[_action], request=[MockMessage]");
             }
         }
     }

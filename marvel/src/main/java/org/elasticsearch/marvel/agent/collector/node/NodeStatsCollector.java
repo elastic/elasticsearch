@@ -6,7 +6,6 @@
 package org.elasticsearch.marvel.agent.collector.node;
 
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterService;
@@ -23,7 +22,10 @@ import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
 import org.elasticsearch.node.service.NodeService;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Collector for nodes statistics.
@@ -55,7 +57,7 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
 
     @Override
     protected Collection<MarvelDoc> doCollect() throws Exception {
-        ImmutableList.Builder<MarvelDoc> results = ImmutableList.builder();
+        List<MarvelDoc> results = new ArrayList<>(1);
 
         NodeStats nodeStats = nodeService.stats();
 
@@ -75,6 +77,6 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
                 discoveryService.localNode().id(), isLocalNodeMaster(), nodeStats,
                 BootstrapInfo.isMemoryLocked(), diskThresholdWatermarkHigh, diskThresholdDeciderEnabled));
 
-        return results.build();
+        return Collections.unmodifiableCollection(results);
     }
 }

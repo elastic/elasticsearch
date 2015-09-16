@@ -36,7 +36,7 @@ If you use Maven to manage dependencies, add the following to the `pom.xml`:
       <dependency>
          <groupId>org.elasticsearch.plugin</groupId>
          <artifactId>elasticsearch-watcher</artifactId>
-         <version>2.0.0</version>
+         <version>2.0.0-beta2</version>
       </dependency>
       ...
    </dependencies>
@@ -60,13 +60,13 @@ repositories {
 
 dependencies {
   // Provide the Watcher jar on the classpath for compilation and at runtime
-  compile "org.elasticsearch.plugin:elasticsearch-watcher:2.0.0"
+  compile "org.elasticsearch.plugin:elasticsearch-watcher:2.0.0-beta2"
 
   /* ... */
 }
 --------------------------------------------------------------
 
-You can manually download the http://maven.elasticsearch.org/releases/org/elasticsearch/plugin/elasticsearch-watcher/2.0.0/elasticsearch-watcher-2.0.0.jar[Watcher JAR]
+You can manually download the http://maven.elasticsearch.org/releases/org/elasticsearch/plugin/elasticsearch-watcher/{version}/elasticsearch-{version}.jar[Watcher JAR]
 directly from our Maven repository.
 
 ==== Creating the WatcherClient
@@ -92,6 +92,10 @@ include::java/delete-watch.asciidoc[]
 include::java/execute-watch.asciidoc[]
 
 include::java/ack-watch.asciidoc[]
+
+include::java/activate-watch.asciidoc[]
+
+include::java/deactivate-watch.asciidoc[]
 
 include::java/stats.asciidoc[]
 

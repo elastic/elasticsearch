@@ -62,13 +62,12 @@ public class SslHostnameVerificationTests extends ShieldIntegTestCase {
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, false)
                 .put("shield.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
                 .put("shield.ssl.truststore.password", "testnode-no-subjaltname")
-                .put("path.home", createTempDir())
                 .build();
     }
 
     @Test(expected = NoNodeAvailableException.class)
     public void testThatHostnameMismatchDeniesTransportClientConnection() throws Exception {
-        Transport transport = internalTestCluster().getDataNodeInstance(Transport.class);
+        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
         assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
         InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
@@ -77,7 +76,7 @@ public class SslHostnameVerificationTests extends ShieldIntegTestCase {
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, true)
                 .build();
 
-        try (TransportClient client = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
+        try (TransportClient client = TransportClient.builder().settings(settings).build()) {
             client.addTransportAddress(new InetSocketTransportAddress(inetSocketAddress.getAddress(), inetSocketAddress.getPort()));
             client.admin().cluster().prepareHealth().get();
             fail("Expected a NoNodeAvailableException due to hostname verification failures");
@@ -86,7 +85,7 @@ public class SslHostnameVerificationTests extends ShieldIntegTestCase {
 
     @Test
     public void testTransportClientConnectionIgnoringHostnameVerification() throws Exception {
-        Client client = internalTestCluster().transportClient();
+        Client client = internalCluster().transportClient();
         assertGreenClusterState(client);
     }
 }

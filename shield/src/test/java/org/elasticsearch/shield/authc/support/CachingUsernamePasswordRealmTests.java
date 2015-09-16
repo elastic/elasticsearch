@@ -43,7 +43,17 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config) {
             @Override
             protected User doAuthenticate(UsernamePasswordToken token) {
-                return new User.Simple("username", "r1", "r2", "r3");
+                return new User.Simple("username", new String[] { "r1", "r2", "r3" });
+            }
+
+            @Override
+            protected User doLookupUser(String username) {
+                throw new UnsupportedOperationException("this method should not be called");
+            }
+
+            @Override
+            public boolean userLookupSupported() {
+                return false;
             }
         };
 
@@ -51,19 +61,64 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     }
 
     @Test
-    public void testCache(){
+    public void testAuthCache() {
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(globalSettings);
         SecuredString pass = SecuredStringTests.build("pass");
         realm.authenticate(new UsernamePasswordToken("a", pass));
         realm.authenticate(new UsernamePasswordToken("b", pass));
         realm.authenticate(new UsernamePasswordToken("c", pass));
 
-        assertThat(realm.INVOCATION_COUNTER.intValue(), is(3));
+        assertThat(realm.authInvocationCounter.intValue(), is(3));
         realm.authenticate(new UsernamePasswordToken("a", pass));
         realm.authenticate(new UsernamePasswordToken("b", pass));
         realm.authenticate(new UsernamePasswordToken("c", pass));
 
-        assertThat(realm.INVOCATION_COUNTER.intValue(), is(3));
+        assertThat(realm.authInvocationCounter.intValue(), is(3));
+        assertThat(realm.lookupInvocationCounter.intValue(), is(0));
+    }
+
+    @Test
+    public void testLookupCache() {
+        AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(globalSettings);
+        realm.lookupUser("a");
+        realm.lookupUser("b");
+        realm.lookupUser("c");
+
+        assertThat(realm.lookupInvocationCounter.intValue(), is(3));
+        realm.lookupUser("a");
+        realm.lookupUser("b");
+        realm.lookupUser("c");
+
+        assertThat(realm.authInvocationCounter.intValue(), is(0));
+        assertThat(realm.lookupInvocationCounter.intValue(), is(3));
+    }
+
+    @Test
+    public void testLookupAndAuthCache() {
+        AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(globalSettings);
+        // lookup first
+        User lookedUp = realm.lookupUser("a");
+        assertThat(realm.lookupInvocationCounter.intValue(), is(1));
+        assertThat(realm.authInvocationCounter.intValue(), is(0));
+        assertThat(lookedUp.roles(), arrayContaining("lookupRole1", "lookupRole2"));
+
+        // now authenticate
+        User user = realm.authenticate(new UsernamePasswordToken("a", SecuredStringTests.build("pass")));
+        assertThat(realm.lookupInvocationCounter.intValue(), is(1));
+        assertThat(realm.authInvocationCounter.intValue(), is(1));
+        assertThat(user.roles(), arrayContaining("testRole1", "testRole2"));
+        assertThat(user, not(sameInstance(lookedUp)));
+
+        // authenticate a different user first
+        user = realm.authenticate(new UsernamePasswordToken("b", SecuredStringTests.build("pass")));
+        assertThat(realm.lookupInvocationCounter.intValue(), is(1));
+        assertThat(realm.authInvocationCounter.intValue(), is(2));
+        assertThat(user.roles(), arrayContaining("testRole1", "testRole2"));
+        //now lookup b
+        lookedUp = realm.lookupUser("b");
+        assertThat(realm.lookupInvocationCounter.intValue(), is(1));
+        assertThat(realm.authInvocationCounter.intValue(), is(2));
+        assertThat(user, sameInstance(lookedUp));
     }
 
     @Test
@@ -77,12 +132,12 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         realm.authenticate(new UsernamePasswordToken(user, pass1));
         realm.authenticate(new UsernamePasswordToken(user, pass1));
 
-        assertThat(realm.INVOCATION_COUNTER.intValue(), is(1));
+        assertThat(realm.authInvocationCounter.intValue(), is(1));
 
         realm.authenticate(new UsernamePasswordToken(user, pass2));
         realm.authenticate(new UsernamePasswordToken(user, pass2));
 
-        assertThat(realm.INVOCATION_COUNTER.intValue(), is(2));
+        assertThat(realm.authInvocationCounter.intValue(), is(2));
     }
 
     @Test
@@ -96,6 +151,32 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         assertThat(user , nullValue());
     }
 
+    @Test
+    public void testLookupContract() throws Exception {
+        Realm<UsernamePasswordToken> realm = new FailingAuthenticationRealm(Settings.EMPTY, globalSettings);
+        User user = realm.lookupUser("user");
+        assertThat(user , nullValue());
+
+        realm = new ThrowingAuthenticationRealm(Settings.EMPTY, globalSettings);
+        user = realm.lookupUser("user");
+        assertThat(user , nullValue());
+    }
+
+    @Test
+    public void testThatLookupIsNotCalledIfNotSupported() throws Exception {
+        LookupNotSupportedRealm realm = new LookupNotSupportedRealm(globalSettings);
+        assertThat(realm.userLookupSupported(), is(false));
+        User user = realm.lookupUser("a");
+        assertThat(user, is(nullValue()));
+        assertThat(realm.lookupInvocationCounter.intValue(), is(0));
+
+        // try to lookup more
+        realm.lookupUser("b");
+        realm.lookupUser("c");
+
+        assertThat(realm.lookupInvocationCounter.intValue(), is(0));
+    }
+
     static class FailingAuthenticationRealm extends CachingUsernamePasswordRealm {
 
         FailingAuthenticationRealm(Settings settings, Settings global) {
@@ -105,6 +186,16 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         @Override
         protected User doAuthenticate(UsernamePasswordToken token) {
             return null;
+        }
+
+        @Override
+        protected User doLookupUser(String username) {
+            return null;
+        }
+
+        @Override
+        public boolean userLookupSupported() {
+            return true;
         }
     }
 
@@ -119,11 +210,21 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             throw new RuntimeException("whatever exception");
         }
 
+        @Override
+        protected User doLookupUser(String username) {
+            throw new RuntimeException("lookup exception");
+        }
+
+        @Override
+        public boolean userLookupSupported() {
+            return true;
+        }
     }
 
     static class AlwaysAuthenticateCachingRealm extends CachingUsernamePasswordRealm {
 
-        public final AtomicInteger INVOCATION_COUNTER = new AtomicInteger(0);
+        public final AtomicInteger authInvocationCounter = new AtomicInteger(0);
+        public final AtomicInteger lookupInvocationCounter = new AtomicInteger(0);
 
         AlwaysAuthenticateCachingRealm(Settings globalSettings) {
             super("always", new RealmConfig("always-test", Settings.EMPTY, globalSettings));
@@ -131,8 +232,46 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
 
         @Override
         protected User doAuthenticate(UsernamePasswordToken token) {
-            INVOCATION_COUNTER.incrementAndGet();
-            return new User.Simple(token.principal(), "testRole1", "testRole2");
+            authInvocationCounter.incrementAndGet();
+            return new User.Simple(token.principal(), new String[] { "testRole1", "testRole2" });
+        }
+
+        @Override
+        protected User doLookupUser(String username) {
+            lookupInvocationCounter.incrementAndGet();
+            return new User.Simple(username, new String[] { "lookupRole1", "lookupRole2" });
+        }
+
+        @Override
+        public boolean userLookupSupported() {
+            return true;
+        }
+    }
+
+    static class LookupNotSupportedRealm extends CachingUsernamePasswordRealm {
+
+        public final AtomicInteger authInvocationCounter = new AtomicInteger(0);
+        public final AtomicInteger lookupInvocationCounter = new AtomicInteger(0);
+
+        LookupNotSupportedRealm(Settings globalSettings) {
+            super("lookup", new RealmConfig("lookup-notsupported-test", Settings.EMPTY, globalSettings));
+        }
+
+        @Override
+        protected User doAuthenticate(UsernamePasswordToken token) {
+            authInvocationCounter.incrementAndGet();
+            return new User.Simple(token.principal(), new String[] { "testRole1", "testRole2" });
+        }
+
+        @Override
+        protected User doLookupUser(String username) {
+            lookupInvocationCounter.incrementAndGet();
+            throw new UnsupportedOperationException("don't call lookup if lookup isn't supported!!!");
+        }
+
+        @Override
+        public boolean userLookupSupported() {
+            return false;
         }
     }
 }

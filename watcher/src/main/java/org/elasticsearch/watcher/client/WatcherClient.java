@@ -14,6 +14,10 @@ import org.elasticsearch.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchRequest;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchRequestBuilder;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchResponse;
+import org.elasticsearch.watcher.transport.actions.activate.ActivateWatchAction;
+import org.elasticsearch.watcher.transport.actions.activate.ActivateWatchRequest;
+import org.elasticsearch.watcher.transport.actions.activate.ActivateWatchRequestBuilder;
+import org.elasticsearch.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchAction;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchRequest;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchRequestBuilder;
@@ -217,7 +221,7 @@ public class WatcherClient {
     }
 
     /**
-     * Acks an watch
+     * Acks a watch
      *
      * @param request The ack request with the watch id to be acked
      * @return The AckWatchResponse
@@ -225,6 +229,37 @@ public class WatcherClient {
     public ActionFuture<AckWatchResponse> ackWatch(AckWatchRequest request) {
         return client.execute(AckWatchAction.INSTANCE, request);
     }
+
+    /**
+     * Creates a request builder to activate a watch by id
+     *
+     * @param id the id of the watch
+     * @param activate indicates whether to activate or deactivate the watch
+     * @return The request builder
+     */
+    public ActivateWatchRequestBuilder prepareActivateWatch(String id, boolean activate) {
+        return new ActivateWatchRequestBuilder(client, id, activate);
+    }
+
+    /**
+     * Activate a watch
+     *
+     * @param request The activate request with the watch id
+     * @param listener The listener for the activate watch response
+     */
+    public void activateWatch(ActivateWatchRequest request, ActionListener<ActivateWatchResponse> listener) {
+        client.execute(ActivateWatchAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * Activates a watch
+     *
+     * @param request The de/activate request with the watch id.
+     */
+    public ActionFuture<ActivateWatchResponse> activateWatch(ActivateWatchRequest request) {
+        return client.execute(ActivateWatchAction.INSTANCE, request);
+    }
+
 
     /**
      * Prepare a watch service request.

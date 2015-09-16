@@ -14,7 +14,7 @@
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>x-plugins</artifactId>
-        <version>2.1.0-SNAPSHOT</version>
+        <version>3.0.0-SNAPSHOT</version>
     </parent>
 
     <properties>
@@ -302,6 +302,7 @@
                                 <systemProperties>
                                     <!-- use external cluster -->
                                     <tests.cluster>127.0.0.1:${integ.transport.port}</tests.cluster>
+                                    <tests.rest.cluster>127.0.0.1:${integ.http.port}</tests.rest.cluster>
                                 </systemProperties>
                             </configuration>
                         </execution>
@@ -314,10 +315,14 @@
     <modules>
         <module>smoke-test-plugins</module>
         <!-- Disabled until 'openssl' is available on the Windows build machines
+        See: https://github.com/elastic/infra/issues/331
         <module>smoke-test-plugins-ssl</module>-->
         <module>shield-core-rest-tests</module>
         <module>smoke-test-watcher-with-shield</module>
         <module>shield-example-realm</module>
+        <module>shield-tribe-node-tests</module>
+        <module>shield-client-tests</module>
+        <module>shield-audit-tests</module>
     </modules>
 
     <profiles>

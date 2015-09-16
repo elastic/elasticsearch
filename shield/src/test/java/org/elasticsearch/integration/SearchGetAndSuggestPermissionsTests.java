@@ -78,7 +78,7 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
 
         refresh();
 
-        Client client = internalTestCluster().transportClient();
+        Client client = internalCluster().transportClient();
 
         SuggestResponse suggestResponse = client.prepareSuggest("a")
                 .putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("suggest_user", "passwd"))
@@ -116,7 +116,7 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
 
         refresh();
 
-        Client client = internalTestCluster().transportClient();
+        Client client = internalCluster().transportClient();
 
         try {
             client.prepareGet("a", "type", indexResponse.getId())
@@ -143,7 +143,7 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
 
         refresh();
 
-        Client client = internalTestCluster().transportClient();
+        Client client = internalCluster().transportClient();
 
         MultiGetResponse response = client.prepareMultiGet().add("a", "type", indexResponse.getId())
                 .putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("get_user", "passwd"))
@@ -177,7 +177,7 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
 
         refresh();
 
-        Client client = internalTestCluster().transportClient();
+        Client client = internalCluster().transportClient();
 
         MultiSearchResponse response = client.prepareMultiSearch().add(searchRequest("a").types("type"))
                 .putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("search_user", "passwd"))

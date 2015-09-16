@@ -13,9 +13,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.watcher.execution.ExecutionState;
-import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.After;
 import org.junit.Before;
@@ -38,7 +37,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the http host and path fields in the watch_record action result are
  * not analyzed so they can be used in aggregations
  */
-public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegrationTests {
+public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     private int webPort;
     private MockWebServer webServer;

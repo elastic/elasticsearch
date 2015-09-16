@@ -82,7 +82,7 @@ public class IntegrationAccount extends HipChatAccount {
         try {
             HttpResponse response = httpClient.execute(request);
             sentMessages.add(SentMessages.SentMessage.responded(room, SentMessages.SentMessage.TargetType.ROOM, message, request, response));
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.error("failed to execute hipchat api http request", e);
             sentMessages.add(SentMessages.SentMessage.error(room, SentMessages.SentMessage.TargetType.ROOM, message, ExceptionsHelper.detailedMessage(e)));
         }

@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.shield.authc.esusers.tool;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableSet;
 import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.CheckFileCommand;
@@ -14,6 +13,8 @@ import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
@@ -28,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
@@ -361,7 +363,7 @@ public class ESUsersTool extends CliTool {
             }
 
             // check for roles if they match
-            String[] allRoles = ObjectArrays.concat(addRoles, removeRoles, String.class);
+            String[] allRoles = ArrayUtils.concat(addRoles, removeRoles, String.class);
             for (String role : allRoles) {
                 if (!ROLE_PATTERN.matcher(role).matches()) {
                     terminal.println("Role name [%s] is not valid. Please use lowercase and numbers only", role);
@@ -381,7 +383,7 @@ public class ESUsersTool extends CliTool {
             Path file = FileUserRolesStore.resolveFile(esusersSettings, env);
             Map<String, String[]> userRoles = FileUserRolesStore.parseFile(file, null);
 
-            List<String> roles = Lists.newArrayList();
+            List<String> roles = new ArrayList<>();
             if (userRoles.get(username) != null) {
                 roles.addAll(Arrays.asList(userRoles.get(username)));
             }
@@ -389,12 +391,12 @@ public class ESUsersTool extends CliTool {
             roles.addAll(Arrays.asList(addRoles));
             roles.removeAll(Arrays.asList(removeRoles));
 
-            Map<String, String[]> userRolesToWrite = Maps.newHashMapWithExpectedSize(userRoles.size());
+            Map<String, String[]> userRolesToWrite = new HashMap<>(userRoles.size());
             userRolesToWrite.putAll(userRoles);
             if (roles.size() == 0) {
                 userRolesToWrite.remove(username);
             } else {
-                userRolesToWrite.put(username, Sets.newLinkedHashSet(roles).toArray(new String[]{}));
+                userRolesToWrite.put(username, new LinkedHashSet<>(roles).toArray(new String[]{}));
             }
             FileUserRolesStore.writeFile(userRolesToWrite, file);
 
@@ -445,7 +447,7 @@ public class ESUsersTool extends CliTool {
                     String[] roles = userRoles.get(username);
                     Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
                     String[] markedRoles = markUnknownRoles(roles, unknownRoles);
-                    terminal.println("%-15s: %s", username, Joiner.on(",").useForNull("-").join(markedRoles));
+                    terminal.println("%-15s: %s", username, Arrays.stream(markedRoles).map(s -> s == null ? "-" : s).collect(Collectors.joining(",")));
                     if (!unknownRoles.isEmpty()) {
                         // at least one role is marked... so printing the legend
                         Path rolesFile = FileRolesStore.resolveFile(esusersSettings, env).toAbsolutePath();
@@ -462,7 +464,7 @@ public class ESUsersTool extends CliTool {
                     String[] roles = entry.getValue();
                     Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
                     String[] markedRoles = markUnknownRoles(roles, unknownRoles);
-                    terminal.println("%-15s: %s", entry.getKey(), Joiner.on(",").join(markedRoles));
+                    terminal.println("%-15s: %s", entry.getKey(), String.join(",", markedRoles));
                     unknownRolesFound = unknownRolesFound || !unknownRoles.isEmpty();
                     usersExist = true;
                 }

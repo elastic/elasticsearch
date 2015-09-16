@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.activedirectory;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.Strings;
@@ -47,11 +46,10 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
             throw Exceptions.authenticationError("failed to fetch AD groups for DN [{}]", e, userDn);
         }
 
-        ImmutableList.Builder<String> groups = ImmutableList.builder();
+        List<String> groupList = new ArrayList<>();
         for (SearchResultEntry entry : results.getSearchEntries()) {
-            groups.add(entry.getDN());
+            groupList.add(entry.getDN());
         }
-        List<String> groupList = groups.build();
         if (logger.isDebugEnabled()) {
             logger.debug("found these groups [{}] for userDN [{}]", groupList, userDn);
         }

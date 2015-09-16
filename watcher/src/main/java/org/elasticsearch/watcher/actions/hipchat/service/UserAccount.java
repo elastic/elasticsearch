@@ -95,7 +95,7 @@ public class UserAccount extends HipChatAccount {
                 try {
                     HttpResponse response = httpClient.execute(request);
                     sentMessages.add(SentMessages.SentMessage.responded(user, SentMessages.SentMessage.TargetType.USER, message, request, response));
-                } catch (IOException e) {
+                } catch (Exception e) {
                     logger.error("failed to execute hipchat api http request", e);
                     sentMessages.add(SentMessages.SentMessage.error(user, SentMessages.SentMessage.TargetType.USER, message, ExceptionsHelper.detailedMessage(e)));
                 }

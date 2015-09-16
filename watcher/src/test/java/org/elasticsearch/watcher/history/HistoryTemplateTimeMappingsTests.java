@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.watcher.execution.ExecutionState;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.Test;
 
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * This test makes sure that the different time fields in the watch_record are mapped as date types
  */
-public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegrationTests {
+public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean timeWarped() {

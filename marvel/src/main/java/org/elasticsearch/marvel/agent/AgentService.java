@@ -13,7 +13,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.marvel.agent.collector.Collector;
-import org.elasticsearch.marvel.agent.collector.licenses.LicensesCollector;
+import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoCollector;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
@@ -58,7 +58,7 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
         for (Collector collector : collectors) {
             if (Regex.simpleMatch(filters, collector.name().toLowerCase(Locale.ROOT))) {
                 list.add(collector);
-            } else if (collector instanceof LicensesCollector) {
+            } else if (collector instanceof ClusterInfoCollector) {
                 list.add(collector);
             }
         }

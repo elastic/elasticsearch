@@ -47,6 +47,7 @@ The path is a "dot-notation" expression that can reference the following variabl
 TIP:  You can reference entries in arrays using their zero-based array indices. For example, to access the third
       element of the `ctx.payload.hits.hits` array, use `ctx.payload.hits.hits.2`.
 
+[[condition-compare-operators]]
 The comparison operator can be any one of the following:
 
 [options="header"]

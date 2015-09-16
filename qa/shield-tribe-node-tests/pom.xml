@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  ~ ELASTICSEARCH CONFIDENTIAL
+  ~ __________________
+  ~
+  ~  [2014] Elasticsearch Incorporated. All Rights Reserved.
+  ~
+  ~ NOTICE:  All information contained herein is, and remains
+  ~ the property of Elasticsearch Incorporated and its suppliers,
+  ~ if any.  The intellectual and technical concepts contained
+  ~ herein are proprietary to Elasticsearch Incorporated
+  ~ and its suppliers and may be covered by U.S. and Foreign Patents,
+  ~ patents in process, and are protected by trade secret or copyright law.
+  ~ Dissemination of this information or reproduction of this material
+  ~ is strictly forbidden unless prior written permission is obtained
+  ~ from Elasticsearch Incorporated.
+  -->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.elasticsearch.qa</groupId>
+    <artifactId>x-plugins-qa</artifactId>
+    <version>3.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>smoke-test-tribe-node-with-shield</artifactId>
+  <name>QA: Smoke Test tribe node with Shield</name>
+  <description>Start a tribe node and two nodes both with a different cluster name and verifies if all data accessable via the tribe node</description>
+
+  <properties>
+    <skip.unit.tests>true</skip.unit.tests>
+    <elasticsearch.integ.antfile>${project.basedir}/integration-tests.xml</elasticsearch.integ.antfile>
+    <tests.rest.load_packaged>false</tests.rest.load_packaged>
+    <xplugins.list>license,shield</xplugins.list>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.elasticsearch.plugin</groupId>
+      <artifactId>shield</artifactId>
+      <version>${elasticsearch.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.elasticsearch.plugin</groupId>
+      <artifactId>license</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <testResources>
+      <!-- REST API specifications copied from main Elasticsearch specs
+                 because they are required to execute the Watcher REST tests -->
+      <testResource>
+        <directory>${elasticsearch.tools.directory}/rest-api-spec</directory>
+        <targetPath>rest-api-spec</targetPath>
+        <includes>
+          <!-- required by the test framework -->
+          <include>api/info.json</include>
+          <include>api/cluster.health.json</include>
+          <include>api/cluster.state.json</include>
+          <!-- used by Watcher REST tests -->
+          <include>api/index.json</include>
+          <include>api/get.json</include>
+          <include>api/delete.json</include>
+          <include>api/delete-by-query.json</include>
+          <include>api/bulk.json</include>
+          <include>api/update.json</include>
+          <include>api/search.json</include>
+          <include>api/indices.delete.json</include>
+          <include>api/indices.refresh.json</include>
+        </includes>
+      </testResource>
+      <testResource>
+        <directory>${basedir}/rest-api-spec</directory>
+        <filtering>true</filtering>
+        <targetPath>rest-api-spec</targetPath>
+        <includes>
+          <include>api/*.json</include>
+          <include>test/**/*.yaml</include>
+        </includes>
+      </testResource>
+    </testResources>
+    <plugins>
+      <plugin>
+         <groupId>org.apache.maven.plugins</groupId>
+         <artifactId>maven-dependency-plugin</artifactId>
+         <executions>
+           <execution>
+             <id>integ-setup-dependencies</id>
+             <phase>pre-integration-test</phase>
+             <goals>
+               <goal>copy</goal>
+             </goals>
+             <configuration>
+               <skip>${skip.integ.tests}</skip>
+               <useBaseVersion>true</useBaseVersion>
+               <outputDirectory>${integ.deps}/plugins</outputDirectory>
+
+               <artifactItems>
+                 <!-- elasticsearch distribution -->
+                 <artifactItem>
+                   <groupId>org.elasticsearch.distribution.zip</groupId>
+                   <artifactId>elasticsearch</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                   <outputDirectory>${integ.deps}</outputDirectory>
+                 </artifactItem>
+
+                 <!-- commercial plugins -->
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>license</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>shield</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+               </artifactItems>
+             </configuration>
+           </execution>
+         </executions>
+      </plugin>
+      <!-- integration tests -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <!-- start up external cluster -->
+          <execution>
+            <id>integ-setup</id>
+            <phase>pre-integration-test</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <property name="test_classpath" refid="maven.test.classpath"/>
+                <ant antfile="${elasticsearch.integ.antfile}" target="start-tribe-node-and-2-clusters-with-shield">
+                  <property name="tests.jvm.argline" value="${tests.jvm.argline}"/>
+                  <property name="plugins.dir" value="${plugins.dir}"/>
+                  <property name="xplugins.list" value="${xplugins.list}"/>
+                </ant>
+              </target>
+              <skip>${skip.integ.tests}</skip>
+            </configuration>
+          </execution>
+          <!-- shut down external cluster -->
+          <execution>
+            <id>integ-teardown</id>
+            <phase>post-integration-test</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <property name="test_classpath" refid="maven.test.classpath"/>
+                <ant antfile="${elasticsearch.integ.antfile}" target="stop-tribe-node-and-all-clusters"/>
+              </target>
+              <skip>${skip.integ.tests}</skip>
+            </configuration>
+          </execution>
+        </executions>
+        <dependencies>
+          <dependency>
+            <groupId>ant-contrib</groupId>
+            <artifactId>ant-contrib</artifactId>
+            <version>1.0b3</version>
+            <exclusions>
+              <exclusion>
+                <groupId>ant</groupId>
+                <artifactId>ant</artifactId>
+              </exclusion>
+            </exclusions>
+          </dependency>
+          <dependency>
+            <groupId>org.apache.ant</groupId>
+            <artifactId>ant-nodeps</artifactId>
+            <version>1.8.1</version>
+          </dependency>
+        </dependencies>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

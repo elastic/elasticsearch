@@ -37,7 +37,7 @@ To load search results into the watch payload, you use the `search` input. In ad
 match queries like the one shown in the <<watch-log-data, Getting Started>> guide, you can use the
 full Elasticsearch query language. 
 
-A <<input-search, simple>> input contains a `request` object that specifies the indices you want to
+A <<input-search, search>> input contains a `request` object that specifies the indices you want to
 search, the {ref}/search-request-search-type.html[search type], and the search request body. The
 `body` field of a search input is the same as the body of an Elasticsearch `_search` request.
 

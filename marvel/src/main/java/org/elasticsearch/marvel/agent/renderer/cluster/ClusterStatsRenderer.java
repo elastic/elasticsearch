@@ -18,6 +18,7 @@ public class ClusterStatsRenderer extends AbstractRenderer<ClusterStatsMarvelDoc
 
     public static final String[] FILTERS = {
             "cluster_stats.nodes.count.total",
+            "cluster_stats.indices.count",
             "cluster_stats.indices.shards.total",
             "cluster_stats.indices.shards.index.replication.min",
             "cluster_stats.indices.docs.count",

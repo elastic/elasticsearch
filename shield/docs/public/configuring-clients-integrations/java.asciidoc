@@ -15,7 +15,7 @@ To use the transport client with Shield, you need to:
 `transport_client` role is defined in `roles.yml` that grants the `cluster:monitor/nodes/info` cluster permission. The transport client uses the node info API to fetch information about the nodes in the cluster. If the client is configured to use sniffing, you need to add the
 `cluster:monitor/state` cluster permission to the `transport_client` role.
 
-. Add the Shield JAR file (`shield-2.1.0.jar`) to your CLASSPATH. You can download the Shield distribution and extract the JAR file manually or you can get it from the http://maven.elasticsearch.org/releases/org/elasticsearch/plugin/shield/{version}/shield-{version}.jar[Elasticsearch Maven repository].
+. Add the Shield JAR file (`shield-2.1.0.jar`) to your CLASSPATH. You can download the Shield distribution and extract the JAR file manually or you can get it from the https://maven.elasticsearch.org/releases/org/elasticsearch/plugin/shield/{version}/shield-{version}.jar[Elasticsearch Maven repository].
 +
 If you are using Maven, you need to add the Shield JAR file as a dependency in your project's `pom.xml` file:
 +
@@ -27,7 +27,7 @@ If you are using Maven, you need to add the Shield JAR file as a dependency in y
       <!-- add the elasticsearch repo -->
       <repository>
          <id>elasticsearch-releases</id>
-         <url>http://maven.elasticsearch.org/releases</url>
+         <url>https://maven.elasticsearch.org/releases</url>
          <releases>
             <enabled>true</enabled>
          </releases>
@@ -62,7 +62,7 @@ repositories {
 
   // Add the Elasticsearch Maven Repository
   maven {
-    url "http://maven.elasticsearch.org/releases"
+    url "https://maven.elasticsearch.org/releases"
   }
 }
 
@@ -80,14 +80,14 @@ dependencies {
 [source,java]
 -------------------------------------------------------------------------------------------------
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.shield.ShieldPlugin
 ...
 
 TransportClient client = TransportClient.builder()
+    .addPlugin(ShieldPlugin.class)
     .settings(Settings.builder()
         .put("cluster.name", "myClusterName")
         .put("shield.user", "transport_client_user:changeme")
-        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
-        .put("path.home", "/path/to/client/home")
         ...
         .build())
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
@@ -106,16 +106,16 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.ShieldPlugin
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 ...
 
 TransportClient client = TransportClient.builder()
+    .addPlugin(ShieldPlugin.class)
     .settings(Settings.builder()
         .put("cluster.name", "myClusterName")
         .put("shield.user", "transport_client_user:changeme")
-        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
-        .put("path.home", "/path/to/client/home")
         ...
         .build())
     .build()
@@ -137,16 +137,16 @@ NOTE: Client authentication is enabled by default. For information about disabli
 [source,java]
 --------------------------------------------------------------------------------------------------
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.shield.ShieldPlugin
 ...
 
 TransportClient client = TransportClient.builder()
+    .addPlugin(ShieldPlugin.class)
     .settings(Settings.builder()
         .put("cluster.name", "myClusterName")
-        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
         .put("shield.user", "transport_client_user:changeme")
         .put("shield.ssl.keystore.path", "/path/to/client.jks") (1)
         .put("shield.ssl.keystore.password", "password")
-        .put("path.home", "/path/to/client/home")
         ...
         .build());
 --------------------------------------------------------------------------------------------------
@@ -158,17 +158,17 @@ TransportClient client = TransportClient.builder()
 [source,java]
 --------------------------------------------------------------------------------------------------
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.shield.ShieldPlugin
 ...
 
 TransportClient client = TransportClient.builder()
+    .addPlugin(ShieldPlugin.class)
     .settings(Settings.builder()
         .put("cluster.name", "myClusterName")
         .put("shield.user", "transport_client_user:changeme")
         .put("shield.ssl.keystore.path", "/path/to/client.jks") (1)
         .put("shield.ssl.keystore.password", "password")
         .put("shield.transport.ssl", "true")
-        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
-        .put("path.home", "/path/to/client/home")
         ...
         .build())
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
@@ -186,17 +186,17 @@ If you are not using client authentication and sign the Elasticsearch node certi
 [source,java]
 ------------------------------------------------------------------------------------------------------
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.shield.ShieldPlugin
 ...
 
 TransportClient client = TransportClient.builder()
+    .addPlugin(ShieldPlugin.class)
     .settings(Settings.builder()
         .put("cluster.name", "myClusterName")
         .put("shield.user", "test_user:changeme")
         .put("shield.ssl.truststore.path", "/path/to/truststore.jks") (1)
         .put("shield.ssl.truststore.password", "password")
         .put("shield.transport.ssl", "true")
-        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
-        .put("path.home", "/path/to/client/home")
         ...
         .build())
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))

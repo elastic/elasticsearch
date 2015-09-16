@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.audit.index;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -13,6 +12,7 @@ import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +22,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -34,6 +35,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
@@ -51,7 +53,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.*;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.DAILY;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.HOURLY;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.MONTHLY;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.WEEKLY;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.hamcrest.Matchers.contains;
@@ -59,7 +64,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  *
@@ -78,6 +87,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     private Client remoteClient;
     private int numShards;
     private int numReplicas;
+    private ThreadPool threadPool;
 
     private Settings commonSettings(IndexNameResolver.Rollover rollover) {
         return Settings.builder()
@@ -143,14 +153,19 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             logger.info("--> remote indexing enabled. shield enabled: [{}], SSL enabled: [{}]", useShield, useSSL);
             ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.SUITE) {
                     @Override
-                    public Settings node(int nodeOrdinal) {
-                        return Settings.builder()
-                                .put(super.node(nodeOrdinal))
-                                .put(ShieldPlugin.ENABLED_SETTING_NAME, useShield)
-                                .build();
+                    public Settings nodeSettings(int nodeOrdinal) {
+                        Settings.Builder builder = Settings.builder()
+                                .put(super.nodeSettings(nodeOrdinal))
+                                .put(ShieldPlugin.ENABLED_SETTING_NAME, useShield);
+                        // For tests we forcefully configure Shield's custom query cache because the test framework randomizes the query cache impl,
+                        // but if shield is disabled then we don't need to forcefully set the query cache
+                        if (useShield == false) {
+                            builder.remove(IndexCacheModule.QUERY_CACHE_TYPE);
+                        }
+                        return builder.build();
                     }
             };
-            cluster2 = new InternalTestCluster("network", randomLong(), createTempDir(), numNodes, numNodes, cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX);
+            cluster2 = new InternalTestCluster("network", randomLong(), createTempDir(), numNodes, numNodes, cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, true);
             cluster2.beforeTest(getRandom(), 0.5);
             remoteClient = cluster2.client();
 
@@ -182,12 +197,16 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(DummyTransportAddress.INSTANCE, DummyTransportAddress.INSTANCE));
 
         Environment env = new Environment(settings);
-        auditor = new IndexAuditTrail(settings, user, env, authService, transport, Providers.of(client()));
+        threadPool = new ThreadPool("index audit trail tests");
+        auditor = new IndexAuditTrail(settings, user, env, authService, transport, Providers.of(client()), threadPool, mock(ClusterService.class));
         auditor.start(true);
     }
 
     @After
     public void afterTest() {
+        if (threadPool != null) {
+            threadPool.shutdown();
+        }
         if (auditor != null) {
             auditor.close();
         }
@@ -221,8 +240,9 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals("transport", hit.field("origin_type").getValue());
         if (message instanceof IndicesRequest) {
             List<Object> indices = hit.field("indices").getValues();
-            assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
+            assertThat(indices, contains((Object[]) ((IndicesRequest) message).indices()));
         }
+        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
     }
 
     @Test(expected = IndexNotFoundException.class)
@@ -279,6 +299,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals("_principal", hit.field("principal").getValue());
         assertEquals("_action", hit.field("action").getValue());
         assertEquals("transport", hit.field("origin_type").getValue());
+        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
     }
 
     @Test
@@ -303,8 +324,9 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals("transport", hit.field("origin_type").getValue());
         if (message instanceof IndicesRequest) {
             List<Object> indices = hit.field("indices").getValues();
-            assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
+            assertThat(indices, contains((Object[]) ((IndicesRequest) message).indices()));
         }
+        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
     }
 
     @Test(expected = IndexNotFoundException.class)
@@ -400,6 +422,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             List<Object> indices = hit.field("indices").getValues();
             assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
         }
+        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
     }
 
     @Test(expected = IndexNotFoundException.class)
@@ -441,25 +464,38 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.accessGranted(new User.Simple("_username", "r1"), "_action", message);
+        final boolean runAs = randomBoolean();
+        User user;
+        if (runAs) {
+            user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+        } else {
+            user = new User.Simple("_username", new String[]{"r1"});
+        }
+        auditor.accessGranted(user, "_action", message);
         awaitIndexCreation(resolveIndexName());
 
         SearchHit hit = getIndexedAuditMessage();
         assertAuditMessage(hit, "transport", "access_granted");
         assertEquals("transport", hit.field("origin_type").getValue());
-        assertEquals("_username", hit.field("principal").getValue());
+        if (runAs) {
+            assertThat((String) hit.field("principal").getValue(), is("running as"));
+            assertThat((String) hit.field("run_by_principal").getValue(), is("_username"));
+        } else {
+            assertEquals("_username", hit.field("principal").getValue());
+        }
         assertEquals("_action", hit.field("action").getValue());
         if (message instanceof IndicesRequest) {
             List<Object> indices = hit.field("indices").getValues();
             assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
         }
+        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
     }
 
     @Test(expected = IndexNotFoundException.class)
     public void testAccessGranted_Muted() throws Exception {
         initialize("access_granted");
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.accessGranted(new User.Simple("_username", "r1"), "_action", message);
+        auditor.accessGranted(new User.Simple("_username", new String[]{"r1"}), "_action", message);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
 
@@ -475,6 +511,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals("transport", hit.field("origin_type").getValue());
         assertEquals(User.SYSTEM.principal(), hit.field("principal").getValue());
         assertEquals("internal:_action", hit.field("action").getValue());
+        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
     }
 
     @Test(expected = IndexNotFoundException.class)
@@ -491,25 +528,38 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.accessDenied(new User.Simple("_username", "r1"), "_action", message);
+        final boolean runAs = randomBoolean();
+        User user;
+        if (runAs) {
+            user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+        } else {
+            user = new User.Simple("_username", new String[]{"r1"});
+        }
+        auditor.accessDenied(user, "_action", message);
         awaitIndexCreation(resolveIndexName());
 
         SearchHit hit = getIndexedAuditMessage();
         assertAuditMessage(hit, "transport", "access_denied");
         assertEquals("transport", hit.field("origin_type").getValue());
-        assertEquals("_username", hit.field("principal").getValue());
+        if (runAs) {
+            assertThat((String) hit.field("principal").getValue(), is("running as"));
+            assertThat((String) hit.field("run_by_principal").getValue(), is("_username"));
+        } else {
+            assertEquals("_username", hit.field("principal").getValue());
+        }
         assertEquals("_action", hit.field("action").getValue());
         if (message instanceof IndicesRequest) {
             List<Object> indices = hit.field("indices").getValues();
             assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
         }
+        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
     }
 
     @Test(expected = IndexNotFoundException.class)
     public void testAccessDenied_Muted() throws Exception {
         initialize("access_denied");
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.accessDenied(new User.Simple("_username", "r1"), "_action", message);
+        auditor.accessDenied(new User.Simple("_username", new String[]{"r1"}), "_action", message);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
 
@@ -518,22 +568,35 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
         initialize();
         TransportRequest message = new RemoteHostMockTransportRequest();
-        auditor.tamperedRequest(new User.Simple("_username", "r1"), "_action", message);
+        final boolean runAs = randomBoolean();
+        User user;
+        if (runAs) {
+            user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+        } else {
+            user = new User.Simple("_username", new String[]{"r1"});
+        }
+        auditor.tamperedRequest(user, "_action", message);
         awaitIndexCreation(resolveIndexName());
 
         SearchHit hit = getIndexedAuditMessage();
 
         assertAuditMessage(hit, "transport", "tampered_request");
         assertEquals("transport", hit.field("origin_type").getValue());
-        assertEquals("_username", hit.field("principal").getValue());
+        if (runAs) {
+            assertThat((String) hit.field("principal").getValue(), is("running as"));
+            assertThat((String) hit.field("run_by_principal").getValue(), is("_username"));
+        } else {
+            assertEquals("_username", hit.field("principal").getValue());
+        }
         assertEquals("_action", hit.field("action").getValue());
+        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
     }
 
     @Test(expected = IndexNotFoundException.class)
     public void testTamperedRequest_Muted() throws Exception {
         initialize("tampered_request");
         TransportRequest message = new RemoteHostMockTransportRequest();
-        auditor.tamperedRequest(new User.Simple("_username", "r1"), "_action", message);
+        auditor.tamperedRequest(new User.Simple("_username", new String[]{"r1"}), "_action", message);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
 
@@ -584,6 +647,56 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         InetAddress inetAddress = InetAddress.getLoopbackAddress();
         ShieldIpFilterRule rule = new ShieldIpFilterRule(false, "_all");
         auditor.connectionDenied(inetAddress, "default", rule);
+        getClient().prepareExists(resolveIndexName()).execute().actionGet();
+    }
+
+    @Test
+    public void testRunAsGranted() throws Exception {
+        initialize();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
+        User user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+        auditor.runAsGranted(user, "_action", message);
+        awaitIndexCreation(resolveIndexName());
+
+        SearchHit hit = getIndexedAuditMessage();
+        assertAuditMessage(hit, "transport", "run_as_granted");
+        assertEquals("transport", hit.field("origin_type").getValue());
+        assertThat((String) hit.field("principal").getValue(), is("_username"));
+        assertThat((String) hit.field("run_as_principal").getValue(), is("running as"));
+        assertEquals("_action", hit.field("action").getValue());
+        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+    }
+
+    @Test(expected = IndexNotFoundException.class)
+    public void testRunAsGranted_Muted() throws Exception {
+        initialize("run_as_granted");
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
+        auditor.runAsGranted(new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[]{"r2"})), "_action", message);
+        getClient().prepareExists(resolveIndexName()).execute().actionGet();
+    }
+
+    @Test
+    public void testRunAsDenied() throws Exception {
+        initialize();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
+        User user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+        auditor.runAsDenied(user, "_action", message);
+        awaitIndexCreation(resolveIndexName());
+
+        SearchHit hit = getIndexedAuditMessage();
+        assertAuditMessage(hit, "transport", "run_as_denied");
+        assertEquals("transport", hit.field("origin_type").getValue());
+        assertThat((String) hit.field("principal").getValue(), is("_username"));
+        assertThat((String) hit.field("run_as_principal").getValue(), is("running as"));
+        assertEquals("_action", hit.field("action").getValue());
+        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+    }
+
+    @Test(expected = IndexNotFoundException.class)
+    public void testRunAsDenied_Muted() throws Exception {
+        initialize("run_as_denied");
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
+        auditor.runAsDenied(new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[]{"r2"})), "_action", message);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
 
@@ -679,6 +792,8 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
                 "origin_address",
                 "origin_type",
                 "principal",
+                "run_by_principal",
+                "run_as_principal",
                 "action",
                 "indices",
                 "request",
@@ -691,16 +806,13 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     }
 
     private void awaitIndexCreation(final String indexName) throws InterruptedException {
-        boolean found = awaitBusy(new Predicate<Void>() {
-            @Override
-            public boolean apply(Void o) {
-                try {
-                    ExistsResponse response =
-                            getClient().prepareExists(indexName).execute().actionGet();
-                    return response.exists();
-                } catch (Exception e) {
-                    return false;
-                }
+        boolean found = awaitBusy(() -> {
+            try {
+                ExistsResponse response =
+                        getClient().prepareExists(indexName).execute().actionGet();
+                return response.exists();
+            } catch (Exception e) {
+                return false;
             }
         });
         assertThat("[" + indexName + "] does not exist!", found, is(true));

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -27,6 +26,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -68,7 +68,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         realms = new Realms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(), mock(ShieldSettingsFilter.class)) {
             @Override
             protected List<Realm> initRealms() {
-                return ImmutableList.of(firstRealm, secondRealm);
+                return Arrays.asList(firstRealm, secondRealm);
             }
         };
         realms.start();
@@ -113,7 +113,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     @Test @SuppressWarnings("unchecked")
     public void testAuthenticate_BothSupport_SecondSucceeds() throws Exception {
-        User user = new User.Simple("_username", "r1");
+        User user = new User.Simple("_username", new String[] { "r1" });
         when(firstRealm.supports(token)).thenReturn(true);
         when(firstRealm.authenticate(token)).thenReturn(null); // first fails
         when(secondRealm.supports(token)).thenReturn(true);
@@ -135,7 +135,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     @Test @SuppressWarnings("unchecked")
     public void testAuthenticate_FirstNotSupporting_SecondSucceeds() throws Exception {
-        User user = new User.Simple("_username", "r1");
+        User user = new User.Simple("_username", new String[] { "r1" });
         when(firstRealm.supports(token)).thenReturn(false);
         when(secondRealm.supports(token)).thenReturn(true);
         when(secondRealm.authenticate(token)).thenReturn(user);
@@ -157,7 +157,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     @Test @SuppressWarnings("unchecked")
     public void testAuthenticate_Cached() throws Exception {
-        User user = new User.Simple("_username", "r1");
+        User user = new User.Simple("_username", new String[] { "r1" });
         message.putInContext(InternalAuthenticationService.USER_KEY, user);
         User result = service.authenticate("_action", message, null);
         assertThat(result, notNullValue());
@@ -201,7 +201,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     @Test
     public void testEncodeDecodeUser() throws Exception {
-        User user = new User.Simple("username", "r1", "r2", "r3");
+        User user = new User.Simple("username", new String[] { "r1", "r2", "r3" });
         String text = InternalAuthenticationService.encodeUser(user, null);
         User user2 = InternalAuthenticationService.decodeUser(text);
         assertThat(user, equalTo(user2));
@@ -213,7 +213,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     @Test
     public void testUserHeader() throws Exception {
-        User user = new User.Simple("_username", "r1");
+        User user = new User.Simple("_username", new String[] { "r1" });
         when(firstRealm.token(message)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         when(firstRealm.authenticate(token)).thenReturn(user);
@@ -260,7 +260,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
     public void testAuthenticate_Transport_Fallback() throws Exception {
         when(firstRealm.token(message)).thenReturn(null);
         when(secondRealm.token(message)).thenReturn(null);
-        User.Simple user1 = new User.Simple("username", "r1", "r2");
+        User.Simple user1 = new User.Simple("username", new String[] { "r1", "r2" });
         when(cryptoService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
         User user2 = service.authenticate("_action", message, user1);
         assertThat(user1, sameInstance(user2));
@@ -270,7 +270,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     @Test
     public void testAuthenticate_Transport_Success_NoFallback() throws Exception {
-        User.Simple user1 = new User.Simple("username", "r1", "r2");
+        User.Simple user1 = new User.Simple("username", new String[] { "r1", "r2" });
         when(firstRealm.token(message)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         when(firstRealm.authenticate(token)).thenReturn(user1);
@@ -283,7 +283,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     @Test
     public void testAuthenticate_Transport_Success_WithFallback() throws Exception {
-        User.Simple user1 = new User.Simple("username", "r1", "r2");
+        User.Simple user1 = new User.Simple("username", new String[] { "r1", "r2" });
         when(firstRealm.token(message)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         when(firstRealm.authenticate(token)).thenReturn(user1);
@@ -296,7 +296,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     @Test
     public void testAuthenticate_Rest_Success() throws Exception {
-        User.Simple user1 = new User.Simple("username", "r1", "r2");
+        User.Simple user1 = new User.Simple("username", new String[] { "r1", "r2" });
         when(firstRealm.token(restRequest)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         when(firstRealm.authenticate(token)).thenReturn(user1);
@@ -307,7 +307,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     @Test
     public void testAutheticate_Transport_ContextAndHeader() throws Exception {
-        User user1 = new User.Simple("username", "r1", "r2");
+        User user1 = new User.Simple("username", new String[] { "r1", "r2" });
         when(firstRealm.token(message)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         when(firstRealm.authenticate(token)).thenReturn(user1);
@@ -345,7 +345,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(InternalAuthenticationService.SETTING_SIGN_USER_HEADER, false).build();
         service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, anonymousService, new DefaultAuthenticationFailureHandler());
 
-        User user1 = new User.Simple("username", "r1", "r2");
+        User user1 = new User.Simple("username", new String[] { "r1", "r2" });
         when(firstRealm.supports(token)).thenReturn(true);
         when(firstRealm.token(message)).thenReturn(token);
         when(firstRealm.authenticate(token)).thenReturn(user1);
@@ -380,7 +380,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     @Test
     public void testAttachIfMissing_Missing() throws Exception {
-        User user = new User.Simple("username", "r1", "r2");
+        User user = new User.Simple("username", new String[] { "r1", "r2" });
         assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), nullValue());
         assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), nullValue());
         when(cryptoService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_signed_user");
@@ -400,10 +400,10 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     @Test
     public void testAttachIfMissing_Exists() throws Exception {
-        User user = new User.Simple("username", "r1", "r2");
+        User user = new User.Simple("username", new String[] { "r1", "r2" });
         message.putInContext(InternalAuthenticationService.USER_KEY, user);
         message.putHeader(InternalAuthenticationService.USER_KEY, "_signed_user");
-        service.attachUserHeaderIfMissing(message, new User.Simple("username2", "r3", "r4"));
+        service.attachUserHeaderIfMissing(message, new User.Simple("username2", new String[] { "r3", "r4" }));
         assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user));
         assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_signed_user"));
     }
@@ -538,6 +538,165 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("realm doesn't like authenticate"));
             verify(auditTrail).authenticationFailed(token, restRequest);
+        }
+    }
+
+    @Test
+    public void testRealmLookupThrowingException() throws Exception {
+        AuthenticationToken token = mock(AuthenticationToken.class);
+        message.putHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, "run_as");
+        when(secondRealm.token(message)).thenReturn(token);
+        when(secondRealm.supports(token)).thenReturn(true);
+        when(secondRealm.authenticate(token)).thenReturn(new User.Simple("lookup user", new String[]{"user"}));
+        when(secondRealm.lookupUser("run_as")).thenThrow(authenticationError("realm doesn't want to lookup"));
+        when(secondRealm.userLookupSupported()).thenReturn(true);
+
+        try {
+            service.authenticate("_action", message, null);
+            fail("exception should bubble out");
+        } catch (ElasticsearchException e) {
+            assertThat(e.getMessage(), is("realm doesn't want to lookup"));
+            verify(auditTrail).authenticationFailed(token, "_action", message);
+        }
+    }
+
+    @Test
+    public void testRealmLookupThrowingException_Rest() throws Exception {
+        AuthenticationToken token = mock(AuthenticationToken.class);
+        restRequest = new FakeRestRequest(Collections.singletonMap(InternalAuthenticationService.RUN_AS_USER_HEADER, "run_as"), Collections.<String, String>emptyMap());
+        when(secondRealm.token(restRequest)).thenReturn(token);
+        when(secondRealm.supports(token)).thenReturn(true);
+        when(secondRealm.authenticate(token)).thenReturn(new User.Simple("lookup user", new String[]{"user"}));
+        when(secondRealm.lookupUser("run_as")).thenThrow(authenticationError("realm doesn't want to lookup"));
+        when(secondRealm.userLookupSupported()).thenReturn(true);
+
+        try {
+            service.authenticate(restRequest);
+            fail("exception should bubble out");
+        } catch (ElasticsearchException e) {
+            assertThat(e.getMessage(), is("realm doesn't want to lookup"));
+            verify(auditTrail).authenticationFailed(token, restRequest);
+        }
+    }
+
+    @Test
+    public void testRunAsLookupSameRealm() throws Exception {
+        AuthenticationToken token = mock(AuthenticationToken.class);
+        message.putHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, "run_as");
+        when(secondRealm.token(message)).thenReturn(token);
+        when(secondRealm.supports(token)).thenReturn(true);
+        when(secondRealm.authenticate(token)).thenReturn(new User.Simple("lookup user", new String[]{"user"}));
+        when(secondRealm.lookupUser("run_as")).thenReturn(new User.Simple("looked up user", new String[]{"some role"}));
+        when(secondRealm.userLookupSupported()).thenReturn(true);
+
+        User authenticated = service.authenticate("_action", message, null);
+
+        assertThat(authenticated.isSystem(), is(false));
+        assertThat(authenticated.runAs(), is(notNullValue()));
+        assertThat(authenticated.principal(), is("lookup user"));
+        assertThat(authenticated.roles(), arrayContaining("user"));
+        assertThat(authenticated.runAs().principal(), is("looked up user"));
+        assertThat(authenticated.runAs().roles(), arrayContaining("some role"));
+        assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), sameInstance((Object) authenticated));
+    }
+
+    @Test
+    public void testRunAsLookupSameRealm_Rest() throws Exception {
+        AuthenticationToken token = mock(AuthenticationToken.class);
+        restRequest = new FakeRestRequest(Collections.singletonMap(InternalAuthenticationService.RUN_AS_USER_HEADER, "run_as"), Collections.<String, String>emptyMap());
+        when(secondRealm.token(restRequest)).thenReturn(token);
+        when(secondRealm.supports(token)).thenReturn(true);
+        when(secondRealm.authenticate(token)).thenReturn(new User.Simple("lookup user", new String[]{"user"}));
+        when(secondRealm.lookupUser("run_as")).thenReturn(new User.Simple("looked up user", new String[]{"some role"}));
+        when(secondRealm.userLookupSupported()).thenReturn(true);
+
+        User authenticated = service.authenticate(restRequest);
+
+        assertThat(authenticated.isSystem(), is(false));
+        assertThat(authenticated.runAs(), is(notNullValue()));
+        assertThat(authenticated.principal(), is("lookup user"));
+        assertThat(authenticated.roles(), arrayContaining("user"));
+        assertThat(authenticated.runAs().principal(), is("looked up user"));
+        assertThat(authenticated.runAs().roles(), arrayContaining("some role"));
+        assertThat(restRequest.getContext().get(InternalAuthenticationService.USER_KEY), sameInstance((Object) authenticated));
+    }
+
+    @Test
+    public void testRunAsLookupDifferentRealm() throws Exception {
+        AuthenticationToken token = mock(AuthenticationToken.class);
+        message.putHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, "run_as");
+        when(secondRealm.token(message)).thenReturn(token);
+        when(secondRealm.supports(token)).thenReturn(true);
+        when(secondRealm.authenticate(token)).thenReturn(new User.Simple("lookup user", new String[]{"user"}));
+        when(firstRealm.userLookupSupported()).thenReturn(true);
+        when(firstRealm.lookupUser("run_as")).thenReturn(new User.Simple("looked up user", new String[]{"some role"}));
+        when(firstRealm.userLookupSupported()).thenReturn(true);
+
+        User authenticated = service.authenticate("_action", message, null);
+
+        assertThat(authenticated.isSystem(), is(false));
+        assertThat(authenticated.runAs(), is(notNullValue()));
+        assertThat(authenticated.principal(), is("lookup user"));
+        assertThat(authenticated.roles(), arrayContaining("user"));
+        assertThat(authenticated.runAs().principal(), is("looked up user"));
+        assertThat(authenticated.runAs().roles(), arrayContaining("some role"));
+        assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), sameInstance((Object) authenticated));
+    }
+
+    @Test
+    public void testRunAsLookupDifferentRealm_Rest() throws Exception {
+        AuthenticationToken token = mock(AuthenticationToken.class);
+        restRequest = new FakeRestRequest(Collections.singletonMap(InternalAuthenticationService.RUN_AS_USER_HEADER, "run_as"), Collections.<String, String>emptyMap());
+        when(secondRealm.token(restRequest)).thenReturn(token);
+        when(secondRealm.supports(token)).thenReturn(true);
+        when(secondRealm.authenticate(token)).thenReturn(new User.Simple("lookup user", new String[]{"user"}));
+        when(firstRealm.lookupUser("run_as")).thenReturn(new User.Simple("looked up user", new String[]{"some role"}));
+        when(firstRealm.userLookupSupported()).thenReturn(true);
+
+        User authenticated = service.authenticate(restRequest);
+
+        assertThat(authenticated.isSystem(), is(false));
+        assertThat(authenticated.runAs(), is(notNullValue()));
+        assertThat(authenticated.principal(), is("lookup user"));
+        assertThat(authenticated.roles(), arrayContaining("user"));
+        assertThat(authenticated.runAs().principal(), is("looked up user"));
+        assertThat(authenticated.runAs().roles(), arrayContaining("some role"));
+        assertThat(restRequest.getContext().get(InternalAuthenticationService.USER_KEY), sameInstance((Object) authenticated));
+    }
+
+    @Test
+    public void testRunAsWithEmptyRunAsUsername_Rest() throws Exception {
+        AuthenticationToken token = mock(AuthenticationToken.class);
+        restRequest = new FakeRestRequest(Collections.singletonMap(InternalAuthenticationService.RUN_AS_USER_HEADER, ""), Collections.<String, String>emptyMap());
+        when(secondRealm.token(restRequest)).thenReturn(token);
+        when(secondRealm.supports(token)).thenReturn(true);
+        when(secondRealm.authenticate(token)).thenReturn(new User.Simple("lookup user", new String[]{"user"}));
+        when(secondRealm.userLookupSupported()).thenReturn(true);
+
+        try {
+            service.authenticate(restRequest);
+            fail("exception should be thrown");
+        } catch (ElasticsearchException e) {
+            verify(auditTrail).authenticationFailed(token, restRequest);
+            verifyNoMoreInteractions(auditTrail);
+        }
+    }
+
+    @Test
+    public void testRunAsWithEmptyRunAsUsername() throws Exception {
+        AuthenticationToken token = mock(AuthenticationToken.class);
+        message.putHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, "");
+        when(secondRealm.token(message)).thenReturn(token);
+        when(secondRealm.supports(token)).thenReturn(true);
+        when(secondRealm.authenticate(token)).thenReturn(new User.Simple("lookup user", new String[]{"user"}));
+        when(secondRealm.userLookupSupported()).thenReturn(true);
+
+        try {
+            service.authenticate("_action", message, null);
+            fail("exception should be thrown");
+        } catch (ElasticsearchException e) {
+            verify(auditTrail).authenticationFailed(token, "_action", message);
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 

@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.transport.action.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchRequest;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class DeleteWatchTests extends AbstractWatcherIntegrationTests {
+public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
 
     @Test
     public void testDelete() throws Exception {

@@ -7,13 +7,12 @@ package org.elasticsearch.watcher.history;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.watcher.execution.ExecutionState;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.After;
 import org.junit.Test;
@@ -33,7 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the email address fields in the watch_record action result are
  * not analyzed so they can be used in aggregations
  */
-public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegrationTests {
+public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";

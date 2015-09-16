@@ -9,8 +9,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.watcher.execution.ExecutionState;
-import org.elasticsearch.watcher.history.HistoryStore;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.Test;
 
@@ -27,7 +26,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the index action response `index` and `type` fields in the watch_record action result are
  * not analyzed so they can be used in aggregations
  */
-public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherIntegrationTests {
+public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean timeWarped() {

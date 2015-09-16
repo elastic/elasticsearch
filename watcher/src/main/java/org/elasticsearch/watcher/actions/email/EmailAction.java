@@ -17,7 +17,7 @@ import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.support.secret.Secret;
-import org.elasticsearch.watcher.support.secret.SensitiveXContentParser;
+import org.elasticsearch.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 
 import java.io.IOException;
@@ -141,7 +141,7 @@ public class EmailAction implements Action {
                     } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.USER)) {
                         user = parser.text();
                     } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PASSWORD)) {
-                        password = SensitiveXContentParser.secretOrNull(parser);
+                        password = WatcherXContentParser.secretOrNull(parser);
                     } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PROFILE)) {
                         try {
                             profile = Profile.resolve(parser.text());

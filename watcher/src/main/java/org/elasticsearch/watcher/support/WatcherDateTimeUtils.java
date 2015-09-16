@@ -107,6 +107,14 @@ public class WatcherDateTimeUtils {
         return builder.field(fieldName, formatDate(date));
     }
 
+    public static void writeDate(StreamOutput out, DateTime date) throws IOException {
+        out.writeLong(date.getMillis());
+    }
+
+    public static DateTime readDate(StreamInput in, DateTimeZone timeZone) throws IOException {
+        return new DateTime(in.readLong(), timeZone);
+    }
+
     public static void writeOptionalDate(StreamOutput out, DateTime date) throws IOException {
         if (date == null) {
             out.writeBoolean(false);

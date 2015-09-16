@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.shield.support;
 
-import com.google.common.collect.ImmutableList;
 import dk.brics.automaton.Automaton;
 import dk.brics.automaton.BasicAutomata;
 import dk.brics.automaton.BasicOperations;
 import dk.brics.automaton.RegExp;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -35,7 +35,7 @@ public final class Automatons {
      * Builds and returns an automaton that will represent the union of all the given patterns.
      */
     public static Automaton patterns(String... patterns) {
-        return patterns(ImmutableList.copyOf(patterns));
+        return patterns(Arrays.asList(patterns));
     }
 
     /**
@@ -76,6 +76,7 @@ public final class Automatons {
     /**
      * Builds and returns an automaton that represents the given pattern.
      */
+    @SuppressWarnings("fallthrough") // explicit fallthrough at end of switch
     static Automaton wildcard(String text) {
         List<Automaton> automata = new ArrayList<>();
         for (int i = 0; i < text.length();) {

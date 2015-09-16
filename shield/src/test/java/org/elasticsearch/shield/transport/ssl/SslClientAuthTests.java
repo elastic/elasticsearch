@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -64,7 +63,7 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
         CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();
 
         new HttpRequestBuilder(client)
-                .httpTransport(internalTestCluster().getInstance(HttpServerTransport.class))
+                .httpTransport(internalCluster().getInstance(HttpServerTransport.class))
                 .method("GET").path("/")
                 .protocol("https")
                 .execute();
@@ -73,8 +72,7 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
     @Test
     public void testThatHttpWorksWithSslClientAuth() throws IOException {
         Settings settings = settingsBuilder().put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient")).build();
-        Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
-        ClientSSLService sslService = new ClientSSLService(settings, env);
+        ClientSSLService sslService = new ClientSSLService(settings);
 
         SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
                 sslService.sslContext(),
@@ -83,7 +81,7 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
         CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();
 
         HttpResponse response = new HttpRequestBuilder(client)
-                .httpTransport(internalTestCluster().getInstance(HttpServerTransport.class))
+                .httpTransport(internalCluster().getInstance(HttpServerTransport.class))
                 .method("GET").path("/")
                 .protocol("https")
                 .addHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword()))
@@ -101,16 +99,14 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
         }
 
         Settings settings = settingsBuilder()
-                .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .put("shield.transport.ssl", true)
                 .put("shield.ssl.keystore.path", store)
                 .put("shield.ssl.keystore.password", "testclient-client-profile")
-                .put("cluster.name", internalTestCluster().getClusterName())
+                .put("cluster.name", internalCluster().getClusterName())
                 .put("shield.user", transportClientUsername() + ":" + new String(transportClientPassword().internalChars()))
                 .build();
-        try (TransportClient client = TransportClient.builder().settings(settings).build()) {
-            Transport transport = internalTestCluster().getDataNodeInstance(Transport.class);
+        try (TransportClient client = TransportClient.builder().settings(settings).addPlugin(ShieldPlugin.class).addPlugin(licensePluginClass()).build()) {
+            Transport transport = internalCluster().getDataNodeInstance(Transport.class);
             TransportAddress transportAddress = transport.boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
 

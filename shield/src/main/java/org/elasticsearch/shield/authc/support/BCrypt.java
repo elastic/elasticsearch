@@ -532,8 +532,8 @@ public class BCrypt {
      * Initialise the Blowfish key schedule
      */
     private void init_key() {
-        P = (int[])P_orig.clone();
-        S = (int[])S_orig.clone();
+        P = P_orig.clone();
+        S = S_orig.clone();
     }
 
     /**
@@ -685,15 +685,22 @@ public class BCrypt {
 
          */
 
-        // the next line is the SecuredString replacement for the above commented-out section
-        passwordb = ( minor >= 'a' ? password.concat("\000"): password ).utf8Bytes();
+        // the next lines are the SecuredString replacement for the above commented-out section
+        if (minor >= 'a') {
+            SecuredString securedString = password.concat("\000");
+            passwordb = securedString.utf8Bytes();
+            // clear here since this is a new object and we don't need to reuse it
+            securedString.clear();
+        } else {
+            passwordb = password.utf8Bytes();
+        }
         /*************************** ES CHANGE END *************************/
 
         saltb = decode_base64(real_salt, BCRYPT_SALT_LEN);
 
         B = new BCrypt();
         hashed = B.crypt_raw(passwordb, saltb, rounds,
-            (int[])bf_crypt_ciphertext.clone());
+            bf_crypt_ciphertext.clone());
 
         rs.append("$2");
         if (minor >= 'a')

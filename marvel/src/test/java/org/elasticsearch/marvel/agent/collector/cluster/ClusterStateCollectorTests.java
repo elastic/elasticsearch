@@ -8,7 +8,6 @@ package org.elasticsearch.marvel.agent.collector.cluster;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
@@ -118,7 +117,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
     }
 
     @Test
-    public void tesClusterStateCollectorWithLicensing() {
+    public void testClusterStateCollectorWithLicensing() {
         String[] nodes = internalCluster().getNodeNames();
         for (String node : nodes) {
             logger.debug("--> creating a new instance of the collector");
@@ -152,13 +151,12 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
     }
 
     private ClusterStateCollector newClusterStateCollector() {
-        return newClusterStateCollector(null);
+        // This collector runs on master node only
+        return newClusterStateCollector(internalCluster().getMasterName());
     }
 
     private ClusterStateCollector newClusterStateCollector(String nodeId) {
-        if (!Strings.hasText(nodeId)) {
-            nodeId = randomFrom(internalCluster().getNodeNames());
-        }
+        assertNotNull(nodeId);
         return new ClusterStateCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),

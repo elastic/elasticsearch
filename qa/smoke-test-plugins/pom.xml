@@ -8,7 +8,7 @@
   <parent>
     <groupId>org.elasticsearch.qa</groupId>
     <artifactId>x-plugins-qa</artifactId>
-    <version>2.1.0-SNAPSHOT</version>
+    <version>3.0.0-SNAPSHOT</version>
   </parent>
 
   <!-- 
@@ -101,7 +101,23 @@
                  <!-- open-source plugins -->
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>analysis-icu</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>analysis-kuromoji</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>analysis-phonetic</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -125,15 +141,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>analysis-phonetic</artifactId>
-                   <version>${elasticsearch.version}</version>
-                   <type>zip</type>
-                   <overWrite>true</overWrite>
-                 </artifactItem>
-
-                 <artifactItem>
-                   <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>analysis-icu</artifactId>
+                   <artifactId>cloud-azure</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -149,22 +157,6 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>cloud-azure</artifactId>
-                   <version>${elasticsearch.version}</version>
-                   <type>zip</type>
-                   <overWrite>true</overWrite>
-                 </artifactItem>
-
-                 <artifactItem>
-                   <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>cloud-aws</artifactId>
-                   <version>${elasticsearch.version}</version>
-                   <type>zip</type>
-                   <overWrite>true</overWrite>
-                 </artifactItem>
-
-                 <artifactItem>
-                   <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>delete-by-query</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
@@ -173,7 +165,15 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>lang-python</artifactId>
+                   <artifactId>discovery-ec2</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>discovery-multicast</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -189,7 +189,40 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>lang-python</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>mapper-murmur3</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>mapper-size</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>repository-s3</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <!-- Internal plugins for test purpose only -->
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>jvm-example</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>

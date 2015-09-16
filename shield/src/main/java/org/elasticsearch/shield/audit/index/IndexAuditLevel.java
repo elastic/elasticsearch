@@ -18,7 +18,9 @@ public enum IndexAuditLevel {
     TAMPERED_REQUEST,
     CONNECTION_GRANTED,
     CONNECTION_DENIED,
-    SYSTEM_ACCESS_GRANTED;
+    SYSTEM_ACCESS_GRANTED,
+    RUN_AS_GRANTED,
+    RUN_AS_DENIED;
 
     static EnumSet<IndexAuditLevel> parse(String[] levels) {
         EnumSet<IndexAuditLevel> enumSet = EnumSet.noneOf(IndexAuditLevel.class);
@@ -51,6 +53,12 @@ public enum IndexAuditLevel {
                     break;
                 case "system_access_granted":
                     enumSet.add(SYSTEM_ACCESS_GRANTED);
+                    break;
+                case "run_as_granted":
+                    enumSet.add(RUN_AS_GRANTED);
+                    break;
+                case "run_as_denied":
+                    enumSet.add(RUN_AS_DENIED);
                     break;
                 default:
                     throw new IllegalArgumentException("invalid event name specified [" + level + "]");

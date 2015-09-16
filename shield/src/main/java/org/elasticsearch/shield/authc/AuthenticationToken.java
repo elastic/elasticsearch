@@ -6,13 +6,26 @@
 package org.elasticsearch.shield.authc;
 
 /**
- *
+ * Interface for a token that is used for authentication. This token is the representation of the authentication
+ * information that is presented with a request. The token will be extracted by a {@link Realm} and subsequently
+ * used by a Realm to attempt authentication of a user.
  */
 public interface AuthenticationToken {
 
+    /**
+     *
+     * @return
+     */
     String principal();
 
+    /**
+     *
+     * @return
+     */
     Object credentials();
 
+    /**
+     * 
+     */
     void clearCredentials();
 }

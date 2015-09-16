@@ -64,7 +64,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
      * @return an authenticated user with roles
      */
     @Override
-    public User authenticate(final UsernamePasswordToken token) {
+    public final User authenticate(final UsernamePasswordToken token) {
         if (cache == null) {
             return doAuthenticate(token);
         }
@@ -85,18 +85,25 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
         try {
             UserWithHash userWithHash = cache.get(token.principal(), callback);
-            if (userWithHash.verify(token.credentials())) {
-                if(logger.isDebugEnabled()) {
-                    logger.debug("authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+            final boolean hadHash = userWithHash.hasHash();
+            if (hadHash) {
+                if (userWithHash.verify(token.credentials())) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+                    }
+                    return userWithHash.user;
                 }
-                return userWithHash.user;
             }
-            //this handles when a user's password has changed:
+            //this handles when a user's password has changed or the user was looked up for run as and not authenticated
             expire(token.principal());
             userWithHash = cache.get(token.principal(), callback);
 
             if (logger.isDebugEnabled()) {
-                logger.debug("cached user's password changed. authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+                if (hadHash) {
+                    logger.debug("cached user's password changed. authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+                } else {
+                    logger.debug("cached user came from a lookup and could not be used for authentication. authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+                }
             }
             return userWithHash.user;
             
@@ -110,20 +117,59 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         }
     }
 
+    @Override
+    public final User lookupUser(final String username) {
+        if (!userLookupSupported()) {
+            return null;
+        }
+
+        Callable<UserWithHash> callback = new Callable<UserWithHash>() {
+            @Override
+            public UserWithHash call() throws Exception {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("user not found in cache, proceeding with normal lookup");
+                }
+                User user = doLookupUser(username);
+                if (user == null) {
+                    throw Exceptions.authenticationError("could not lookup [{}]", username);
+                }
+                return new UserWithHash(user, null, null);
+            }
+        };
+
+        try {
+            UserWithHash userWithHash = cache.get(username, callback);
+            return userWithHash.user;
+        } catch (ExecutionException | UncheckedExecutionException ee) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("realm [" + name() + "] could not lookup [" + username + "]", ee);
+            } else if (logger.isDebugEnabled()) {
+                logger.debug("realm [" + name() + "] could not authenticate [" + username + "]");
+            }
+            return null;
+        }
+    }
+
     protected abstract User doAuthenticate(UsernamePasswordToken token);
 
-    public static class UserWithHash {
+    protected abstract User doLookupUser(String username);
+
+    private static class UserWithHash {
         User user;
         char[] hash;
         Hasher hasher;
         public UserWithHash(User user, SecuredString password, Hasher hasher){
             this.user = user;
-            this.hash = hasher.hash(password);
+            this.hash = password == null ? null : hasher.hash(password);
             this.hasher = hasher;
         }
 
-        public boolean verify(SecuredString password){
-            return hasher.verify(password, hash);
+        public boolean verify(SecuredString password) {
+            return hash != null && hasher.verify(password, hash);
+        }
+
+        public boolean hasHash() {
+            return hash != null;
         }
     }
 }

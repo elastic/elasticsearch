@@ -11,6 +11,10 @@ include::rest/execute-watch.asciidoc[]
 
 include::rest/ack-watch.asciidoc[]
 
+include::rest/activate-watch.asciidoc[]
+
+include::rest/deactivate-watch.asciidoc[]
+
 include::rest/info.asciidoc[]
 
 include::rest/stats.asciidoc[]

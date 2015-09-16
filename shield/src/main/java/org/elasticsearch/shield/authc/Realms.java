@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.authc;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -68,8 +66,8 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
 
     protected List<Realm> initRealms() {
         Settings realmsSettings = settings.getAsSettings("shield.authc.realms");
-        Set<String> internalTypes = Sets.newHashSet();
-        List<Realm> realms = Lists.newArrayList();
+        Set<String> internalTypes = new HashSet<>();
+        List<Realm> realms = new ArrayList<>();
         for (String name : realmsSettings.names()) {
             Settings realmSettings = realmsSettings.getAsSettings(name);
             String type = realmSettings.get("type");

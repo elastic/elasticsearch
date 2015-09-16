@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.shield.support;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -32,7 +32,7 @@ public class ShieldFiles {
      */
     public static final Writer openAtomicMoveWriter(final Path path) throws IOException {
         final Path tempFile = Files.createTempFile(path.getParent(), path.getFileName().toString(), "tmp");
-        final Writer writer = Files.newBufferedWriter(tempFile, Charsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+        final Writer writer = Files.newBufferedWriter(tempFile, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
         return new Writer() {
             @Override
             public void write(char[] cbuf, int off, int len) throws IOException {

@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.support;
 
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -48,7 +47,7 @@ public class WatcherUtilsTests extends ESTestCase {
         Map<String, Object> map = ImmutableMap.<String, Object>builder()
                 .put("a", ImmutableMap.builder().put("a1", new int[] { 0, 1, 2 }).build())
                 .put("b", new String[] { "b0", "b1", "b2" })
-                .put("c", ImmutableList.of(TimeValue.timeValueSeconds(0), TimeValue.timeValueSeconds(1)))
+                .put("c", Arrays.asList(TimeValue.timeValueSeconds(0), TimeValue.timeValueSeconds(1)))
                 .put("d", now)
                 .build();
 
@@ -106,7 +105,7 @@ public class WatcherUtilsTests extends ESTestCase {
         SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
         XContentBuilder searchSourceJsonBuilder = jsonBuilder();
         searchSourceBuilder.toXContent(searchSourceJsonBuilder, ToXContent.EMPTY_PARAMS);
-        String expectedSource = searchSourceJsonBuilder.string();
+        BytesReference expectedSource = searchSourceJsonBuilder.bytes();
         expectedRequest.source(expectedSource);
 
         if (randomBoolean()) {
@@ -136,7 +135,7 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(result.types(), arrayContainingInAnyOrder(expectedRequest.types()));
         assertThat(result.indicesOptions(), equalTo(expectedRequest.indicesOptions()));
         assertThat(result.searchType(), equalTo(expectedRequest.searchType()));
-        assertThat(result.source().toUtf8(), equalTo(expectedSource));
+        assertThat(result.source().toUtf8(), equalTo(expectedSource.toUtf8()));
         assertThat(result.templateSource(), equalTo(expectedRequest.templateSource()));
     }
 

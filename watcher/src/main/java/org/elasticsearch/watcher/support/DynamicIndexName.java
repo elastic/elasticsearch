@@ -257,6 +257,8 @@ public class DynamicIndexName implements ToXContent {
                                 throw new ElasticsearchParseException("invalid dynamic name expression [{}]. invalid character at position [{}]. " +
                                         "`{` and `}` are reserved characters and should be escaped when used as part of the index name using `\\` (e.g. `\\{text\\}`)", new String(text, from, length), i);
                             }
+                            sb.append(c);
+                            break;
                         default:
                             sb.append(c);
                     }

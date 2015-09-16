@@ -12,7 +12,7 @@
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>x-plugins</artifactId>
-        <version>2.1.0-SNAPSHOT</version>
+        <version>3.0.0-SNAPSHOT</version>
     </parent>
 
     <properties>
@@ -25,6 +25,7 @@
         <elasticsearch.plugin.isolated>false</elasticsearch.plugin.isolated>
         <!-- TODO: refactor -->
         <elasticsearch.integ.antfile>${basedir}/dev-tools/integration-tests.xml</elasticsearch.integ.antfile>
+        <xlint.options>-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked</xlint.options>
     </properties>
 
     <dependencies>

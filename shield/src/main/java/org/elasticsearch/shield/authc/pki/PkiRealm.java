@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.authc.pki;
 
-import com.google.common.base.Strings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -79,6 +79,16 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
 
         Set<String> roles = roleMapper.resolveRoles(token.dn(), Collections.<String>emptyList());
         return new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));
+    }
+
+    @Override
+    public User lookupUser(String username) {
+        return null;
+    }
+
+    @Override
+    public boolean userLookupSupported() {
+        return false;
     }
 
     static X509AuthenticationToken token(Object pkiHeaderValue, Pattern principalPattern, ESLogger logger) {

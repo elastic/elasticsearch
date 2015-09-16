@@ -92,4 +92,16 @@ The following snippet shows how to change the default timeout of the put action 
 --------------------------------------------------
 PUT _watcher/watch/my-watch?master_timeout=30s
 --------------------------------------------------
-// AUTOSENSE
+
+[[api-rest-put-watch-active-state]]
+===== Controlling Default Active State
+
+When adding a watch you can also define its initial <<watch-active-state, active state>>. You do that by
+setting the `active` parameter. The following command add a watch and sets it to be inactive by default:
+
+[source,js]
+--------------------------------------------------
+PUT _watcher/watch/my-watch?active=false
+--------------------------------------------------
+
+NOTE: If you omit the `active` parameter, the watch is set to the active state by default.

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.transport.ssl;
 
-import com.google.common.base.Charsets;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.ssl.ClientSSLService;
@@ -35,6 +33,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Locale;
@@ -61,13 +60,12 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     public void testThatUnconfiguredCiphersAreRejected() {
         try(TransportClient transportClient = TransportClient.builder().settings(settingsBuilder()
                 .put(transportClientSettings())
-                .put("path.home", createTempDir())
                 .put("name", "programmatic_transport_client")
-                .put("cluster.name", internalTestCluster().getClusterName())
+                .put("cluster.name", internalCluster().getClusterName())
                 .putArray("shield.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"})
                 .build()).build()) {
 
-            TransportAddress transportAddress = internalTestCluster().getInstance(Transport.class).boundAddress().boundAddress();
+            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
             transportClient.addTransportAddress(transportAddress);
 
             transportClient.admin().cluster().prepareHealth().get();
@@ -79,13 +77,12 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     public void testThatTransportClientUsingSSLv3ProtocolIsRejected() {
         try(TransportClient transportClient = TransportClient.builder().settings(settingsBuilder()
                 .put(transportClientSettings())
-                .put("path.home", createTempDir())
                 .put("name", "programmatic_transport_client")
-                .put("cluster.name", internalTestCluster().getClusterName())
+                .put("cluster.name", internalCluster().getClusterName())
                 .putArray("shield.ssl.supported_protocols", new String[]{"SSLv3"})
                 .build()).build()) {
 
-            TransportAddress transportAddress = internalTestCluster().getInstance(Transport.class).boundAddress().boundAddress();
+            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
             transportClient.addTransportAddress(transportAddress);
 
             transportClient.admin().cluster().prepareHealth().get();
@@ -95,15 +92,14 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     @Test
     public void testThatConnectionToHTTPWorks() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient");
-        Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
-        ClientSSLService service = new ClientSSLService(settings, env);
+        ClientSSLService service = new ClientSSLService(settings);
 
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(), new String(nodeClientPassword().internalChars())));
         try (CloseableHttpClient client = HttpClients.custom().setSslcontext(service.sslContext()).setDefaultCredentialsProvider(provider).build();
             CloseableHttpResponse response = client.execute(new HttpGet(getNodeUrl()))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
-            String data = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), Charsets.UTF_8));
+            String data = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
             assertThat(data, containsString("You Know, for Search"));
         }
     }
@@ -125,7 +121,7 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     }
 
     private String getNodeUrl() {
-        TransportAddress transportAddress = internalTestCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddress();
+        TransportAddress transportAddress = internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddress();
         assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
         return String.format(Locale.ROOT, "https://%s:%s/", "localhost", inetSocketTransportAddress.address().getPort());

@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -25,6 +26,9 @@ import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -32,7 +36,7 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
 
 /**
- * {@link org.elasticsearch.test.SettingsSource} subclass that allows to set all needed settings for shield.
+ * {@link org.elasticsearch.test.NodeConfigurationSource} subclass that allows to set all needed settings for shield.
  * Unicast discovery is configured through {@link org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration.UnicastZen},
  * also shield is installed with all the needed configuration and files.
  * To avoid conflicts, every cluster should have its own instance of this class as some configuration files need to be created.
@@ -78,7 +82,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     private final boolean hostnameVerificationResolveNameEnabled;
 
     /**
-     * Creates a new {@link org.elasticsearch.test.SettingsSource} for the shield configuration.
+     * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the shield configuration.
      *
      * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
      * @param sslTransportEnabled whether ssl should be enabled on the transport layer or not
@@ -90,7 +94,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     /**
-     * Creates a new {@link org.elasticsearch.test.SettingsSource} for the shield configuration.
+     * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the shield configuration.
      *
      * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
      * @param sslTransportEnabled whether ssl should be enabled on the transport layer or not
@@ -109,10 +113,9 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     @Override
-    public Settings node(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal) {
         Path folder = ShieldTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
-        Settings.Builder builder = settingsBuilder().put(super.node(nodeOrdinal))
-                .put("plugin.types", ShieldPlugin.class.getName() + "," + licensePluginClass().getName())
+        Settings.Builder builder = settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("shield.audit.enabled", randomBoolean())
                 .put(InternalCryptoService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
                 .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
@@ -120,6 +123,9 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                 .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", configUsers()))
                 .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
+                // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
+                // validation in ShieldPlugin fail.
+                .put(IndexCacheModule.QUERY_CACHE_TYPE, ShieldPlugin.OPT_OUT_QUERY_CACHE)
                 .put(getNodeSSLSettings());
 
         setUser(builder, nodeClientUsername(), nodeClientPassword());
@@ -128,14 +134,22 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     @Override
-    public Settings transportClient() {
-        Settings.Builder builder = settingsBuilder().put(super.transportClient())
-                .put("plugin.types", ShieldPlugin.class.getName())
+    public Settings transportClientSettings() {
+        Settings.Builder builder = settingsBuilder().put(super.transportClientSettings())
                 .put(getClientSSLSettings());
         setUser(builder, transportClientUsername(), transportClientPassword());
         return builder.build();
     }
 
+    @Override
+    public Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(ShieldPlugin.class, licensePluginClass());
+    }
+
+    @Override
+    public Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Collections.<Class<? extends Plugin>>singletonList(ShieldPlugin.class);
+    }
 
     protected String configUsers() {
         return CONFIG_STANDARD_USER;

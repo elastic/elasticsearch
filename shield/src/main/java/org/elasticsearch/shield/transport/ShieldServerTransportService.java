@@ -5,20 +5,22 @@
  */
 package org.elasticsearch.shield.transport;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
+import org.elasticsearch.shield.authz.accesscontrol.RequestContext;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.*;
 
@@ -61,7 +63,13 @@ public class ShieldServerTransportService extends TransportService {
     }
 
     @Override
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
+        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters);
+        super.registerRequestHandler(action, requestFactory, executor, wrappedHandler);
+    }
+
+    @Override
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
         TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters);
         super.registerRequestHandler(action, request, executor, forceExecution, wrappedHandler);
     }
@@ -72,7 +80,7 @@ public class ShieldServerTransportService extends TransportService {
         }
 
         Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
-        Map<String, ServerTransportFilter> profileFilters = Maps.newHashMapWithExpectedSize(profileSettingsMap.size() + 1);
+        Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileSettingsMap.size() + 1);
 
         for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
             Settings profileSettings = entry.getValue();
@@ -103,13 +111,13 @@ public class ShieldServerTransportService extends TransportService {
         return profileFilters.get(profile);
     }
 
-    static class ProfileSecuredRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
+    public static class ProfileSecuredRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
 
         protected final String action;
         protected final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
 
-        public ProfileSecuredRequestHandler(String action, TransportRequestHandler handler, Map<String, ServerTransportFilter> profileFilters) {
+        public ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler, Map<String, ServerTransportFilter> profileFilters) {
             this.action = action;
             this.handler = handler;
             this.profileFilters = profileFilters;
@@ -132,11 +140,15 @@ public class ShieldServerTransportService extends TransportService {
                 }
                 assert filter != null;
                 filter.inbound(action, request, channel);
+                RequestContext context = new RequestContext(request);
+                RequestContext.setCurrent(context);
+                handler.messageReceived(request, channel);
             } catch (Throwable t) {
                 channel.sendResponse(t);
-                return;
+            } finally {
+                RequestContext.removeCurrent();
             }
-            handler.messageReceived(request, channel);
         }
     }
+
 }

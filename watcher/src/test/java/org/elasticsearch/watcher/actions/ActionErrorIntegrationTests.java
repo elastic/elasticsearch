@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -17,13 +16,15 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
@@ -35,7 +36,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTests {
+public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean timeWarped() {
@@ -43,11 +44,11 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTests
     }
 
     @Override
-    protected List<String> pluginTypes() {
-        return ImmutableList.<String>builder()
-                .addAll(super.pluginTypes())
-                .add(ErrorActionPlugin.class.getName())
-                .build();
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> types = new ArrayList<>();
+        types.addAll(super.pluginTypes());
+        types.add(ErrorActionPlugin.class);
+        return Collections.unmodifiableList(types);
     }
 
     /**

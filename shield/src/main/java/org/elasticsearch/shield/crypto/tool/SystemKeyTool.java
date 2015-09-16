@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.shield.crypto.tool;
 
-import com.google.common.collect.Sets;
 import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.cli.CheckFileCommand;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 

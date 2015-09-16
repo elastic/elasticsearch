@@ -81,7 +81,7 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegTestCase {
 
         refresh();
 
-        Client client = internalTestCluster().transportClient();
+        Client client = internalCluster().transportClient();
 
         // no specifying an index, should replace indices with the permitted ones (test & test1)
         SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).get();
@@ -158,7 +158,7 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegTestCase {
 
         refresh();
 
-        Client client = internalTestCluster().transportClient();
+        Client client = internalCluster().transportClient();
 
         SearchResponse response = client.prepareSearch("a")
                 .putHeader(BASIC_AUTH_HEADER, userHeader("user_a", "passwd"))

@@ -13,7 +13,7 @@ import org.elasticsearch.watcher.WatcherBuild;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsRequest;
@@ -38,7 +38,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
  */
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
 @TestLogging("watcher:TRACE")
-public class WatcherStatsTests extends AbstractWatcherIntegrationTests {
+public class WatcherStatsTests extends AbstractWatcherIntegrationTestCase {
 
     @Test
     public void testStartedStats() throws Exception {

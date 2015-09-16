@@ -20,7 +20,7 @@ import org.elasticsearch.watcher.support.http.auth.basic.ApplicableBasicAuth;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
@@ -49,7 +49,7 @@ import static org.joda.time.DateTimeZone.UTC;
 /**
  *
  */
-public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests {
+public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";

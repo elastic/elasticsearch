@@ -10,13 +10,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
@@ -46,8 +48,12 @@ public class RestIT extends ESRestTestCase {
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
                 .put("shield.user", USER + ":" + PASS)
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Collections.<Class<? extends Plugin>>singleton(ShieldPlugin.class);
     }
 
 }

@@ -15,7 +15,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
 import org.junit.Test;
 
@@ -24,15 +24,15 @@ import java.util.Map;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests.ShieldSettings.TEST_PASSWORD;
-import static org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests.ShieldSettings.TEST_USERNAME;
+import static org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase.ShieldSettings.TEST_PASSWORD;
+import static org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase.ShieldSettings.TEST_USERNAME;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
-public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTests {
+public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCase {
 
     private CloseableHttpClient httpClient = HttpClients.createDefault();
 

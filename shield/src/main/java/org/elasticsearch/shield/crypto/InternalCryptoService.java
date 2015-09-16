@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.crypto;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -22,6 +21,7 @@ import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -49,7 +49,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     static final String DEFAULT_ENCRYPTION_ALGORITHM = "AES/CTR/NoPadding";
     static final String DEFAULT_KEY_ALGORITH = "AES";
     static final String ENCRYPTED_TEXT_PREFIX = "::es_encrypted::";
-    static final byte[] ENCRYPTED_BYTE_PREFIX = ENCRYPTED_TEXT_PREFIX.getBytes(Charsets.UTF_8);
+    static final byte[] ENCRYPTED_BYTE_PREFIX = ENCRYPTED_TEXT_PREFIX.getBytes(StandardCharsets.UTF_8);
     static final int DEFAULT_KEY_LENGTH = 128;
 
     private static final Pattern SIG_PATTERN = Pattern.compile("^\\$\\$[0-9]+\\$\\$.+");
@@ -338,7 +338,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
 
     private static String signInternal(String text, SecretKey key) throws IOException {
         Mac mac = createMac(key);
-        byte[] sig = mac.doFinal(text.getBytes(Charsets.UTF_8));
+        byte[] sig = mac.doFinal(text.getBytes(StandardCharsets.UTF_8));
         return Base64.encodeBytes(sig, 0, sig.length, Base64.URL_SAFE);
     }
 

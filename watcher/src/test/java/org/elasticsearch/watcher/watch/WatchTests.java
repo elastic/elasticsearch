@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.watch;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchParseException;
@@ -43,6 +42,9 @@ import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.condition.compare.CompareCondition.Op;
 import org.elasticsearch.watcher.condition.compare.CompareConditionFactory;
 import org.elasticsearch.watcher.condition.compare.ExecutableCompareCondition;
+import org.elasticsearch.watcher.condition.compare.array.ArrayCompareCondition;
+import org.elasticsearch.watcher.condition.compare.array.ArrayCompareConditionFactory;
+import org.elasticsearch.watcher.condition.compare.array.ExecutableArrayCompareCondition;
 import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptConditionFactory;
@@ -98,8 +100,7 @@ import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Collection;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
@@ -169,7 +170,7 @@ public class WatchTests extends ESTestCase {
         for (ActionWrapper action : actions) {
             actionsStatuses.put(action.id(), new ActionStatus(now));
         }
-        WatchStatus watchStatus = new WatchStatus(actionsStatuses.build());
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), actionsStatuses.build());
 
         TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10));
 
@@ -236,7 +237,7 @@ public class WatchTests extends ESTestCase {
         ConditionRegistry conditionRegistry = registry(new ExecutableAlwaysCondition(logger));
         InputRegistry inputRegistry = registry(new ExecutableNoneInput(logger));
         TransformRegistry transformRegistry = transformRegistry();
-        ExecutableActions actions =  new ExecutableActions(ImmutableList.<ActionWrapper>of());
+        ExecutableActions actions =  new ExecutableActions(Collections.EMPTY_LIST);
         ActionRegistry actionRegistry = registry(actions, transformRegistry);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -330,12 +331,14 @@ public class WatchTests extends ESTestCase {
     }
 
     private ExecutableCondition randomCondition() {
-        String type = randomFrom(ScriptCondition.TYPE, AlwaysCondition.TYPE, CompareCondition.TYPE);
+        String type = randomFrom(ScriptCondition.TYPE, AlwaysCondition.TYPE, CompareCondition.TYPE, ArrayCompareCondition.TYPE);
         switch (type) {
             case ScriptCondition.TYPE:
                 return new ExecutableScriptCondition(new ScriptCondition(Script.inline("_script").build()), logger, scriptService);
             case CompareCondition.TYPE:
                 return new ExecutableCompareCondition(new CompareCondition("_path", randomFrom(Op.values()), randomFrom(5, "3")), logger, SystemClock.INSTANCE);
+            case ArrayCompareCondition.TYPE:
+                return new ExecutableArrayCompareCondition(new ArrayCompareCondition("_array_path", "_path", randomFrom(ArrayCompareCondition.Op.values()), randomFrom(5, "3"), ArrayCompareCondition.Quantifier.SOME), logger, SystemClock.INSTANCE);
             default:
                 return new ExecutableAlwaysCondition(logger);
         }
@@ -349,6 +352,9 @@ public class WatchTests extends ESTestCase {
                 return new ConditionRegistry(parsers.build());
             case CompareCondition.TYPE:
                 parsers.put(CompareCondition.TYPE, new CompareConditionFactory(settings, SystemClock.INSTANCE));
+                return new ConditionRegistry(parsers.build());
+            case ArrayCompareCondition.TYPE:
+                parsers.put(ArrayCompareCondition.TYPE, new ArrayCompareConditionFactory(settings, SystemClock.INSTANCE));
                 return new ConditionRegistry(parsers.build());
             default:
                 parsers.put(AlwaysCondition.TYPE, new AlwaysConditionFactory(settings));
@@ -366,10 +372,9 @@ public class WatchTests extends ESTestCase {
             case SearchTransform.TYPE:
                 return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null, indexNameParser);
             default: // chain
-                ChainTransform chainTransform = new ChainTransform(ImmutableList.of(
-                        new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone),
-                        new ScriptTransform(Script.inline("_script").build())));
-                return new ExecutableChainTransform(chainTransform, logger, ImmutableList.<ExecutableTransform>of(
+                ChainTransform chainTransform = new ChainTransform(Arrays.asList(
+                        new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), new ScriptTransform(Script.inline("_script").build())));
+                return new ExecutableChainTransform(chainTransform, logger, Arrays.<ExecutableTransform>asList(
                         new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null, indexNameParser),
                         new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService)));
         }
@@ -387,7 +392,7 @@ public class WatchTests extends ESTestCase {
     }
 
     private ExecutableActions randomActions() {
-        ImmutableList.Builder<ActionWrapper> list = ImmutableList.builder();
+        List<ActionWrapper> list = new ArrayList<>();
         if (randomBoolean()) {
             ExecutableTransform transform = randomTransform();
             EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD, randomFrom(DataAttachment.JSON, DataAttachment.YAML, null));
@@ -407,7 +412,7 @@ public class WatchTests extends ESTestCase {
             WebhookAction action = new WebhookAction(httpRequest);
             list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableWebhookAction(action, logger, httpClient, templateEngine)));
         }
-        return new ExecutableActions(list.build());
+        return new ExecutableActions(list);
     }
 
     private ActionRegistry registry(ExecutableActions actions, TransformRegistry transformRegistry) {

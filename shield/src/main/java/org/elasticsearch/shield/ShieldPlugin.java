@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.Headers;
@@ -16,6 +15,8 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerModule;
+import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.shield.action.ShieldActionFilter;
 import org.elasticsearch.shield.action.ShieldActionModule;
@@ -24,11 +25,12 @@ import org.elasticsearch.shield.action.authc.cache.TransportClearRealmCacheActio
 import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.audit.index.IndexAuditUserHolder;
 import org.elasticsearch.shield.authc.AuthenticationModule;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.AuthorizationModule;
+import org.elasticsearch.shield.authz.accesscontrol.AccessControlShardModule;
+import org.elasticsearch.shield.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.crypto.CryptoModule;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
@@ -58,8 +60,10 @@ import java.util.Map;
 public class ShieldPlugin extends Plugin {
 
     public static final String NAME = "shield";
-
     public static final String ENABLED_SETTING_NAME = NAME + ".enabled";
+    public static final String OPT_OUT_QUERY_CACHE = "opt_out_cache";
+
+    private static final boolean DEFAULT_ENABLED_SETTING = true;
 
     private final Settings settings;
     private final boolean enabled;
@@ -69,6 +73,9 @@ public class ShieldPlugin extends Plugin {
         this.settings = settings;
         this.enabled = shieldEnabled(settings);
         this.clientMode = clientMode(settings);
+        if (enabled && clientMode == false) {
+            failIfShieldQueryCacheIsNotActive(settings, true);
+        }
     }
 
     @Override
@@ -87,30 +94,47 @@ public class ShieldPlugin extends Plugin {
             return Collections.<Module>singletonList(new ShieldDisabledModule(settings));
         } else if (clientMode) {
             return Arrays.<Module>asList(
-                new ShieldTransportModule(settings),
-                new SSLModule(settings));
+                    new ShieldTransportModule(settings),
+                    new SSLModule(settings));
         } else {
             return Arrays.<Module>asList(
-                new ShieldModule(settings),
-                new LicenseModule(settings),
-                new CryptoModule(settings),
-                new AuthenticationModule(settings),
-                new AuthorizationModule(settings),
-                new AuditTrailModule(settings),
-                new ShieldRestModule(settings),
-                new ShieldActionModule(settings),
-                new ShieldTransportModule(settings),
-                new SSLModule(settings));
+                    new ShieldModule(settings),
+                    new LicenseModule(settings),
+                    new CryptoModule(settings),
+                    new AuthenticationModule(settings),
+                    new AuthorizationModule(settings),
+                    new AuditTrailModule(settings),
+                    new ShieldRestModule(settings),
+                    new ShieldActionModule(settings),
+                    new ShieldTransportModule(settings),
+                    new SSLModule(settings));
+        }
+    }
+
+    @Override
+    public Collection<Module> indexModules(Settings settings) {
+        if (enabled && clientMode == false) {
+            failIfShieldQueryCacheIsNotActive(settings, false);
+        }
+        return Collections.emptyList();
+    }
+
+    @Override
+    public Collection<Module> shardModules(Settings settings) {
+        if (enabled && clientMode == false) {
+            failIfShieldQueryCacheIsNotActive(settings, false);
+            return Collections.<Module>singletonList(new AccessControlShardModule(settings));
+        } else {
+            return Collections.emptyList();
         }
     }
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        ImmutableList.Builder<Class<? extends LifecycleComponent>> builder = ImmutableList.builder();
         if (enabled && clientMode == false) {
-            builder.add(LicenseService.class).add(InternalCryptoService.class).add(FileRolesStore.class).add(Realms.class).add(IPFilter.class);
+            return Arrays.<Class<? extends LifecycleComponent>>asList(LicenseService.class, InternalCryptoService.class, FileRolesStore.class, Realms.class, IPFilter.class);
         }
-        return builder.build();
+        return Collections.emptyList();
     }
 
     @Override
@@ -122,6 +146,7 @@ public class ShieldPlugin extends Plugin {
         Settings.Builder settingsBuilder = Settings.settingsBuilder();
         addUserSettings(settingsBuilder);
         addTribeSettings(settingsBuilder);
+        addQueryCacheSettings(settingsBuilder);
         return settingsBuilder.build();
     }
 
@@ -178,6 +203,12 @@ public class ShieldPlugin extends Plugin {
         }
     }
 
+    public void onModule(IndexCacheModule module) {
+        if (enabled && clientMode == false) {
+            module.registerQueryCache(OPT_OUT_QUERY_CACHE, OptOutQueryCache.class);
+        }
+    }
+
     private void addUserSettings(Settings.Builder settingsBuilder) {
         String authHeaderSettingName = Headers.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER;
         if (settings.get(authHeaderSettingName) != null) {
@@ -219,16 +250,31 @@ public class ShieldPlugin extends Plugin {
                 settingsBuilder.putArray(tribePrefix + "plugin.mandatory", NAME);
             } else {
                 if (!isShieldMandatory(existingMandatoryPlugins)) {
-                    String[] updatedMandatoryPlugins = new String[existingMandatoryPlugins.length + 1];
-                    System.arraycopy(existingMandatoryPlugins, 0, updatedMandatoryPlugins, 0, existingMandatoryPlugins.length);
-                    updatedMandatoryPlugins[updatedMandatoryPlugins.length - 1] = NAME;
-                    //shield is mandatory on every tribe if installed and enabled on the tribe node
-                    settingsBuilder.putArray(tribePrefix + "plugin.mandatory", updatedMandatoryPlugins);
+                    throw new IllegalStateException("when [plugin.mandatory] is explicitly configured, [" + NAME + "] must be included in this list");
                 }
             }
-            //shield must be enabled on every tribe if it's enabled on the tribe node
-            settingsBuilder.put(tribePrefix + ENABLED_SETTING_NAME, true);
+
+            final String tribeEnabledSetting = tribePrefix + ENABLED_SETTING_NAME;
+            if (settings.get(tribeEnabledSetting) != null) {
+                boolean enabled = shieldEnabled(tribeSettings.getValue());
+                if (!enabled) {
+                    throw new IllegalStateException("tribe setting [" + tribeEnabledSetting + "] must be set to true but the value is [" + settings.get(tribeEnabledSetting) + "]");
+                }
+            } else {
+                //shield must be enabled on every tribe if it's enabled on the tribe node
+                settingsBuilder.put(tribeEnabledSetting, true);
+            }
         }
+    }
+
+    /*
+        We need to forcefully overwrite the query cache implementation to use Shield's opt out query cache implementation.
+        This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
+        forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
+        unauthorized users.
+     */
+    private void addQueryCacheSettings(Settings.Builder settingsBuilder) {
+        settingsBuilder.put(IndexCacheModule.QUERY_CACHE_TYPE, OPT_OUT_QUERY_CACHE);
     }
 
     private static boolean isShieldMandatory(String[] existingMandatoryPlugins) {
@@ -253,6 +299,21 @@ public class ShieldPlugin extends Plugin {
     }
 
     public static boolean shieldEnabled(Settings settings) {
-        return settings.getAsBoolean(ENABLED_SETTING_NAME, true);
+        return settings.getAsBoolean(ENABLED_SETTING_NAME, DEFAULT_ENABLED_SETTING);
+    }
+
+    private void failIfShieldQueryCacheIsNotActive(Settings settings, boolean nodeSettings) {
+        String queryCacheImplementation;
+        if (nodeSettings) {
+            // in case this are node settings then the plugin additional settings have not been applied yet,
+            // so we use 'opt_out_cache' as default. So in that case we only fail if the node settings contain
+            // another cache impl than 'opt_out_cache'.
+            queryCacheImplementation = settings.get(IndexCacheModule.QUERY_CACHE_TYPE, OPT_OUT_QUERY_CACHE);
+        } else {
+            queryCacheImplementation = settings.get(IndexCacheModule.QUERY_CACHE_TYPE);
+        }
+        if (OPT_OUT_QUERY_CACHE.equals(queryCacheImplementation) == false) {
+            throw new IllegalStateException("shield does not support a user specified query cache. remove the setting [" + IndexCacheModule.QUERY_CACHE_TYPE + "] with value [" + queryCacheImplementation + "]");
+        }
     }
 }

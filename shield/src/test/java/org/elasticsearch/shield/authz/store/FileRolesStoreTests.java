@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.authz.store;
 
-import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -21,6 +19,7 @@ import org.junit.Test;
 
 import java.io.BufferedWriter;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -43,7 +42,7 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = getDataPath("roles.yml");
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger);
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(5));
+        assertThat(roles.size(), is(7));
 
         Permission.Global.Role role = roles.get("role1");
         assertThat(role, notNullValue());
@@ -53,6 +52,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(2));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
 
         Permission.Global.Indices.Group group = role.indices().groups()[0];
         assertThat(group.indices(), notNullValue());
@@ -77,6 +77,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(0));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
 
         role = roles.get("role2");
         assertThat(role, notNullValue());
@@ -85,6 +86,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().privilege(), is(Privilege.Cluster.ALL)); // MONITOR is collapsed into ALL
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices(), is(Permission.Indices.Core.NONE));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
 
         role = roles.get("role3");
         assertThat(role, notNullValue());
@@ -94,6 +96,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(1));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
 
         group = role.indices().groups()[0];
         assertThat(group.indices(), notNullValue());
@@ -108,6 +111,29 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.cluster(), notNullValue());
         assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
         assertThat(role.indices(), is(Permission.Indices.Core.NONE));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+
+        role = roles.get("role_run_as");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("role_run_as"));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
+        assertThat(role.indices(), is(Permission.Indices.Core.NONE));
+        assertThat(role.runAs(), notNullValue());
+        assertThat(role.runAs().check("user1"), is(true));
+        assertThat(role.runAs().check("user2"), is(true));
+        assertThat(role.runAs().check("user" + randomIntBetween(3, 9)), is(false));
+
+        role = roles.get("role_run_as1");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("role_run_as1"));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
+        assertThat(role.indices(), is(Permission.Indices.Core.NONE));
+        assertThat(role.runAs(), notNullValue());
+        assertThat(role.runAs().check("user1"), is(true));
+        assertThat(role.runAs().check("user2"), is(true));
+        assertThat(role.runAs().check("user" + randomIntBetween(3, 9)), is(false));
     }
 
     /**
@@ -166,7 +192,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
             watcherService.start();
 
-            try (BufferedWriter writer = Files.newBufferedWriter(tmp, Charsets.UTF_8, StandardOpenOption.APPEND)) {
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.newLine();
                 writer.newLine();
                 writer.newLine();
@@ -195,7 +221,7 @@ public class FileRolesStoreTests extends ESTestCase {
     @Test
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
         Path file = createTempFile();
-        Files.write(file, ImmutableList.of("#"), Charsets.UTF_8);
+        Files.write(file, Collections.singletonList("#"), StandardCharsets.UTF_8);
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(file, Collections.<Permission.Global.Role>emptySet(), logger);
         assertThat(roles.keySet(), is(empty()));
     }
@@ -237,7 +263,7 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testReservedRoles() throws Exception {
         Set<Permission.Global.Role> reservedRoles = ImmutableSet.<Permission.Global.Role>builder()
                 .add(Permission.Global.Role.builder("reserved")
-                        .set(Privilege.Cluster.ALL)
+                        .cluster(Privilege.Cluster.ALL)
                         .build())
                 .build();
 
@@ -263,6 +289,33 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(reserved.cluster().check("cluster:admin/test"), is(true));
 
         // we overriden the configured reserved role without index privs. (was configured with index priv on "index_a_*" indices)
+        assertThat(reserved.indices().isEmpty(), is(true));
+    }
+
+    @Test
+    public void testReservedRolesNonExistentRolesFile() throws Exception {
+        Set<Permission.Global.Role> reservedRoles = ImmutableSet.<Permission.Global.Role>builder()
+                .add(Permission.Global.Role.builder("reserved")
+                        .cluster(Privilege.Cluster.ALL)
+                        .build())
+                .build();
+
+        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
+
+        Path path = createTempFile();
+        Files.delete(path);
+        assertThat(Files.exists(path), is(false));
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger);
+        assertThat(roles, notNullValue());
+        assertThat(roles.size(), is(1));
+
+        assertThat(roles, hasKey("reserved"));
+        Permission.Global.Role reserved = roles.get("reserved");
+
+        List<CapturingLogger.Msg> messages = logger.output(CapturingLogger.Level.WARN);
+        assertThat(messages, notNullValue());
+        assertThat(messages, hasSize(0));
+        assertThat(reserved.cluster().check("cluster:admin/test"), is(true));
         assertThat(reserved.indices().isEmpty(), is(true));
     }
 }

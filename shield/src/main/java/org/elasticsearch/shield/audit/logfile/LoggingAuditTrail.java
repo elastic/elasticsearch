@@ -9,7 +9,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -168,12 +167,12 @@ public class LoggingAuditTrail implements AuditTrail {
         String indices = indicesString(message);
 
         // special treatment for internal system actions - only log on trace
-        if (user.isSystem() && Privilege.SYSTEM.predicate().apply(action)) {
+        if (user.isSystem() && Privilege.SYSTEM.predicate().test(action)) {
             if (logger.isTraceEnabled()) {
                 if (indices != null) {
-                    logger.trace("{}[transport] [access_granted]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport), user.principal(), action, indices, message.getClass().getSimpleName());
+                    logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport), principal(user), action, indices, message.getClass().getSimpleName());
                 } else {
-                    logger.trace("{}[transport] [access_granted]\t{}, principal=[{}], action=[{}], request=[{}]", prefix, originAttributes(message, transport), user.principal(), action, message.getClass().getSimpleName());
+                    logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", prefix, originAttributes(message, transport), principal(user), action, message.getClass().getSimpleName());
                 }
             }
             return;
@@ -181,15 +180,15 @@ public class LoggingAuditTrail implements AuditTrail {
 
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_granted]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport), user.principal(), action, indices, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport), principal(user), action, indices, message.getClass().getSimpleName());
             } else {
-                logger.info("{}[transport] [access_granted]\t{}, principal=[{}], action=[{}], indices=[{}]", prefix, originAttributes(message, transport), user.principal(), action, indices);
+                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}]", prefix, originAttributes(message, transport), principal(user), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_granted]\t{}, principal=[{}], action=[{}], request=[{}]", prefix, originAttributes(message, transport), user.principal(), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", prefix, originAttributes(message, transport), principal(user), action, message.getClass().getSimpleName());
             } else {
-                logger.info("{}[transport] [access_granted]\t{}, principal=[{}], action=[{}]", prefix, originAttributes(message, transport), user.principal(), action);
+                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}]", prefix, originAttributes(message, transport), principal(user), action);
             }
         }
     }
@@ -199,15 +198,15 @@ public class LoggingAuditTrail implements AuditTrail {
         String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_denied]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport), user.principal(), action, indices, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport), principal(user), action, indices, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [access_denied]\t{}, principal=[{}], action=[{}], indices=[{}]", prefix, originAttributes(message, transport), user.principal(), action, indices);
+                logger.error("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}]", prefix, originAttributes(message, transport), principal(user), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_denied]\t{}, principal=[{}], action=[{}], request=[{}]", prefix, originAttributes(message, transport), user.principal(), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [access_denied]\t{}, {}, action=[{}], request=[{}]", prefix, originAttributes(message, transport), principal(user), action, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [access_denied]\t{}, principal=[{}], action=[{}]", prefix, originAttributes(message, transport), user.principal(), action);
+                logger.error("{}[transport] [access_denied]\t{}, {}, action=[{}]", prefix, originAttributes(message, transport), principal(user), action);
             }
         }
     }
@@ -217,15 +216,15 @@ public class LoggingAuditTrail implements AuditTrail {
         String indices = indicesString(request);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]", prefix, request.remoteAddress(), user.principal(), action, indices, request.getClass().getSimpleName());
+                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix, request.remoteAddress(), principal(user), action, indices, request.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, principal=[{}], action=[{}], indices=[{}]", prefix, request.remoteAddress(), user.principal(), action, indices);
+                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}]", prefix, request.remoteAddress(), principal(user), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, principal=[{}], action=[{}], request=[{}]", prefix, request.remoteAddress(), user.principal(), action, request.getClass().getSimpleName());
+                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], request=[{}]", prefix, request.remoteAddress(), principal(user), action, request.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, principal=[{}], action=[{}]", prefix, request.remoteAddress(), user.principal(), action);
+                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}]", prefix, request.remoteAddress(), principal(user), action);
             }
         }
     }
@@ -240,6 +239,24 @@ public class LoggingAuditTrail implements AuditTrail {
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, ShieldIpFilterRule rule) {
         logger.error("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix, NetworkAddress.formatAddress(inetAddress), profile, rule);
+    }
+
+    @Override
+    public void runAsGranted(User user, String action, TransportMessage<?> message) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]", prefix, originAttributes(message, transport), user.principal(), user.runAs().principal(), action, message.getClass().getSimpleName());
+        } else {
+            logger.info("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}]", prefix, originAttributes(message, transport), user.principal(), user.runAs().principal(), action);
+        }
+    }
+
+    @Override
+    public void runAsDenied(User user, String action, TransportMessage<?> message) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]", prefix, originAttributes(message, transport), user.principal(), user.runAs().principal(), action, message.getClass().getSimpleName());
+        } else {
+            logger.info("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}]", prefix, originAttributes(message, transport), user.principal(), user.runAs().principal(), action);
+        }
     }
 
     private static String hostAttributes(RestRequest request) {
@@ -308,5 +325,13 @@ public class LoggingAuditTrail implements AuditTrail {
     static String indicesString(TransportMessage<?> message) {
         String[] indices = indices(message);
         return indices == null ? null : arrayToCommaDelimitedString(indices);
+    }
+
+    static String principal(User user) {
+        StringBuilder builder = new StringBuilder("principal=[");
+        if (user.runAs() != null) {
+            builder.append(user.runAs().principal()).append("], run_by_principal=[");
+        }
+        return builder.append(user.principal()).append("]").toString();
     }
 }

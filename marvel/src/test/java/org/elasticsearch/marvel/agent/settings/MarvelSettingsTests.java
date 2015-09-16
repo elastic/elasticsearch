@@ -11,8 +11,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
@@ -35,10 +39,19 @@ public class MarvelSettingsTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", MarvelPlugin.class.getName() + "," + LicensePlugin.class.getName())
                 .put(Node.HTTP_ENABLED, true)
                 .put(marvelSettings())
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(LicensePlugin.class, MarvelPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
 
     private Settings marvelSettings() {
@@ -58,6 +71,11 @@ public class MarvelSettingsTests extends ESIntegTestCase {
 
     @Test
     public void testMarvelSettingService() throws Exception {
+        logger.info("--> printing marvel settings values");
+        for (MarvelSetting setting : MarvelSettings.settings()) {
+            logger.info("\t{}", setting);
+        }
+
         logger.info("--> testing marvel settings service initialization");
         for (final MarvelSettings marvelSettings : internalCluster().getInstances(MarvelSettings.class)) {
             assertThat(marvelSettings.startUpDelay().millis(), equalTo(startUp.millis()));
@@ -139,7 +157,7 @@ public class MarvelSettingsTests extends ESIntegTestCase {
     }
 
     private TimeValue randomTimeValue() {
-        return TimeValue.parseTimeValue(randomFrom("1s", "10s", "30s", "1m", "30m", "1h"), null, getClass().getSimpleName());
+        return TimeValue.parseTimeValue(randomFrom("30m", "1h", "3h", "5h", "7h", "10h", "1d"), null, getClass().getSimpleName());
     }
 
     private String[] randomStringArray() {

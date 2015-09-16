@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.base.Predicate;
+import java.util.function.Predicate;
 
 /**
  *
@@ -22,6 +22,6 @@ public class SystemRole {
     }
 
     public boolean check(String action) {
-        return PREDICATE.apply(action);
+        return PREDICATE.test(action);
     }
 }

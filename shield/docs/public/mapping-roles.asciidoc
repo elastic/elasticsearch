@@ -3,75 +3,54 @@
 
 If you authenticate users with an `esusers` realm, you can assign roles when you <<esusers-add,add a user>> and use the <<esusers-roles,`roles`>> command to add or remove roles. 
 
-For other types of realms, you configure role mappings for users and groups in a YAML file. By default, role mappings are stored in `config/shield/role_mapping.yml`. You can specify
-the name and location of the mapping file by configuring the appropriate `role_mapping` setting in `elasticsearch.yml`:
+For other types of realms, you configure role mappings for users and groups in a YAML file 
+and copy it to each node in the cluster. Tools like Puppet or Chef can help with this.
 
- `shield.authc.ldap.files.role_mapping` :: The location of the role mapping file for LDAP realms.
- `shield.authc.active_directory.files.role_mapping` :: The location of the role mapping file for Active Directory realms.
- `shield.authc.pki.files.role_mapping` :: The location of the role mapping file for PKI realms.
+By default, role mappings are stored in `CONF_DIR/shield/users/role_mapping.yml`, where `CONF_DIR` 
+is `ES_HOME/config` (zip/tar installations) or `/etc/elasticsearch` (package installations). 
+To specify a different location, you configure the `role_mapping` settings in `elasticsearch.yml`. 
+The `role_mapping` settings enable you to use a different set of mappings for each realm type: 
 
-Within the role mapping file, Elasticsearch roles are keys and groups
-and users are values. The mapping can have a many-to-many relationship.
-When you map roles to groups, the roles of a user in that group are the combination of the
-roles assigned to that group and the roles assigned to that user.
+ `shield.authc.ldap.files.role_mapping` :: The location of the role mappings for LDAP realms.
+ `shield.authc.active_directory.files.role_mapping` :: The location of the role mappings for Active Directory realms.
+ `shield.authc.pki.files.role_mapping` :: The location of the role mappings for PKI realms.
 
-To map users and groups to a role, you create a mapping file and copy it to each node in the cluster. Tools like Puppet or Chef can help with this.
+IMPORTANT: For Shield to read the mapping file, it must be stored in the Elasticsearch `CONF_DIR`. 
 
-[[ldap-role-mapping]]
-.Example LDAP Role Mapping File
-[source, yaml]
-------------------------------------------------------------
-# Example LDAP group mapping configuration:
-# roleA: <1>
-#  - groupA-DN <2>
-#  - groupB-DN
-#  - user1-DN <3>
-monitoring:
-  - "cn=admins,dc=example,dc=com"
-user:
-  - "cn=users,dc=example,dc=com"
-  - "cn=admins,dc=example,dc=com"
-  - "cn=John Doe,cn=contractors,dc=example,dc=com"
-------------------------------------------------------------
-<1> The name of the Elasticsearch role found in the <<defining-roles, roles file>>
-<2> Example specifying the distinguished name of a LDAP group
-<3> Example specifying the distinguished name of a LDAP user added[1.1.0]
-
+Within the role mapping file, Shield roles are keys and groups and users are  values. 
+The mappings can have a many-to-many relationship. When you map roles to groups, the roles of a 
+user in that group are the combination of the roles assigned to that group and the roles assigned 
+to that user.
 
 [[ad-role-mapping]]
-.Example Active Directory Role Mapping File
+The available roles are defined in the <<defining-roles, roles file>>. To specify users and 
+groups in the role mappings, you use their _Distinguished Names_ (DNs).  A  DN
+is a string that uniquely identifies the user or group, for example  
+`"cn=John Doe,cn=contractors,dc=example,dc=com"`. 
+
+[[ldap-role-mapping]]
+LDAP and Active Directory realms support mapping both users and groups to roles. For example:
+
 [source, yaml]
 ------------------------------------------------------------
-# Example Active Directory group mapping configuration:
-# roleA: <1>
-#  - groupA-DN <2>
-#  - groupB-DN
-#  - user1-DN <3>
-monitoring:
-  - "cn=admins,dc=example,dc=com"
+monitoring: <1>
+  - "cn=admins,dc=example,dc=com" <2>
 user:
+  - "cn=John Doe,cn=contractors,dc=example,dc=com" <3>
   - "cn=users,dc=example,dc=com"
   - "cn=admins,dc=example,dc=com"
-  - "cn=John Doe,cn=contractors,dc=example,dc=com"
 ------------------------------------------------------------
-<1> The name of a Shield role defined in the <<defining-roles, roles file>>
-<2> Example specifying the distinguished name of a Active Directory group
-<3> Example specifying the distinguished name of a Active Directory user
+<1> The name of a Shield role defined in the <<defining-roles, roles file>>.
+<2> The distinguished name of an LDAP or Active Directory group.
+<3> The distinguished name of an LDAP or Active Directory user. added[1.1.0]
 
 [[pki-role-mapping]]
-.Example PKI Role Mapping File
+PKI realms only support mapping users to roles, as there is no notion of a group in PKI. For example: 
+
 [source, yaml]
 ------------------------------------------------------------
-# Example user mapping configuration:
-# roleA: <1>
-#  - user1-DN <2>
-monitoring:
-  - "cn=Admin,ou=example,o=com"
+monitoring: 
+  - "cn=Admin,ou=example,o=com" 
 user:
   - "cn=John Doe,ou=example,o=com"
 ------------------------------------------------------------
-<1> The name of a Shield role defined in the <<defining-roles, roles file>>
-<2> Example specifying the distinguished name of a PKI user
-
-NOTE: For PKI realms, only the DN of a user can be mapped as there is no concept of a group in PKI
-

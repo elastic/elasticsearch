@@ -13,7 +13,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.support.Exceptions;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -56,6 +55,12 @@ public class TriggerService extends AbstractComponent {
         }
     }
 
+    /**
+     * Adds the given job to the trigger service. If there is already a registered job in this service with the
+     * same job ID, the newly added job will replace the old job (the old job will not be triggered anymore)
+     *
+     * @param job   The new job
+     */
     public void add(TriggerEngine.Job job) {
         engines.get(job.trigger().type()).add(job);
     }

@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -17,25 +13,27 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AnonymousService;
 import org.elasticsearch.shield.authc.AuthenticationFailureHandler;
-import org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesResolver;
-import org.elasticsearch.shield.authz.indicesresolver.IndicesResolver;
+import org.elasticsearch.shield.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesAndAliasesResolver;
+import org.elasticsearch.shield.authz.indicesresolver.IndicesAndAliasesResolver;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.transport.TransportRequest;
 
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Predicate;
 
-import static org.elasticsearch.shield.support.Exceptions.authenticationError;
 import static org.elasticsearch.shield.support.Exceptions.authorizationError;
 
 /**
@@ -43,10 +41,12 @@ import static org.elasticsearch.shield.support.Exceptions.authorizationError;
  */
 public class InternalAuthorizationService extends AbstractComponent implements AuthorizationService {
 
+    public static final String INDICES_PERMISSIONS_KEY = "_indices_permissions";
+
     private final ClusterService clusterService;
     private final RolesStore rolesStore;
     private final AuditTrail auditTrail;
-    private final IndicesResolver[] indicesResolvers;
+    private final IndicesAndAliasesResolver[] indicesAndAliasesResolvers;
     private final AnonymousService anonymousService;
     private final AuthenticationFailureHandler authcFailureHandler;
 
@@ -57,20 +57,20 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
-        this.indicesResolvers = new IndicesResolver[] {
-                new DefaultIndicesResolver(this)
+        this.indicesAndAliasesResolvers = new IndicesAndAliasesResolver[]{
+                new DefaultIndicesAndAliasesResolver(this)
         };
         this.anonymousService = anonymousService;
         this.authcFailureHandler = authcFailureHandler;
     }
 
     @Override
-    public ImmutableList<String> authorizedIndicesAndAliases(User user, String action) {
+    public List<String> authorizedIndicesAndAliases(User user, String action) {
         String[] roles = user.roles();
         if (roles.length == 0) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
-        ImmutableList.Builder<Predicate<String>> predicates = ImmutableList.builder();
+        List<Predicate<String>> predicates = new ArrayList<>();
         for (String role : roles) {
             Permission.Global.Role global = rolesStore.role(role);
             if (global != null) {
@@ -78,17 +78,17 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             }
         }
 
-        ImmutableList.Builder<String> indicesAndAliases = ImmutableList.builder();
-        Predicate<String> predicate = Predicates.or(predicates.build());
+        List<String> indicesAndAliases = new ArrayList<>();
+        Predicate<String> predicate = predicates.stream().reduce(s -> false, (p1, p2) -> p1.or(p2));
         MetaData metaData = clusterService.state().metaData();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
         for (Map.Entry<String, AliasOrIndex> entry : metaData.getAliasAndIndexLookup().entrySet()) {
             String aliasOrIndex = entry.getKey();
-            if (predicate.apply(aliasOrIndex)) {
+            if (predicate.test(aliasOrIndex)) {
                 indicesAndAliases.add(aliasOrIndex);
             }
         }
-        return indicesAndAliases.build();
+        return Collections.unmodifiableList(indicesAndAliases);
     }
 
     @Override
@@ -97,25 +97,50 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         // first we need to check if the user is the system. If it is, we'll just authorize the system access
         if (user.isSystem()) {
             if (SystemRole.INSTANCE.check(action)) {
+                request.putInContext(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                 grant(user, action, request);
                 return;
             }
             throw denial(user, action, request);
         }
 
-        Permission.Global permission = permission(user);
-
+        Permission.Global permission = permission(user.roles());
+        final boolean isRunAs = user.runAs() != null;
         // permission can be null as it might be that the user's role
         // is unknown
         if (permission == null || permission.isEmpty()) {
-            throw denial(user, action, request);
+            if (isRunAs) {
+                // the request is a run as request so we should call the specific audit event for a denied run as attempt
+                throw denyRunAs(user, action, request);
+            } else {
+                throw denial(user, action, request);
+            }
+        }
+
+        // check if the request is a run as request
+        if (isRunAs) {
+            // first we must authorize for the RUN_AS action
+            Permission.RunAs runAs = permission.runAs();
+            if (runAs != null && runAs.check(user.runAs().principal())) {
+                grantRunAs(user, action, request);
+                permission = permission(user.runAs().roles());
+
+                // permission can be null as it might be that the user's role
+                // is unknown
+                if (permission == null || permission.isEmpty()) {
+                    throw denial(user, action, request);
+                }
+            } else {
+                throw denyRunAs(user, action, request);
+            }
         }
 
         // first, we'll check if the action is a cluster action. If it is, we'll only check it
         // against the cluster permissions
-        if (Privilege.Cluster.ACTION_MATCHER.apply(action)) {
+        if (Privilege.Cluster.ACTION_MATCHER.test(action)) {
             Permission.Cluster cluster = permission.cluster();
             if (cluster != null && cluster.check(action)) {
+                request.putInContext(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                 grant(user, action, request);
                 return;
             }
@@ -123,7 +148,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         }
 
         // ok... this is not a cluster action, let's verify it's an indices action
-        if (!Privilege.Index.ACTION_MATCHER.apply(action)) {
+        if (!Privilege.Index.ACTION_MATCHER.test(action)) {
             throw denial(user, action, request);
         }
 
@@ -149,15 +174,19 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             throw denial(user, action, request);
         }
 
-        Set<String> indexNames = resolveIndices(user, action, request);
+        ClusterState clusterState = clusterService.state();
+        Set<String> indexNames = resolveIndices(user, action, request, clusterState);
         assert !indexNames.isEmpty() : "every indices request needs to have its indices set thus the resolved indices must not be empty";
-
-        if (!authorizeIndices(action, indexNames, permission.indices())) {
+        MetaData metaData = clusterState.metaData();
+        IndicesAccessControl indicesAccessControl = permission.authorize(action, indexNames, metaData);
+        if (!indicesAccessControl.isGranted()) {
             throw denial(user, action, request);
+        } else {
+            request.putInContext(INDICES_PERMISSIONS_KEY, indicesAccessControl);
         }
 
         //if we are creating an index we need to authorize potential aliases created at the same time
-        if (Privilege.Index.CREATE_INDEX_MATCHER.apply(action)) {
+        if (Privilege.Index.CREATE_INDEX_MATCHER.test(action)) {
             assert request instanceof CreateIndexRequest;
             Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
             if (!aliases.isEmpty()) {
@@ -165,35 +194,19 @@ public class InternalAuthorizationService extends AbstractComponent implements A
                 for (Alias alias : aliases) {
                     aliasesAndIndices.add(alias.name());
                 }
-                if (!authorizeIndices("indices:admin/aliases", aliasesAndIndices, permission.indices())) {
+                indicesAccessControl = permission.authorize("indices:admin/aliases", aliasesAndIndices, metaData);
+                if (!indicesAccessControl.isGranted()) {
                     throw denial(user, "indices:admin/aliases", request);
                 }
+                // no need to re-add the indicesAccessControl in the context,
+                // because the create index call doesn't do anything FLS or DLS
             }
         }
 
         grant(user, action, request);
     }
 
-    private boolean authorizeIndices(String action, Set<String> requestIndices, Permission.Indices permission) {
-        // now... every index that is associated with the request, must be granted
-        // by at least one indices permission group
-        for (String index : requestIndices) {
-            boolean granted = false;
-            for (Permission.Indices.Group group : permission) {
-                if (group.check(action, index)) {
-                    granted = true;
-                    break;
-                }
-            }
-            if (!granted) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private Permission.Global permission(User user) {
-        String[] roleNames = user.roles();
+    private Permission.Global permission(String[] roleNames) {
         if (roleNames.length == 0) {
             return Permission.Global.NONE;
         }
@@ -215,9 +228,9 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         return roles.build();
     }
 
-    private Set<String> resolveIndices(User user, String action, TransportRequest request) {
-        MetaData metaData = clusterService.state().metaData();
-        for (IndicesResolver resolver : indicesResolvers) {
+    private Set<String> resolveIndices(User user, String action, TransportRequest request, ClusterState clusterState) {
+        MetaData metaData = clusterState.metaData();
+        for (IndicesAndAliasesResolver resolver : indicesAndAliasesResolvers) {
             if (resolver.requestType().isInstance(request)) {
                 return resolver.resolve(user, action, request, metaData);
             }
@@ -228,7 +241,6 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     private static boolean isScrollRelatedAction(String action) {
         return action.equals(SearchScrollAction.NAME) ||
-                action.equals(SearchServiceTransportAction.SCAN_SCROLL_ACTION_NAME) ||
                 action.equals(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME) ||
                 action.equals(SearchServiceTransportAction.QUERY_FETCH_SCROLL_ACTION_NAME) ||
                 action.equals(SearchServiceTransportAction.QUERY_SCROLL_ACTION_NAME) ||
@@ -239,17 +251,32 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     private ElasticsearchSecurityException denial(User user, String action, TransportRequest request) {
         auditTrail.accessDenied(user, action, request);
-        // Special case for anonymous user
-        if (anonymousService.isAnonymous(user)) {
-            if (!anonymousService.authorizationExceptionsEnabled()) {
-                throw authcFailureHandler.authenticationRequired(action);
-            }
-        }
-        return authorizationError("action [{}] is unauthorized for user [{}]", action, user.principal());
+        return denialException(user, action);
+    }
+
+    private ElasticsearchSecurityException denyRunAs(User user, String action, TransportRequest request) {
+        auditTrail.runAsDenied(user, action, request);
+        return denialException(user, action);
     }
 
     private void grant(User user, String action, TransportRequest request) {
         auditTrail.accessGranted(user, action, request);
     }
 
+    private void grantRunAs(User user, String action, TransportRequest request) {
+        auditTrail.runAsGranted(user, action, request);
+    }
+
+    private ElasticsearchSecurityException denialException(User user, String action) {
+        // Special case for anonymous user
+        if (anonymousService.isAnonymous(user)) {
+            if (!anonymousService.authorizationExceptionsEnabled()) {
+                throw authcFailureHandler.authenticationRequired(action);
+            }
+        }
+        if (user.runAs() != null) {
+            return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", action, user.principal(), user.runAs().principal());
+        }
+        return authorizationError("action [{}] is unauthorized for user [{}]", action, user.principal());
+    }
 }

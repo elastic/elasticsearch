@@ -167,6 +167,16 @@ public class RealmsTests extends ESTestCase {
             return null;
         }
 
+        @Override
+        public User lookupUser(String username) {
+            return null;
+        }
+
+        @Override
+        public boolean userLookupSupported() {
+            return false;
+        }
+
         static class Factory extends Realm.Factory<DummyRealm> {
 
             public Factory(String type, boolean internal) {

@@ -22,7 +22,7 @@ public class SessionFactoryTests extends ESTestCase {
     @Test
     public void connectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() {
         SessionFactory factory = createSessionFactory();
-        LDAPConnectionOptions options = factory.connectionOptions(Settings.EMPTY);
+        LDAPConnectionOptions options = SessionFactory.connectionOptions(Settings.EMPTY);
         assertThat(options.followReferrals(), is(equalTo(true)));
         assertThat(options.allowConcurrentSocketFactoryUse(), is(equalTo(true)));
         assertThat(options.getConnectTimeoutMillis(), is(equalTo(5000)));
@@ -39,7 +39,7 @@ public class SessionFactoryTests extends ESTestCase {
                 .put(SessionFactory.FOLLOW_REFERRALS_SETTING, "false")
                 .build();
         SessionFactory factory = createSessionFactory();
-        LDAPConnectionOptions options = factory.connectionOptions(settings);
+        LDAPConnectionOptions options = SessionFactory.connectionOptions(settings);
         assertThat(options.followReferrals(), is(equalTo(false)));
         assertThat(options.allowConcurrentSocketFactoryUse(), is(equalTo(true)));
         assertThat(options.getConnectTimeoutMillis(), is(equalTo(10)));
@@ -47,6 +47,20 @@ public class SessionFactoryTests extends ESTestCase {
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
     }
 
+    @Test
+    public void sessionFactoryDoesNotSupportUnauthenticated() {
+        assertThat(createSessionFactory().supportsUnauthenticatedSession(), is(false));
+    }
+
+    @Test
+    public void unauthenticatedSessionThrowsUnsupportedOperationException() throws Exception {
+        try {
+            createSessionFactory().unauthenticatedSession(randomAsciiOfLength(5));
+            fail("session factory should throw an unsupported operation exception");
+        } catch (UnsupportedOperationException e) {
+            // expected...
+        }
+    }
     private SessionFactory createSessionFactory() {
         Settings global = settingsBuilder().put("path.home", createTempDir()).build();
         return new SessionFactory(new RealmConfig("_name", Settings.EMPTY, global)) {

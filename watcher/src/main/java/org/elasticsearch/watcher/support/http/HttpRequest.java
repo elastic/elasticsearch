@@ -12,9 +12,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
@@ -360,6 +358,11 @@ public class HttpRequest implements ToXContent {
         public Builder body(String body) {
             this.body = body;
             return this;
+        }
+
+        public Builder jsonBody(ToXContent xContent) {
+            return body(XContentHelper.toString(xContent))
+                    .setHeader("Content-Type", XContentType.JSON.restContentType());
         }
 
         public Builder connectionTimeout(TimeValue timeout) {

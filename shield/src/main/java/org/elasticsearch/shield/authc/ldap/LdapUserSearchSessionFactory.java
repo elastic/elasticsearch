@@ -144,20 +144,39 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
 
     @Override
     public LdapSession session(String user, SecuredString password) throws Exception {
-        SearchRequest request = new SearchRequest(userSearchBaseDn, scope.scope(), createEqualityFilter(userAttribute, encodeValue(user)), Strings.EMPTY_ARRAY);
-        request.setTimeLimitSeconds(Ints.checkedCast(timeout.seconds()));
-        LDAPConnectionPool connectionPool = connectionPool();
         try {
-            SearchResultEntry entry = searchForEntry(connectionPool, request, logger);
-            if (entry == null) {
-                throw Exceptions.authenticationError("failed to find user [{}] with search base [{}] scope [{}]", user, userSearchBaseDn, scope.toString().toLowerCase(Locale.ENGLISH));
-            }
-            String dn = entry.getDN();
+            String dn = findUserDN(user);
             tryBind(dn, password);
             return new LdapSession(logger, connectionPool, dn, groupResolver, timeout);
         } catch (LDAPException e) {
             throw Exceptions.authenticationError("failed to authenticate user [{}]", e, user);
         }
+    }
+
+    @Override
+    public boolean supportsUnauthenticatedSession() {
+        return true;
+    }
+
+    @Override
+    public LdapSession unauthenticatedSession(String user) throws Exception {
+        try {
+            String dn = findUserDN(user);
+            return new LdapSession(logger, connectionPool, dn, groupResolver, timeout);
+        } catch (LDAPException e) {
+            throw Exceptions.authenticationError("failed to lookup user [{}]", e, user);
+        }
+    }
+
+    private String findUserDN(String user) throws Exception {
+        SearchRequest request = new SearchRequest(userSearchBaseDn, scope.scope(), createEqualityFilter(userAttribute, encodeValue(user)), Strings.EMPTY_ARRAY);
+        request.setTimeLimitSeconds(Ints.checkedCast(timeout.seconds()));
+        LDAPConnectionPool connectionPool = connectionPool();
+        SearchResultEntry entry = searchForEntry(connectionPool, request, logger);
+        if (entry == null) {
+            throw Exceptions.authenticationError("failed to find user [{}] with search base [{}] scope [{}]", user, userSearchBaseDn, scope.toString().toLowerCase(Locale.ENGLISH));
+        }
+        return entry.getDN();
     }
 
     private void tryBind(String dn, SecuredString password) throws IOException {

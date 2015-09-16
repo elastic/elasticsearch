@@ -6,14 +6,14 @@
 package org.elasticsearch.shield.transport;
 
 import com.google.common.collect.ImmutableMap;
-
+import org.elasticsearch.Version;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
@@ -27,6 +27,7 @@ import org.junit.Test;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
@@ -80,10 +81,10 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
 
     @Test
     public void testThatConnectionToServerTypeConnectionWorks() {
-        Settings dataNodeSettings = internalTestCluster().getDataNodeInstance(Settings.class);
+        Settings dataNodeSettings = internalCluster().getDataNodeInstance(Settings.class);
         String systemKeyFile = dataNodeSettings.get(InternalCryptoService.FILE_SETTING);
 
-        Transport transport = internalTestCluster().getDataNodeInstance(Transport.class);
+        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
         assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
         InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
@@ -92,11 +93,10 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
         // test that starting up a node works
         Settings nodeSettings = settingsBuilder()
                 .put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
-                .put("plugin.types", ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName())
                 .put("node.mode", "network")
                 .put("node.name", "my-test-node")
                 .put("network.host", "localhost")
-                .put("cluster.name", internalTestCluster().getClusterName())
+                .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
                 .put("shield.transport.ssl", sslTransportEnabled())
@@ -104,15 +104,17 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("path.home", createTempDir())
                 .put(Node.HTTP_ENABLED, false)
                 .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
+                .put("node.client", true)
                 .build();
-        try (Node node = nodeBuilder().client(true).settings(nodeSettings).node()) {
+        try (Node node = new MockNode(nodeSettings, Version.CURRENT, Arrays.asList(ShieldPlugin.class, licensePluginClass()))) {
+            node.start();
             assertGreenClusterState(node.client());
         }
     }
 
     @Test
     public void testThatConnectionToClientTypeConnectionIsRejected() {
-        Settings dataNodeSettings = internalTestCluster().getDataNodeInstance(Settings.class);
+        Settings dataNodeSettings = internalCluster().getDataNodeInstance(Settings.class);
         String systemKeyFile = dataNodeSettings.get(InternalCryptoService.FILE_SETTING);
 
         Path folder = createFolder(createTempDir(), getClass().getSimpleName() + "-" + randomAsciiOfLength(10));
@@ -128,7 +130,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("node.mode", "network")
                 .put("node.name", "my-test-node")
                 .put("shield.user", "test_user:changeme")
-                .put("cluster.name", internalTestCluster().getClusterName())
+                .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.zen.ping.unicast.hosts", "localhost:" + randomClientPort)
                 .put("shield.transport.ssl", sslTransportEnabled())

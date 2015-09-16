@@ -12,7 +12,7 @@ options, and the installation process for RPM/DEB package installations.
 All you need to use Watcher is:
 
 * Java 7 or later
-* Elasticsearch 1.5 or later
+* Elasticsearch {version}
 * Elasticsearch License plugin
 
 For information about installing the latest Oracle JDK, see
@@ -74,8 +74,8 @@ specify the location of the configuration files by setting `-Des.path.conf`. For
 [source,shell]
 ----------------------------------------------------------
 cd /usr/share/elasticsearch
-sudo bin/plugin -i elasticsearch/license/latest -Des.path.conf=/etc/elasticsearch
-sudo bin/plugin -i elasticsearch/watcher/latest -Des.path.conf=/etc/elasticsearch
+sudo bin/plugin -i license -Des.path.conf=/etc/elasticsearch
+sudo bin/plugin -i watcher -Des.path.conf=/etc/elasticsearch
 ----------------------------------------------------------
 
 [float]
@@ -90,8 +90,6 @@ To install Watcher on a machine that doesn't have Internet access:
 . Manually download the License and Watcher binaries: 
 ** https://download.elastic.co/elasticsearch/license/license-latest.zip[
 https://download.elastic.co/elasticsearch/license/license-latest.zip]
-** https://download.elastic.co/elasticsearch/watcher/watcher-latest.zip[
-https://download.elastic.co/elasticsearch/watcher/watcher-latest.zip]
 
 . Transfer the zip files to the offline machine.
 
@@ -99,7 +97,6 @@ https://download.elastic.co/elasticsearch/watcher/watcher-latest.zip]
 +
 [source,shell]
 ----------------------------------------------------------
-bin/plugin -i license -u file:///path/to/file/license-latest.zip <1>
-bin/plugin -i watcher -u file:///path/to/file/watcher-1.0.1.zip
+bin/plugin -i watcher -u file:///path/to/file/watcher-{version}.zip <1>
 ----------------------------------------------------------
 <1> Note that you must specify an absolute path to the zip file after the `file://` protocol.

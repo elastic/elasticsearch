@@ -33,7 +33,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     public TransportPutWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                    WatcherService watcherService, LicenseService licenseService) {
-        super(settings, PutWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, PutWatchRequest.class);
+        super(settings, PutWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, PutWatchRequest::new);
         this.watcherService = watcherService;
     }
 
@@ -50,7 +50,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     @Override
     protected void masterOperation(PutWatchRequest request, ClusterState state, ActionListener<PutWatchResponse> listener) throws ElasticsearchException {
         try {
-            IndexResponse indexResponse = watcherService.putWatch(request.getId(), request.getSource(), request.masterNodeTimeout());
+            IndexResponse indexResponse = watcherService.putWatch(request.getId(), request.getSource(), request.masterNodeTimeout(), request.isActive());
             listener.onResponse(new PutWatchResponse(indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated()));
         } catch (Exception e) {
             listener.onFailure(e);

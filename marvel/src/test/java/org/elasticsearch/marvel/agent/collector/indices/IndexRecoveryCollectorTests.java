@@ -6,7 +6,6 @@
 package org.elasticsearch.marvel.agent.collector.indices;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -102,23 +101,23 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         RecoveryResponse recovery = indexRecoveryMarvelDoc.getRecoveryResponse();
         assertNotNull(recovery);
 
-        Map<String, List<ShardRecoveryResponse>> shards = recovery.shardResponses();
+        Map<String, List<RecoveryState>> shards = recovery.shardRecoveryStates();
         assertThat(shards.size(), greaterThan(0));
 
-        for (Map.Entry<String, List<ShardRecoveryResponse>> shard : shards.entrySet()) {
-            List<ShardRecoveryResponse> shardRecoveries = shard.getValue();
+        for (Map.Entry<String, List<RecoveryState>> shard : shards.entrySet()) {
+            List<RecoveryState> shardRecoveries = shard.getValue();
             assertNotNull(shardRecoveries);
             assertThat(shardRecoveries.size(), greaterThan(0));
 
-            for (ShardRecoveryResponse shardRecovery : shardRecoveries) {
-                assertThat(shardRecovery.getIndex(), equalTo(indexName));
-                assertThat(shardRecovery.recoveryState().getType(), anyOf(equalTo(RecoveryState.Type.RELOCATION), equalTo(RecoveryState.Type.STORE), equalTo(RecoveryState.Type.REPLICA)));
+            for (RecoveryState shardRecovery : shardRecoveries) {
+                assertThat(shard.getKey(), equalTo(indexName));
+                assertThat(shardRecovery.getType(), anyOf(equalTo(RecoveryState.Type.RELOCATION), equalTo(RecoveryState.Type.STORE), equalTo(RecoveryState.Type.REPLICA)));
             }
         }
     }
 
     @Test
-    public void tesIndexRecoveryCollectorWithLicensing() {
+    public void testIndexRecoveryCollectorWithLicensing() {
         String[] nodes = internalCluster().getNodeNames();
         for (String node : nodes) {
             logger.debug("--> creating a new instance of the collector");

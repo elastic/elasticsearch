@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.collector.cluster;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
@@ -17,7 +16,10 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Collector for cluster state.
@@ -46,12 +48,12 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
 
     @Override
     protected Collection<MarvelDoc> doCollect() throws Exception {
-        ImmutableList.Builder<MarvelDoc> results = ImmutableList.builder();
+        List<MarvelDoc> results = new ArrayList<>(1);
 
         ClusterState clusterState = clusterService.state();
         ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().get(marvelSettings.clusterStateTimeout());
 
         results.add(new ClusterStateMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), clusterState, clusterHealth.getStatus()));
-        return results.build();
+        return Collections.unmodifiableCollection(results);
     }
 }

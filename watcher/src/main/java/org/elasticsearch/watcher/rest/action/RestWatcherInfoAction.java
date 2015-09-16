@@ -23,7 +23,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestWatcherInfoAction extends WatcherRestHandler {
 
     @Inject
-    protected RestWatcherInfoAction(Settings settings, RestController controller, Client client) {
+    public RestWatcherInfoAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
         controller.registerHandler(GET, URI_BASE, this);
     }

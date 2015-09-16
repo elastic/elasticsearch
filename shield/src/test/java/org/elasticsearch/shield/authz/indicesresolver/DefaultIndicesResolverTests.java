@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz.indicesresolver;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -33,6 +32,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.*;
@@ -44,7 +45,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
     private User user;
     private User userNoIndices;
     private MetaData metaData;
-    private DefaultIndicesResolver defaultIndicesResolver;
+    private DefaultIndicesAndAliasesResolver defaultIndicesResolver;
 
     @Before
     public void setup() {
@@ -67,22 +68,22 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         metaData = mdBuilder.build();
 
         AuthorizationService authzService = mock(AuthorizationService.class);
-        user = new User.Simple("user", "role");
+        user = new User.Simple("user", new String[] { "role" });
 
         String[] authorizedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed"};
-        when(authzService.authorizedIndicesAndAliases(user, SearchAction.NAME)).thenReturn(ImmutableList.copyOf(authorizedIndices));
-        when(authzService.authorizedIndicesAndAliases(user, MultiSearchAction.NAME)).thenReturn(ImmutableList.copyOf(authorizedIndices));
-        when(authzService.authorizedIndicesAndAliases(user, MultiGetAction.NAME)).thenReturn(ImmutableList.copyOf(authorizedIndices));
-        when(authzService.authorizedIndicesAndAliases(user, IndicesAliasesAction.NAME)).thenReturn(ImmutableList.copyOf(authorizedIndices));
-        when(authzService.authorizedIndicesAndAliases(user, GetAliasesAction.NAME)).thenReturn(ImmutableList.copyOf(authorizedIndices));
-        when(authzService.authorizedIndicesAndAliases(user, DeleteIndexAction.NAME)).thenReturn(ImmutableList.copyOf(authorizedIndices));
-        userNoIndices = new User.Simple("test", "test");
-        when(authzService.authorizedIndicesAndAliases(userNoIndices, IndicesAliasesAction.NAME)).thenReturn(ImmutableList.<String>of());
-        when(authzService.authorizedIndicesAndAliases(userNoIndices, GetAliasesAction.NAME)).thenReturn(ImmutableList.<String>of());
-        when(authzService.authorizedIndicesAndAliases(userNoIndices, SearchAction.NAME)).thenReturn(ImmutableList.<String>of());
-        when(authzService.authorizedIndicesAndAliases(userNoIndices, MultiSearchAction.NAME)).thenReturn(ImmutableList.<String>of());
+        when(authzService.authorizedIndicesAndAliases(user, SearchAction.NAME)).thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
+        when(authzService.authorizedIndicesAndAliases(user, MultiSearchAction.NAME)).thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
+        when(authzService.authorizedIndicesAndAliases(user, MultiGetAction.NAME)).thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
+        when(authzService.authorizedIndicesAndAliases(user, IndicesAliasesAction.NAME)).thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
+        when(authzService.authorizedIndicesAndAliases(user, GetAliasesAction.NAME)).thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
+        when(authzService.authorizedIndicesAndAliases(user, DeleteIndexAction.NAME)).thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
+        userNoIndices = new User.Simple("test", new String[] { "test" });
+        when(authzService.authorizedIndicesAndAliases(userNoIndices, IndicesAliasesAction.NAME)).thenReturn(Collections.<String>emptyList());
+        when(authzService.authorizedIndicesAndAliases(userNoIndices, GetAliasesAction.NAME)).thenReturn(Collections.<String>emptyList());
+        when(authzService.authorizedIndicesAndAliases(userNoIndices, SearchAction.NAME)).thenReturn(Collections.<String>emptyList());
+        when(authzService.authorizedIndicesAndAliases(userNoIndices, MultiSearchAction.NAME)).thenReturn(Collections.<String>emptyList());
 
-        defaultIndicesResolver = new DefaultIndicesResolver(authzService);
+        defaultIndicesResolver = new DefaultIndicesAndAliasesResolver(authzService);
     }
 
     @Test

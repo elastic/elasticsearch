@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.shield;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.HasContext;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +49,13 @@ public class ShieldIntegration {
     public void filterOutSettings(String... patterns) {
         if (settingsFilter != null) {
             ((ShieldSettingsFilter) settingsFilter).filterOut(patterns);
+        }
+    }
+
+    // TODO this is a hack that needs to go away with proper fixes in core
+    public void putUserInContext(HasContext context) {
+        if (userHolder != null) {
+            context.putInContext("_shield_user", ((WatcherUserHolder) userHolder).user);
         }
     }
 

@@ -22,3 +22,11 @@ role4:
     'idx2':
     '': READ
     'idx1': []
+
+# role with run_as permissions only
+role_run_as:
+  run_as: "user1,user2"
+
+# role with more than run_as
+role_run_as1:
+  run_as: [user1, user2]

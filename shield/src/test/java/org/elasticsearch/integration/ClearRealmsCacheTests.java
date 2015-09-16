@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.integration;
 
-import com.google.common.base.Joiner;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.action.ActionListener;
@@ -123,7 +122,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
             @Override
             public void executeRequest() throws Exception {
                 String path = "/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_cache/clear";
-                Map<String, String> params = Collections.singletonMap("usernames", Joiner.on(',').join(evicted_usernames));
+                Map<String, String> params = Collections.singletonMap("usernames", String.join(",", evicted_usernames));
                 executeHttpRequest(path, params);
             }
         };
@@ -140,7 +139,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
             client.authc().clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
                 @Override
                 public void onResponse(ClearRealmCacheResponse response) {
-                    assertThat(response.getNodes().length, equalTo(internalTestCluster().getNodeNames().length));
+                    assertThat(response.getNodes().length, equalTo(internalCluster().getNodeNames().length));
                     latch.countDown();
                 }
 
@@ -163,7 +162,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
         static void executeHttpRequest(String path, Map<String, String> params) throws Exception {
             try (CloseableHttpClient client = HttpClients.createDefault()) {
                 HttpRequestBuilder requestBuilder = new HttpRequestBuilder(client)
-                        .httpTransport(internalTestCluster().getDataNodeInstance(HttpServerTransport.class))
+                        .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
                         .method("POST")
                         .path(path);
                 for (Map.Entry<String, String> entry : params.entrySet()) {
@@ -240,7 +239,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
         }
 
         List<Realm> realms = new ArrayList<>();
-        for (Realms nodeRealms : internalTestCluster().getInstances(Realms.class)) {
+        for (Realms nodeRealms : internalCluster().getInstances(Realms.class)) {
             realms.add(nodeRealms.realm("esusers"));
         }
 

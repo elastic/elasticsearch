@@ -51,7 +51,7 @@ public class KnownActionsTests extends ShieldIntegTestCase {
 
     @Test
     public void testAllTransportHandlersAreKnown() {
-        TransportService transportService = internalTestCluster().getDataNodeInstance(TransportService.class);
+        TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
         for (String handler : transportService.requestHandlers.keySet()) {
             if (!knownActions.contains(handler)) {
                 assertThat("elasticsearch core transport handler [" + handler + "] is unknown to shield", knownHandlers, hasItem(handler));
@@ -75,7 +75,7 @@ public class KnownActionsTests extends ShieldIntegTestCase {
 
     @Test
     public void testAllKnownTransportHandlersAreValid() {
-        TransportService transportService = internalTestCluster().getDataNodeInstance(TransportService.class);
+        TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
         for (String knownHandler : knownHandlers) {
             assertThat("shield known handler [" + knownHandler + "] is unknown to core", transportService.requestHandlers.keySet(), hasItems(knownHandler));
         }

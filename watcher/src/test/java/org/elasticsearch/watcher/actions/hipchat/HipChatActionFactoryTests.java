@@ -59,7 +59,7 @@ public class HipChatActionFactoryTests extends ESTestCase {
     }
 
     @Test(expected = ElasticsearchParseException.class)
-    public void testtestParseAction_UnknownAccount() throws Exception {
+    public void testParseAction_UnknownAccount() throws Exception {
 
         when(hipchatService.getAccount("_unknown")).thenReturn(null);
 

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.transform.script;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +28,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
@@ -133,7 +133,7 @@ public class ScriptTransformTests extends ESTestCase {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
         ExecutableScript executable = mock(ExecutableScript.class);
-        Object value = randomFrom("value", 1, new String[] { "value" }, ImmutableList.of("value"), ImmutableSet.of("value"));
+        Object value = randomFrom("value", 1, new String[] { "value" }, Arrays.asList("value"), ImmutableSet.of("value"));
         when(executable.run()).thenReturn(value);
         when(service.executable(compiledScript, model)).thenReturn(executable);
 

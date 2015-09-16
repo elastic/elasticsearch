@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.execution;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class TriggeredWatchTests extends AbstractWatcherIntegrationTests {
+public class TriggeredWatchTests extends AbstractWatcherIntegrationTestCase {
 
     @Test
     public void testParser() throws Exception {

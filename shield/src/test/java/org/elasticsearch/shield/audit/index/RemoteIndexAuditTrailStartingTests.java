@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.shield.audit.index;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
@@ -29,6 +30,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * This test checks to ensure that the IndexAuditTrail starts properly when indexing to a remote cluster
  */
+@ClusterScope(scope = Scope.TEST)
 public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
 
     public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + SUITE_CLUSTER_NODE_PREFIX;
@@ -53,6 +55,13 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
                 .build();
     }
 
+    @Override
+    public void beforeIndexDeletion() {
+        // For this test, this is a NO-OP because the index audit trail will continue to capture events and index after
+        // the tests have completed. The default implementation of this method expects that nothing is performing operations
+        // after the test has completed
+    }
+
     @Before
     public void startRemoteCluster() throws IOException {
         final List<String> addresses = new ArrayList<>();
@@ -71,9 +80,9 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
         final int numNodes = randomIntBetween(2, 3);
         ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.SUITE) {
             @Override
-            public Settings node(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
-                        .put(super.node(nodeOrdinal))
+                        .put(super.nodeSettings(nodeOrdinal))
                         .put("shield.audit.enabled", true)
                         .put("shield.audit.outputs", randomFrom("index", "index,logfile"))
                         .putArray("shield.audit.index.client.hosts", addresses.toArray(new String[addresses.size()]))
@@ -88,7 +97,7 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
                 return builder.build();
             }
         };
-        remoteCluster = new InternalTestCluster("network", randomLong(), createTempDir(), numNodes, numNodes, cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX);
+        remoteCluster = new InternalTestCluster("network", randomLong(), createTempDir(), numNodes, numNodes, cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, true);
         remoteCluster.beforeTest(getRandom(), 0.5);
     }
 
@@ -102,20 +111,22 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
             }
             remoteCluster.close();
         }
+
+        // stop the index audit trail so that the shards aren't locked causing the test to fail
+        if (outputs.contains("index")) {
+            Iterable<IndexAuditTrail> auditTrails = internalCluster().getInstances(IndexAuditTrail.class);
+            for (IndexAuditTrail auditTrail : auditTrails) {
+                auditTrail.close();
+            }
+        }
     }
 
     @Test
     public void testThatRemoteAuditInstancesAreStarted() throws Exception {
         Iterable<IndexAuditTrail> auditTrails = remoteCluster.getInstances(IndexAuditTrail.class);
         for (final IndexAuditTrail auditTrail : auditTrails) {
-            awaitBusy(new Predicate<Void>() {
-                @Override
-                public boolean apply(Void aVoid) {
-                    return auditTrail.state() == IndexAuditTrail.State.STARTED;
-                }
-            }, 2L, TimeUnit.SECONDS);
+            awaitBusy(() -> auditTrail.state() == IndexAuditTrail.State.STARTED, 2L, TimeUnit.SECONDS);
             assertThat(auditTrail.state(), is(IndexAuditTrail.State.STARTED));
         }
     }
-
 }

@@ -11,7 +11,7 @@ import org.joda.time.DateTime;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.input.none.ExecutableNoneInput;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
 import org.joda.time.DateTimeZone;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class TriggeredWatchStoreLifeCycleTests extends AbstractWatcherIntegrationTests {
+public class TriggeredWatchStoreLifeCycleTests extends AbstractWatcherIntegrationTestCase {
 
     @Test
     public void testPutLoadUpdate() throws Exception {

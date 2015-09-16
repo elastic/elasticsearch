@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.transform.search;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -127,7 +126,7 @@ public class SearchTransformTests extends ESIntegTestCase {
                 .startObject("query")
                 .startObject("match_all").endObject()
                 .endObject()
-                .endObject());
+                .endObject().bytes());
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
 
@@ -164,7 +163,7 @@ public class SearchTransformTests extends ESIntegTestCase {
                 .startObject("query")
                 .startObject("_unknown_query_").endObject()
                 .endObject()
-                .endObject());
+                .endObject().bytes());
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
 
@@ -206,10 +205,10 @@ public class SearchTransformTests extends ESIntegTestCase {
         ensureGreen("idx");
         refresh();
 
-        SearchRequest request = Requests.searchRequest("idx").source(searchSource().query(filteredQuery(matchAllQuery(), boolQuery()
-                .must(rangeQuery("date").gt("{{ctx.trigger.scheduled_time}}"))
-                .must(rangeQuery("date").lt("{{ctx.execution_time}}"))
-                .must(termQuery("value", "{{ctx.payload.value}}")))));
+        SearchRequest request = Requests.searchRequest("idx").source(searchSource().query(boolQuery()
+                .must(constantScoreQuery(rangeQuery("date").gt("{{ctx.trigger.scheduled_time}}")))
+                .must(constantScoreQuery(rangeQuery("date").lt("{{ctx.execution_time}}")))
+                .must(termQuery("value", "{{ctx.payload.value}}"))));
 
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
@@ -223,9 +222,12 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(result, notNullValue());
         assertThat(result.type(), is(SearchTransform.TYPE));
 
-        SearchResponse response = client().prepareSearch("idx").setQuery(
-                filteredQuery(matchAllQuery(), termQuery("value", "val_3")))
-                .get();
+        SearchResponse response = client().prepareSearch("idx").setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE).setQuery(
+                boolQuery()
+                        .must(constantScoreQuery(rangeQuery("date").gt(parseDate("2015-01-01T00:00:00", UTC))))
+                        .must(constantScoreQuery(rangeQuery("date").lt(parseDate("2015-01-04T00:00:00", UTC))))
+                        .must(termQuery("value", "val_3"))
+        ).get();
         Payload expectedPayload = new Payload.XContent(response);
 
         // we need to remove the "took" field from teh response as this is the only field
@@ -363,40 +365,19 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(names, arrayContaining("idx", "idx-" + DateTimeFormat.forPattern(dateFormat).print(now.minusDays(3))));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_ScanNotSupported() throws Exception {
-        SearchRequest request = client().prepareSearch()
-                .setSearchType(SearchType.SCAN)
-                .request()
-                .source(searchSource()
-                        .query(filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
-
-        SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        XContentBuilder builder = jsonBuilder().value(searchTransform);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-
-        DynamicIndexName.Parser indexNamesParser = new DynamicIndexName.Parser();
-        SearchTransformFactory factory = new SearchTransformFactory(Settings.EMPTY, ClientProxy.of(client()));
-
-        factory.parseTransform("_id", parser);
-        fail("expected a SearchTransformException as search type SCAN should not be supported");
-    }
-
-
     @Test
     public void testSearch_InlineTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
 
-        final String templateQuery = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
-                "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
+        final String templateQuery = "{\"query\":{\"bool\":{\"must\":[{\"match\":{\"event_type\":{\"query\":\"a\"," +
+                "\"type\":\"boolean\"}}},{\"range\":{\"_timestamp\":" +
                 "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
-                "\"include_lower\":true,\"include_upper\":true}}}}}}";
+                "\"include_lower\":true,\"include_upper\":true}}}]}}}";
 
-        final String expectedQuery = "{\"template\":{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
-                "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
+        final String expectedQuery = "{\"template\":{\"query\":{\"bool\":{\"must\":[{\"match\":{\"event_type\":{\"query\":\"a\"," +
+                "\"type\":\"boolean\"}}},{\"range\":{\"_timestamp\":" +
                 "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
-                "\"include_lower\":true,\"include_upper\":true}}}}}},\"params\":{\"seconds_param\":\"30s\",\"ctx\":{" +
+                "\"include_lower\":true,\"include_upper\":true}}}]}}},\"params\":{\"seconds_param\":\"30s\",\"ctx\":{" +
                 "\"id\":\"" + ctx.id().value() + "\",\"metadata\":null,\"vars\":{},\"watch_id\":\"test-watch\",\"payload\":{}," +
                 "\"trigger\":{\"triggered_time\":\"1970-01-01T00:01:00.000Z\",\"scheduled_time\":\"1970-01-01T00:01:00.000Z\"}," +
                 "\"execution_time\":\"1970-01-01T00:01:00.000Z\"}}}";
@@ -423,10 +404,10 @@ public class SearchTransformTests extends ESIntegTestCase {
     public void testSearch_IndexedTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
 
-        final String templateQuery = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
-                "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
+        final String templateQuery = "{\"query\":{\"bool\":{\"must\":[{\"match\":{\"event_type\":{\"query\":\"a\"," +
+                "\"type\":\"boolean\"}}},{\"range\":{\"_timestamp\":" +
                 "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
-                "\"include_lower\":true,\"include_upper\":true}}}}}}";
+                "\"include_lower\":true,\"include_upper\":true}}}]}}}";
 
         PutIndexedScriptRequest indexedScriptRequest = client().preparePutIndexedScript("mustache", "test-script", templateQuery).request();
         assertThat(client().putIndexedScript(indexedScriptRequest).actionGet().isCreated(), is(true));
@@ -476,9 +457,9 @@ public class SearchTransformTests extends ESIntegTestCase {
     public void testDifferentSearchType() throws Exception {
         WatchExecutionContext ctx = createContext();
 
-        SearchSourceBuilder searchSourceBuilder = searchSource().query(filteredQuery(
-              matchQuery("event_type", "a"),
-              rangeQuery("_timestamp")
+        SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
+              .must(matchQuery("event_type", "a"))
+              .must(rangeQuery("_timestamp")
                       .from("{{ctx.trigger.scheduled_time}}||-30s")
                       .to("{{ctx.trigger.triggered_time}}")));
 
@@ -499,6 +480,7 @@ public class SearchTransformTests extends ESIntegTestCase {
     }
 
     private WatchExecutionContext createContext() {
+
         return new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -508,7 +490,7 @@ public class SearchTransformTests extends ESIntegTestCase {
                         null,
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
-                        new WatchStatus(ImmutableMap.<String, ActionStatus>of())),
+                        new WatchStatus( new DateTime(40000, UTC), ImmutableMap.<String, ActionStatus>of())),
                 new DateTime(60000, UTC),
                 new ScheduleTriggerEvent("test-watch", new DateTime(60000, UTC), new DateTime(60000, UTC)),
                 timeValueSeconds(5));

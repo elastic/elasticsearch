@@ -16,6 +16,10 @@
         "master_timeout": {
           "type": "duration",
           "description": "Specify timeout for watch write operation"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Specify whether the watch is in/active by default"
         }
       }
     },

@@ -44,7 +44,7 @@ public class ShieldRestFilterTests extends ESTestCase {
     @Test
     public void testProcess() throws Exception {
         RestRequest request = mock(RestRequest.class);
-        User user = new User.Simple("_user", "r1");
+        User user = new User.Simple("_user", new String[] { "r1" });
         when(authcService.authenticate(request)).thenReturn(user);
         filter.process(request, channel, chain);
         verify(chain).continueProcessing(request, channel);

@@ -9,7 +9,7 @@ import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
-import com.google.common.collect.Iterables;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.watcher.support.ArrayObjectIterator;
 

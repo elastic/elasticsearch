@@ -111,9 +111,15 @@
         <testResources>
             <testResource>
                 <directory>${basedir}/src/test/resources</directory>
-                <includes>
-                    <include>**/*.*</include>
-                </includes>
+                <excludes>
+                    <exclude>rest-api-spec/**</exclude>
+                </excludes>
+            </testResource>
+            <testResource>
+                <!-- the rest spec tests need the port for some reason.... -->
+                <directory>${basedir}/src/test/resources/rest-api-spec</directory>
+                <targetPath>rest-api-spec</targetPath>
+                <filtering>true</filtering>
             </testResource>
             <testResource>
                 <directory>${basedir}/rest-api-spec</directory>

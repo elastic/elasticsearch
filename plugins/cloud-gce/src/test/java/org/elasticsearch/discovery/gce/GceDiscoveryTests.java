@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.gce;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -59,6 +60,7 @@ import static org.hamcrest.Matchers.is;
  *  compute/v1/projects/mynewawesometest/zones/europe-west1-b/instances.json
  *
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13623")
 public class GceDiscoveryTests extends ESTestCase {
 
     protected static ThreadPool threadPool;

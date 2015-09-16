@@ -75,11 +75,17 @@ grant codeBase "${es.security.jar.lucene.testframework}" {
 grant codeBase "${es.security.jar.randomizedtesting.runner}" {
   // optionally needed for access to private test methods (e.g. beforeClass)
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  // needed for top threads handling
+  permission java.lang.RuntimePermission "modifyThreadGroup";
 };
 
 grant codeBase "${es.security.jar.randomizedtesting.junit4}" {
   // needed for gson serialization
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  // needed for stream redirection
+  permission java.lang.RuntimePermission "setIO";
 };
 
 //// Everything else:
@@ -107,12 +113,9 @@ grant {
   // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";
 
-  // needed by LuceneTestCase/TestRuleLimitSysouts
-  permission java.lang.RuntimePermission "setIO";
-
-  // needed by junit4 ThreadLeakControl
+  // needed by ES threadpool termination... clean this up
+  // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "modifyThread";
-  permission java.lang.RuntimePermission "modifyThreadGroup";
 
   // needed by groovy scripting
   permission java.lang.RuntimePermission "getProtectionDomain";
@@ -121,18 +124,22 @@ grant {
   // needed by groovy engine
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   
-  // needed by RandomizedRunner
+  // likely not low hanging fruit...
   permission java.lang.RuntimePermission "accessDeclaredMembers";
-  // needed by RandomizedRunner
+
+  // needed by HotThreads and potentially more
+  // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "getStackTrace";
 
-  // needed by RandomizedRunner
+  // needed by ESTestCase for leniency of thread exceptions (?!)
+  // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
 
   // needed by JMX instead of getFileSystemAttributes, seems like a bug...
   permission java.lang.RuntimePermission "getFileStoreAttributes";
 
-  // needed by lucene mockfilesystems
+  // needed for jimfs and NewPathForShardsTests
+  // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "fileSystemProvider";
 
   // needed by plugin manager to set unix permissions

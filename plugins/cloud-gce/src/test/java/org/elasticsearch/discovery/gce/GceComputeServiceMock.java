@@ -29,6 +29,7 @@ import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 import org.elasticsearch.cloud.gce.GceComputeServiceImpl;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Callback;
 
@@ -44,8 +45,8 @@ public class GceComputeServiceMock extends GceComputeServiceImpl {
 
     protected HttpTransport mockHttpTransport;
 
-    public GceComputeServiceMock(Settings settings) {
-        super(settings);
+    public GceComputeServiceMock(Settings settings, NetworkService networkService) {
+        super(settings, networkService);
         this.mockHttpTransport = configureMock();
     }
 
@@ -55,7 +56,7 @@ public class GceComputeServiceMock extends GceComputeServiceImpl {
     }
 
     protected HttpTransport configureMock() {
-        HttpTransport transport = new MockHttpTransport() {
+        return new MockHttpTransport() {
             @Override
             public LowLevelHttpRequest buildRequest(String method, final String url) throws IOException {
                 return new MockLowLevelHttpRequest() {
@@ -64,8 +65,8 @@ public class GceComputeServiceMock extends GceComputeServiceImpl {
                         MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
                         response.setStatusCode(200);
                         response.setContentType(Json.MEDIA_TYPE);
-                        if (url.equals(TOKEN_SERVER_ENCODED_URL)) {
-                            logger.info("--> Simulate GCE Auth response for [{}]", url);
+                        if (url.startsWith(GCE_METADATA_URL)) {
+                            logger.info("--> Simulate GCE Auth/Metadata response for [{}]", url);
                             response.setContent(readGoogleInternalJsonResponse(url));
                         } else {
                             logger.info("--> Simulate GCE API response for [{}]", url);
@@ -77,8 +78,6 @@ public class GceComputeServiceMock extends GceComputeServiceImpl {
                 };
             }
         };
-
-        return transport;
     }
 
     private String readGoogleInternalJsonResponse(String url) throws IOException {
@@ -91,23 +90,24 @@ public class GceComputeServiceMock extends GceComputeServiceImpl {
 
     private String readJsonResponse(String url, String urlRoot) throws IOException {
         // We extract from the url the mock file path we want to use
-        String mockFileName = Strings.replace(url, urlRoot, "") + ".json";
+        String mockFileName = Strings.replace(url, urlRoot, "");
 
         logger.debug("--> read mock file from [{}]", mockFileName);
         URL resource = GceComputeServiceMock.class.getResource(mockFileName);
+        if (resource == null) {
+            throw new IOException("can't read [" + url + "] in src/test/resources/org/elasticsearch/discovery/gce");
+        }
         try (InputStream is = resource.openStream()) {
             final StringBuilder sb = new StringBuilder();
             Streams.readAllLines(is, new Callback<String>() {
                 @Override
                 public void handle(String s) {
-                    sb.append(s).append("\n");
+                    sb.append(s);
                 }
             });
             String response = sb.toString();
             logger.trace("{}", response);
             return response;
-        } catch (IOException e) {
-            throw e;
         }
     }
 }

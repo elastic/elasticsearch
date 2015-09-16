@@ -46,6 +46,44 @@ discovery:
       type: gce
 --------------------------------------------------
 
+
+[IMPORTANT]
+.Binding the network host
+==============================================
+
+It's important to define `network.host` as by default it's bound to `localhost`.
+
+You can use {ref}/modules-network.html[core network host settings] or
+<<discovery-gce-network-host,gce specific host settings>>:
+
+==============================================
+
+[[discovery-gce-network-host]]
+==== GCE Network Host
+
+When the `cloud-gce` plugin is installed, the following are also allowed
+as valid network host settings:
+
+[cols="<,<",options="header",]
+|==================================================================
+|GCE Host Value |Description
+|`_gce:privateIp:X_` |The private IP address of the machine for a given network interface.
+|`_gce:hostname_` |The hostname of the machine.
+|`_gce_` |Same as `_gce:privateIp:0_` (recommended).
+|==================================================================
+
+Examples:
+
+[source,yaml]
+--------------------------------------------------
+# get the IP address from network interface 1
+network.host: _gce:privateIp:1_
+# shortcut for _gce:privateIp:0_
+network.host: _gce_
+# Using GCE internal hostname (recommended)
+network.host: _gce:hostname_
+--------------------------------------------------
+
 [[cloud-gce-usage-discovery-short]]
 ===== How to start (short story)
 

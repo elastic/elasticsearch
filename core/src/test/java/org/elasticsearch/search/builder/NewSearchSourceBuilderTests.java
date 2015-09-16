@@ -247,8 +247,8 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
         SearchContext.removeCurrent();
     }
 
-    protected final NewSearchSourceBuilder createSearchSourceBuilder() throws IOException {
-        NewSearchSourceBuilder builder = new NewSearchSourceBuilder();
+    protected final SearchSourceBuilder createSearchSourceBuilder() throws IOException {
+        SearchSourceBuilder builder = new SearchSourceBuilder();
         if (randomBoolean()) {
             builder.from(randomIntBetween(0, 10000));
         }
@@ -385,7 +385,7 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
         }
         if (randomBoolean()) {
             // NORELEASE need a random highlight builder method
-            builder.highlight(new HighlightBuilder().field(randomAsciiOfLengthBetween(5, 20)));
+            builder.highlighter(new HighlightBuilder().field(randomAsciiOfLengthBetween(5, 20)));
         }
         if (randomBoolean()) {
             // NORELEASE need a random suggest builder method
@@ -422,20 +422,20 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
      */
     @Test
     public void testFromXContent() throws IOException {
-        NewSearchSourceBuilder testBuilder = createSearchSourceBuilder();
-        NewSearchSourceBuilder newBuilder = parseQuery(testBuilder.toString(), ParseFieldMatcher.STRICT);
+        SearchSourceBuilder testBuilder = createSearchSourceBuilder();
+        SearchSourceBuilder newBuilder = parseQuery(testBuilder.toString(), ParseFieldMatcher.STRICT);
         assertNotSame(testBuilder, newBuilder);
         assertEquals(testBuilder, newBuilder);
         assertEquals(testBuilder.hashCode(), newBuilder.hashCode());
     }
 
-    protected NewSearchSourceBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
+    protected SearchSourceBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
         XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
         QueryParseContext context = createParseContext();
         context.reset(parser);
         context.parseFieldMatcher(matcher);
         System.out.println(queryAsString);
-        return NewSearchSourceBuilder.PROTOTYPE.fromXContent(parser, context);
+        return SearchSourceBuilder.PROTOTYPE.fromXContent(parser, context);
     }
 
     /**
@@ -443,11 +443,11 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
      */
     @Test
     public void testSerialization() throws IOException {
-        NewSearchSourceBuilder testBuilder = createSearchSourceBuilder();
+        SearchSourceBuilder testBuilder = createSearchSourceBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testBuilder.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                NewSearchSourceBuilder deserializedBuilder = NewSearchSourceBuilder.PROTOTYPE.readFrom(in);
+                SearchSourceBuilder deserializedBuilder = SearchSourceBuilder.PROTOTYPE.readFrom(in);
                 assertEquals(deserializedBuilder, testBuilder);
                 assertEquals(deserializedBuilder.hashCode(), testBuilder.hashCode());
                 assertNotSame(deserializedBuilder, testBuilder);
@@ -457,20 +457,20 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
 
     @Test
     public void testEqualsAndHashcode() throws IOException {
-        NewSearchSourceBuilder firstBuilder = createSearchSourceBuilder();
+        SearchSourceBuilder firstBuilder = createSearchSourceBuilder();
         assertFalse("query is equal to null", firstBuilder.equals(null));
         assertFalse("query is equal to incompatible type", firstBuilder.equals(""));
         assertTrue("query is not equal to self", firstBuilder.equals(firstBuilder));
         assertThat("same query's hashcode returns different values if called multiple times", firstBuilder.hashCode(),
                 equalTo(firstBuilder.hashCode()));
 
-        NewSearchSourceBuilder secondBuilder = copyBuilder(firstBuilder);
+        SearchSourceBuilder secondBuilder = copyBuilder(firstBuilder);
         assertTrue("query is not equal to self", secondBuilder.equals(secondBuilder));
         assertTrue("query is not equal to its copy", firstBuilder.equals(secondBuilder));
         assertTrue("equals is not symmetric", secondBuilder.equals(firstBuilder));
         assertThat("query copy's hashcode is different from original hashcode", secondBuilder.hashCode(), equalTo(firstBuilder.hashCode()));
 
-        NewSearchSourceBuilder thirdBuilder = copyBuilder(secondBuilder);
+        SearchSourceBuilder thirdBuilder = copyBuilder(secondBuilder);
         assertTrue("query is not equal to self", thirdBuilder.equals(thirdBuilder));
         assertTrue("query is not equal to its copy", secondBuilder.equals(thirdBuilder));
         assertThat("query copy's hashcode is different from original hashcode", secondBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
@@ -481,11 +481,11 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
     }
 
     //we use the streaming infra to create a copy of the query provided as argument
-    protected NewSearchSourceBuilder copyBuilder(NewSearchSourceBuilder builder) throws IOException {
+    protected SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             builder.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                NewSearchSourceBuilder secondQuery = NewSearchSourceBuilder.PROTOTYPE.readFrom(in);
+                SearchSourceBuilder secondQuery = SearchSourceBuilder.PROTOTYPE.readFrom(in);
                 return secondQuery;
             }
         }

@@ -5,6 +5,7 @@ include 'rest-api-spec'
 include 'core'
 include 'distribution'
 include 'test-framework'
+include 'plugins:analysis-icu'
 include 'plugins:jvm-example'
 include 'plugins:site-example'
 

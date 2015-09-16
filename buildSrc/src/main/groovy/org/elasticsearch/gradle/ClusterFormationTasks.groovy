@@ -1,6 +1,5 @@
 package org.elasticsearch.gradle
 
-import org.apache.maven.BuildFailureException
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -66,6 +65,7 @@ class ClusterFormationTasks {
         }
 
         String clusterName = "test${task.path.replace(':', '_')}"
+        File pidFile = pidFile(baseDir)
         Task start = project.tasks.create(name: "${task.name}#start", type: Exec, dependsOn: setup) {
             workingDir home
             executable 'sh'
@@ -74,16 +74,29 @@ class ClusterFormationTasks {
                     "-Des.cluster.name=${clusterName}",
                     "-Des.http.port=${config.httpPort}",
                     "-Des.transport.tcp.port=${config.transportPort}",
-                    "-Des.pidfile=${pidFile(baseDir)}"
+                    "-Des.pidfile=${pidFile}"
+            errorOutput = new ByteArrayOutputStream()
             doLast {
-                task.ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${task.name}#start") {
-                    http(url: "http://localhost:${config.httpPort}")
-                }
-                if (task.ant.properties.containsKey("failed${task.name}#start")) {
-                    new File(home, 'logs' + File.separator + clusterName).eachLine {
-                        line -> task.logger.error(line)
+                if (errorOutput.toString().isEmpty() == false) {
+                    logger.error(errorOutput.toString())
+                    new File(home, 'logs' + File.separator + clusterName + '.log').eachLine {
+                        line -> logger.error(line)
                     }
-                    throw new BuildFailureException('Failed to start elasticsearch')
+                    throw new GradleException('Failed to start elasticsearch')
+                }
+                ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${task.name}#start") {
+                    and {
+                        resourceexists {
+                            file file: pidFile.toString()
+                        }
+                        http(url: "http://localhost:${config.httpPort}")
+                    }
+                }
+                if (ant.properties.containsKey("failed${task.name}#start")) {
+                    new File(home, 'logs' + File.separator + clusterName + '.log').eachLine {
+                        line -> logger.error(line)
+                    }
+                    throw new GradleException('Failed to start elasticsearch')
                 }
             }
         }

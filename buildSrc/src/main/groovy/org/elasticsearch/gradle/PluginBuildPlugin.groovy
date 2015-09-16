@@ -42,13 +42,16 @@ class PluginBuildPlugin extends BuildPlugin {
     static void configureDependencies(Project project) {
         String elasticsearchVersion = ElasticsearchProperties.version
         project.configurations {
+            // a separate configuration from compile so added dependencies can be distinguished
+            provided
             restSpec
         }
         project.dependencies {
-            compile "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
+            provided "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
             testCompile "org.elasticsearch:test-framework:${elasticsearchVersion}"
             restSpec "org.elasticsearch:rest-api-spec:${elasticsearchVersion}"
         }
+        project.sourceSets.main.compileClasspath += [project.configurations.provided]
     }
 
     static void configureRestSpecHack(Project project) {
@@ -104,6 +107,7 @@ class PluginBuildPlugin extends BuildPlugin {
         bundle.configure {
             from jar
             from buildProperties
+            from bundle.project.configurations.runtime - bundle.project.configurations.provided
             from('src/main') {
                 include 'config/**'
                 include 'bin/**'

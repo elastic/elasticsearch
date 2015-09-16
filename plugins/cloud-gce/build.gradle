@@ -1,0 +1,14 @@
+
+esplugin {
+  description 'The Google Compute Engine (GCE) Cloud plugin allows to use GCE API for the unicast discovery mechanism.'
+  classname 'org.elasticsearch.plugin.cloud.gce.CloudGcePlugin'
+}
+
+dependencies {
+  compile('com.google.apis:google-api-services-compute:v1-rev71-1.20.0') {
+    exclude group: 'com.google.guava', module: 'guava-jdk5'
+  }
+  compile 'org.apache.httpcomponents:httpclient'
+}
+
+compileJava.options.compilerArgs << '-Xlint:-rawtypes,-unchecked'

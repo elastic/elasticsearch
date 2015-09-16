@@ -6,15 +6,19 @@ if (System.getenv().get('JAVA_HOME') == null) {
   throw new InvalidUserDataException('JAVA_HOME must be set')
 }
 
+String randomizedRunnerSnapshotRevision = 'pr202'
 
 repositories {
   mavenCentral()
+  maven {
+    url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/rr-${randomizedRunnerSnapshotRevision}"
+  }
 }
 
 dependencies {
   compile gradleApi()
   compile localGroovy()
-  compile 'com.carrotsearch.randomizedtesting:junit4-ant:2.1.13'
+  compile "com.carrotsearch.randomizedtesting:junit4-ant:2.2.0-snapshot-${randomizedRunnerSnapshotRevision}"
   compile(group: 'junit', name: 'junit', version: '4.11') {
     transitive = false
   }

@@ -9,11 +9,13 @@ allprojects {
     sourceCompatibility = '1.8'
     targetCompatibility = '1.8'
 
-    luceneSnapshotRevision = '1702265'
+    luceneSnapshotRevision = '1702855'
+    randomizedRunnerSnapshotRevision = 'pr202'
     // dependnecy versions that are used in more than one place
     versions = [
-      elasticsearch:  '3.0.0-beta1-SNAPSHOT',
-      lucene:         "5.4.0-snapshot-${luceneSnapshotRevision}"
+      elasticsearch:      '3.0.0-beta1-SNAPSHOT',
+      lucene:             "5.4.0-snapshot-${luceneSnapshotRevision}",
+      randomizedrunner:   "2.2.0-snapshot-${randomizedRunnerSnapshotRevision}"
     ]
   }
 
@@ -26,6 +28,9 @@ allprojects {
     }
     maven {
       url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${luceneSnapshotRevision}"
+    }
+    maven {
+      url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/rr-${randomizedRunnerSnapshotRevision}"
     }
   }
 

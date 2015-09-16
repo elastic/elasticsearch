@@ -30,22 +30,25 @@
 
 # Load test utilities
 load packaging_test_utils
+load os_package
 
 # Cleans everything for the 1st execution
 setup() {
     skip_not_sysvinit
     skip_not_dpkg_or_rpm
+    export_elasticsearch_paths
 }
 
 @test "[INIT.D] remove any leftover configuration to start elasticsearch on restart" {
     # This configuration can be added with a command like:
     # $ sudo update-rc.d elasticsearch defaults 95 10
-    # but we want to test that the RPM _doesn't_ add it on its own.
+    # but we want to test that the RPM and deb _don't_ add it on its own.
     # Note that it'd be incorrect to use:
     # $ sudo update-rc.d elasticsearch disable
     # here because that'd prevent elasticsearch from installing the symlinks
     # that cause it to be started on restart.
-    sudo update-rc.d -f elasticsearch remove
+    sudo update-rc.d -f elasticsearch remove || true
+    sudo chkconfig elasticsearch off || true
 }
 
 @test "[INIT.D] install elasticsearch" {
@@ -63,10 +66,12 @@ setup() {
 }
 
 @test "[INIT.D] start" {
+    # Install scripts used to test script filters and search templates before
+    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
+    # them.
+    install_elasticsearch_test_scripts
     service elasticsearch start
-
     wait_for_elasticsearch_status
-
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
 }
 

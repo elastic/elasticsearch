@@ -31,10 +31,12 @@
 
 # Load test utilities
 load packaging_test_utils
+load os_package
 
 # Cleans everything for the 1st execution
 setup() {
     skip_not_dpkg
+    export_elasticsearch_paths
 }
 
 ##################################
@@ -79,8 +81,11 @@ setup() {
 }
 
 @test "[DEB] test elasticsearch" {
+    # Install scripts used to test script filters and search templates before
+    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
+    # them.
+    install_elasticsearch_test_scripts
     start_elasticsearch_service
-
     run_elasticsearch_tests
 }
 
@@ -133,6 +138,8 @@ setup() {
 }
 
 @test "[DEB] purge package" {
+    # User installed scripts aren't removed so we'll just get them ourselves
+    rm -rf $ESSCRIPTS
     dpkg --purge 'elasticsearch'
 }
 

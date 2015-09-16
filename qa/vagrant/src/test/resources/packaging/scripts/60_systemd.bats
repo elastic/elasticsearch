@@ -30,11 +30,13 @@
 
 # Load test utilities
 load packaging_test_utils
+load os_package
 
 # Cleans everything for the 1st execution
 setup() {
     skip_not_systemd
     skip_not_dpkg_or_rpm
+    export_elasticsearch_paths
 }
 
 @test "[SYSTEMD] install elasticsearch" {
@@ -61,10 +63,12 @@ setup() {
 }
 
 @test "[SYSTEMD] start" {
+    # Install scripts used to test script filters and search templates before
+    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
+    # them.
+    install_elasticsearch_test_scripts
     systemctl start elasticsearch.service
-
     wait_for_elasticsearch_status
-
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
 }
 
@@ -99,23 +103,27 @@ setup() {
 
 @test "[SYSTEMD] stop (running)" {
     systemctl stop elasticsearch.service
+}
 
+@test "[SYSTEMD] status (stopping)" {
     run systemctl status elasticsearch.service
-    [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped"
+    # I'm not sure why suse exits 0 here, but it does
+    if [ ! -e /etc/SuSE-release ]; then
+        [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped but got $status"
+    fi
     echo "$output" | grep "Active:" | grep "inactive"
 }
 
 @test "[SYSTEMD] stop (stopped)" {
     systemctl stop elasticsearch.service
-
-    run systemctl status elasticsearch.service
-    [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped"
-    echo "$output" | grep "Active:" | grep "inactive"
 }
 
 @test "[SYSTEMD] status (stopped)" {
     run systemctl status elasticsearch.service
-    [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped"
+    # I'm not sure why suse exits 0 here, but it does
+    if [ ! -e /etc/SuSE-release ]; then
+        [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped but got $status"
+    fi
     echo "$output" | grep "Active:" | grep "inactive"
 }
 

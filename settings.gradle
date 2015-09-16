@@ -13,6 +13,7 @@ include 'plugins:analysis-stempel'
 include 'plugins:cloud-azure'
 include 'plugins:cloud-gce'
 include 'plugins:delete-by-query'
+include 'plugins:discovery-ec2'
 include 'plugins:jvm-example'
 include 'plugins:site-example'
 

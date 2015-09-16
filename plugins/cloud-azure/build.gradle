@@ -15,7 +15,6 @@ dependencies {
   compile 'org.apache.httpcomponents:httpclient'
 }
 
-// need -path because there is no resources dir...
 compileJava.options.compilerArgs << '-Xlint:-serial,-static,-unchecked'
 // TODO: why is deprecation needed here but not in maven....?
 compileJava.options.compilerArgs << '-Xlint:-deprecation'

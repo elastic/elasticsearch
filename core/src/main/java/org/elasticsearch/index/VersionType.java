@@ -314,7 +314,9 @@ public enum VersionType implements Writeable<VersionType> {
 
     @Override
     public VersionType readFrom(StreamInput in) throws IOException {
-        return VersionType.values()[in.readVInt()];
+        int ordinal = in.readVInt();
+        assert (ordinal == 0 || ordinal == 1 || ordinal == 2 || ordinal == 3);
+        return VersionType.values()[ordinal];
     }
 
     public static VersionType readVersionTypeFrom(StreamInput in) throws IOException {
@@ -323,6 +325,6 @@ public enum VersionType implements Writeable<VersionType> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(this.ordinal());
+        out.writeVInt(ordinal());
     }
 }

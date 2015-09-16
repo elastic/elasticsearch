@@ -49,8 +49,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLikeThisQueryBuilder> {
@@ -114,7 +112,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     private XContentBuilder randomArtificialDoc() {
         XContentBuilder doc;
         try {
-            doc = jsonBuilder().startObject();
+            doc = XContentFactory.jsonBuilder().startObject();
             for (String field : randomFields) {
                 doc.field(field, randomAsciiOfLength(10));
             }
@@ -171,7 +169,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             queryBuilder.maxWordLength(randomInt(25));
         }
         if (randomBoolean()) {
-            queryBuilder.stopWords(generateRandomStringArray(5, 5, false));
+            queryBuilder.stopWords(generateRandomStringArray(5, 5, false, false));
         }
         if (randomBoolean()) {
             queryBuilder.analyzer(randomAnalyzer());  // fix the analyzer?
@@ -231,10 +229,10 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     @Override
     protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (!queryBuilder.likeItems().isEmpty()) {
-            assertThat(query, instanceOf(BooleanQuery.class));
+            assertThat(query, Matchers.instanceOf(BooleanQuery.class));
         } else {
             // we rely on integration tests for a deeper check here
-            assertThat(query, instanceOf(MoreLikeThisQuery.class));
+            assertThat(query, Matchers.instanceOf(MoreLikeThisQuery.class));
         }
     }
 
@@ -283,7 +281,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     @Test
     public void testItemFromXContent() throws IOException {
         Item expectedItem = generateRandomItem();
-        String json = expectedItem.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS).string();
+        String json = expectedItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).string();
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
         Item newItem = Item.parse(parser, ParseFieldMatcher.STRICT, new Item());
         assertEquals(expectedItem, newItem);

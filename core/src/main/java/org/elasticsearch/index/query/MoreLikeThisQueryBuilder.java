@@ -143,11 +143,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * @param id and its id
          */
         public Item(@Nullable String index, @Nullable String type, String id) {
-            this.index = index;
-            this.type = type;
             if (id == null) {
                 throw new IllegalArgumentException("Item requires id to be non-null");
             }
+            this.index = index;
+            this.type = type;
             this.id = id;
         }
 
@@ -159,11 +159,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * @param doc the document specification
          */
         public Item(@Nullable String index, @Nullable String type, XContentBuilder doc) {
-            this.index = index;
-            this.type = type;
             if (doc == null) {
                 throw new IllegalArgumentException("Item requires doc to be non-null");
             }
+            this.index = index;
+            this.type = type;
             this.doc = doc.bytes();
         }
 
@@ -448,7 +448,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
      * @param fields the field names that will be used when generating the 'More Like This' query.
      */
     public MoreLikeThisQueryBuilder(String... fields) {
-        this(Arrays.asList(fields));
+        this(Collections.unmodifiableList(Arrays.asList(fields)));
     }
 
     /**
@@ -470,8 +470,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
      * @param likeTexts the text to use when generating the 'More Like This' query.
      */
     public MoreLikeThisQueryBuilder like(String... likeTexts) {
-        this.likeTexts = new ArrayList<>();
-        return addLikeText(likeTexts);
+        this.likeTexts = Collections.unmodifiableList(Arrays.asList(likeTexts));
+        return this;
     }
 
     public List<String> likeTexts() {
@@ -484,8 +484,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
      * @param likeItems the documents to use when generating the 'More Like This' query.
      */
     public MoreLikeThisQueryBuilder like(Item... likeItems) {
-        this.likeItems = new ArrayList<>();
-        return addLikeItem(likeItems);
+        this.likeItems = Collections.unmodifiableList(Arrays.asList(likeItems));
+        return this;
     }
 
     public List<Item> likeItems() {
@@ -493,27 +493,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * Adds some text to use in order to find documents that are "like" this.
-     */
-    public MoreLikeThisQueryBuilder addLikeText(String... likeTexts) {
-        Collections.addAll(this.likeTexts, likeTexts);
-        return this;
-    }
-
-    /**
-     * Adds a document to use in order to find documents that are "like" this.
-     */
-    public MoreLikeThisQueryBuilder addLikeItem(Item... likeItems) {
-        Collections.addAll(this.likeItems, likeItems);
-        return this;
-    }
-
-    /**
      * Sets the text from which the terms should not be selected from.
      */
     public MoreLikeThisQueryBuilder unlike(String... unlikeTexts) {
-        this.unlikeTexts = new ArrayList<>();
-        return addUnlikeText(unlikeTexts);
+        this.unlikeTexts = Collections.unmodifiableList(Arrays.asList(unlikeTexts));
+        return this;
     }
 
     public List<String> unlikeTexts() {
@@ -524,28 +508,12 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
      * Sets the documents from which the terms should not be selected from.
      */
     public MoreLikeThisQueryBuilder unlike(Item... unlikeItems) {
-        this.unlikeItems = new ArrayList<>();
-        return addUnlikeItem(unlikeItems);
+        this.unlikeItems = Collections.unmodifiableList(Arrays.asList(unlikeItems));
+        return this;
     }
 
     public List<Item> unlikeItems() {
         return unlikeItems;
-    }
-
-    /**
-     * Adds some text to use in order to find documents that are "unlike" this.
-     */
-    public MoreLikeThisQueryBuilder addUnlikeText(String... unlikeTexts) {
-        Collections.addAll(this.unlikeTexts, unlikeTexts);
-        return this;
-    }
-
-    /**
-     * Adds a document to use in order to find documents that are "unlike" this.
-     */
-    public MoreLikeThisQueryBuilder addUnlikeItem(Item... unlikeItems) {
-        Collections.addAll(this.unlikeItems, unlikeItems);
-        return this;
     }
 
     /**
@@ -639,7 +607,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     public MoreLikeThisQueryBuilder stopWords(List<String> stopWords) {
-        this.stopWords = stopWords != null ? stopWords.toArray(new String[stopWords.size()]) : null;
+        if (stopWords == null) {
+            throw new IllegalArgumentException("requires stopwords to be non-null");
+        }
+        this.stopWords = stopWords.toArray(new String[stopWords.size()]);
         return this;
     }
 
@@ -728,39 +699,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             items[i] = new Item(null, null, ids[i]);
         }
         return like(items);
-    }
-
-    @Deprecated
-    public MoreLikeThisQueryBuilder docs(Item... docs) {
-        return like(docs);
-    }
-
-    /**
-     * Sets the documents from which the terms should not be selected from.
-     *
-     * @Deprecated Use {@link #unlike(Item...)} instead
-     */
-    @Deprecated
-    public MoreLikeThisQueryBuilder ignoreLike(Item... docs) {
-        return unlike(docs);
-    }
-
-    /**
-     * Sets the text from which the terms should not be selected from.
-     *
-     * @Deprecated Use {@link #unlike(String...)} instead.
-     */
-    @Deprecated
-    public MoreLikeThisQueryBuilder ignoreLike(String... likeText) {
-        return unlike(likeText);
-    }
-
-    /**
-     * Adds a document to use in order to find documents that are "like" this.
-     */
-    @Deprecated
-    public MoreLikeThisQueryBuilder addItem(Item... likeItems) {
-        return addLikeItem(likeItems);
     }
 
     @Override
@@ -861,15 +799,15 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         mltQuery.setMoreLikeFields(moreLikeFields.toArray(Strings.EMPTY_ARRAY));
 
         // handle like texts
-        if (!likeTexts.isEmpty()) {
+        if (likeTexts.isEmpty() == false) {
             mltQuery.setLikeText(likeTexts);
         }
-        if (!unlikeTexts.isEmpty()) {
+        if (unlikeTexts.isEmpty() == false) {
             mltQuery.setUnlikeText(unlikeTexts);
         }
 
         // handle items
-        if (!likeItems.isEmpty()) {
+        if (likeItems.isEmpty() == false) {
             return handleItems(context, mltQuery, likeItems, unlikeItems, include, moreLikeFields, useDefaultField);
         } else {
             return mltQuery;

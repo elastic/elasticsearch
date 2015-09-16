@@ -186,7 +186,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
             throw new QueryParsingException(parseContext, "more_like_this requires 'fields' to be non-empty");
         }
 
-        return new MoreLikeThisQueryBuilder(fields)
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(fields)
                 .like(likeTexts.toArray(new String[likeTexts.size()]))
                 .unlike(unlikeTexts.toArray(new String[unlikeTexts.size()]))
                 .like(likeItems.toArray(new Item[likeItems.size()]))
@@ -197,7 +197,6 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
                 .maxDocFreq(maxDocFreq)
                 .minWordLength(minWordLength)
                 .maxWordLength(maxWordLength)
-                .stopWords(stopWords)
                 .analyzer(analyzer)
                 .minimumShouldMatch(minimumShouldMatch)
                 .boostTerms(boostTerms)
@@ -205,6 +204,10 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
                 .failOnUnsupportedField(failOnUnsupportedField)
                 .boost(boost)
                 .queryName(queryName);
+        if (stopWords != null) {
+            moreLikeThisQueryBuilder.stopWords(stopWords);
+        }
+        return moreLikeThisQueryBuilder;
     }
 
     private static void parseLikeField(QueryParseContext parseContext, List<String> texts, List<Item> items) throws IOException {

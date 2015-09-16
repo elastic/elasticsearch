@@ -107,3 +107,14 @@ install_and_check_plugin() {
         assert_file_exist "$(readlink -m $ESPLUGINS/$fullName/$file)"
     done
 }
+
+# Compare a list of plugin names to the plugins in the plugins pom and see if they are the same
+# $1 the file containing the list of plugins we want to compare to
+# $2 description of the source of the plugin list
+compare_plugins_list() {
+    cat $1 | sort > /tmp/plugins
+    ls /elasticsearch/plugins/*/pom.xml | cut -d '/' -f 4 |
+        sort > /tmp/expected
+    echo "Checking plugins from $2 (<) against expected plugins (>):"
+    diff /tmp/expected /tmp/plugins
+}

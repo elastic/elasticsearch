@@ -14,6 +14,7 @@ include 'plugins:cloud-azure'
 include 'plugins:cloud-gce'
 include 'plugins:delete-by-query'
 include 'plugins:discovery-ec2'
+include 'plugins:discovery-multicast'
 include 'plugins:jvm-example'
 include 'plugins:site-example'
 

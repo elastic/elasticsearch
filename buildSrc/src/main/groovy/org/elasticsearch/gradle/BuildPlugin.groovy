@@ -65,6 +65,7 @@ class BuildPlugin implements Plugin<Project> {
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
             sysProp 'java.io.tmpdir', './temp'
             sysProp 'java.awt.headless', 'true'
+            sysProp 'tests.maven', 'true' // TODO: rename this once we've switched to gradle!
             sysProp 'tests.task', path
             sysProp 'tests.security.manager', 'true'
             // default test sysprop values
@@ -84,7 +85,7 @@ class BuildPlugin implements Plugin<Project> {
                     heartbeat 10
                     summarySize 5
                 }
-                /*stackTraceFilters {
+                stackTraceFilters {
                     // custom filters: we carefully only omit test infra noise here
                     contains '.SlaveMain.'
                     regex(/^(\s+at )(org\.junit\.)/)
@@ -94,7 +95,7 @@ class BuildPlugin implements Plugin<Project> {
                     regex(/^(\s+at )(com\.carrotsearch\.randomizedtesting\.rules\.)/)
                     regex(/^(\s+at )(org\.apache\.lucene\.util\.TestRule)/)
                     regex(/^(\s+at )(org\.apache\.lucene\.util\.AbstractBeforeAfterRule)/)
-                }*/
+                }
             }
 
             balancers {

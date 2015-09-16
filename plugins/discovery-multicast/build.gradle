@@ -1,0 +1,6 @@
+
+esplugin {
+  description 'The Multicast Discovery plugin allows discovery other nodes using multicast requests'
+  classname 'org.elasticsearch.plugin.discovery.multicast.MulticastDiscoveryPlugin'
+}
+

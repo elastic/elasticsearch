@@ -10,6 +10,7 @@ include 'plugins:analysis-kuromoji'
 include 'plugins:analysis-phonetic'
 include 'plugins:analysis-smartcn'
 include 'plugins:analysis-stempel'
+include 'plugins:cloud-azure'
 include 'plugins:jvm-example'
 include 'plugins:site-example'
 

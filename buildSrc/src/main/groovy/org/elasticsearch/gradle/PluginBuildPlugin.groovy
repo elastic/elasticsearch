@@ -48,10 +48,10 @@ class PluginBuildPlugin extends BuildPlugin {
         }
         project.dependencies {
             provided "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
+            compile project.configurations.provided
             testCompile "org.elasticsearch:test-framework:${elasticsearchVersion}"
             restSpec "org.elasticsearch:rest-api-spec:${elasticsearchVersion}"
         }
-        project.sourceSets.main.compileClasspath += [project.configurations.provided]
     }
 
     static void configureRestSpecHack(Project project) {

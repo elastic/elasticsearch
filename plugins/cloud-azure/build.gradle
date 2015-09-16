@@ -1,0 +1,23 @@
+
+esplugin {
+  description 'The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism and add Azure storage repositories.'
+  classname 'org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin'
+}
+
+dependencies {
+  compile 'com.microsoft.azure:azure-storage:2.0.0'
+  compile('com.microsoft.azure:azure-management-compute:0.7.0') {
+    exclude group: 'stax', module: 'stax-api'
+  }
+  compile('com.microsoft.azure:azure-management:0.7.0') {
+    exclude group: 'stax', module: 'stax-api'
+  }
+  compile 'org.apache.httpcomponents:httpclient'
+}
+
+// need -path because there is no resources dir...
+compileJava.options.compilerArgs << '-Xlint:-path,-serial,-static,-unchecked'
+// TODO: why is deprecation needed here but not in maven....?
+compileJava.options.compilerArgs << '-Xlint:-deprecation'
+compileTestJava.options.compilerArgs << '-Xlint:-static'
+

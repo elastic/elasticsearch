@@ -20,6 +20,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
@@ -27,7 +29,6 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQueryBuilder> {
 
@@ -68,11 +69,38 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     }
 
     @Test
-    public void testValidate() {
-        WrapperQueryBuilder wrapperQueryBuilder = new WrapperQueryBuilder((byte[]) null);
-        assertThat(wrapperQueryBuilder.validate().validationErrors().size(), is(1));
+    public void testIllegalArgument() {
+        try {
+            if (randomBoolean()) {
+                new WrapperQueryBuilder((byte[]) null);
+            } else {
+                new WrapperQueryBuilder(new byte[0]);
+            }
+            fail("cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
 
-        wrapperQueryBuilder = new WrapperQueryBuilder("");
-        assertThat(wrapperQueryBuilder.validate().validationErrors().size(), is(1));
+        try {
+            if (randomBoolean()) {
+                new WrapperQueryBuilder((String) null);
+            } else {
+                new WrapperQueryBuilder("");
+            }
+            fail("cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        try {
+            if (randomBoolean()) {
+                new WrapperQueryBuilder((BytesReference) null);
+            } else {
+                new WrapperQueryBuilder(new BytesArray(new byte[0]));
+            }
+            fail("cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 }

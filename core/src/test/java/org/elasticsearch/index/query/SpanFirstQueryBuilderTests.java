@@ -43,29 +43,6 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
         assertThat(query, instanceOf(SpanFirstQuery.class));
     }
 
-    @Test
-    public void testValidate() {
-        int totalExpectedErrors = 0;
-        SpanQueryBuilder innerSpanQueryBuilder;
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                innerSpanQueryBuilder = new SpanTermQueryBuilder("", "test");
-            } else {
-                innerSpanQueryBuilder = null;
-            }
-            totalExpectedErrors++;
-        } else {
-            innerSpanQueryBuilder = new SpanTermQueryBuilder("name", "value");
-        }
-        int end = randomIntBetween(0, 10);
-        if (randomBoolean()) {
-            end = randomIntBetween(-10, -1);
-            totalExpectedErrors++;
-        }
-        SpanFirstQueryBuilder queryBuilder = new SpanFirstQueryBuilder(innerSpanQueryBuilder, end);
-        assertValidate(queryBuilder, totalExpectedErrors);
-    }
-
     /**
      * test exception on missing `end` and `match` parameter in parser
      */

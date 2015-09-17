@@ -22,9 +22,11 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,15 +54,15 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     private Object to;
 
-    private String timeZone;
+    private DateTimeZone timeZone;
 
     private boolean includeLower = DEFAULT_INCLUDE_LOWER;
 
     private boolean includeUpper = DEFAULT_INCLUDE_UPPER;
 
-    private String format;
+    private FormatDateTimeFormatter format;
 
-    static final RangeQueryBuilder PROTOTYPE = new RangeQueryBuilder(null);
+    static final RangeQueryBuilder PROTOTYPE = new RangeQueryBuilder("field");
 
     /**
      * A Query that matches documents within an range of terms.
@@ -68,6 +70,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * @param fieldName The field name
      */
     public RangeQueryBuilder(String fieldName) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name is null or empty");
+        }
         this.fieldName = fieldName;
     }
 
@@ -191,8 +196,11 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     /**
      * In case of date field, we can adjust the from/to fields using a timezone
      */
-    public RangeQueryBuilder timeZone(String timezone) {
-        this.timeZone = timezone;
+    public RangeQueryBuilder timeZone(String timeZone) {
+        if (timeZone == null) {
+            throw new IllegalArgumentException("timezone cannot be null");
+        }
+        this.timeZone = DateTimeZone.forID(timeZone);
         return this;
     }
 
@@ -200,14 +208,17 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * In case of date field, gets the from/to fields timezone adjustment
      */
     public String timeZone() {
-        return this.timeZone;
+        return this.timeZone == null ? null : this.timeZone.getID();
     }
 
     /**
      * In case of format field, we can parse the from/to fields using this time format
      */
     public RangeQueryBuilder format(String format) {
-        this.format = format;
+        if (format == null) {
+            throw new IllegalArgumentException("format cannot be null");
+        }
+        this.format = Joda.forPattern(format);
         return this;
     }
 
@@ -215,7 +226,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * Gets the format field to parse the from/to fields
      */
     public String format() {
-        return this.format;
+        return this.format == null ? null : this.format.format();
     }
 
     @Override
@@ -227,10 +238,10 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         builder.field("include_lower", includeLower);
         builder.field("include_upper", includeUpper);
         if (timeZone != null) {
-            builder.field("time_zone", timeZone);
+            builder.field("time_zone", timeZone.getID());
         }
         if (format != null) {
-            builder.field("format", format);
+            builder.field("format", format.format());
         }
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -250,13 +261,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             if (mapper instanceof DateFieldMapper.DateFieldType) {
                 DateMathParser forcedDateParser = null;
                 if (this.format  != null) {
-                    forcedDateParser = new DateMathParser(Joda.forPattern(this.format));
+                    forcedDateParser = new DateMathParser(this.format);
                 }
-                DateTimeZone dateTimeZone = null;
-                if (this.timeZone != null) {
-                    dateTimeZone = DateTimeZone.forID(this.timeZone);
-                }
-                query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser);
+                query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser);
             } else  {
                 if (timeZone != null) {
                     throw new QueryShardException(context, "[range] time_zone can not be applied to non date field ["
@@ -279,39 +286,20 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (this.fieldName == null || this.fieldName.isEmpty()) {
-            validationException = addValidationError("field name cannot be null or empty.", validationException);
-        }
-        if (this.timeZone != null) {
-            try {
-                DateTimeZone.forID(this.timeZone);
-            } catch (Exception e) {
-                validationException = addValidationError("error parsing timezone." + e.getMessage(),
-                        validationException);
-            }
-        }
-        if (this.format != null) {
-            try {
-                Joda.forPattern(this.format);
-            } catch (Exception e) {
-                validationException = addValidationError("error parsing format." + e.getMessage(),
-                        validationException);
-            }
-        }
-        return validationException;
-    }
-
-    @Override
     protected RangeQueryBuilder doReadFrom(StreamInput in) throws IOException {
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(in.readString());
         rangeQueryBuilder.from = in.readGenericValue();
         rangeQueryBuilder.to = in.readGenericValue();
         rangeQueryBuilder.includeLower = in.readBoolean();
         rangeQueryBuilder.includeUpper = in.readBoolean();
-        rangeQueryBuilder.timeZone = in.readOptionalString();
-        rangeQueryBuilder.format = in.readOptionalString();
+        String timeZoneId = in.readOptionalString();
+        if (timeZoneId != null) {
+            rangeQueryBuilder.timeZone = DateTimeZone.forID(timeZoneId);
+        }
+        String formatString = in.readOptionalString();
+        if (formatString != null) {
+            rangeQueryBuilder.format = Joda.forPattern(formatString);
+        }
         return rangeQueryBuilder;
     }
 
@@ -322,23 +310,35 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         out.writeGenericValue(this.to);
         out.writeBoolean(this.includeLower);
         out.writeBoolean(this.includeUpper);
-        out.writeOptionalString(this.timeZone);
-        out.writeOptionalString(this.format);
+        String timeZoneId = null;
+        if (this.timeZone != null) {
+            timeZoneId = this.timeZone.getID();
+        }
+        out.writeOptionalString(timeZoneId);
+        String formatString = null;
+        if (this.format != null) {
+            formatString = this.format.format();
+        }
+        out.writeOptionalString(formatString);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, from, to, timeZone, includeLower, includeUpper, format);
+        String timeZoneId = timeZone == null ? null : timeZone.getID();
+        String formatString = format == null ? null : format.format();
+        return Objects.hash(fieldName, from, to, timeZoneId, includeLower, includeUpper, formatString);
     }
 
     @Override
     protected boolean doEquals(RangeQueryBuilder other) {
+        String timeZoneId = timeZone == null ? null : timeZone.getID();
+        String formatString = format == null ? null : format.format();
         return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(from, other.from) &&
                Objects.equals(to, other.to) &&
-               Objects.equals(timeZone, other.timeZone) &&
+               Objects.equals(timeZoneId, other.timeZone()) &&
                Objects.equals(includeLower, other.includeLower) &&
                Objects.equals(includeUpper, other.includeUpper) &&
-               Objects.equals(format, other.format);
+               Objects.equals(formatString, other.format());
     }
 }

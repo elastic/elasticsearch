@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBuilder> {
 
@@ -62,17 +61,23 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
     }
 
     @Test
-    public void testValidate() {
-        RegexpQueryBuilder regexQueryBuilder = new RegexpQueryBuilder("", "regex");
-        assertThat(regexQueryBuilder.validate().validationErrors().size(), is(1));
+    public void testIllegalArguments() {
+        try {
+            if (randomBoolean()) {
+                new RegexpQueryBuilder(null, "text");
+            } else {
+                new RegexpQueryBuilder("", "text");
+            }
+            fail("cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
 
-        regexQueryBuilder = new RegexpQueryBuilder("field", null);
-        assertThat(regexQueryBuilder.validate().validationErrors().size(), is(1));
-
-        regexQueryBuilder = new RegexpQueryBuilder("field", "regex");
-        assertNull(regexQueryBuilder.validate());
-
-        regexQueryBuilder = new RegexpQueryBuilder(null, null);
-        assertThat(regexQueryBuilder.validate().validationErrors().size(), is(2));
+        try {
+            new RegexpQueryBuilder("field", null);
+            fail("cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 }

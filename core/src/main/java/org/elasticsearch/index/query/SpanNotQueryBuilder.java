@@ -46,7 +46,7 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
 
     private int post = DEFAULT_POST;
 
-    static final SpanNotQueryBuilder PROTOTYPE = new SpanNotQueryBuilder(null, null);
+    static final SpanNotQueryBuilder PROTOTYPE = new SpanNotQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, SpanTermQueryBuilder.PROTOTYPE);
 
     /**
      * Construct a span query matching spans from <code>include</code> which
@@ -55,6 +55,12 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
      * @param exclude the span query whose matches must not overlap
      */
     public SpanNotQueryBuilder(SpanQueryBuilder include, SpanQueryBuilder exclude) {
+        if (include == null) {
+            throw new IllegalArgumentException("inner clause [include] cannot be null.");
+        }
+        if (exclude == null) {
+            throw new IllegalArgumentException("inner clause [exclude] cannot be null.");
+        }
         this.include = include;
         this.exclude = exclude;
     }
@@ -138,22 +144,6 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
         assert excludeQuery instanceof SpanQuery;
 
         return new SpanNotQuery((SpanQuery) includeQuery, (SpanQuery) excludeQuery, pre, post);
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (include == null) {
-            validationException = addValidationError("inner clause [include] cannot be null.", validationException);
-        } else {
-            validationException = validateInnerQuery(include, validationException);
-        }
-        if (exclude == null) {
-            validationException = addValidationError("inner clause [exclude] cannot be null.", validationException);
-        } else {
-            validationException = validateInnerQuery(exclude, validationException);
-        }
-        return validationException;
     }
 
     @Override

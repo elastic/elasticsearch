@@ -68,17 +68,11 @@ public class QueryFilterBuilderTests extends AbstractQueryTestCase<QueryFilterBu
 
     @Test
     public void testValidate() {
-        QueryBuilder innerQuery = null;
-        int totalExpectedErrors = 0;
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                innerQuery = RandomQueryBuilder.createInvalidQuery(random());
-            }
-            totalExpectedErrors++;
-        } else {
-            innerQuery = RandomQueryBuilder.createQuery(random());
+        try {
+            new QueryFilterBuilder(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
         }
-        QueryFilterBuilder fQueryFilter = new QueryFilterBuilder(innerQuery);
-        assertValidate(fQueryFilter, totalExpectedErrors);
     }
 }

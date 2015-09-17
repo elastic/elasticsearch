@@ -50,9 +50,9 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
 
     private final String fieldPattern;
 
-    private boolean nullValue = DEFAULT_NULL_VALUE;
+    private final boolean nullValue;
 
-    private boolean existence = DEFAULT_EXISTENCE_VALUE;
+    private final boolean existence;
 
     static final MissingQueryBuilder PROTOTYPE = new MissingQueryBuilder("field", DEFAULT_NULL_VALUE, DEFAULT_EXISTENCE_VALUE);
 

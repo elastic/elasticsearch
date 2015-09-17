@@ -34,10 +34,10 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
 
     @Override
     protected SpanOrQueryBuilder doCreateTestQueryBuilder() {
-        SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder();
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
-        for (SpanTermQueryBuilder clause : spanTermQueries) {
-            queryBuilder.clause(clause);
+        SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder(spanTermQueries[0]);
+        for (int i = 1; i < spanTermQueries.length; i++) {
+            queryBuilder.clause(spanTermQueries[i]);
         }
         return queryBuilder;
     }
@@ -54,24 +54,20 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
     }
 
     @Test
-    public void testValidate() {
-        SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder();
-        assertValidate(queryBuilder, 1); // empty clause list
-
-        int totalExpectedErrors = 0;
-        int clauses = randomIntBetween(1, 10);
-        for (int i = 0; i < clauses; i++) {
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    queryBuilder.clause(new SpanTermQueryBuilder("", "test"));
-                } else {
-                    queryBuilder.clause(null);
-                }
-                totalExpectedErrors++;
-            } else {
-                queryBuilder.clause(new SpanTermQueryBuilder("name", "value"));
-            }
+    public void testIllegalArguments() {
+        try {
+            new SpanOrQueryBuilder(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
         }
-        assertValidate(queryBuilder, totalExpectedErrors);
+
+        try {
+            SpanOrQueryBuilder spanOrBuilder = new SpanOrQueryBuilder(SpanTermQueryBuilder.PROTOTYPE);
+            spanOrBuilder.clause(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 }

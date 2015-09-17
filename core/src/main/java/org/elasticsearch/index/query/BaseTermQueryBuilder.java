@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -105,6 +106,12 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
      * @param value The value of the term
      */
     public BaseTermQueryBuilder(String fieldName, Object value) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name is null or empty");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("value cannot be null");
+        }
         this.fieldName = fieldName;
         this.value = convertToBytesRefIfString(value);
     }
@@ -130,19 +137,6 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
-    }
-
-    /** Returns a {@link QueryValidationException} if fieldName is null or empty, or if value is null. */
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (fieldName == null || fieldName.isEmpty()) {
-            validationException = addValidationError("field name cannot be null or empty.", validationException);
-        }
-        if (value == null) {
-            validationException = addValidationError("value cannot be null.", validationException);
-        }
-        return validationException;
     }
 
     @Override

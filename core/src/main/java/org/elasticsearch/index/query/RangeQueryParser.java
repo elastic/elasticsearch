@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -114,10 +113,14 @@ public class RangeQueryParser extends BaseQueryParser<RangeQueryBuilder> {
         rangeQuery.to(to);
         rangeQuery.includeLower(includeLower);
         rangeQuery.includeUpper(includeUpper);
-        rangeQuery.timeZone(timeZone);
+        if (timeZone != null) {
+            rangeQuery.timeZone(timeZone);
+        }
         rangeQuery.boost(boost);
         rangeQuery.queryName(queryName);
-        rangeQuery.format(format);
+        if (format != null) {
+            rangeQuery.format(format);
+        }
         return rangeQuery;
     }
 

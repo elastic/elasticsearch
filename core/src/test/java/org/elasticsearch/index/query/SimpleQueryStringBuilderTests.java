@@ -168,16 +168,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     @Test
-    public void testValidation() {
-        SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        assertNull(qb.validate());
-    }
-
-    @Test
-    public void testNullQueryTextGeneratesException() {
-        SimpleQueryStringBuilder builder = new SimpleQueryStringBuilder(null);
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
+    public void testIllegalConstructorArg() {
+        try {
+            new SimpleQueryStringBuilder(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -244,7 +241,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     /*
      * This assumes that Lucene query parsing is being checked already, adding
      * checks only for our parsing extensions.
-     * 
+     *
      * Also this relies on {@link SimpleQueryStringTests} to test most of the
      * actual functionality of query parsing.
      */

@@ -31,8 +31,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
-
 public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQueryBuilder> {
 
     /**
@@ -61,9 +59,13 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     }
 
     @Test
-    public void testValidate() {
-        TemplateQueryBuilder templateQueryBuilder = new TemplateQueryBuilder(null);
-        assertThat(templateQueryBuilder.validate().validationErrors().size(), is(1));
+    public void testIllegalArgument() {
+        try {
+            new TemplateQueryBuilder(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 
     @Override

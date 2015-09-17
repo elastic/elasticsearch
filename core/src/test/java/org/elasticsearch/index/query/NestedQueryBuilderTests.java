@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.TestSearchContext;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,6 +45,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBuilder> {
 
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         MapperService mapperService = queryParserService().mapperService;
@@ -57,6 +60,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         ).string()), false, false);
     }
 
+    @Override
     protected void setSearchContext(String[] types) {
         final MapperService mapperService = queryParserService().mapperService;
         final IndexFieldDataService fieldData = queryParserService().fieldDataService;
@@ -155,5 +159,30 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertTrue(query instanceof TermsQueryBuilder);
         TermsQueryBuilder tqb = (TermsQueryBuilder) query;
         assertEquals(tqb.values(), Arrays.asList("a", "b"));
+    }
+
+    @Test
+    public void testValidate() {
+        try {
+            new NestedQueryBuilder(null, EmptyQueryBuilder.PROTOTYPE);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        try {
+            new NestedQueryBuilder("path", null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", EmptyQueryBuilder.PROTOTYPE);
+        try {
+            nestedQueryBuilder.scoreMode(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 }

@@ -33,7 +33,6 @@ import java.util.List;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.hamcrest.CoreMatchers.*;
-import static org.hamcrest.Matchers.is;
 
 public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
 
@@ -113,12 +112,27 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     @Test
-    public void testValidate() {
-        MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder("text");
-        assertThat(multiMatchQueryBuilder.validate().validationErrors().size(), is(1));
+    public void testIllegaArguments() {
+        try {
+            new MultiMatchQueryBuilder(null, "field");
+            fail("value must not be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
 
-        multiMatchQueryBuilder = new MultiMatchQueryBuilder("text", "field");
-        assertNull(multiMatchQueryBuilder.validate());
+        try {
+            new MultiMatchQueryBuilder("value", (String[]) null);
+            fail("initial fields must be supplied at construction time must not be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        try {
+            new MultiMatchQueryBuilder("value", new String[]{""});
+            fail("field names cannot be empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 
     @Override

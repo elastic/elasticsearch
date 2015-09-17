@@ -39,11 +39,14 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     public static final String NAME = "script";
 
-    static final ScriptQueryBuilder PROTOTYPE = new ScriptQueryBuilder(null);
+    static final ScriptQueryBuilder PROTOTYPE = new ScriptQueryBuilder(new Script(""));
 
     private final Script script;
 
     public ScriptQueryBuilder(Script script) {
+        if (script == null) {
+            throw new IllegalArgumentException("script cannot be null");
+        }
         this.script = script;
     }
 
@@ -67,15 +70,6 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         return new ScriptQuery(script, context.scriptService(), context.lookup());
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (this.script == null) {
-            validationException = addValidationError("script cannot be null", validationException);
-        }
-        return validationException;
     }
 
     static class ScriptQuery extends Query {

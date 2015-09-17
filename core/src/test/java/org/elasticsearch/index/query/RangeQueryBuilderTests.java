@@ -29,7 +29,6 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
 
@@ -98,24 +97,40 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     @Test
-    public void testValidate() {
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("");
-        assertThat(rangeQueryBuilder.validate().validationErrors().size(), is(1));
+    public void testIllegalArguments() {
+        try {
+            if (randomBoolean()) {
+                new RangeQueryBuilder(null);
+            } else {
+                new RangeQueryBuilder("");
+            }
+            fail("cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
 
-        rangeQueryBuilder = new RangeQueryBuilder("okay").timeZone("UTC");
-        assertNull(rangeQueryBuilder.validate());
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("test");
+        try {
+            if (randomBoolean()) {
+                rangeQueryBuilder.timeZone(null);
+            } else {
+                rangeQueryBuilder.timeZone("badID");
+            }
+            fail("cannot be null or unknown id");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
 
-        rangeQueryBuilder.timeZone("blab");
-        assertThat(rangeQueryBuilder.validate().validationErrors().size(), is(1));
-
-        rangeQueryBuilder.timeZone("UTC").format("basicDate");
-        assertNull(rangeQueryBuilder.validate());
-
-        rangeQueryBuilder.timeZone("UTC").format("broken_xx");
-        assertThat(rangeQueryBuilder.validate().validationErrors().size(), is(1));
-
-        rangeQueryBuilder.timeZone("xXx").format("broken_xx");
-        assertThat(rangeQueryBuilder.validate().validationErrors().size(), is(2));
+        try {
+            if (randomBoolean()) {
+                rangeQueryBuilder.format(null);
+            } else {
+                rangeQueryBuilder.format("badFormat");
+            }
+            fail("cannot be null or bad format");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 
     /**

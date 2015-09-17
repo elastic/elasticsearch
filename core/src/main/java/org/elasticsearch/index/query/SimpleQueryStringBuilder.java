@@ -63,7 +63,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
 
-    static final SimpleQueryStringBuilder PROTOTYPE = new SimpleQueryStringBuilder(null);
+    static final SimpleQueryStringBuilder PROTOTYPE = new SimpleQueryStringBuilder("");
 
     /** Query text to parse. */
     private final String queryText;
@@ -90,6 +90,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     /** Construct a new simple query with this query string. */
     public SimpleQueryStringBuilder(String queryText) {
+        if (queryText == null) {
+            throw new IllegalArgumentException("query text missing");
+        }
         this.queryText = queryText;
     }
 
@@ -243,22 +246,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
      */
     public String minimumShouldMatch() {
         return minimumShouldMatch;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * Checks that mandatory queryText is neither null nor empty.
-     * */
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        // Query text is required
-        if (queryText == null) {
-            validationException = addValidationError("query text missing", validationException);
-        }
-
-        return validationException;
     }
 
     @Override

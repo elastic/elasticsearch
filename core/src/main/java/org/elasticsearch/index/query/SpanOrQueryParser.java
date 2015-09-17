@@ -72,13 +72,14 @@ public class SpanOrQueryParser extends BaseQueryParser<SpanOrQueryBuilder> {
                 }
             }
         }
+
         if (clauses.isEmpty()) {
             throw new QueryParsingException(parseContext, "spanOr must include [clauses]");
         }
 
-        SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder();
-        for (SpanQueryBuilder clause : clauses) {
-            queryBuilder.clause(clause);
+        SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder(clauses.get(0));
+        for (int i = 1; i < clauses.size(); i++) {
+            queryBuilder.clause(clauses.get(i));
         }
         queryBuilder.boost(boost);
         queryBuilder.queryName(queryName);

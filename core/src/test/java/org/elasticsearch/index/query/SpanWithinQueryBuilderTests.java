@@ -41,31 +41,19 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
     }
 
     @Test
-    public void testValidate() {
-        int totalExpectedErrors = 0;
-        SpanQueryBuilder bigSpanQueryBuilder;
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                bigSpanQueryBuilder = new SpanTermQueryBuilder("", "test");
-            } else {
-                bigSpanQueryBuilder = null;
-            }
-            totalExpectedErrors++;
-        } else {
-            bigSpanQueryBuilder = new SpanTermQueryBuilder("name", "value");
+    public void testIllegalArguments() {
+        try {
+            new SpanWithinQueryBuilder(null, SpanTermQueryBuilder.PROTOTYPE);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
         }
-        SpanQueryBuilder littleSpanQueryBuilder;
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                littleSpanQueryBuilder = new SpanTermQueryBuilder("", "test");
-            } else {
-                littleSpanQueryBuilder = null;
-            }
-            totalExpectedErrors++;
-        } else {
-            littleSpanQueryBuilder = new SpanTermQueryBuilder("name", "value");
+
+        try {
+            new SpanWithinQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
         }
-        SpanWithinQueryBuilder queryBuilder = new SpanWithinQueryBuilder(bigSpanQueryBuilder, littleSpanQueryBuilder);
-        assertValidate(queryBuilder, totalExpectedErrors);
     }
 }

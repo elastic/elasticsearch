@@ -68,6 +68,7 @@ import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -441,11 +442,13 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
                 MustacheScriptEngineService.NAME, null, null));
 
         SearchRequestBuilder searchRequestBuilder = transportClient().prepareSearch("test").setSize(0);
+        SuggestBuilder suggestBuilder = new SuggestBuilder();
         String suggestText = "united states house of representatives elections in washington 2006";
         if (suggestText != null) {
-            searchRequestBuilder.setSuggestText(suggestText);
+            suggestBuilder.setText(suggestText);
         }
-        searchRequestBuilder.addSuggestion(filteredFilterSuggest);
+        suggestBuilder.addSuggestion(filteredFilterSuggest);
+        searchRequestBuilder.suggest(suggestBuilder);
         SearchResponse actionGet = searchRequestBuilder.execute().actionGet();
         assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(0));
         Suggest searchSuggest = actionGet.getSuggest();

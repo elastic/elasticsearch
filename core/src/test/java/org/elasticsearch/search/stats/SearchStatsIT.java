@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -100,7 +101,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         for (int i = 0; i < iters; i++) {
             SearchResponse searchResponse = internalCluster().clientNodeClient().prepareSearch()
                     .setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2")
-                    .addHighlightedField("field")
+                    .highlighter(new HighlightBuilder().field("field"))
                     .addScriptField("scrip1", new Script("_source.field"))
                     .setSize(100)
                     .execute().actionGet();
@@ -137,9 +138,9 @@ public class SearchStatsIT extends ESIntegTestCase {
                 assertThat(total.getQueryTimeInMillis(), equalTo(0l));
             }
         }
-        
+
         assertThat(num, greaterThan(0));
-     
+
     }
 
     private Set<String> nodeIdsWithIndex(String... indices) {

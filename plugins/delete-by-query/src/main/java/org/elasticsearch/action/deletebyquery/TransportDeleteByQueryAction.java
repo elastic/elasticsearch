@@ -27,7 +27,13 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
@@ -42,7 +48,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -107,9 +115,11 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     scanRequest.routing(request.routing());
                 }
 
+                List<String> fields = new ArrayList<>();
+                fields.add("_routing");
+                fields.add("_parent");
                 SearchSourceBuilder source = new SearchSourceBuilder()
-                        .query(request.source())
-                        .fields("_routing", "_parent")
+.query(request.query()).fields(fields)
                         .sort("_doc") // important for performance
                         .fetchSource(false)
                         .version(true);

@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.deletebyquery;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -59,17 +58,15 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             delete.timeout(request.paramAsTime("timeout", null));
         }
         if (request.hasContent()) {
-            delete.source(request.content());
+//            delete.source(request.content()); NORELEASE parse request.content() into a queryBuilder
         } else {
             String source = request.param("source");
             if (source != null) {
-                delete.source(source);
+                // delete.source(source); NORELEASE parse source into a queryBuilder
             } else {
                 QueryBuilder<?> queryBuilder = RestActions.parseQuerySource(request);
                 if (queryBuilder != null) {
-                    QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
-                    querySourceBuilder.setQuery(queryBuilder);
-                    delete.source(querySourceBuilder.buildAsBytes());
+                    delete.query(queryBuilder);
                 }
             }
         }

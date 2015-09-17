@@ -37,6 +37,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
+import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.*;
 
@@ -59,13 +60,20 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
         logger.debug("get instances for project [{}], zones [{}]", project, zones);
         final List<Instance> instances = zones.stream().map((zoneId) -> {
             try {
-                Compute.Instances.List list = client().instances().list(project, zoneId);
-                InstanceList instanceList = list.execute();
+                // hack around code messiness in GCE code
+                // TODO: get this fixed
+                InstanceList instanceList = AccessController.doPrivileged(new PrivilegedExceptionAction<InstanceList>() {
+                    @Override
+                    public InstanceList run() throws Exception {
+                        Compute.Instances.List list = client().instances().list(project, zoneId);
+                        return list.execute();
+                    }
+                });
                 if (instanceList.isEmpty()) {
                     return Collections.EMPTY_LIST;
                 }
                 return instanceList.getItems();
-            } catch (IOException e) {
+            } catch (PrivilegedActionException e) {
                 logger.warn("Problem fetching instance list for zone {}", zoneId);
                 logger.debug("Full exception:", e);
                 return Collections.EMPTY_LIST;

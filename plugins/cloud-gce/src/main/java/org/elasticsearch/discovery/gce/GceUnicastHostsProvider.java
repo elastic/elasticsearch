@@ -242,8 +242,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
 
             }
         } catch (Throwable e) {
-            logger.warn("Exception caught during discovery {} : {}", e.getClass().getName(), e.getMessage());
-            logger.trace("Exception caught during discovery", e);
+            logger.warn("Exception caught during discovery: {}", e, e.getMessage());
         }
 
         logger.debug("{} node(s) added", cachedDiscoNodes.size());

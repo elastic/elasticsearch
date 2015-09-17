@@ -46,6 +46,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
+import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.*;
 
@@ -70,16 +71,21 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
             List<List<Instance>> instanceListByZone = eagerTransform(zones, new Function<String, List<Instance>>() {
                 @Override
-                public List<Instance> apply(String zoneId) {
+                public List<Instance> apply(final String zoneId) {
                     try {
-                        Compute.Instances.List list = client().instances().list(project, zoneId);
-                        InstanceList instanceList = list.execute();
+                        InstanceList instanceList = AccessController.doPrivileged(new PrivilegedExceptionAction<InstanceList>() {
+                            @Override
+                            public InstanceList run() throws Exception {
+                                Compute.Instances.List list = client().instances().list(project, zoneId);
+                                return list.execute();
+                            }
+                        });
                         if (instanceList.isEmpty()) {
                             return Collections.EMPTY_LIST;
                         }
 
                         return instanceList.getItems();
-                    } catch (IOException e) {
+                    } catch (PrivilegedActionException e) {
                         logger.warn("Problem fetching instance list for zone {}", zoneId);
                         logger.debug("Full exception:", e);
 

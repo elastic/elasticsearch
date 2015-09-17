@@ -46,7 +46,9 @@ import java.util.Set;
  * <p>
  * As an approximation, we just exclude es/test/framework classes,
  * because they will be present in stacks and fail tests for the 
- * simple case where an AccessController block is missing.
+ * simple case where an AccessController block is missing, because
+ * java security checks every codebase in the stacktrace, and we
+ * are sure to pollute it.
  */
 final class MockPluginPolicy extends Policy {
     final ESPolicy standardPolicy;

@@ -360,7 +360,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
         logger.info("Running Cluster Health");
         ensureGreen();
-        client().admin().indices().prepareOptimize("test").setMaxNumSegments(100).get(); // just wait for merges
+        client().admin().indices().prepareForceMerge("test").setMaxNumSegments(100).get(); // just wait for merges
         client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).get();
 
         boolean useSyncIds = randomBoolean();

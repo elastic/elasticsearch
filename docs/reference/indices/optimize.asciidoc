@@ -1,6 +1,8 @@
 [[indices-optimize]]
 == Optimize
 
+deprecated[2.1.0,Optimize API has been renamed to the force merge API]
+
 The optimize API allows to optimize one or more indices through an API.
 The optimize process basically optimizes the index for faster search
 operations (and relates to the number of segments a Lucene index holds

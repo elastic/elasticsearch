@@ -331,8 +331,8 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
         assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
 
-        // optimize
-        optimize();
+        // force merge
+        forceMerge();
         refresh();
 
         client().prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();

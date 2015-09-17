@@ -22,7 +22,7 @@ package org.elasticsearch.document;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -81,10 +81,10 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
-        logger.info("Optimizing");
+        logger.info("Force Merging");
         waitForRelocation(ClusterHealthStatus.GREEN);
-        OptimizeResponse optimizeResponse = optimize();
-        assertThat(optimizeResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
+        ForceMergeResponse mergeResponse = forceMerge();
+        assertThat(mergeResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
         GetResponse getResult;
 

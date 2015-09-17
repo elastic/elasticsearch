@@ -45,7 +45,7 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsReques
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -279,14 +279,14 @@ public class Requests {
     }
 
     /**
-     * Creates an optimize request.
+     * Creates a force merge request.
      *
-     * @param indices The indices to optimize. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @return The optimize request
-     * @see org.elasticsearch.client.IndicesAdminClient#optimize(org.elasticsearch.action.admin.indices.optimize.OptimizeRequest)
+     * @param indices The indices to force merge. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @return The force merge request
+     * @see org.elasticsearch.client.IndicesAdminClient#forceMerge(org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest)
      */
-    public static OptimizeRequest optimizeRequest(String... indices) {
-        return new OptimizeRequest(indices);
+    public static ForceMergeRequest forceMergeRequest(String... indices) {
+        return new ForceMergeRequest(indices);
     }
 
     /**

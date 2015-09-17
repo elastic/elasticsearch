@@ -139,6 +139,10 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
@@ -152,10 +156,6 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
@@ -1382,18 +1382,18 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<OptimizeResponse> optimize(final OptimizeRequest request) {
-            return execute(OptimizeAction.INSTANCE, request);
+        public ActionFuture<ForceMergeResponse> forceMerge(final ForceMergeRequest request) {
+            return execute(ForceMergeAction.INSTANCE, request);
         }
 
         @Override
-        public void optimize(final OptimizeRequest request, final ActionListener<OptimizeResponse> listener) {
-            execute(OptimizeAction.INSTANCE, request, listener);
+        public void forceMerge(final ForceMergeRequest request, final ActionListener<ForceMergeResponse> listener) {
+            execute(ForceMergeAction.INSTANCE, request, listener);
         }
 
         @Override
-        public OptimizeRequestBuilder prepareOptimize(String... indices) {
-            return new OptimizeRequestBuilder(this, OptimizeAction.INSTANCE).setIndices(indices);
+        public ForceMergeRequestBuilder prepareForceMerge(String... indices) {
+            return new ForceMergeRequestBuilder(this, ForceMergeAction.INSTANCE).setIndices(indices);
         }
 
         @Override

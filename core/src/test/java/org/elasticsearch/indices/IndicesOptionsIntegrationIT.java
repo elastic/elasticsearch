@@ -27,9 +27,9 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBuilder;
@@ -78,7 +78,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush("test1", "test2"),true);
         verify(segments("test1", "test2"), true);
         verify(stats("test1", "test2"), true);
-        verify(optimize("test1", "test2"), true);
+        verify(forceMerge("test1", "test2"), true);
         verify(refresh("test1", "test2"), true);
         verify(validateQuery("test1", "test2"), true);
         verify(aliasExists("test1", "test2"), true);
@@ -99,7 +99,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush("test1", "test2").setIndicesOptions(options),true);
         verify(segments("test1", "test2").setIndicesOptions(options), true);
         verify(stats("test1", "test2").setIndicesOptions(options), true);
-        verify(optimize("test1", "test2").setIndicesOptions(options), true);
+        verify(forceMerge("test1", "test2").setIndicesOptions(options), true);
         verify(refresh("test1", "test2").setIndicesOptions(options), true);
         verify(validateQuery("test1", "test2").setIndicesOptions(options), true);
         verify(aliasExists("test1", "test2").setIndicesOptions(options), true);
@@ -120,7 +120,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush("test1", "test2").setIndicesOptions(options), false);
         verify(segments("test1", "test2").setIndicesOptions(options), false);
         verify(stats("test1", "test2").setIndicesOptions(options), false);
-        verify(optimize("test1", "test2").setIndicesOptions(options), false);
+        verify(forceMerge("test1", "test2").setIndicesOptions(options), false);
         verify(refresh("test1", "test2").setIndicesOptions(options), false);
         verify(validateQuery("test1", "test2").setIndicesOptions(options), false);
         verify(aliasExists("test1", "test2").setIndicesOptions(options), false);
@@ -143,7 +143,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush("test1", "test2").setIndicesOptions(options),false);
         verify(segments("test1", "test2").setIndicesOptions(options), false);
         verify(stats("test1", "test2").setIndicesOptions(options), false);
-        verify(optimize("test1", "test2").setIndicesOptions(options), false);
+        verify(forceMerge("test1", "test2").setIndicesOptions(options), false);
         verify(refresh("test1", "test2").setIndicesOptions(options), false);
         verify(validateQuery("test1", "test2").setIndicesOptions(options), false);
         verify(aliasExists("test1", "test2").setIndicesOptions(options), false);
@@ -175,7 +175,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush("test1").setIndicesOptions(options),true);
         verify(segments("test1").setIndicesOptions(options), true);
         verify(stats("test1").setIndicesOptions(options), true);
-        verify(optimize("test1").setIndicesOptions(options), true);
+        verify(forceMerge("test1").setIndicesOptions(options), true);
         verify(refresh("test1").setIndicesOptions(options), true);
         verify(validateQuery("test1").setIndicesOptions(options), true);
         verify(aliasExists("test1").setIndicesOptions(options), true);
@@ -196,7 +196,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush("test1").setIndicesOptions(options),false);
         verify(segments("test1").setIndicesOptions(options), false);
         verify(stats("test1").setIndicesOptions(options), false);
-        verify(optimize("test1").setIndicesOptions(options), false);
+        verify(forceMerge("test1").setIndicesOptions(options), false);
         verify(refresh("test1").setIndicesOptions(options), false);
         verify(validateQuery("test1").setIndicesOptions(options), false);
         verify(aliasExists("test1").setIndicesOptions(options), false);
@@ -220,7 +220,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush("test1").setIndicesOptions(options),false);
         verify(segments("test1").setIndicesOptions(options), false);
         verify(stats("test1").setIndicesOptions(options), false);
-        verify(optimize("test1").setIndicesOptions(options), false);
+        verify(forceMerge("test1").setIndicesOptions(options), false);
         verify(refresh("test1").setIndicesOptions(options), false);
         verify(validateQuery("test1").setIndicesOptions(options), false);
         verify(aliasExists("test1").setIndicesOptions(options), false);
@@ -244,7 +244,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush("test1").setIndicesOptions(options),true);
         verify(segments("test1").setIndicesOptions(options), true);
         verify(stats("test1").setIndicesOptions(options), true);
-        verify(optimize("test1").setIndicesOptions(options), true);
+        verify(forceMerge("test1").setIndicesOptions(options), true);
         verify(refresh("test1").setIndicesOptions(options), true);
         verify(validateQuery("test1").setIndicesOptions(options), true);
         verify(aliasExists("test1").setIndicesOptions(options), true);
@@ -264,7 +264,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush("test1").setIndicesOptions(options),false);
         verify(segments("test1").setIndicesOptions(options), false);
         verify(stats("test1").setIndicesOptions(options), false);
-        verify(optimize("test1").setIndicesOptions(options), false);
+        verify(forceMerge("test1").setIndicesOptions(options), false);
         verify(refresh("test1").setIndicesOptions(options), false);
         verify(validateQuery("test1").setIndicesOptions(options), false);
         verify(aliasExists("test1").setIndicesOptions(options), false);
@@ -287,7 +287,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush("test1").setIndicesOptions(options),false);
         verify(segments("test1").setIndicesOptions(options), false);
         verify(stats("test1").setIndicesOptions(options), false);
-        verify(optimize("test1").setIndicesOptions(options), false);
+        verify(forceMerge("test1").setIndicesOptions(options), false);
         verify(refresh("test1").setIndicesOptions(options), false);
         verify(validateQuery("test1").setIndicesOptions(options), false);
         verify(aliasExists("test1").setIndicesOptions(options), false);
@@ -342,7 +342,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush(indices),false);
         verify(segments(indices), false);
         verify(stats(indices), false);
-        verify(optimize(indices), false);
+        verify(forceMerge(indices), false);
         verify(refresh(indices), false);
         verify(validateQuery(indices), true);
         verify(aliasExists(indices), false);
@@ -364,7 +364,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush(indices).setIndicesOptions(options),false);
         verify(segments(indices).setIndicesOptions(options), false);
         verify(stats(indices).setIndicesOptions(options), false);
-        verify(optimize(indices).setIndicesOptions(options), false);
+        verify(forceMerge(indices).setIndicesOptions(options), false);
         verify(refresh(indices).setIndicesOptions(options), false);
         verify(validateQuery(indices).setIndicesOptions(options), false);
         verify(aliasExists(indices).setIndicesOptions(options), false);
@@ -389,7 +389,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush(indices),false);
         verify(segments(indices), false);
         verify(stats(indices), false);
-        verify(optimize(indices), false);
+        verify(forceMerge(indices), false);
         verify(refresh(indices), false);
         verify(validateQuery(indices), false);
         verify(aliasExists(indices), false);
@@ -411,7 +411,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush(indices),false);
         verify(segments(indices), false);
         verify(stats(indices), false);
-        verify(optimize(indices), false);
+        verify(forceMerge(indices), false);
         verify(refresh(indices), false);
         verify(validateQuery(indices), true);
         verify(aliasExists(indices), false);
@@ -433,7 +433,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(_flush(indices).setIndicesOptions(options),false);
         verify(segments(indices).setIndicesOptions(options), false);
         verify(stats(indices).setIndicesOptions(options), false);
-        verify(optimize(indices).setIndicesOptions(options), false);
+        verify(forceMerge(indices).setIndicesOptions(options), false);
         verify(refresh(indices).setIndicesOptions(options), false);
         verify(validateQuery(indices).setIndicesOptions(options), false);
         verify(aliasExists(indices).setIndicesOptions(options), false);
@@ -788,8 +788,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         return client().admin().indices().prepareStats(indices);
     }
 
-    private static OptimizeRequestBuilder optimize(String... indices) {
-        return client().admin().indices().prepareOptimize(indices);
+    private static ForceMergeRequestBuilder forceMerge(String... indices) {
+        return client().admin().indices().prepareForceMerge(indices);
     }
 
     private static RefreshRequestBuilder refresh(String... indices) {

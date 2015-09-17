@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.optimize;
+package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -31,10 +31,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class OptimizeBlocksIT extends ESIntegTestCase {
+public class ForceMergeBlocksIT extends ESIntegTestCase {
 
     @Test
-    public void testOptimizeWithBlocks() {
+    public void testForceMergeWithBlocks() {
         createIndex("test");
         ensureGreen("test");
 
@@ -49,7 +49,7 @@ public class OptimizeBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                OptimizeResponse response = client().admin().indices().prepareOptimize("test").execute().actionGet();
+                ForceMergeResponse response = client().admin().indices().prepareForceMerge("test").execute().actionGet();
                 assertNoFailures(response);
                 assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
             } finally {
@@ -61,20 +61,20 @@ public class OptimizeBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                assertBlocked(client().admin().indices().prepareOptimize("test"));
+                assertBlocked(client().admin().indices().prepareForceMerge("test"));
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
         }
 
-        // Optimizing all indices is blocked when the cluster is read-only
+        // Merging all indices is blocked when the cluster is read-only
         try {
-            OptimizeResponse response = client().admin().indices().prepareOptimize().execute().actionGet();
+            ForceMergeResponse response = client().admin().indices().prepareForceMerge().execute().actionGet();
             assertNoFailures(response);
             assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
             setClusterReadOnly(true);
-            assertBlocked(client().admin().indices().prepareOptimize());
+            assertBlocked(client().admin().indices().prepareForceMerge());
         } finally {
             setClusterReadOnly(false);
         }

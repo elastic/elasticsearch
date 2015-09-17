@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.optimize;
+package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,17 +26,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * A request to optimize one or more indices. In order to optimize on all the indices, pass an empty array or
- * <tt>null</tt> for the indices.
- * <p>
- * {@link #maxNumSegments(int)} allows to control the number of segments to optimize down to. By default, will
- * cause the optimize process to optimize down to half the configured number of segments.
+ * A request to force merging the segments of one or more indices. In order to
+ * run a merge on all the indices, pass an empty array or <tt>null</tt> for the
+ * indices.
+ * {@link #maxNumSegments(int)} allows to control the number of segments
+ * to force merge down to. Defaults to simply checking if a merge needs
+ * to execute, and if so, executes it
  *
- * @see org.elasticsearch.client.Requests#optimizeRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#optimize(OptimizeRequest)
- * @see OptimizeResponse
+ * @see org.elasticsearch.client.Requests#forceMergeRequest(String...)
+ * @see org.elasticsearch.client.IndicesAdminClient#forceMerge(ForceMergeRequest)
+ * @see ForceMergeResponse
  */
-public class OptimizeRequest extends BroadcastRequest<OptimizeRequest> {
+public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
     public static final class Defaults {
         public static final int MAX_NUM_SEGMENTS = -1;
@@ -49,63 +50,63 @@ public class OptimizeRequest extends BroadcastRequest<OptimizeRequest> {
     private boolean flush = Defaults.FLUSH;
 
     /**
-     * Constructs an optimization request over one or more indices.
+     * Constructs a merge request over one or more indices.
      *
-     * @param indices The indices to optimize, no indices passed means all indices will be optimized.
+     * @param indices The indices to merge, no indices passed means all indices will be merged.
      */
-    public OptimizeRequest(String... indices) {
+    public ForceMergeRequest(String... indices) {
         super(indices);
     }
 
-    public OptimizeRequest() {
+    public ForceMergeRequest() {
 
     }
 
     /**
-     * Will optimize the index down to &lt;= maxNumSegments. By default, will cause the optimize
-     * process to optimize down to half the configured number of segments.
+     * Will merge the index down to &lt;= maxNumSegments. By default, will cause the merge
+     * process to merge down to half the configured number of segments.
      */
     public int maxNumSegments() {
         return maxNumSegments;
     }
 
     /**
-     * Will optimize the index down to &lt;= maxNumSegments. By default, will cause the optimize
-     * process to optimize down to half the configured number of segments.
+     * Will merge the index down to &lt;= maxNumSegments. By default, will cause the merge
+     * process to merge down to half the configured number of segments.
      */
-    public OptimizeRequest maxNumSegments(int maxNumSegments) {
+    public ForceMergeRequest maxNumSegments(int maxNumSegments) {
         this.maxNumSegments = maxNumSegments;
         return this;
     }
 
     /**
-     * Should the optimization only expunge deletes from the index, without full optimization.
-     * Defaults to full optimization (<tt>false</tt>).
+     * Should the merge only expunge deletes from the index, without full merging.
+     * Defaults to full merging (<tt>false</tt>).
      */
     public boolean onlyExpungeDeletes() {
         return onlyExpungeDeletes;
     }
 
     /**
-     * Should the optimization only expunge deletes from the index, without full optimization.
-     * Defaults to full optimization (<tt>false</tt>).
+     * Should the merge only expunge deletes from the index, without full merge.
+     * Defaults to full merging (<tt>false</tt>).
      */
-    public OptimizeRequest onlyExpungeDeletes(boolean onlyExpungeDeletes) {
+    public ForceMergeRequest onlyExpungeDeletes(boolean onlyExpungeDeletes) {
         this.onlyExpungeDeletes = onlyExpungeDeletes;
         return this;
     }
 
     /**
-     * Should flush be performed after the optimization. Defaults to <tt>true</tt>.
+     * Should flush be performed after the merge. Defaults to <tt>true</tt>.
      */
     public boolean flush() {
         return flush;
     }
 
     /**
-     * Should flush be performed after the optimization. Defaults to <tt>true</tt>.
+     * Should flush be performed after the merge. Defaults to <tt>true</tt>.
      */
-    public OptimizeRequest flush(boolean flush) {
+    public ForceMergeRequest flush(boolean flush) {
         this.flush = flush;
         return this;
     }
@@ -128,7 +129,7 @@ public class OptimizeRequest extends BroadcastRequest<OptimizeRequest> {
 
     @Override
     public String toString() {
-        return "OptimizeRequest{" +
+        return "ForceMergeRequest{" +
                 "maxNumSegments=" + maxNumSegments +
                 ", onlyExpungeDeletes=" + onlyExpungeDeletes +
                 ", flush=" + flush +

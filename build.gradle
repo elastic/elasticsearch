@@ -1,4 +1,5 @@
 apply plugin: 'idea'
+apply plugin: 'eclipse'
 
 subprojects {
 

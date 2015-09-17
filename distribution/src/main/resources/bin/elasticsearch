@@ -130,10 +130,30 @@ export HOSTNAME
 daemonized=`echo $* | grep -E -- '(^-d |-d$| -d |--daemonize$|--daemonize )'`
 if [ -z "$daemonized" ] ; then
     exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
-          org.elasticsearch.bootstrap.Elasticsearch start "$@"
-else
-    exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
-          org.elasticsearch.bootstrap.Elasticsearch start "$@" <&- &
+        org.elasticsearch.bootstrap.Elasticsearch start "$@"
+    exit $?
 fi
 
+pidfile=$(echo $* | awk '{match($0, /-p(idfile)? +([^ ]+)/,a);print a[2]}')
+if [ ! -z "$pidfile" ]; then
+    rm -f "$pidfile"
+fi
+exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
+    org.elasticsearch.bootstrap.Elasticsearch start "$@" <&- &
+if [ ! -z "$pidfile" ]; then
+    end=$(($(date +%s) + 30))
+    while [ ! -f "$pidfile" ] && [ $(date +%s) -le $end ]; do
+        sleep 1
+    done
+
+    if [ ! -f "$pidfile" ]; then
+        cat >&2 << EOF
+Elasticsearch never wrote its pidfile. It probably was not able to start properly.
+Check its log file for more information. If it did not log anything then try to
+run it in the foreground. Errors without any logs are likely caused unsupported
+versions of Java or broken logging configuration.
+EOF
+        exit 1
+    fi
+fi
 exit $?

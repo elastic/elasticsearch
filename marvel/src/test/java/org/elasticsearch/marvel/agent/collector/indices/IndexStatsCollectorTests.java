@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.collector.indices;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.ClusterService;
@@ -24,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/470")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, randomDynamicTemplates = false, transportClientRatio = 0.0, numDataNodes = 1, numClientNodes = 0)
 public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
 

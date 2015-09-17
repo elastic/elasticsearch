@@ -18,6 +18,6 @@
  */
 
 /**
- * Optimize index/indices action.
+ * Force merge index/indices action.
  */
-package org.elasticsearch.action.admin.indices.optimize;
+package org.elasticsearch.action.admin.indices.forcemerge;

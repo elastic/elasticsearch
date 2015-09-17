@@ -32,7 +32,7 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -748,12 +748,13 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     }
 
-    public void optimize(OptimizeRequest optimize) throws IOException {
+    public void forceMerge(ForceMergeRequest forceMerge) throws IOException {
         verifyStarted();
         if (logger.isTraceEnabled()) {
-            logger.trace("optimize with {}", optimize);
+            logger.trace("force merge with {}", forceMerge);
         }
-        engine().forceMerge(optimize.flush(), optimize.maxNumSegments(), optimize.onlyExpungeDeletes(), false, false);
+        engine().forceMerge(forceMerge.flush(), forceMerge.maxNumSegments(),
+                forceMerge.onlyExpungeDeletes(), false, false);
     }
 
     /**

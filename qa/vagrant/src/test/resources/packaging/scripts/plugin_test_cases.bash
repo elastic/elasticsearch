@@ -197,17 +197,18 @@ fi
     assert_file_exist "$ESHOME/plugins/site-example/_site/index.html"
 }
 
+@test "[$GROUP] check the installed plugins can be listed with 'plugins list' and result matches the list of plugins in plugins pom" {
+    "$ESHOME/bin/plugin" list | tail -n +2 | sed 's/^......//' > /tmp/installed
+    compare_plugins_list "/tmp/installed" "'plugins list'"
+}
+
 @test "[$GROUP] start elasticsearch with all plugins installed" {
     start_elasticsearch_service
 }
 
 @test "[$GROUP] check the installed plugins matches the list of build plugins" {
-    curl -s localhost:9200/_cat/plugins?h=c | sed 's/ *$//' |
-        sort > /tmp/installed
-    ls /elasticsearch/plugins/*/pom.xml | cut -d '/' -f 4 |
-        sort > /tmp/expected
-    echo "Checking installed plugins (<) against the plugins directory (>):"
-    diff /tmp/installed /tmp/expected
+    curl -s localhost:9200/_cat/plugins?h=c | sed 's/ *$//' > /tmp/installed
+    compare_plugins_list "/tmp/installed" "_cat/plugins"
 }
 
 @test "[$GROUP] stop elasticsearch" {

@@ -259,7 +259,7 @@ public class Version {
     public static final Version V_2_0_0_beta1 = new Version(V_2_0_0_beta1_ID, false, org.apache.lucene.util.Version.LUCENE_5_2_1);
     public static final int V_2_0_0_beta2_ID = 2000002;
     public static final Version V_2_0_0_beta2 = new Version(V_2_0_0_beta2_ID, false, org.apache.lucene.util.Version.LUCENE_5_2_1);
-    public static final int V_2_0_0_rc1_ID = 2000003;
+    public static final int V_2_0_0_rc1_ID = 2000051;
     public static final Version V_2_0_0_rc1 = new Version(V_2_0_0_rc1_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_1);
 
     public static final Version CURRENT = V_2_0_0_rc1;

@@ -23,6 +23,8 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.junit.Test;
+
 import java.io.IOException;
 import java.util.*;
 
@@ -141,5 +143,34 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         contentString += "    }    \n" + "}";
         alternateVersions.put(contentString, expectedQuery);
         return alternateVersions;
+    }
+
+    @Test
+    public void testIllegalArguments() {
+        BoolQueryBuilder booleanQuery = new BoolQueryBuilder();
+
+        try {
+            booleanQuery.must(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+        }
+
+        try {
+            booleanQuery.mustNot(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+        }
+
+        try {
+            booleanQuery.filter(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+        }
+
+        try {
+            booleanQuery.should(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+        }
     }
 }

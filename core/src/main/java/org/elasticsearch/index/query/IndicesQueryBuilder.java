@@ -42,15 +42,7 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
 
     private QueryBuilder noMatchQuery = defaultNoMatchQuery();
 
-    static final IndicesQueryBuilder PROTOTYPE = new IndicesQueryBuilder();
-
-    /**
-     * for prototype only
-     */
-    private IndicesQueryBuilder() {
-        this.innerQuery = null;
-        this.indices = null;
-    }
+    static final IndicesQueryBuilder PROTOTYPE = new IndicesQueryBuilder(EmptyQueryBuilder.PROTOTYPE, "index");
 
     public IndicesQueryBuilder(QueryBuilder innerQuery, String... indices) {
         this.innerQuery = Objects.requireNonNull(innerQuery);

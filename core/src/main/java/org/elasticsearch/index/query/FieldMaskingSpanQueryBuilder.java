@@ -39,7 +39,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     private final String fieldName;
 
-    static final FieldMaskingSpanQueryBuilder PROTOTYPE = new FieldMaskingSpanQueryBuilder();
+    static final FieldMaskingSpanQueryBuilder PROTOTYPE = new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("field", "text"), "field");
 
     /**
      * Constructs a new {@link FieldMaskingSpanQueryBuilder} given an inner {@link SpanQueryBuilder} for
@@ -56,14 +56,6 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
         }
         this.queryBuilder = queryBuilder;
         this.fieldName = fieldName;
-    }
-
-    /**
-     * only for prototype
-     */
-    private FieldMaskingSpanQueryBuilder() {
-        this.queryBuilder = null;
-        this.fieldName = null;
     }
 
     /**

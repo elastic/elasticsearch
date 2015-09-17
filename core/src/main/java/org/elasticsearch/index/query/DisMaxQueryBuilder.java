@@ -52,6 +52,9 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
      * Add a sub-query to this disjunction.
      */
     public DisMaxQueryBuilder add(QueryBuilder queryBuilder) {
+        if (queryBuilder == null) {
+            throw new IllegalArgumentException("inner dismax query clause cannot be null");
+        }
         queries.add(queryBuilder);
         return this;
     }

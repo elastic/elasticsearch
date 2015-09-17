@@ -55,7 +55,7 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
 
     private boolean existence = DEFAULT_EXISTENCE_VALUE;
 
-    static final MissingQueryBuilder PROTOTYPE = new MissingQueryBuilder();
+    static final MissingQueryBuilder PROTOTYPE = new MissingQueryBuilder("field", null, null);
 
     /**
      * Constructs a filter that returns documents with only null values or no value in the original field.

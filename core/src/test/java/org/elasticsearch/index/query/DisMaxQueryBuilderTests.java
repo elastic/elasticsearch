@@ -105,4 +105,15 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder().add(innerQueryBuilder);
         assertNull(disMaxBuilder.toQuery(createShardContext()));
     }
+
+    @Test
+    public void testIllegalArguments() {
+        DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
+        try {
+            disMaxQuery.add(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+    }
 }

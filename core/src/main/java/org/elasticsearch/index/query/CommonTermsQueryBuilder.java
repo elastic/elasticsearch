@@ -85,7 +85,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     private float cutoffFrequency = DEFAULT_CUTOFF_FREQ;
 
-    static final CommonTermsQueryBuilder PROTOTYPE = new CommonTermsQueryBuilder();
+    static final CommonTermsQueryBuilder PROTOTYPE = new CommonTermsQueryBuilder("field", "text");
 
     /**
      * Constructs a new common terms query.
@@ -99,12 +99,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         }
         this.fieldName = fieldName;
         this.text = text;
-    }
-
-    /** for prototype only */
-    private CommonTermsQueryBuilder() {
-        this.fieldName = null;
-        this.text = null;
     }
 
     public String fieldName() {

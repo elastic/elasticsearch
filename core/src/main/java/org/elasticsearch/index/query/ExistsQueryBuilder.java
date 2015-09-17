@@ -42,20 +42,13 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     private final String fieldName;
 
-    static final ExistsQueryBuilder PROTOTYPE = new ExistsQueryBuilder();
+    static final ExistsQueryBuilder PROTOTYPE = new ExistsQueryBuilder("field");
 
     public ExistsQueryBuilder(String fieldName) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name is null or empty");
         }
         this.fieldName = fieldName;
-    }
-
-    /**
-     * for prototype only
-     */
-    private ExistsQueryBuilder() {
-        this.fieldName = null;
     }
 
     /**

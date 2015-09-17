@@ -50,7 +50,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     private float negativeBoost = -1;
 
-    static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder();
+    static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder(EmptyQueryBuilder.PROTOTYPE, EmptyQueryBuilder.PROTOTYPE);
 
     /**
      * Create a new {@link BoostingQueryBuilder}
@@ -67,12 +67,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         }
         this.positiveQuery = positiveQuery;
         this.negativeQuery = negativeQuery;
-    }
-
-    private BoostingQueryBuilder() {
-        // for serialization only
-        this.positiveQuery = null;
-        this.negativeQuery = null;
     }
 
     /**

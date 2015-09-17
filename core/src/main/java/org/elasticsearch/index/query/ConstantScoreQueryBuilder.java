@@ -38,7 +38,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     private final QueryBuilder filterBuilder;
 
-    static final ConstantScoreQueryBuilder PROTOTYPE = new ConstantScoreQueryBuilder();
+    static final ConstantScoreQueryBuilder PROTOTYPE = new ConstantScoreQueryBuilder(EmptyQueryBuilder.PROTOTYPE);
 
     /**
      * A query that wraps another query and simply returns a constant score equal to the
@@ -51,13 +51,6 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
             throw new IllegalArgumentException("inner clause [filter] cannot be null.");
         }
         this.filterBuilder = filterBuilder;
-    }
-
-    /**
-     * for prototype only
-     */
-    private ConstantScoreQueryBuilder() {
-        this.filterBuilder = null;
     }
 
     /**

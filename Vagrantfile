@@ -127,9 +127,7 @@ def deb_common(config, add_openjdk_repository_command, openjdk_list)
       ls /etc/apt/sources.list.d/#{openjdk_list}.list > /dev/null 2>&1 ||
         (echo "Importing java-8 ppa" &&
           #{add_openjdk_repository_command} &&
-          apt-get update -o \
-            Dir::Etc::sourcelist="$(ls /etc/apt/sources.list.d/#{openjdk_list}.list)" \
-            -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0")
+          apt-get update)
 SHELL
   )
 end

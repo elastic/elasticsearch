@@ -105,7 +105,7 @@ public class ExceptionSerializationTests extends ESTestCase {
             throws ClassNotFoundException, IOException, URISyntaxException {
         final Set<Class> notRegistered = new HashSet<>();
         final Set<Class> hasDedicatedWrite = new HashSet<>();
-        final Set<String> registered = new HashSet<>();
+        final Set<Class> registered = new HashSet<>();
         final String path = "/org/elasticsearch";
         final Path startPath = PathUtils.get(ElasticsearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI()).resolve("org").resolve("elasticsearch");
         final Set<? extends Class> ignore = Sets.newHashSet(
@@ -136,10 +136,10 @@ public class ExceptionSerializationTests extends ESTestCase {
                         Class<?> clazz = loadClass(filename);
                         if (ignore.contains(clazz) == false) {
                             if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false && isEsException(clazz)) {
-                                if (ElasticsearchException.isRegistered(clazz.getName()) == false && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
+                                if (ElasticsearchException.isRegistered((Class<? extends Throwable>)clazz) == false && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
                                     notRegistered.add(clazz);
-                                } else if (ElasticsearchException.isRegistered(clazz.getName())) {
-                                    registered.add(clazz.getName());
+                                } else if (ElasticsearchException.isRegistered((Class<? extends Throwable>)clazz)) {
+                                    registered.add(clazz);
                                     try {
                                         if (clazz.getDeclaredMethod("writeTo", StreamOutput.class) != null) {
                                             hasDedicatedWrite.add(clazz);

@@ -64,10 +64,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     /**
      * The setting to enable or disable <code>invokedynamic</code> instruction support in Java 7+.
      * <p>
-     * This should only be used with Java 7u60 or later because of issues related to the instruction.
-     * The <code>invokedynamic</code> instruction allows near-Java performance from many of Groovy's
-     * dynamic features, which is why it is enabled by default.
-     * <p>
      * Note: If this is disabled because <code>invokedynamic</code> is causing issues, then the Groovy
      * <code>indy</code> jar needs to be replaced by the non-<code>indy</code> variant of it on the classpath (e.g.,
      * <code>groovy-all-2.4.4-indy.jar</code> should be replaced by <code>groovy-all-2.4.4.jar</code>).

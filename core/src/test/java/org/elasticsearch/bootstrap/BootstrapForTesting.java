@@ -118,6 +118,10 @@ public class BootstrapForTesting {
                 // if its an insecure plugin, we use a wrapper policy impl to try
                 // to simulate what happens with a real distribution
                 String artifact = System.getProperty("tests.artifact");
+                // in case we are running from the IDE:
+                if (artifact == null || System.getProperty("tests.maven") == null) {
+                    artifact = PathUtils.get(System.getProperty("user.dir")).toAbsolutePath().getFileName().toString();
+                }
                 String insecurePluginProp = Security.INSECURE_PLUGINS.get(artifact);
                 if (insecurePluginProp != null) {
                     policy = new MockPluginPolicy(perms, insecurePluginProp);
@@ -131,10 +135,11 @@ public class BootstrapForTesting {
                 if (insecurePluginProp != null) {
                     // initialize the plugin class, in case it has one-time hacks (unit tests often won't do this)
                     String clazz = System.getProperty("tests.plugin.classname");
-                    if (clazz == null) {
-                        throw new IllegalStateException("plugin classname is needed for insecure plugin unit tests");
+                    if (clazz != null) {
+                        Class.forName(clazz);
+                    } else if (System.getProperty("tests.maven") != null) {
+                        throw new IllegalStateException("plugin classname is needed for insecure plugin unit tests: something wrong with build");
                     }
-                    Class.forName(clazz);
                 }
             } catch (Exception e) {
                 throw new RuntimeException("unable to install test security manager", e);

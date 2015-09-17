@@ -571,7 +571,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         exceptions.put(org.elasticsearch.transport.RemoteTransportException.class, 104);
         exceptions.put(org.elasticsearch.index.engine.EngineCreationFailureException.class, 105);
         exceptions.put(org.elasticsearch.cluster.routing.RoutingException.class, 106);
-        exceptions.put(org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class, 107);
+        exceptions.put(org.elasticsearch.index.shard.IndexShardRecoveryException.class, 107);
         exceptions.put(org.elasticsearch.repositories.RepositoryMissingException.class, 108);
         exceptions.put(org.elasticsearch.script.expression.ExpressionScriptExecutionException.class, 109);
         exceptions.put(org.elasticsearch.index.percolator.PercolatorException.class, 110);
@@ -604,7 +604,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         exceptions.put(org.elasticsearch.index.mapper.StrictDynamicMappingException.class, 137);
         exceptions.put(org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException.class, 138);
         exceptions.put(org.elasticsearch.indices.TypeMissingException.class, 139);
-        exceptions.put(org.elasticsearch.index.shard.IndexShardRecoveryException.class, 140);
+        // added in 3.x
+        exceptions.put(org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class, 140);
 
         final int maxOrd = 140;
         assert exceptions.size() == maxOrd + 1;

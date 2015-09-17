@@ -65,7 +65,7 @@
     <testResources>
       <!-- Watcher REST API specification and test suites -->
       <testResource>
-        <directory>../../watcher/rest-api-spec</directory>
+        <directory>../../watcher/src/test/resources/rest-api-spec</directory>
         <filtering>true</filtering>
         <targetPath>rest-api-spec</targetPath>
         <includes>

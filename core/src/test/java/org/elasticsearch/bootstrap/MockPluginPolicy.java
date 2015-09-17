@@ -22,12 +22,10 @@ package org.elasticsearch.bootstrap;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.junit.Assert;
 
 import java.net.URL;
-import java.nio.file.Path;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
@@ -37,6 +35,7 @@ import java.security.ProtectionDomain;
 import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -53,7 +52,7 @@ import java.util.Set;
 final class MockPluginPolicy extends Policy {
     final ESPolicy standardPolicy;
     final PermissionCollection extraPermissions;
-    final Set<CodeSource> extraSources;
+    final Set<CodeSource> excludedSources;
 
     /**
      * Create a new MockPluginPolicy with dynamic {@code permissions} and
@@ -88,35 +87,30 @@ final class MockPluginPolicy extends Policy {
             extraPermissions.add(p);
         }
 
-        // every element in classpath except test-classes/
-        extraSources = new HashSet<CodeSource>();
-        for (URL location : JarHell.parseClassPath()) {
-            Path path = PathUtils.get(location.toURI());
-            String baseName = path.getFileName().toString();
-            if (baseName.contains("test-classes") == false) {
-              extraSources.add(new CodeSource(location, (Certificate[])null));
-            }
-        }
+        excludedSources = new HashSet<CodeSource>();
         // exclude some obvious places
         // es core
-        extraSources.remove(Bootstrap.class.getProtectionDomain().getCodeSource());
+        excludedSources.add(Bootstrap.class.getProtectionDomain().getCodeSource());
         // es test framework
-        extraSources.remove(getClass().getProtectionDomain().getCodeSource());
+        excludedSources.add(getClass().getProtectionDomain().getCodeSource());
         // lucene test framework
-        extraSources.remove(LuceneTestCase.class.getProtectionDomain().getCodeSource());
+        excludedSources.add(LuceneTestCase.class.getProtectionDomain().getCodeSource());
         // test runner
-        extraSources.remove(RandomizedRunner.class.getProtectionDomain().getCodeSource());
+        excludedSources.add(RandomizedRunner.class.getProtectionDomain().getCodeSource());
         // junit library
-        extraSources.remove(Assert.class.getProtectionDomain().getCodeSource());
+        excludedSources.add(Assert.class.getProtectionDomain().getCodeSource());
+        // groovy scripts
+        excludedSources.add(new CodeSource(new URL("file:/groovy/script"), (Certificate[])null));
 
-        Loggers.getLogger(getClass()).debug("Apply permissions [{}] to codebases [{}]", extraPermissions, extraSources);
+        Loggers.getLogger(getClass()).debug("Apply permissions [{}] excluding codebases [{}]", extraPermissions, excludedSources);
     }
 
     @Override
     public boolean implies(ProtectionDomain domain, Permission permission) {
         if (standardPolicy.implies(domain, permission)) {
             return true;
-        } else if (extraSources.contains(domain.getCodeSource())) {
+        } else if (excludedSources.contains(domain.getCodeSource()) == false && 
+                   Objects.toString(domain.getCodeSource()).contains("test-classes") == false) {
             return extraPermissions.implies(permission);
         } else {
             return false;

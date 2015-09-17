@@ -57,12 +57,12 @@ import org.elasticsearch.rest.action.admin.indices.exists.indices.RestIndicesExi
 import org.elasticsearch.rest.action.admin.indices.exists.types.RestTypesExistsAction;
 import org.elasticsearch.rest.action.admin.indices.flush.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.flush.RestSyncedFlushAction;
+import org.elasticsearch.rest.action.admin.indices.forcemerge.RestForceMergeAction;
 import org.elasticsearch.rest.action.admin.indices.get.RestGetIndicesAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetFieldMappingAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetMappingAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.put.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.open.RestOpenIndexAction;
-import org.elasticsearch.rest.action.admin.indices.optimize.RestOptimizeAction;
 import org.elasticsearch.rest.action.admin.indices.recovery.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.refresh.RestRefreshAction;
 import org.elasticsearch.rest.action.admin.indices.segments.RestIndicesSegmentsAction;
@@ -200,7 +200,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestRefreshAction.class).asEagerSingleton();
         bind(RestFlushAction.class).asEagerSingleton();
         bind(RestSyncedFlushAction.class).asEagerSingleton();
-        bind(RestOptimizeAction.class).asEagerSingleton();
+        bind(RestForceMergeAction.class).asEagerSingleton();
         bind(RestUpgradeAction.class).asEagerSingleton();
         bind(RestClearIndicesCacheAction.class).asEagerSingleton();
 

@@ -161,13 +161,13 @@ public class TribeIT extends ESIntegTestCase {
             // all is well!
         }
         try {
-            tribeClient.admin().indices().prepareOptimize("test1").execute().actionGet();
+            tribeClient.admin().indices().prepareForceMerge("test1").execute().actionGet();
             fail("cluster block should be thrown");
         } catch (ClusterBlockException e) {
             // all is well!
         }
         try {
-            tribeClient.admin().indices().prepareOptimize("test2").execute().actionGet();
+            tribeClient.admin().indices().prepareForceMerge("test2").execute().actionGet();
             fail("cluster block should be thrown");
         } catch (ClusterBlockException e) {
             // all is well!

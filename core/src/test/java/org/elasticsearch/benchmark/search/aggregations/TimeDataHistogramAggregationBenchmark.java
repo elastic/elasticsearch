@@ -143,7 +143,7 @@ public class TimeDataHistogramAggregationBenchmark {
             System.out.println("Time range 1: " + (currentTimeInMillis1[0] - startTimeInMillis) / 1000.0 / 3600 + " hours");
             System.out.println("Time range 2: " + (currentTimeInMillis2[0] - startTimeInMillis) / 1000.0 / 3600 + " hours");
             System.out.println("--> optimizing index");
-            client.admin().indices().prepareOptimize().setMaxNumSegments(1).get();
+            client.admin().indices().prepareForceMerge().setMaxNumSegments(1).get();
         } catch (IndexAlreadyExistsException e) {
             System.out.println("--> Index already exists, ignoring indexing phase, waiting for green");
             ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10m").execute().actionGet();

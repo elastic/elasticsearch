@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.optimize;
+package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -28,27 +28,14 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * A response for optimize action.
- *
- *
+ * A response for force merge action.
  */
-public class OptimizeResponse extends BroadcastResponse {
+public class ForceMergeResponse extends BroadcastResponse {
 
-    OptimizeResponse() {
-
+    ForceMergeResponse() {
     }
 
-    OptimizeResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    ForceMergeResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
     }
 }

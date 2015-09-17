@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.optimize;
+package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class OptimizeAction extends Action<OptimizeRequest, OptimizeResponse, OptimizeRequestBuilder> {
+public class ForceMergeAction extends Action<ForceMergeRequest, ForceMergeResponse, ForceMergeRequestBuilder> {
 
-    public static final OptimizeAction INSTANCE = new OptimizeAction();
-    public static final String NAME = "indices:admin/optimize";
+    public static final ForceMergeAction INSTANCE = new ForceMergeAction();
+    public static final String NAME = "indices:admin/forcemerge";
 
-    private OptimizeAction() {
+    private ForceMergeAction() {
         super(NAME);
     }
 
     @Override
-    public OptimizeResponse newResponse() {
-        return new OptimizeResponse();
+    public ForceMergeResponse newResponse() {
+        return new ForceMergeResponse();
     }
 
     @Override
-    public OptimizeRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new OptimizeRequestBuilder(client, this);
+    public ForceMergeRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new ForceMergeRequestBuilder(client, this);
     }
 }

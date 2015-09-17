@@ -51,7 +51,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
@@ -1269,11 +1269,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Waits for all relocations and optimized all indices in the cluster to 1 segment.
+     * Waits for all relocations and force merge all indices in the cluster to 1 segment.
      */
-    protected OptimizeResponse optimize() {
+    protected ForceMergeResponse forceMerge() {
         waitForRelocation();
-        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setMaxNumSegments(1).execute().actionGet();
+        ForceMergeResponse actionGet = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;
     }
@@ -1491,7 +1491,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Maybe refresh, optimize, or flush then always make sure there aren't too many in flight async operations.
+     * Maybe refresh, force merge, or flush then always make sure there aren't too many in flight async operations.
      */
     private void postIndexAsyncActions(String[] indices, List<CountDownLatch> inFlightAsyncOperations, boolean maybeFlush) throws InterruptedException {
         if (rarely()) {
@@ -1507,8 +1507,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                             new LatchedActionListener<IndicesSyncedFlushResult>(newLatch(inFlightAsyncOperations)));
                 }
             } else if (rarely()) {
-                client().admin().indices().prepareOptimize(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).setMaxNumSegments(between(1, 10)).setFlush(maybeFlush && randomBoolean()).execute(
-                        new LatchedActionListener<OptimizeResponse>(newLatch(inFlightAsyncOperations)));
+                client().admin().indices().prepareForceMerge(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).setMaxNumSegments(between(1, 10)).setFlush(maybeFlush && randomBoolean()).execute(
+                        new LatchedActionListener<ForceMergeResponse>(newLatch(inFlightAsyncOperations)));
             }
         }
         while (inFlightAsyncOperations.size() > MAX_IN_FLIGHT_ASYNC_INDEXES) {

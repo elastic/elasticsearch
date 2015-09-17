@@ -93,6 +93,12 @@ fi
     chown -R elasticsearch:elasticsearch "$ESPLUGINS"
 
     install_jvm_example
+    start_elasticsearch_service
+    # check that configuration was actually picked up    
+    curl -s localhost:9200/_cat/configured_example | sed 's/ *$//' > /tmp/installed
+    echo "foo" > /tmp/expected
+    diff /tmp/installed /tmp/expected
+    stop_elasticsearch_service
     remove_jvm_example
 }
 

@@ -46,7 +46,6 @@ as well as the user `website-admin@example.com`. (To send to multiple users or r
 array of strings.)
 
 [source,json]
-[source,json]
 --------------------------------------------------
 "actions" : {
   "notify-hipchat" : {

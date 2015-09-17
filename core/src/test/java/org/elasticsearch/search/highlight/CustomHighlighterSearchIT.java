@@ -60,7 +60,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
     public void testThatCustomHighlightersAreSupported() throws IOException {
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .addHighlightedField("name").setHighlighterType("test-custom")
+                .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom"))
                 .execute().actionGet();
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
     }
@@ -75,7 +75,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .addHighlightedField(highlightConfig)
+                .highlighter(new HighlightBuilder().field(highlightConfig))
                 .execute().actionGet();
 
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
@@ -87,11 +87,8 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         Map<String, Object> options = new HashMap<>();
         options.put("myGlobalOption", "someValue");
 
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setHighlighterOptions(options)
-                .setHighlighterType("test-custom")
-                .addHighlightedField("name")
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())
+                .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom").options(options))
                 .execute().actionGet();
 
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
@@ -103,11 +100,9 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).should(QueryBuilders
                         .termQuery("name", "arbitrary")))
-                .setHighlighterType("test-custom")
-                .addHighlightedField("name")
-                .addHighlightedField("other_name")
-                .addHighlightedField("other_other_name")
-                .setHighlighterExplicitFieldOrder(true)
+                .highlighter(
+                        new HighlightBuilder().highlighterType("test-custom").field("name").field("other_name").field("other_other_name")
+                                .useExplicitFieldOrder(true))
                 .get();
 
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));

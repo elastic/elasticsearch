@@ -19,8 +19,8 @@
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -29,7 +29,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Builder for the {@link TopHits} aggregation.
@@ -173,185 +172,6 @@ public class TopHitsBuilder extends AbstractAggregationBuilder {
         return this;
     }
 
-    /**
-     * Adds a field to be highlighted with default fragment size of 100 characters, and
-     * default number of fragments of 5.
-     *
-     * @param name The field to highlight
-     */
-    public TopHitsBuilder addHighlightedField(String name) {
-        highlightBuilder().field(name);
-        return this;
-    }
-
-
-    /**
-     * Adds a field to be highlighted with a provided fragment size (in characters), and
-     * default number of fragments of 5.
-     *
-     * @param name         The field to highlight
-     * @param fragmentSize The size of a fragment in characters
-     */
-    public TopHitsBuilder addHighlightedField(String name, int fragmentSize) {
-        highlightBuilder().field(name, fragmentSize);
-        return this;
-    }
-
-    /**
-     * Adds a field to be highlighted with a provided fragment size (in characters), and
-     * a provided (maximum) number of fragments.
-     *
-     * @param name              The field to highlight
-     * @param fragmentSize      The size of a fragment in characters
-     * @param numberOfFragments The (maximum) number of fragments
-     */
-    public TopHitsBuilder addHighlightedField(String name, int fragmentSize, int numberOfFragments) {
-        highlightBuilder().field(name, fragmentSize, numberOfFragments);
-        return this;
-    }
-
-    /**
-     * Adds a field to be highlighted with a provided fragment size (in characters),
-     * a provided (maximum) number of fragments and an offset for the highlight.
-     *
-     * @param name              The field to highlight
-     * @param fragmentSize      The size of a fragment in characters
-     * @param numberOfFragments The (maximum) number of fragments
-     */
-    public TopHitsBuilder addHighlightedField(String name, int fragmentSize, int numberOfFragments,
-                                                    int fragmentOffset) {
-        highlightBuilder().field(name, fragmentSize, numberOfFragments, fragmentOffset);
-        return this;
-    }
-
-    /**
-     * Adds a highlighted field.
-     */
-    public TopHitsBuilder addHighlightedField(HighlightBuilder.Field field) {
-        highlightBuilder().field(field);
-        return this;
-    }
-
-    /**
-     * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
-     * are <tt>styled</tt> and <tt>default</tt>.
-     *
-     * @param schemaName The tag scheme name
-     */
-    public TopHitsBuilder setHighlighterTagsSchema(String schemaName) {
-        highlightBuilder().tagsSchema(schemaName);
-        return this;
-    }
-
-    public TopHitsBuilder setHighlighterFragmentSize(Integer fragmentSize) {
-        highlightBuilder().fragmentSize(fragmentSize);
-        return this;
-    }
-
-    public TopHitsBuilder setHighlighterNumOfFragments(Integer numOfFragments) {
-        highlightBuilder().numOfFragments(numOfFragments);
-        return this;
-    }
-
-    public TopHitsBuilder setHighlighterFilter(Boolean highlightFilter) {
-        highlightBuilder().highlightFilter(highlightFilter);
-        return this;
-    }
-
-    /**
-     * The encoder to set for highlighting
-     */
-    public TopHitsBuilder setHighlighterEncoder(String encoder) {
-        highlightBuilder().encoder(encoder);
-        return this;
-    }
-
-    /**
-     * Explicitly set the pre tags that will be used for highlighting.
-     */
-    public TopHitsBuilder setHighlighterPreTags(String... preTags) {
-        highlightBuilder().preTags(preTags);
-        return this;
-    }
-
-    /**
-     * Explicitly set the post tags that will be used for highlighting.
-     */
-    public TopHitsBuilder setHighlighterPostTags(String... postTags) {
-        highlightBuilder().postTags(postTags);
-        return this;
-    }
-
-    /**
-     * The order of fragments per field. By default, ordered by the order in the
-     * highlighted text. Can be <tt>score</tt>, which then it will be ordered
-     * by score of the fragments.
-     */
-    public TopHitsBuilder setHighlighterOrder(String order) {
-        highlightBuilder().order(order);
-        return this;
-    }
-
-    public TopHitsBuilder setHighlighterRequireFieldMatch(boolean requireFieldMatch) {
-        highlightBuilder().requireFieldMatch(requireFieldMatch);
-        return this;
-    }
-
-    public TopHitsBuilder setHighlighterBoundaryMaxScan(Integer boundaryMaxScan) {
-        highlightBuilder().boundaryMaxScan(boundaryMaxScan);
-        return this;
-    }
-
-    public TopHitsBuilder setHighlighterBoundaryChars(char[] boundaryChars) {
-        highlightBuilder().boundaryChars(boundaryChars);
-        return this;
-    }
-
-    /**
-     * The highlighter type to use.
-     */
-    public TopHitsBuilder setHighlighterType(String type) {
-        highlightBuilder().highlighterType(type);
-        return this;
-    }
-
-    public TopHitsBuilder setHighlighterFragmenter(String fragmenter) {
-        highlightBuilder().fragmenter(fragmenter);
-        return this;
-    }
-
-    /**
-     * Sets a query to be used for highlighting all fields instead of the search query.
-     */
-    public TopHitsBuilder setHighlighterQuery(QueryBuilder highlightQuery) {
-        highlightBuilder().highlightQuery(highlightQuery);
-        return this;
-    }
-
-    /**
-     * Sets the size of the fragment to return from the beginning of the field if there are no matches to
-     * highlight and the field doesn't also define noMatchSize.
-     * @param noMatchSize integer to set or null to leave out of request.  default is null.
-     * @return this builder for chaining
-     */
-    public TopHitsBuilder setHighlighterNoMatchSize(Integer noMatchSize) {
-        highlightBuilder().noMatchSize(noMatchSize);
-        return this;
-    }
-
-    /**
-     * Sets the maximum number of phrases the fvh will consider if the field doesn't also define phraseLimit.
-     */
-    public TopHitsBuilder setHighlighterPhraseLimit(Integer phraseLimit) {
-        highlightBuilder().phraseLimit(phraseLimit);
-        return this;
-    }
-
-    public TopHitsBuilder setHighlighterOptions(Map<String, Object> options) {
-        highlightBuilder().options(options);
-        return this;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName()).field(type);
@@ -366,7 +186,12 @@ public class TopHitsBuilder extends AbstractAggregationBuilder {
         return sourceBuilder;
     }
 
-    public HighlightBuilder highlightBuilder() {
+    public BytesReference highlighter() {
         return sourceBuilder().highlighter();
+    }
+
+    public TopHitsBuilder highlighter(HighlightBuilder highlightBuilder) {
+        sourceBuilder().highlighter(highlightBuilder);
+        return this;
     }
 }

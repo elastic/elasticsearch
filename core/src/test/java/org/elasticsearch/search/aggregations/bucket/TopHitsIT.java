@@ -527,7 +527,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                 .field(TERMS_AGGS_FIELD)
                                 .subAggregation(
                                         topHits("hits").setSize(1)
-                                            .addHighlightedField("text")
+                                            .highlighter(new HighlightBuilder().field("text"))
                                             .setExplain(true)
                                             .addFieldDataField("field1")
                                                 .addScriptField("script", new Script("doc['field1'].value"))
@@ -849,7 +849,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test")))
                 .addAggregation(
                         nested("to-comments").path("comments").subAggregation(
-                                topHits("top-comments").setSize(1).addHighlightedField(hlField).setExplain(true)
+                                topHits("top-comments").setSize(1).highlighter(new HighlightBuilder().field(hlField)).setExplain(true)
                                                 .addFieldDataField("comments.user")
                                         .addScriptField("script", new Script("doc['comments.user'].value")).setFetchSource("message", null)
                                         .setVersion(true).addSort("comments.date", SortOrder.ASC))).get();
@@ -901,7 +901,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                         nested("to-comments")
                                                 .path("comments")
                                                 .subAggregation(topHits("comments")
-                                                        .addHighlightedField(new HighlightBuilder.Field("comments.message").highlightQuery(matchQuery("comments.message", "text")))
+                                                        .highlighter(new HighlightBuilder().field(new HighlightBuilder.Field("comments.message").highlightQuery(matchQuery("comments.message", "text"))))
                                                         .addSort("comments.id", SortOrder.ASC))
                                 )
                 )

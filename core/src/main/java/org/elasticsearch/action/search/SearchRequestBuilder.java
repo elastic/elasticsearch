@@ -26,7 +26,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
@@ -42,7 +41,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.util.Arrays;
-import java.util.Map;
 
 /**
  * A search action request builder.
@@ -367,235 +365,23 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-    /**
-     * Sets a raw (xcontent) binary representation of addAggregation to use.
-     */
-    public SearchRequestBuilder setAggregations(XContentBuilder aggregations) {
-        sourceBuilder().aggregations(aggregations);
+    public SearchRequestBuilder highlighter(HighlightBuilder highlightBuilder) {
+        sourceBuilder().highlighter(highlightBuilder);
         return this;
     }
 
     /**
-     * Adds a field to be highlighted with default fragment size of 100 characters, and
-     * default number of fragments of 5.
-     *
-     * @param name The field to highlight
+     * Delegates to
+     * {@link org.elasticsearch.search.suggest.SuggestBuilder#addSuggestion(org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder)}
+     * .
      */
-    public SearchRequestBuilder addHighlightedField(String name) {
-        highlightBuilder().field(name);
+    public SearchRequestBuilder suggest(SuggestBuilder suggestBuilder) {
+        sourceBuilder().suggest(suggestBuilder);
         return this;
     }
 
-
-    /**
-     * Adds a field to be highlighted with a provided fragment size (in characters), and
-     * default number of fragments of 5.
-     *
-     * @param name         The field to highlight
-     * @param fragmentSize The size of a fragment in characters
-     */
-    public SearchRequestBuilder addHighlightedField(String name, int fragmentSize) {
-        highlightBuilder().field(name, fragmentSize);
-        return this;
-    }
-
-    /**
-     * Adds a field to be highlighted with a provided fragment size (in characters), and
-     * a provided (maximum) number of fragments.
-     *
-     * @param name              The field to highlight
-     * @param fragmentSize      The size of a fragment in characters
-     * @param numberOfFragments The (maximum) number of fragments
-     */
-    public SearchRequestBuilder addHighlightedField(String name, int fragmentSize, int numberOfFragments) {
-        highlightBuilder().field(name, fragmentSize, numberOfFragments);
-        return this;
-    }
-
-    /**
-     * Adds a field to be highlighted with a provided fragment size (in characters),
-     * a provided (maximum) number of fragments and an offset for the highlight.
-     *
-     * @param name              The field to highlight
-     * @param fragmentSize      The size of a fragment in characters
-     * @param numberOfFragments The (maximum) number of fragments
-     */
-    public SearchRequestBuilder addHighlightedField(String name, int fragmentSize, int numberOfFragments,
-                                                    int fragmentOffset) {
-        highlightBuilder().field(name, fragmentSize, numberOfFragments, fragmentOffset);
-        return this;
-    }
-
-    /**
-     * Adds a highlighted field.
-     */
-    public SearchRequestBuilder addHighlightedField(HighlightBuilder.Field field) {
-        highlightBuilder().field(field);
-        return this;
-    }
-
-    /**
-     * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
-     * are <tt>styled</tt> and <tt>default</tt>.
-     *
-     * @param schemaName The tag scheme name
-     */
-    public SearchRequestBuilder setHighlighterTagsSchema(String schemaName) {
-        highlightBuilder().tagsSchema(schemaName);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterFragmentSize(Integer fragmentSize) {
-        highlightBuilder().fragmentSize(fragmentSize);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterNumOfFragments(Integer numOfFragments) {
-        highlightBuilder().numOfFragments(numOfFragments);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterFilter(Boolean highlightFilter) {
-        highlightBuilder().highlightFilter(highlightFilter);
-        return this;
-    }
-
-    /**
-     * The encoder to set for highlighting
-     */
-    public SearchRequestBuilder setHighlighterEncoder(String encoder) {
-        highlightBuilder().encoder(encoder);
-        return this;
-    }
-
-    /**
-     * Explicitly set the pre tags that will be used for highlighting.
-     */
-    public SearchRequestBuilder setHighlighterPreTags(String... preTags) {
-        highlightBuilder().preTags(preTags);
-        return this;
-    }
-
-    /**
-     * Explicitly set the post tags that will be used for highlighting.
-     */
-    public SearchRequestBuilder setHighlighterPostTags(String... postTags) {
-        highlightBuilder().postTags(postTags);
-        return this;
-    }
-
-    /**
-     * The order of fragments per field. By default, ordered by the order in the
-     * highlighted text. Can be <tt>score</tt>, which then it will be ordered
-     * by score of the fragments.
-     */
-    public SearchRequestBuilder setHighlighterOrder(String order) {
-        highlightBuilder().order(order);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterRequireFieldMatch(boolean requireFieldMatch) {
-        highlightBuilder().requireFieldMatch(requireFieldMatch);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterBoundaryMaxScan(Integer boundaryMaxScan) {
-        highlightBuilder().boundaryMaxScan(boundaryMaxScan);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterBoundaryChars(char[] boundaryChars) {
-        highlightBuilder().boundaryChars(boundaryChars);
-        return this;
-    }
-
-    /**
-     * The highlighter type to use.
-     */
-    public SearchRequestBuilder setHighlighterType(String type) {
-        highlightBuilder().highlighterType(type);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterFragmenter(String fragmenter) {
-        highlightBuilder().fragmenter(fragmenter);
-        return this;
-    }
-
-    /**
-     * Sets a query to be used for highlighting all fields instead of the search query.
-     */
-    public SearchRequestBuilder setHighlighterQuery(QueryBuilder highlightQuery) {
-        highlightBuilder().highlightQuery(highlightQuery);
-        return this;
-    }
-
-    /**
-     * Sets the size of the fragment to return from the beginning of the field if there are no matches to
-     * highlight and the field doesn't also define noMatchSize.
-     *
-     * @param noMatchSize integer to set or null to leave out of request.  default is null.
-     * @return this builder for chaining
-     */
-    public SearchRequestBuilder setHighlighterNoMatchSize(Integer noMatchSize) {
-        highlightBuilder().noMatchSize(noMatchSize);
-        return this;
-    }
-
-    /**
-     * Sets the maximum number of phrases the fvh will consider if the field doesn't also define phraseLimit.
-     */
-    public SearchRequestBuilder setHighlighterPhraseLimit(Integer phraseLimit) {
-        highlightBuilder().phraseLimit(phraseLimit);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterOptions(Map<String, Object> options) {
-        highlightBuilder().options(options);
-        return this;
-    }
-
-    /**
-     * Forces to highlight fields based on the source even if fields are stored separately.
-     */
-    public SearchRequestBuilder setHighlighterForceSource(Boolean forceSource) {
-        highlightBuilder().forceSource(forceSource);
-        return this;
-    }
-
-    /**
-     * Send the fields to be highlighted using a syntax that is specific about the order in which they should be highlighted.
-     *
-     * @return this for chaining
-     */
-    public SearchRequestBuilder setHighlighterExplicitFieldOrder(boolean explicitFieldOrder) {
-        highlightBuilder().useExplicitFieldOrder(explicitFieldOrder);
-        return this;
-    }
-
-    public SearchRequestBuilder addParentChildInnerHits(String name, String type,  InnerHitsBuilder.InnerHit innerHit) {
-        innerHitsBuilder().addParentChildInnerHits(name, type, innerHit);
-        return this;
-    }
-
-    public SearchRequestBuilder addNestedInnerHits(String name, String path,  InnerHitsBuilder.InnerHit innerHit) {
-        innerHitsBuilder().addNestedInnerHits(name, path, innerHit);
-        return this;
-    }
-
-    /**
-     * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#setText(String)}.
-     */
-    public SearchRequestBuilder setSuggestText(String globalText) {
-        suggestBuilder().setText(globalText);
-        return this;
-    }
-
-    /**
-     * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#addSuggestion(org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder)}.
-     */
-    public SearchRequestBuilder addSuggestion(SuggestBuilder.SuggestionBuilder<?> suggestion) {
-        suggestBuilder().addSuggestion(suggestion);
+    public SearchRequestBuilder innerHits(InnerHitsBuilder innerHitsBuilder) {
+        sourceBuilder().innerHits(innerHitsBuilder);
         return this;
     }
 
@@ -779,17 +565,5 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
             sourceBuilder = new SearchSourceBuilder();
         }
         return sourceBuilder;
-    }
-
-    private HighlightBuilder highlightBuilder() {
-        return sourceBuilder().highlighter();
-    }
-
-    private InnerHitsBuilder innerHitsBuilder() {
-        return sourceBuilder().innerHitsBuilder();
-    }
-
-    private SuggestBuilder suggestBuilder() {
-        return sourceBuilder().suggest();
     }
 }

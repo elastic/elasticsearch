@@ -58,19 +58,20 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
-    public void testExecuteScanFailsOnMalformedQuery() {
-        createIndex("test");
-
-        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).source("{...}");
-        TestActionListener listener = new TestActionListener();
-
-        newAsyncAction(delete, listener).executeScan();
-        waitForCompletion("scan request should fail on malformed query", listener);
-
-        assertFailure(listener, "all shards failed");
-        assertSearchContextsClosed();
-    }
+    // NORELEASE re-implement this parsing test as a unit test
+//    @Test
+//    public void testExecuteScanFailsOnMalformedQuery() {
+//        createIndex("test");
+//
+//        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).query("{...}");
+//        TestActionListener listener = new TestActionListener();
+//
+//        newAsyncAction(delete, listener).executeScan();
+//        waitForCompletion("scan request should fail on malformed query", listener);
+//
+//        assertFailure(listener, "all shards failed");
+//        assertSearchContextsClosed();
+//    }
 
     @Test
     public void testExecuteScan() {
@@ -83,7 +84,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareCount("test").get(), numDocs);
 
         final long limit = randomIntBetween(0, numDocs);
-        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).source(boolQuery().must(rangeQuery("num").lte(limit)).buildAsBytes());
+        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).query(boolQuery().must(rangeQuery("num").lte(limit)));
         TestActionListener listener = new TestActionListener();
 
         newAsyncAction(delete, listener).executeScan();
@@ -219,7 +220,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertTrue(Strings.hasText(scrollId));
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(limit));
 
-        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).size(100).source(boolQuery().must(rangeQuery("num").lte(limit)).buildAsBytes());
+        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).size(100).query(boolQuery().must(rangeQuery("num").lte(limit)));
         TestActionListener listener = new TestActionListener();
 
         newAsyncAction(delete, listener).executeScroll(searchResponse.getScrollId());

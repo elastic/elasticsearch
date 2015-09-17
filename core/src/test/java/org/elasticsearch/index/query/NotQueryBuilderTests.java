@@ -102,17 +102,11 @@ public class NotQueryBuilderTests extends AbstractQueryTestCase<NotQueryBuilder>
 
     @Test
     public void testValidate() {
-        QueryBuilder innerQuery = null;
-        int totalExpectedErrors = 0;
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                innerQuery = RandomQueryBuilder.createInvalidQuery(random());
-            }
-            totalExpectedErrors++;
-        } else {
-            innerQuery = RandomQueryBuilder.createQuery(random());
+        try {
+            new NotQueryBuilder(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
         }
-        NotQueryBuilder notQuery = new NotQueryBuilder(innerQuery);
-        assertValidate(notQuery, totalExpectedErrors);
     }
 }

@@ -35,7 +35,7 @@ import java.io.IOException;
 public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder<SpanTermQueryBuilder> {
 
     public static final String NAME = "span_term";
-    static final SpanTermQueryBuilder PROTOTYPE = new SpanTermQueryBuilder(null, null);
+    static final SpanTermQueryBuilder PROTOTYPE = new SpanTermQueryBuilder("name", "value");
 
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, String) */
     public SpanTermQueryBuilder(String name, String value) {

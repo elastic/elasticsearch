@@ -52,7 +52,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     private String rewrite;
 
-    static final WildcardQueryBuilder PROTOTYPE = new WildcardQueryBuilder(null, null);
+    static final WildcardQueryBuilder PROTOTYPE = new WildcardQueryBuilder("field", "value");
 
     /**
      * Implements the wildcard search query. Supported wildcards are <tt>*</tt>, which
@@ -66,6 +66,12 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
      * @param value The wildcard query string
      */
     public WildcardQueryBuilder(String fieldName, String value) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name is null or empty");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("value cannot be null.");
+        }
         this.fieldName = fieldName;
         this.value = value;
     }
@@ -123,18 +129,6 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), rewrite, null);
         QueryParsers.setRewriteMethod(query, rewriteMethod);
         return query;
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (Strings.isEmpty(this.fieldName)) {
-            validationException = addValidationError("field name cannot be null or empty.", validationException);
-        }
-        if (this.value == null) {
-            validationException = addValidationError("wildcard cannot be null", validationException);
-        }
-        return validationException;
     }
 
     @Override

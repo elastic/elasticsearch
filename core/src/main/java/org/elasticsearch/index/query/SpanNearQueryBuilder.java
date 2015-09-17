@@ -54,12 +54,17 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     private boolean collectPayloads = DEFAULT_COLLECT_PAYLOADS;
 
-    static final SpanNearQueryBuilder PROTOTYPE = new SpanNearQueryBuilder(0);
+    static final SpanNearQueryBuilder PROTOTYPE = new SpanNearQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, 0);
 
     /**
+     * @param initialClause an initial span query clause
      * @param slop controls the maximum number of intervening unmatched positions permitted
      */
-    public SpanNearQueryBuilder(int slop) {
+    public SpanNearQueryBuilder(SpanQueryBuilder initialClause, int slop) {
+        if (initialClause == null) {
+            throw new IllegalArgumentException("query must include at least one clause");
+        }
+        this.clauses.add(initialClause);
         this.slop = slop;
     }
 
@@ -71,6 +76,9 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     public SpanNearQueryBuilder clause(SpanQueryBuilder clause) {
+        if (clause == null) {
+            throw new IllegalArgumentException("query clauses cannot be null");
+        }
         clauses.add(clause);
         return this;
     }
@@ -141,27 +149,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (clauses.isEmpty()) {
-            validationException =  addValidationError("query must include [clauses]", validationException);
-        }
-        for (SpanQueryBuilder innerClause : clauses) {
-            if (innerClause == null) {
-                validationException =  addValidationError("[clauses] contains null element", validationException);
-            } else {
-                validationException = validateInnerQuery(innerClause, validationException);
-            }
-        }
-        return validationException;
-    }
-
-    @Override
     protected SpanNearQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(in.readVInt());
         List<QueryBuilder> clauses = readQueries(in);
-        for (QueryBuilder subClause : clauses) {
-            queryBuilder.clauses.add((SpanQueryBuilder)subClause);
+        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder((SpanQueryBuilder)clauses.get(0), in.readVInt());
+        for (int i = 1; i < clauses.size(); i++) {
+            queryBuilder.clauses.add((SpanQueryBuilder)clauses.get(i));
         }
         queryBuilder.collectPayloads = in.readBoolean();
         queryBuilder.inOrder = in.readBoolean();
@@ -171,8 +163,8 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(slop);
         writeQueries(out, clauses);
+        out.writeVInt(slop);
         out.writeBoolean(collectPayloads);
         out.writeBoolean(inOrder);
     }

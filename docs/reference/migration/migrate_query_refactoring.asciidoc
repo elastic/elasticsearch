@@ -31,10 +31,16 @@ Removed setters for mandatory big/little inner span queries. Both arguments now 
 to be supplied at construction time already and have to be non-null. Updated
 static factory methods in QueryBuilders accordingly.
 
+==== SpanOrQueryBuilder
+
+Making sure that query contains at least one clause by making initial clause mandatory
+in constructor.
+
 ==== SpanNearQueryBuilder
 
-Removed setter for mandatory slop parameter, needs to be set in constructor now.
-Updated the static factory methods in QueryBuilders accordingly.
+Removed setter for mandatory slop parameter, needs to be set in constructor now. Also
+making sure that query contains at least one clause by making initial clause mandatory
+in constructor. Updated the static factory methods in QueryBuilders accordingly.
 
 ==== SpanNotQueryBuilder
 

@@ -37,9 +37,12 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
 
     private final QueryBuilder filter;
 
-    static final NotQueryBuilder PROTOTYPE = new NotQueryBuilder(null);
+    static final NotQueryBuilder PROTOTYPE = new NotQueryBuilder(EmptyQueryBuilder.PROTOTYPE);
 
     public NotQueryBuilder(QueryBuilder filter) {
+        if (filter == null) {
+            throw new IllegalArgumentException("inner filter cannot be null");
+        }
         this.filter = filter;
     }
 
@@ -66,11 +69,6 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
             return null;
         }
         return Queries.not(luceneQuery);
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        return validateInnerQuery(filter, null);
     }
 
     @Override

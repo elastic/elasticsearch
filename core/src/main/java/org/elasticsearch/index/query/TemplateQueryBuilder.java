@@ -44,13 +44,16 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     /** Template to fill. */
     private final Template template;
 
-    static final TemplateQueryBuilder PROTOTYPE = new TemplateQueryBuilder(null);
+    static final TemplateQueryBuilder PROTOTYPE = new TemplateQueryBuilder(new Template("proto"));
 
     /**
      * @param template
      *            the template to use for that query.
      * */
     public TemplateQueryBuilder(Template template) {
+        if (template == null) {
+            throw new IllegalArgumentException("query template cannot be null");
+        }
         this.template = template;
     }
 
@@ -110,15 +113,6 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     @Override
     protected void setFinalBoost(Query query) {
         //no-op this query doesn't support boost
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (this.template == null) {
-            validationException = addValidationError("query template cannot be null", validationException);
-        }
-        return validationException;
     }
 
     @Override

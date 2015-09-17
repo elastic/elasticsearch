@@ -69,35 +69,41 @@ public class IndicesQueryBuilderTests extends AbstractQueryTestCase<IndicesQuery
     }
 
     @Test
-    public void testValidate() {
-        int expectedErrors = 0;
-
-        // inner query
-        QueryBuilder innerQuery;
-        if (randomBoolean()) {
-            // setting innerQuery to null would be caught in the builder already and make validation fail
-            innerQuery = RandomQueryBuilder.createInvalidQuery(random());
-            expectedErrors++;
-        } else {
-            innerQuery = RandomQueryBuilder.createQuery(random());
-        }
-        // indices
-        String[] indices;
-        if (randomBoolean()) {
-            indices = randomBoolean() ? null : new String[0];
-            expectedErrors++;
-        } else {
-            indices = new String[]{"index"};
-        }
-        // no match query
-        QueryBuilder noMatchQuery;
-        if (randomBoolean()) {
-            noMatchQuery = RandomQueryBuilder.createInvalidQuery(random());
-            expectedErrors++;
-        } else {
-            noMatchQuery = RandomQueryBuilder.createQuery(random());
+    public void testIllegalArguments() {
+        try {
+            new IndicesQueryBuilder(null, "index");
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
         }
 
-        assertValidate(new IndicesQueryBuilder(innerQuery, indices).noMatchQuery(noMatchQuery), expectedErrors);
+        try {
+            new IndicesQueryBuilder(EmptyQueryBuilder.PROTOTYPE, (String[]) null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        try {
+            new IndicesQueryBuilder(EmptyQueryBuilder.PROTOTYPE, new String[0]);
+            fail("cannot be empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        IndicesQueryBuilder indicesQueryBuilder = new IndicesQueryBuilder(EmptyQueryBuilder.PROTOTYPE, "index");
+        try {
+            indicesQueryBuilder.noMatchQuery((QueryBuilder) null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        try {
+            indicesQueryBuilder.noMatchQuery((String) null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 }

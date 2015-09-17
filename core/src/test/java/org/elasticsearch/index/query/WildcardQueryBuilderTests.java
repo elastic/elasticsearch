@@ -26,7 +26,6 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQueryBuilder> {
 
@@ -53,18 +52,24 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     @Test
-    public void testValidate() {
-        WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder("", "text");
-        assertThat(wildcardQueryBuilder.validate().validationErrors().size(), is(1));
+    public void testIllegalArguments() {
+        try {
+            if (randomBoolean()) {
+                new WildcardQueryBuilder(null, "text");
+            } else {
+                new WildcardQueryBuilder("", "text");
+            }
+            fail("cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
 
-        wildcardQueryBuilder = new WildcardQueryBuilder("field", null);
-        assertThat(wildcardQueryBuilder.validate().validationErrors().size(), is(1));
-
-        wildcardQueryBuilder = new WildcardQueryBuilder(null, null);
-        assertThat(wildcardQueryBuilder.validate().validationErrors().size(), is(2));
-
-        wildcardQueryBuilder = new WildcardQueryBuilder("field", "text");
-        assertNull(wildcardQueryBuilder.validate());
+        try {
+            new WildcardQueryBuilder("field", null);
+            fail("cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 
     @Test

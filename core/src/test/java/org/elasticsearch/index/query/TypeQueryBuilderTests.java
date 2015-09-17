@@ -49,8 +49,12 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
     }
 
     @Test
-    public void testValidate() {
-        TypeQueryBuilder typeQueryBuilder = new TypeQueryBuilder((String) null);
-        assertThat(typeQueryBuilder.validate().validationErrors().size(), is(1));
+    public void testIllegalArgument() {
+        try {
+            new TypeQueryBuilder((String) null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 }

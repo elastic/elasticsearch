@@ -143,12 +143,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     }
 
     @Override
-    public QueryValidationException validate() {
-        // all fields can be empty or null
-        return null;
-    }
-
-    @Override
     protected IdsQueryBuilder doReadFrom(StreamInput in) throws IOException {
         IdsQueryBuilder idsQueryBuilder = new IdsQueryBuilder(in.readStringArray());
         idsQueryBuilder.addIds(in.readStringArray());

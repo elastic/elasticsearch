@@ -67,10 +67,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     public static final Locale DEFAULT_LOCALE = Locale.ROOT;
 
-    static final QueryStringQueryBuilder PROTOTYPE = new QueryStringQueryBuilder(null);
-    
+    static final QueryStringQueryBuilder PROTOTYPE = new QueryStringQueryBuilder("");
+
     private final String queryString;
-    
+
     private String defaultField;
     /**
      * Fields to query against. If left empty will query default field,
@@ -104,7 +104,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private Fuzziness fuzziness = DEFAULT_FUZZINESS;
 
     private int fuzzyPrefixLength = DEFAULT_FUZZY_PREFIX_LENGTH;
-    
+
     private int fuzzyMaxExpansions = DEFAULT_FUZZY_MAX_EXPANSIONS;
 
     private String rewrite;
@@ -127,8 +127,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     /** To limit effort spent determinizing regexp queries. */
     private int maxDeterminizedStates = DEFAULT_MAX_DETERMINED_STATES;
-    
+
     public QueryStringQueryBuilder(String queryString) {
+        if (queryString == null) {
+            throw new IllegalArgumentException("query text missing");
+        }
         this.queryString = queryString;
     }
 
@@ -527,15 +530,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (queryString == null) {
-            validationException = addValidationError("query text missing", null);
-        }
-        return validationException;
     }
 
     @Override

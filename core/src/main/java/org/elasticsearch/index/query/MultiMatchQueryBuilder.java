@@ -58,7 +58,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     public static final MatchQuery.ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
 
     private final Object value;
-    private Map<String, Float> fieldsBoosts = new TreeMap<>();
+    private final Map<String, Float> fieldsBoosts;
     private MultiMatchQueryBuilder.Type type = DEFAULT_TYPE;
     private Operator operator = DEFAULT_OPERATOR;
     private String analyzer;
@@ -162,7 +162,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             out.writeVInt(this.ordinal());
         }
     }
-    
+
     /**
      * Returns the type (for testing)
      */
@@ -177,7 +177,11 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         if (value == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires query value");
         }
+        if (fields == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires fields at initalization time");
+        }
         this.value = value;
+        this.fieldsBoosts = new TreeMap<>();
         for (String field : fields) {
             field(field);
         }
@@ -564,15 +568,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             }
         }
         return newFieldsBoosts;
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (fieldsBoosts.isEmpty()) {
-            validationException = addValidationError("no fields specified for multi_match query.", validationException);
-        }
-        return validationException;
     }
 
     @Override

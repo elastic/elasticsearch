@@ -24,8 +24,6 @@ import org.junit.Test;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
-
 public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryTestCase<QB> {
 
     @Override
@@ -75,21 +73,24 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
     protected abstract QB createQueryBuilder(String fieldName, Object value);
 
     @Test
-    public void testValidate() throws QueryShardException {
-        QB queryBuilder = createQueryBuilder(randomAsciiOfLengthBetween(1, 30), randomAsciiOfLengthBetween(1, 30));
-        assertNull(queryBuilder.validate());
+    public void testIllegalArguments() throws QueryShardException {
+        try {
+            if (randomBoolean()) {
+                createQueryBuilder(null, randomAsciiOfLengthBetween(1, 30));
+            } else {
+                createQueryBuilder("", randomAsciiOfLengthBetween(1, 30));
+            }
+            fail("fieldname cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
 
-        queryBuilder = createQueryBuilder(null, randomAsciiOfLengthBetween(1, 30));
-        assertNotNull(queryBuilder.validate());
-        assertThat(queryBuilder.validate().validationErrors().size(), is(1));
-
-        queryBuilder = createQueryBuilder("", randomAsciiOfLengthBetween(1, 30));
-        assertNotNull(queryBuilder.validate());
-        assertThat(queryBuilder.validate().validationErrors().size(), is(1));
-
-        queryBuilder = createQueryBuilder("", null);
-        assertNotNull(queryBuilder.validate());
-        assertThat(queryBuilder.validate().validationErrors().size(), is(2));
+        try {
+            createQueryBuilder("field", null);
+            fail("value cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 
     @Override

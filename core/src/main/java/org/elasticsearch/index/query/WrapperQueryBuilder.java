@@ -20,7 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+
 import java.nio.charset.StandardCharsets;
+
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,26 +52,35 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
 
     public static final String NAME = "wrapper";
     private final byte[] source;
-    static final WrapperQueryBuilder PROTOTYPE = new WrapperQueryBuilder((byte[]) null);
-
-    /**
-     * Creates a query builder given a query provided as a string
-     */
-    public WrapperQueryBuilder(String source) {
-        this.source = source.getBytes(StandardCharsets.UTF_8);
-    }
+    static final WrapperQueryBuilder PROTOTYPE = new WrapperQueryBuilder((byte[]) new byte[]{0});
 
     /**
      * Creates a query builder given a query provided as a bytes array
      */
     public WrapperQueryBuilder(byte[] source) {
+        if (source == null || source.length == 0) {
+            throw new IllegalArgumentException("query source text cannot be null or empty");
+        }
         this.source = source;
+    }
+
+    /**
+     * Creates a query builder given a query provided as a string
+     */
+    public WrapperQueryBuilder(String source) {
+        if (Strings.isEmpty(source)) {
+            throw new IllegalArgumentException("query source string cannot be null or empty");
+        }
+        this.source = source.getBytes(StandardCharsets.UTF_8);
     }
 
     /**
      * Creates a query builder given a query provided as a {@link BytesReference}
      */
     public WrapperQueryBuilder(BytesReference source) {
+        if (source == null || source.length() == 0) {
+            throw new IllegalArgumentException("query source text cannot be null or empty");
+        }
         this.source = source.array();
     }
 
@@ -107,15 +119,6 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected void setFinalBoost(Query query) {
         //no-op this query doesn't support boost
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (this.source == null || this.source.length == 0) {
-            validationException = addValidationError("query source text cannot be null or empty", validationException);
-        }
-        return validationException;
     }
 
     @Override

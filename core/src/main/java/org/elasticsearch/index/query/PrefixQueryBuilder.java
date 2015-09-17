@@ -47,7 +47,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
 
     private String rewrite;
 
-    static final PrefixQueryBuilder PROTOTYPE = new PrefixQueryBuilder(null, null);
+    static final PrefixQueryBuilder PROTOTYPE = new PrefixQueryBuilder("field", "value");
 
     /**
      * A Query that matches documents containing terms with a specified prefix.
@@ -56,6 +56,12 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
      * @param value The prefix query
      */
     public PrefixQueryBuilder(String fieldName, String value) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name is null or empty");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("value cannot be null.");
+        }
         this.fieldName = fieldName;
         this.value = value;
     }
@@ -113,18 +119,6 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         }
 
         return query;
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (Strings.isEmpty(this.fieldName)) {
-            validationException = addValidationError("field name cannot be null or empty.", validationException);
-        }
-        if (this.value == null) {
-            validationException = addValidationError("query text cannot be null", validationException);
-        }
-        return validationException;
     }
 
     @Override

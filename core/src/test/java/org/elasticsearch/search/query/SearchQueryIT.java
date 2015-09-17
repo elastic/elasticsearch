@@ -1556,12 +1556,11 @@ public class SearchQueryIT extends ESIntegTestCase {
                 client().prepareIndex("test", "test", "4").setSource("description", "foo"));
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(spanOrQuery().clause(spanTermQuery("description", "bar"))).get();
+                .setQuery(spanOrQuery(spanTermQuery("description", "bar"))).get();
         assertHitCount(searchResponse, 1l);
 
         searchResponse = client().prepareSearch("test").setQuery(
-                spanNearQuery(3)
-                        .clause(spanTermQuery("description", "foo"))
+                spanNearQuery(spanTermQuery("description", "foo"), 3)
                         .clause(spanTermQuery("description", "other"))).get();
         assertHitCount(searchResponse, 3l);
     }
@@ -1577,24 +1576,24 @@ public class SearchQueryIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
-                .setQuery(spanOrQuery().clause(spanMultiTermQueryBuilder(fuzzyQuery("description", "fop")))).get();
+                .setQuery(spanOrQuery(spanMultiTermQueryBuilder(fuzzyQuery("description", "fop")))).get();
         assertHitCount(response, 4);
 
         response = client().prepareSearch("test")
-                .setQuery(spanOrQuery().clause(spanMultiTermQueryBuilder(prefixQuery("description", "fo")))).get();
+                .setQuery(spanOrQuery(spanMultiTermQueryBuilder(prefixQuery("description", "fo")))).get();
         assertHitCount(response, 4);
 
         response = client().prepareSearch("test")
-                .setQuery(spanOrQuery().clause(spanMultiTermQueryBuilder(wildcardQuery("description", "oth*")))).get();
+                .setQuery(spanOrQuery(spanMultiTermQueryBuilder(wildcardQuery("description", "oth*")))).get();
         assertHitCount(response, 3);
 
         response = client().prepareSearch("test")
-                .setQuery(spanOrQuery().clause(spanMultiTermQueryBuilder(QueryBuilders.rangeQuery("description").from("ffa").to("foo"))))
+                .setQuery(spanOrQuery(spanMultiTermQueryBuilder(QueryBuilders.rangeQuery("description").from("ffa").to("foo"))))
                 .execute().actionGet();
         assertHitCount(response, 3);
 
         response = client().prepareSearch("test")
-                .setQuery(spanOrQuery().clause(spanMultiTermQueryBuilder(regexpQuery("description", "fo{2}")))).get();
+                .setQuery(spanOrQuery(spanMultiTermQueryBuilder(regexpQuery("description", "fo{2}")))).get();
         assertHitCount(response, 3);
     }
 
@@ -1607,20 +1606,17 @@ public class SearchQueryIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(spanNotQuery(spanNearQuery(1)
-                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                .setQuery(spanNotQuery(spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
                         .clause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "brown"))).get();
         assertHitCount(searchResponse, 1l);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(spanNotQuery(spanNearQuery(1)
-                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                .setQuery(spanNotQuery(spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
                         .clause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "sleeping")).dist(5)).get();
         assertHitCount(searchResponse, 1l);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(spanNotQuery(spanNearQuery(1)
-                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                .setQuery(spanNotQuery(spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
                         .clause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "jumped")).pre(1).post(1)).get();
         assertHitCount(searchResponse, 1l);
     }

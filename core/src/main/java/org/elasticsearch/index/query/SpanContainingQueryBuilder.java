@@ -37,13 +37,19 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
     public static final String NAME = "span_containing";
     private final SpanQueryBuilder big;
     private final SpanQueryBuilder little;
-    static final SpanContainingQueryBuilder PROTOTYPE = new SpanContainingQueryBuilder(null, null);
+    static final SpanContainingQueryBuilder PROTOTYPE = new SpanContainingQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, SpanTermQueryBuilder.PROTOTYPE);
 
     /**
      * @param big the big clause, it must enclose {@code little} for a match.
      * @param little the little clause, it must be contained within {@code big} for a match.
      */
     public SpanContainingQueryBuilder(SpanQueryBuilder big, SpanQueryBuilder little) {
+        if (big == null) {
+            throw new IllegalArgumentException("inner clause [big] cannot be null.");
+        }
+        if (little == null) {
+            throw new IllegalArgumentException("inner clause [little] cannot be null.");
+        }
         this.little = little;
         this.big = big;
     }
@@ -80,22 +86,6 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
         Query innerLittle = little.toQuery(context);
         assert innerLittle instanceof SpanQuery;
         return new SpanContainingQuery((SpanQuery) innerBig, (SpanQuery) innerLittle);
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (big == null) {
-            validationException = addValidationError("inner clause [big] cannot be null.", validationException);
-        } else {
-            validationException = validateInnerQuery(big, validationException);
-        }
-        if (little == null) {
-            validationException = addValidationError("inner clause [little] cannot be null.", validationException);
-        } else {
-            validationException = validateInnerQuery(little, validationException);
-        }
-        return validationException;
     }
 
     @Override

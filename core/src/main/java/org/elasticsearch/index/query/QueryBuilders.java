@@ -313,16 +313,16 @@ public abstract class QueryBuilders {
         return new SpanFirstQueryBuilder(match, end);
     }
 
-    public static SpanNearQueryBuilder spanNearQuery(int slop) {
-        return new SpanNearQueryBuilder(slop);
+    public static SpanNearQueryBuilder spanNearQuery(SpanQueryBuilder initialClause, int slop) {
+        return new SpanNearQueryBuilder(initialClause, slop);
     }
 
     public static SpanNotQueryBuilder spanNotQuery(SpanQueryBuilder include, SpanQueryBuilder exclude) {
         return new SpanNotQueryBuilder(include, exclude);
     }
 
-    public static SpanOrQueryBuilder spanOrQuery() {
-        return new SpanOrQueryBuilder();
+    public static SpanOrQueryBuilder spanOrQuery(SpanQueryBuilder initialClause) {
+        return new SpanOrQueryBuilder(initialClause);
     }
 
     /** Creates a new {@code span_within} builder.

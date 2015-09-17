@@ -34,10 +34,10 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
 
     @Override
     protected SpanNearQueryBuilder doCreateTestQueryBuilder() {
-        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(randomIntBetween(-10, 10));
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
-        for (SpanTermQueryBuilder clause : spanTermQueries) {
-            queryBuilder.clause(clause);
+        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(spanTermQueries[0], randomIntBetween(-10, 10));
+        for (int i = 1; i < spanTermQueries.length; i++) {
+            queryBuilder.clause(spanTermQueries[i]);
         }
         queryBuilder.inOrder(randomBoolean());
         queryBuilder.collectPayloads(randomBoolean());
@@ -58,24 +58,20 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
     }
 
     @Test
-    public void testValidate() {
-        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(1);
-        assertValidate(queryBuilder, 1); // empty clause list
-
-        int totalExpectedErrors = 0;
-        int clauses = randomIntBetween(1, 10);
-        for (int i = 0; i < clauses; i++) {
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    queryBuilder.clause(new SpanTermQueryBuilder("", "test"));
-                } else {
-                    queryBuilder.clause(null);
-                }
-                totalExpectedErrors++;
-            } else {
-                queryBuilder.clause(new SpanTermQueryBuilder("name", "value"));
-            }
+    public void testIllegalArguments() {
+        try {
+            new SpanNearQueryBuilder(null, 1);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // ecpected
         }
-        assertValidate(queryBuilder, totalExpectedErrors);
+
+        try {
+            SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, 1);
+            spanNearQueryBuilder.clause(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // ecpected
+        }
     }
 }

@@ -47,21 +47,13 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     @Test
-    public void testValidate() {
-        int totalExpectedErrors = 0;
-        MultiTermQueryBuilder multiTermQueryBuilder;
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                multiTermQueryBuilder = new RangeQueryBuilder("");
-            } else {
-                multiTermQueryBuilder = null;
-            }
-            totalExpectedErrors++;
-        } else {
-            multiTermQueryBuilder = new RangeQueryBuilder("field");
+    public void testIllegalArgument() {
+        try {
+            new SpanMultiTermQueryBuilder(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
         }
-        SpanMultiTermQueryBuilder queryBuilder = new SpanMultiTermQueryBuilder(multiTermQueryBuilder);
-        assertValidate(queryBuilder, totalExpectedErrors);
     }
 
     /**

@@ -41,7 +41,7 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
 
     private final QueryBuilder queryBuilder;
 
-    static final QueryFilterBuilder PROTOTYPE = new QueryFilterBuilder(null);
+    static final QueryFilterBuilder PROTOTYPE = new QueryFilterBuilder(EmptyQueryBuilder.PROTOTYPE);
 
     /**
      * A filter that simply wraps a query.
@@ -49,6 +49,9 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
      * @param queryBuilder The query to wrap as a filter
      */
     public QueryFilterBuilder(QueryBuilder queryBuilder) {
+        if (queryBuilder == null) {
+            throw new IllegalArgumentException("inner query cannot be null");
+        }
         this.queryBuilder = queryBuilder;
     }
 
@@ -78,11 +81,6 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
     @Override
     protected void setFinalBoost(Query query) {
         //no-op this query doesn't support boost
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        return validateInnerQuery(queryBuilder, null);
     }
 
     @Override

@@ -47,24 +47,30 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     public static final int DEFAULT_MAX_DETERMINIZED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 
     private final String fieldName;
-    
+
     private final String value;
-    
+
     private int flagsValue = DEFAULT_FLAGS_VALUE;
-    
+
     private int maxDeterminizedStates = DEFAULT_MAX_DETERMINIZED_STATES;
-    
+
     private String rewrite;
-    
-    static final RegexpQueryBuilder PROTOTYPE = new RegexpQueryBuilder(null, null);
+
+    static final RegexpQueryBuilder PROTOTYPE = new RegexpQueryBuilder("field", "value");
 
     /**
      * Constructs a new regex query.
-     * 
+     *
      * @param fieldName  The name of the field
      * @param value The regular expression
      */
     public RegexpQueryBuilder(String fieldName, String value) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name is null or empty");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("value cannot be null.");
+        }
         this.fieldName = fieldName;
         this.value = value;
     }
@@ -114,7 +120,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         this.maxDeterminizedStates = value;
         return this;
     }
-    
+
     public int maxDeterminizedStates() {
         return this.maxDeterminizedStates;
     }
@@ -123,7 +129,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         this.rewrite = rewrite;
         return this;
     }
-    
+
     public String rewrite() {
         return this.rewrite;
     }
@@ -165,18 +171,6 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             query = regexpQuery;
         }
         return query;
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (Strings.isEmpty(this.fieldName)) {
-            validationException = addValidationError("field name cannot be null or empty.", validationException);
-        }
-        if (this.value == null) {
-            validationException = addValidationError("query text cannot be null", validationException);
-        }
-        return validationException;
     }
 
     @Override

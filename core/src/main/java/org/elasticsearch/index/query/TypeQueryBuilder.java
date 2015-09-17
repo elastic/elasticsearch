@@ -39,13 +39,19 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
 
     private final BytesRef type;
 
-    static final TypeQueryBuilder PROTOTYPE = new TypeQueryBuilder((BytesRef) null);
+    static final TypeQueryBuilder PROTOTYPE = new TypeQueryBuilder("type");
 
     public TypeQueryBuilder(String type) {
+        if (type == null) {
+            throw new IllegalArgumentException("[type] cannot be null");
+        }
         this.type = BytesRefs.toBytesRef(type);
     }
 
     TypeQueryBuilder(BytesRef type) {
+        if (type == null) {
+            throw new IllegalArgumentException("[type] cannot be null");
+        }
         this.type = type;
     }
 
@@ -77,15 +83,6 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
             filter = documentMapper.typeFilter();
         }
         return filter;
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (type == null) {
-            validationException = addValidationError("[type] cannot be null", validationException);
-        }
-        return validationException;
     }
 
     @Override

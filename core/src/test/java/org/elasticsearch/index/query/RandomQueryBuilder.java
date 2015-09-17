@@ -67,21 +67,4 @@ public class RandomQueryBuilder {
         query.to("z" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
         return query;
     }
-
-    /**
-     * Create a new invalid query of a random type
-     * @param r random seed
-     * @return a random {@link QueryBuilder} that is invalid, meaning that calling validate against it
-     * will return an error. We can rely on the fact that a single error will be returned per query.
-     */
-    public static QueryBuilder createInvalidQuery(Random r) {
-        switch (RandomInts.randomIntBetween(r, 0, 1)) {
-            case 0:
-                return new TermQueryBuilder("", "test");
-            case 1:
-                return new SimpleQueryStringBuilder(null);
-            default:
-                throw new UnsupportedOperationException();
-        }
-    }
 }

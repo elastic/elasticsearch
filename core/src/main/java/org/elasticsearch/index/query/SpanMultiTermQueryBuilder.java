@@ -36,9 +36,12 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
 
     public static final String NAME = "span_multi";
     private final MultiTermQueryBuilder multiTermQueryBuilder;
-    static final SpanMultiTermQueryBuilder PROTOTYPE = new SpanMultiTermQueryBuilder(null);
+    static final SpanMultiTermQueryBuilder PROTOTYPE = new SpanMultiTermQueryBuilder(RangeQueryBuilder.PROTOTYPE);
 
     public SpanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
+        if (multiTermQueryBuilder == null) {
+            throw new IllegalArgumentException("inner multi term query cannot be null");
+        }
         this.multiTermQueryBuilder = multiTermQueryBuilder;
     }
 
@@ -64,17 +67,6 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                     + subQuery.getClass().getName());
         }
         return new SpanMultiTermQueryWrapper<>((MultiTermQuery) subQuery);
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (multiTermQueryBuilder == null) {
-            validationException = addValidationError("inner clause ["+ SpanMultiTermQueryParser.MATCH_NAME +"] cannot be null.", validationException);
-        } else {
-            validationException = validateInnerQuery(multiTermQueryBuilder, validationException);
-        }
-        return validationException;
     }
 
     @Override

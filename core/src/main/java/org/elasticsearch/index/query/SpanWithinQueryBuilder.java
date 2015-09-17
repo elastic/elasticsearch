@@ -37,7 +37,7 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
     public static final String NAME = "span_within";
     private final SpanQueryBuilder big;
     private final SpanQueryBuilder little;
-    static final SpanWithinQueryBuilder PROTOTYPE = new SpanWithinQueryBuilder(null, null);
+    static final SpanWithinQueryBuilder PROTOTYPE = new SpanWithinQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, SpanTermQueryBuilder.PROTOTYPE);
 
     /**
      * Query that returns spans from <code>little</code> that are contained in a spans from <code>big</code>.
@@ -45,6 +45,12 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
      * @param little the little clause, it must be contained within {@code big} for a match.
      */
     public SpanWithinQueryBuilder(SpanQueryBuilder big, SpanQueryBuilder little) {
+        if (big == null) {
+            throw new IllegalArgumentException("inner clause [big] cannot be null.");
+        }
+        if (little == null) {
+            throw new IllegalArgumentException("inner clause [little] cannot be null.");
+        }
         this.little = little;
         this.big = big;
     }
@@ -85,22 +91,6 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
         Query innerLittle = little.toQuery(context);
         assert innerLittle instanceof SpanQuery;
         return new SpanWithinQuery((SpanQuery) innerBig, (SpanQuery) innerLittle);
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (big == null) {
-            validationException = addValidationError("inner clause [big] cannot be null.", validationException);
-        } else {
-            validationException = validateInnerQuery(big, validationException);
-        }
-        if (little == null) {
-            validationException = addValidationError("inner clause [little] cannot be null.", validationException);
-        } else {
-            validationException = validateInnerQuery(little, validationException);
-        }
-        return validationException;
     }
 
     @Override

@@ -33,7 +33,7 @@ import java.io.IOException;
 public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     public static final String NAME = "term";
-    static final TermQueryBuilder PROTOTYPE = new TermQueryBuilder(null, null);
+    static final TermQueryBuilder PROTOTYPE = new TermQueryBuilder("name", "value");
 
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, String) */
     public TermQueryBuilder(String fieldName, String value) {

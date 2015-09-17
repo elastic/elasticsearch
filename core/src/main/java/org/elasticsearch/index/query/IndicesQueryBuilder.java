@@ -45,6 +45,12 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
     static final IndicesQueryBuilder PROTOTYPE = new IndicesQueryBuilder(EmptyQueryBuilder.PROTOTYPE, "index");
 
     public IndicesQueryBuilder(QueryBuilder innerQuery, String... indices) {
+        if (innerQuery == null) {
+            throw new IllegalArgumentException("inner query cannot be null");
+        }
+        if (indices == null || indices.length == 0) {
+            throw new IllegalArgumentException("list of indices cannot be null or empty");
+        }
         this.innerQuery = Objects.requireNonNull(innerQuery);
         this.indices = indices;
     }
@@ -61,7 +67,10 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
      * Sets the query to use when it executes on an index that does not match the indices provided.
      */
     public IndicesQueryBuilder noMatchQuery(QueryBuilder noMatchQuery) {
-        this.noMatchQuery = (noMatchQuery != null) ? noMatchQuery : defaultNoMatchQuery();
+        if (noMatchQuery == null) {
+            throw new IllegalArgumentException("noMatch query cannot be null");
+        }
+        this.noMatchQuery = noMatchQuery;
         return this;
     }
 
@@ -112,20 +121,6 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
             //if both the wrapped query and the wrapper hold a boost, the main one coming from the wrapper wins
             query.setBoost(boost);
         }
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (this.innerQuery == null) {
-            validationException = addValidationError("inner query cannot be null", validationException);
-        }
-        if (this.indices == null || this.indices.length == 0) {
-            validationException = addValidationError("list of indices cannot be null or empty", validationException);
-        }
-        validationException = validateInnerQuery(innerQuery, validationException);
-        validationException = validateInnerQuery(noMatchQuery, validationException);
-        return validationException;
     }
 
     @Override

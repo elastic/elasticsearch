@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBuilder> {
 
@@ -53,8 +52,12 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     }
 
     @Test
-    public void testValidate() {
-        ScriptQueryBuilder scriptQueryBuilder = new ScriptQueryBuilder(null);
-        assertThat(scriptQueryBuilder.validate().validationErrors().size(), is(1));
+    public void testIllegalConstructorArg() {
+        try {
+            new ScriptQueryBuilder(null);
+            fail("cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 }

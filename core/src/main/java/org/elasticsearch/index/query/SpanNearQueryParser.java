@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -85,13 +84,17 @@ public class SpanNearQueryParser extends BaseQueryParser<SpanNearQueryBuilder> {
             }
         }
 
+        if (clauses.isEmpty()) {
+            throw new QueryParsingException(parseContext, "span_near must include [clauses]");
+        }
+
         if (slop == null) {
             throw new QueryParsingException(parseContext, "span_near must include [slop]");
         }
 
-        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(slop);
-        for (SpanQueryBuilder subQuery : clauses) {
-            queryBuilder.clause(subQuery);
+        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(clauses.get(0), slop);
+        for (int i = 1; i < clauses.size(); i++) {
+            queryBuilder.clause(clauses.get(i));
         }
         queryBuilder.inOrder(inOrder);
         queryBuilder.collectPayloads(collectPayloads);

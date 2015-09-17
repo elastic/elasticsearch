@@ -145,13 +145,13 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     @Test
-    public void testValidate() {
-        QueryValidationException queryValidationException = createTestQueryBuilder().validate();
-        assertNull(queryValidationException);
-
-        queryValidationException = new QueryStringQueryBuilder(null).validate();
-        assertNotNull(queryValidationException);
-        assertThat(queryValidationException.validationErrors().size(), equalTo(1));
+    public void testIllegalArguments() {
+        try {
+            new QueryStringQueryBuilder(null);
+            fail("null is not allowed");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 
     @Test

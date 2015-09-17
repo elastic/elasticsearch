@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.inject.Inject;
-
 import java.io.IOException;
 
 /**

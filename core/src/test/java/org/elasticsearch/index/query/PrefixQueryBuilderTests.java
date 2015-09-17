@@ -27,7 +27,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBuilder> {
 
@@ -51,17 +50,23 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     @Test
-    public void testValidate() {
-        PrefixQueryBuilder prefixQueryBuilder = new PrefixQueryBuilder("", "prefix");
-        assertThat(prefixQueryBuilder.validate().validationErrors().size(), is(1));
+    public void testIllegalArguments() {
+        try {
+            if (randomBoolean()) {
+                new PrefixQueryBuilder(null, "text");
+            } else {
+                new PrefixQueryBuilder("", "text");
+            }
+            fail("cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
 
-        prefixQueryBuilder = new PrefixQueryBuilder("field", null);
-        assertThat(prefixQueryBuilder.validate().validationErrors().size(), is(1));
-
-        prefixQueryBuilder = new PrefixQueryBuilder("field", "prefix");
-        assertNull(prefixQueryBuilder.validate());
-
-        prefixQueryBuilder = new PrefixQueryBuilder(null, null);
-        assertThat(prefixQueryBuilder.validate().validationErrors().size(), is(2));
+        try {
+            new PrefixQueryBuilder("field", null);
+            fail("cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 }

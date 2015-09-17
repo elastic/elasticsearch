@@ -49,6 +49,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -94,7 +95,7 @@ public class TribeIT extends ESIntegTestCase {
     public void tearDownTribeNode() throws IOException {
         if (cluster2 != null) {
             try {
-                cluster2.wipe();
+                cluster2.wipe(Collections.<String>emptySet());
             } finally {
                 cluster2.afterTest();
             }

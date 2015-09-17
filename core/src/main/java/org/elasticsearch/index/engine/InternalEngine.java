@@ -21,8 +21,8 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -45,7 +45,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -153,6 +153,14 @@ public class InternalEngine extends Engine {
                 assert translogGeneration != null;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
+            } catch (AssertionError e) {
+                // IndexWriter throws AssertionError on init, if asserts are enabled, if any files don't exist, but tests that
+                // randomly throw FNFE/NSFE can also hit this:
+                if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+                    throw new EngineCreationFailureException(shardId, "failed to create engine", e);
+                } else {
+                    throw e;
+                }
             }
             this.translog = translog;
             manager = createSearcherManager();

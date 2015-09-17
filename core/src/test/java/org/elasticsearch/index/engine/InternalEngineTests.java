@@ -41,7 +41,6 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -1730,10 +1729,6 @@ public class InternalEngineTests extends ESTestCase {
                     started = true;
                     break;
                 } catch (EngineCreationFailureException ex) {
-                } catch (AssertionError ex) {
-                    // IndexWriter can throw AssertionError on init (if asserts are enabled) if our directory randomly throws FNFE/NSFE when
-                    // it asserts that all referenced files in the current commit point do exist
-                    assertTrue(ExceptionsHelper.stackTrace(ex).contains("org.apache.lucene.index.IndexWriter.filesExist"));
                 }
             }
 

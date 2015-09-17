@@ -26,13 +26,13 @@ public class HtmlSanitizer {
 
     static final String[] FORMATTING_TAGS = new String[] {
             "b", "i", "s", "u", "o", "sup", "sub", "ins", "del", "strong",
-            "strike", "tt", "code", "big", "small", "br", "span", "em"
+            "strike", "tt", "code", "big", "small", "br", "span", "em", "hr"
     };
     static final String[] BLOCK_TAGS = new String[] {
             "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote"
     };
     static final String[] TABLE_TAGS = new String[] {
-            "table", "hr", "tr", "td"
+            "table", "th", "tr", "td", "caption", "col", "colgroup", "thead", "tbody", "tfoot"
     };
     static final String[] DEFAULT_ALLOWED = new String[] {
             "body", "head", "_tables", "_links", "_blocks", "_formatting", "img:embedded"
@@ -64,8 +64,10 @@ public class HtmlSanitizer {
         if (Arrays.binarySearch(allow, "_all") > -1) {
             return policyBuilder
                     .allowElements(TABLE_TAGS)
+                    .allowAttributes("span").onElements("col")
                     .allowElements(BLOCK_TAGS)
                     .allowElements(FORMATTING_TAGS)
+                    .allowWithoutAttributes("span")
                     .allowStyling(CssSchema.DEFAULT)
                     .allowStandardUrlProtocols().allowElements("a")
                     .allowAttributes("href").onElements("a").requireRelNofollowOnLinks()
@@ -83,6 +85,7 @@ public class HtmlSanitizer {
             switch (tag) {
                 case "_tables":
                     policyBuilder.allowElements(TABLE_TAGS);
+                    policyBuilder.allowAttributes("span").onElements("col");
                     break;
                 case "_links":
                     policyBuilder.allowElements("a")
@@ -94,7 +97,8 @@ public class HtmlSanitizer {
                     policyBuilder.allowElements(BLOCK_TAGS);
                     break;
                 case "_formatting":
-                    policyBuilder.allowElements(FORMATTING_TAGS);
+                    policyBuilder.allowElements(FORMATTING_TAGS)
+                            .allowWithoutAttributes("span");
                     break;
                 case "_styles":
                     policyBuilder.allowStyling(CssSchema.DEFAULT);

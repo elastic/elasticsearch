@@ -9,7 +9,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 
 /**
@@ -54,7 +54,6 @@ public class HtmlSanitizerTests extends ESTestCase {
         }
     }
 
-
     @Test
     public void testDefault_onclick_Disallowed() {
         String badHtml = "<button type=\"button\"" +
@@ -83,7 +82,40 @@ public class HtmlSanitizerTests extends ESTestCase {
 
     @Test
     public void testDefault_Tables_Allowed() {
-        String html = "<table><tr><td>cell1</td><td>cell2</td></tr></table>";
+        String html = "<table>" +
+                "<caption>caption</caption>" +
+                "<colgroup>" +
+                "<col span=\"2\" />" +
+                "<col />" +
+                "</colgroup>" +
+                "<thead>" +
+                "<tr>" +
+                "<th>header1</th>" +
+                "<th>header2</th>" +
+                "</tr>" +
+                "</thead>" +
+                "<tfoot>" +
+                "<tr>" +
+                "<td>Sum</td>" +
+                "<td>$180</td>" +
+                "</tr>" +
+                "</tfoot>" +
+                "<tbody>" +
+                "<tr>" +
+                "<td>cost</td>" +
+                "<td>180</td>" +
+                "</tr>" +
+                "</tbody>" +
+                "</table>";
+        HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
+        String sanitizedHtml = sanitizer.sanitize(html);
+        assertThat(sanitizedHtml, equalTo(html));
+    }
+
+    @Test
+    public void testDefault_Formatting_Allowed() {
+        String html =  "<b></b><i></i><s></s><u></u><o></o><sup></sup><sub></sub><ins></ins><del></del><strong></strong>" +
+                "<strike></strike><tt></tt><code></code><big></big><small></small><span></span><br /><em></em><hr />";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo(html));

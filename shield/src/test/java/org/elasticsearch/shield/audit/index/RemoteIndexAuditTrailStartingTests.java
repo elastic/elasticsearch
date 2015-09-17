@@ -20,6 +20,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -105,7 +106,7 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
     public void stopRemoteCluster() throws Exception {
         if (remoteCluster != null) {
             try {
-                remoteCluster.wipe();
+                remoteCluster.wipe(Collections.<String>emptySet());
             } finally {
                 remoteCluster.afterTest();
             }

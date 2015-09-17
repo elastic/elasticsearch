@@ -305,7 +305,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     fail("Unknown Scope: [" + currentClusterScope + "]");
             }
             cluster().beforeTest(getRandom(), getPerTestTransportClientRatio());
-            cluster().wipe();
+            cluster().wipe(excludeTemplates());
             randomIndexTemplate();
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
@@ -568,7 +568,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
                     beforeIndexDeletion();
-                    cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
+                    cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
                         cluster().close();
                     }
@@ -587,6 +587,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // afterTestRule.forceFailure();
             }
         }
+    }
+
+    /**
+     * @return An exclude set of index templates that will not be removed in between tests.
+     */
+    protected Set<String> excludeTemplates() {
+        return Collections.emptySet();
     }
 
     protected void beforeIndexDeletion() {

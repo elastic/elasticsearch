@@ -21,7 +21,7 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionParser;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
@@ -57,7 +57,7 @@ public class ScoreFunctionParserMapper {
     public ScoreFunctionParser get(QueryParseContext parseContext, String parserName) {
         ScoreFunctionParser functionParser = get(parserName);
         if (functionParser == null) {
-            throw new QueryParsingException(parseContext, "No function with the name [" + parserName + "] is registered.");
+            throw new ParsingException(parseContext, "No function with the name [" + parserName + "] is registered.");
         }
         return functionParser;
     }

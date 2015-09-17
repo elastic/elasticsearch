@@ -25,6 +25,7 @@ import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -66,7 +67,7 @@ public class QueryStringQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         String queryName = null;
@@ -125,7 +126,7 @@ public class QueryStringQueryParser implements QueryParser {
                         }
                     }
                 } else {
-                    throw new QueryParsingException(parseContext, "[query_string] query does not support [" + currentFieldName
+                    throw new ParsingException(parseContext, "[query_string] query does not support [" + currentFieldName
                             + "]");
                 }
             } else if (token.isValue()) {
@@ -140,18 +141,18 @@ public class QueryStringQueryParser implements QueryParser {
                     } else if ("and".equalsIgnoreCase(op)) {
                         qpSettings.defaultOperator(org.apache.lucene.queryparser.classic.QueryParser.Operator.AND);
                     } else {
-                        throw new QueryParsingException(parseContext, "Query default operator [" + op + "] is not allowed");
+                        throw new ParsingException(parseContext, "Query default operator [" + op + "] is not allowed");
                     }
                 } else if ("analyzer".equals(currentFieldName)) {
                     NamedAnalyzer analyzer = parseContext.analysisService().analyzer(parser.text());
                     if (analyzer == null) {
-                        throw new QueryParsingException(parseContext, "[query_string] analyzer [" + parser.text() + "] not found");
+                        throw new ParsingException(parseContext, "[query_string] analyzer [" + parser.text() + "] not found");
                     }
                     qpSettings.forcedAnalyzer(analyzer);
                 } else if ("quote_analyzer".equals(currentFieldName) || "quoteAnalyzer".equals(currentFieldName)) {
                     NamedAnalyzer analyzer = parseContext.analysisService().analyzer(parser.text());
                     if (analyzer == null) {
-                        throw new QueryParsingException(parseContext, "[query_string] quote_analyzer [" + parser.text()
+                        throw new ParsingException(parseContext, "[query_string] quote_analyzer [" + parser.text()
                                 + "] not found");
                     }
                     qpSettings.forcedQuoteAnalyzer(analyzer);
@@ -200,19 +201,19 @@ public class QueryStringQueryParser implements QueryParser {
                     try {
                         qpSettings.timeZone(DateTimeZone.forID(parser.text()));
                     } catch (IllegalArgumentException e) {
-                        throw new QueryParsingException(parseContext,
+                        throw new ParsingException(parseContext,
                                 "[query_string] time_zone [" + parser.text() + "] is unknown");
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[query_string] query does not support [" + currentFieldName
+                    throw new ParsingException(parseContext, "[query_string] query does not support [" + currentFieldName
  + "]");
                 }
             }
         }
         if (qpSettings.queryString() == null) {
-            throw new QueryParsingException(parseContext, "query_string must be provided with a [query]");
+            throw new ParsingException(parseContext, "query_string must be provided with a [query]");
         }
         qpSettings.defaultAnalyzer(parseContext.mapperService().searchAnalyzer());
         qpSettings.defaultQuoteAnalyzer(parseContext.mapperService().searchQuoteAnalyzer());
@@ -240,7 +241,7 @@ public class QueryStringQueryParser implements QueryParser {
             }
             return query;
         } catch (org.apache.lucene.queryparser.classic.ParseException e) {
-            throw new QueryParsingException(parseContext, "Failed to parse query [" + qpSettings.queryString() + "]", e);
+            throw new ParsingException(parseContext, "Failed to parse query [" + qpSettings.queryString() + "]", e);
         }
     }
 }

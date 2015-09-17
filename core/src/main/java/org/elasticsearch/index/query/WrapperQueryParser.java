@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,16 +44,16 @@ public class WrapperQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[wrapper] query malformed");
+            throw new ParsingException(parseContext, "[wrapper] query malformed");
         }
         String fieldName = parser.currentName();
         if (!fieldName.equals("query")) {
-            throw new QueryParsingException(parseContext, "[wrapper] query malformed");
+            throw new ParsingException(parseContext, "[wrapper] query malformed");
         }
         parser.nextToken();
 

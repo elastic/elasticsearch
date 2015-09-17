@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +47,7 @@ public class ConstantScoreQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         Query filter = null;
@@ -65,18 +66,18 @@ public class ConstantScoreQueryParser implements QueryParser {
                     filter = parseContext.parseInnerFilter();
                     queryFound = true;
                 } else {
-                    throw new QueryParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new QueryParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext, "[constant_score] requires a 'filter' element");
+            throw new ParsingException(parseContext, "[constant_score] requires a 'filter' element");
         }
 
         if (filter == null) {

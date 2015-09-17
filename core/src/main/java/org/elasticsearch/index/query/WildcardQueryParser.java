@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -47,12 +48,12 @@ public class WildcardQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[wildcard] query malformed, no field");
+            throw new ParsingException(parseContext, "[wildcard] query malformed, no field");
         }
         String fieldName = parser.currentName();
         String rewriteMethod = null;
@@ -78,7 +79,7 @@ public class WildcardQueryParser implements QueryParser {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new QueryParsingException(parseContext, "[wildcard] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parseContext, "[wildcard] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -89,7 +90,7 @@ public class WildcardQueryParser implements QueryParser {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "No value specified for prefix query");
+            throw new ParsingException(parseContext, "No value specified for prefix query");
         }
 
         BytesRef valueBytes;

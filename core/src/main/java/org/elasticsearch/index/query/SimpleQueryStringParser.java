@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -83,7 +84,7 @@ public class SimpleQueryStringParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         String currentFieldName = null;
@@ -138,7 +139,7 @@ public class SimpleQueryStringParser implements QueryParser {
                         }
                     }
                 } else {
-                    throw new QueryParsingException(parseContext, "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[" + NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -148,7 +149,7 @@ public class SimpleQueryStringParser implements QueryParser {
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                     if (analyzer == null) {
-                        throw new QueryParsingException(parseContext, "[" + NAME + "] analyzer [" + parser.text() + "] not found");
+                        throw new ParsingException(parseContext, "[" + NAME + "] analyzer [" + parser.text() + "] not found");
                     }
                 } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                     String op = parser.text();
@@ -157,7 +158,7 @@ public class SimpleQueryStringParser implements QueryParser {
                     } else if ("and".equalsIgnoreCase(op)) {
                         defaultOperator = BooleanClause.Occur.MUST;
                     } else {
-                        throw new QueryParsingException(parseContext, "[" + NAME + "] default operator [" + op + "] is not allowed");
+                        throw new ParsingException(parseContext, "[" + NAME + "] default operator [" + op + "] is not allowed");
                     }
                 } else if ("flags".equals(currentFieldName)) {
                     if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
@@ -185,14 +186,14 @@ public class SimpleQueryStringParser implements QueryParser {
                 } else if ("minimum_should_match".equals(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
                 } else {
-                    throw new QueryParsingException(parseContext, "[" + NAME + "] unsupported field [" + parser.currentName() + "]");
+                    throw new ParsingException(parseContext, "[" + NAME + "] unsupported field [" + parser.currentName() + "]");
                 }
             }
         }
 
         // Query text is required
         if (queryBody == null) {
-            throw new QueryParsingException(parseContext, "[" + NAME + "] query text missing");
+            throw new ParsingException(parseContext, "[" + NAME + "] query text missing");
         }
 
         // Use standard analyzer by default

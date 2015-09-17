@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Injector;
@@ -83,7 +84,7 @@ public class IndexQueryParserFilterDateRangeTimezoneTests extends ESSingleNodeTe
             SearchContext.setCurrent(new TestSearchContext());
             queryParser.parse(query).query();
             fail("A Range Filter on a numeric field with a TimeZone should raise a QueryParsingException");
-        } catch (QueryParsingException e) {
+        } catch (ParsingException e) {
             // We expect it
         } finally {
             SearchContext.removeCurrent();
@@ -120,7 +121,7 @@ public class IndexQueryParserFilterDateRangeTimezoneTests extends ESSingleNodeTe
             SearchContext.setCurrent(new TestSearchContext());
             queryParser.parse(query).query();
             fail("A Range Query on a numeric field with a TimeZone should raise a QueryParsingException");
-        } catch (QueryParsingException e) {
+        } catch (ParsingException e) {
             // We expect it
         } finally {
             SearchContext.removeCurrent();

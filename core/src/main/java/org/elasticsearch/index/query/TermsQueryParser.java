@@ -30,6 +30,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -69,7 +70,7 @@ public class TermsQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         String queryName = null;
@@ -95,14 +96,14 @@ public class TermsQueryParser implements QueryParser {
                 // skip
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if  (fieldName != null) {
-                    throw new QueryParsingException(parseContext, "[terms] query does not support multiple fields");
+                    throw new ParsingException(parseContext, "[terms] query does not support multiple fields");
                 }
                 fieldName = currentFieldName;
 
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     Object value = parser.objectBytes();
                     if (value == null) {
-                        throw new QueryParsingException(parseContext, "No value specified for terms query");
+                        throw new ParsingException(parseContext, "No value specified for terms query");
                     }
                     terms.add(value);
                 }
@@ -123,19 +124,19 @@ public class TermsQueryParser implements QueryParser {
                         } else if ("routing".equals(currentFieldName)) {
                             lookupRouting = parser.textOrNull();
                         } else {
-                            throw new QueryParsingException(parseContext, "[terms] query does not support [" + currentFieldName
+                            throw new ParsingException(parseContext, "[terms] query does not support [" + currentFieldName
                                     + "] within lookup element");
                         }
                     }
                 }
                 if (lookupType == null) {
-                    throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the type");
+                    throw new ParsingException(parseContext, "[terms] query lookup element requires specifying the type");
                 }
                 if (lookupId == null) {
-                    throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the id");
+                    throw new ParsingException(parseContext, "[terms] query lookup element requires specifying the id");
                 }
                 if (lookupPath == null) {
-                    throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the path");
+                    throw new ParsingException(parseContext, "[terms] query lookup element requires specifying the path");
                 }
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, EXECUTION_FIELD)) {
@@ -152,13 +153,13 @@ public class TermsQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[terms] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[terms] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext, "terms query requires a field name, followed by array of terms");
+            throw new ParsingException(parseContext, "terms query requires a field name, followed by array of terms");
         }
 
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);

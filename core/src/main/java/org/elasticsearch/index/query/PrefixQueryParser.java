@@ -24,6 +24,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -51,7 +52,7 @@ public class PrefixQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = parser.currentName();
@@ -82,7 +83,7 @@ public class PrefixQueryParser implements QueryParser {
                         } else if ("rewrite".equals(currentFieldName)) {
                             rewriteMethod = parser.textOrNull();
                         } else {
-                            throw new QueryParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -97,7 +98,7 @@ public class PrefixQueryParser implements QueryParser {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "No value specified for prefix query");
+            throw new ParsingException(parseContext, "No value specified for prefix query");
         }
 
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), rewriteMethod, null);

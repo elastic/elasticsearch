@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
 
@@ -41,5 +42,5 @@ public interface QueryParser {
      * Returns <tt>null</tt> if this query should be ignored in the context of the DSL.
      */
     @Nullable
-    Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
+    Query parse(QueryParseContext parseContext) throws IOException, ParsingException;
 }

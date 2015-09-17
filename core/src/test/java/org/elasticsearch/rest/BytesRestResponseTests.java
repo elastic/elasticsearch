@@ -24,7 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.TestQueryParsingException;
+import org.elasticsearch.index.query.TestParsingException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -142,9 +142,9 @@ public class BytesRestResponseTests extends ESTestCase {
     public void testConvert() throws IOException {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new DetailedExceptionRestChannel(request);
-        ShardSearchFailure failure = new ShardSearchFailure(new TestQueryParsingException(new Index("foo"), "foobar", null),
+        ShardSearchFailure failure = new ShardSearchFailure(new TestParsingException(new Index("foo"), "foobar", null),
                 new SearchShardTarget("node_1", "foo", 1));
-        ShardSearchFailure failure1 = new ShardSearchFailure(new TestQueryParsingException(new Index("foo"), "foobar", null),
+        ShardSearchFailure failure1 = new ShardSearchFailure(new TestParsingException(new Index("foo"), "foobar", null),
                 new SearchShardTarget("node_1", "foo", 2));
         SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",  new ShardSearchFailure[] {failure, failure1});
         BytesRestResponse response = new BytesRestResponse(channel, new RemoteTransportException("foo", ex));

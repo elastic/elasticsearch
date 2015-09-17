@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,7 +48,7 @@ public class SpanTermQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.currentToken();
@@ -77,7 +78,7 @@ public class SpanTermQueryParser implements QueryParser {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new QueryParsingException(parseContext, "[span_term] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parseContext, "[span_term] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -89,7 +90,7 @@ public class SpanTermQueryParser implements QueryParser {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "No value specified for term query");
+            throw new ParsingException(parseContext, "No value specified for term query");
         }
 
         BytesRef valueBytes = null;

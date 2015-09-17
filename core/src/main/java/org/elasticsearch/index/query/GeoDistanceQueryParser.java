@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -56,7 +57,7 @@ public class GeoDistanceQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;
@@ -96,7 +97,7 @@ public class GeoDistanceQueryParser implements QueryParser {
                         } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
                             point.resetFromGeoHash(parser.text());
                         } else {
-                            throw new QueryParsingException(parseContext, "[geo_distance] query does not support [" + currentFieldName
+                            throw new ParsingException(parseContext, "[geo_distance] query does not support [" + currentFieldName
                                     + "]");
                         }
                     }
@@ -142,10 +143,10 @@ public class GeoDistanceQueryParser implements QueryParser {
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
         if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
             if (point.lat() > 90.0 || point.lat() < -90.0) {
-                throw new QueryParsingException(parseContext, "illegal latitude value [{}] for [{}]", point.lat(), NAME);
+                throw new ParsingException(parseContext, "illegal latitude value [{}] for [{}]", point.lat(), NAME);
             }
             if (point.lon() > 180.0 || point.lon() < -180) {
-                throw new QueryParsingException(parseContext, "illegal longitude value [{}] for [{}]", point.lon(), NAME);
+                throw new ParsingException(parseContext, "illegal longitude value [{}] for [{}]", point.lon(), NAME);
             }
         }
 
@@ -154,7 +155,7 @@ public class GeoDistanceQueryParser implements QueryParser {
         }
 
         if (vDistance == null) {
-            throw new QueryParsingException(parseContext, "geo_distance requires 'distance' to be specified");
+            throw new ParsingException(parseContext, "geo_distance requires 'distance' to be specified");
         } else if (vDistance instanceof Number) {
             distance = DistanceUnit.DEFAULT.convert(((Number) vDistance).doubleValue(), unit);
         } else {
@@ -164,10 +165,10 @@ public class GeoDistanceQueryParser implements QueryParser {
 
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
+            throw new ParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
         }
         if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
+            throw new ParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
         }
         GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -210,7 +211,7 @@ public class QueryParseContext {
     public void addInnerHits(String name, InnerHitsContext.BaseInnerHits context) {
         SearchContext sc = SearchContext.current();
         if (sc == null) {
-            throw new QueryParsingException(this, "inner_hits unsupported");
+            throw new ParsingException(this, "inner_hits unsupported");
         }
 
         InnerHitsContext innerHitsContext;
@@ -224,13 +225,13 @@ public class QueryParseContext {
     }
 
     @Nullable
-    public Query parseInnerQuery() throws QueryParsingException, IOException {
+    public Query parseInnerQuery() throws ParsingException, IOException {
         // move to START object
         XContentParser.Token token;
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new QueryParsingException(this, "[_na] query malformed, must start with start_object");
+                throw new ParsingException(this, "[_na] query malformed, must start with start_object");
             }
         }
         token = parser.nextToken();
@@ -239,18 +240,18 @@ public class QueryParseContext {
             return null;
         }
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(this, "[_na] query malformed, no field after start_object");
+            throw new ParsingException(this, "[_na] query malformed, no field after start_object");
         }
         String queryName = parser.currentName();
         // move to the next START_OBJECT
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
-            throw new QueryParsingException(this, "[_na] query malformed, no field after start_object");
+            throw new ParsingException(this, "[_na] query malformed, no field after start_object");
         }
 
         QueryParser queryParser = indexQueryParser.queryParser(queryName);
         if (queryParser == null) {
-            throw new QueryParsingException(this, "No query registered for [" + queryName + "]");
+            throw new ParsingException(this, "No query registered for [" + queryName + "]");
         }
         Query result = queryParser.parse(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
@@ -261,7 +262,7 @@ public class QueryParseContext {
     }
 
     @Nullable
-    public Query parseInnerFilter() throws QueryParsingException, IOException {
+    public Query parseInnerFilter() throws ParsingException, IOException {
         final boolean originalIsFilter = isFilter;
         try {
             isFilter = true;
@@ -271,13 +272,13 @@ public class QueryParseContext {
         }
     }
 
-    public Query parseInnerFilter(String queryName) throws IOException, QueryParsingException {
+    public Query parseInnerFilter(String queryName) throws IOException, ParsingException {
         final boolean originalIsFilter = isFilter;
         try {
             isFilter = true;
             QueryParser queryParser = indexQueryParser.queryParser(queryName);
             if (queryParser == null) {
-                throw new QueryParsingException(this, "No query registered for [" + queryName + "]");
+                throw new ParsingException(this, "No query registered for [" + queryName + "]");
             }
             return queryParser.parse(this);
         } finally {
@@ -336,7 +337,7 @@ public class QueryParseContext {
         } else {
             Version indexCreatedVersion = indexQueryParser.getIndexCreatedVersion();
             if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0_Beta1)) {
-                throw new QueryParsingException(this, "Strict field resolution and no field mapping can be found for the field with name ["
+                throw new ParsingException(this, "Strict field resolution and no field mapping can be found for the field with name ["
                         + name + "]");
             } else {
                 return fieldMapping;

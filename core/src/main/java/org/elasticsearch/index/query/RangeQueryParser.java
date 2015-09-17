@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
@@ -52,7 +53,7 @@ public class RangeQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -105,7 +106,7 @@ public class RangeQueryParser implements QueryParser {
                         } else if ("format".equals(currentFieldName)) {
                             forcedDateParser = new DateMathParser(Joda.forPattern(parser.text()));
                         } else {
-                            throw new QueryParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -115,7 +116,7 @@ public class RangeQueryParser implements QueryParser {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, FIELDDATA_FIELD)) {
                     // ignore
                 } else {
-                    throw new QueryParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -127,7 +128,7 @@ public class RangeQueryParser implements QueryParser {
                 query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser);
             } else  {
                 if (timeZone != null) {
-                    throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
+                    throw new ParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
                             + fieldName + "]");
                 }
                 //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?

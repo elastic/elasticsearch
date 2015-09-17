@@ -28,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
@@ -96,7 +97,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();
@@ -157,7 +158,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, Field.FIELDS)) {
@@ -196,7 +197,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     }
                     mltQuery.setStopWords(stopWords);
                 } else {
-                    throw new QueryParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, Field.LIKE)) {
@@ -204,16 +205,16 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.UNLIKE)) {
                     parseLikeField(parseContext, unlikeTexts, unlikeItems);
                 } else {
-                    throw new QueryParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (likeTexts.isEmpty() && likeItems.isEmpty()) {
-            throw new QueryParsingException(parseContext, "more_like_this requires 'like' to be specified");
+            throw new ParsingException(parseContext, "more_like_this requires 'like' to be specified");
         }
         if (moreLikeFields != null && moreLikeFields.isEmpty()) {
-            throw new QueryParsingException(parseContext, "more_like_this requires 'fields' to be non-empty");
+            throw new ParsingException(parseContext, "more_like_this requires 'fields' to be non-empty");
         }
 
         // set analyzer
@@ -322,7 +323,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         }
         if (item.type() == null) {
             if (parseContext.queryTypes().size() > 1) {
-                throw new QueryParsingException(parseContext,
+                throw new ParsingException(parseContext,
                             "ambiguous type for item with id: " + item.id() + " and index: " + item.index());
             } else {
                 item.type(parseContext.queryTypes().iterator().next());

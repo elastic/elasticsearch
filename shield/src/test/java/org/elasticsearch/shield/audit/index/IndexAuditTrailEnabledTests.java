@@ -18,12 +18,20 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
+import java.util.Collections;
+import java.util.Set;
+
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, randomDynamicTemplates = false)
 public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
 
     IndexNameResolver.Rollover rollover = randomFrom(IndexNameResolver.Rollover.values());
+
+    @Override
+    protected Set<String> excludeTemplates() {
+        return Collections.singleton(IndexAuditTrail.INDEX_TEMPLATE_NAME);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

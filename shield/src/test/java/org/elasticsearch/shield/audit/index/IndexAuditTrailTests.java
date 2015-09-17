@@ -49,10 +49,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.DAILY;
 import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.HOURLY;
@@ -89,6 +86,11 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     private int numShards;
     private int numReplicas;
     private ThreadPool threadPool;
+
+    @Override
+    protected Set<String> excludeTemplates() {
+        return Collections.singleton(IndexAuditTrail.INDEX_TEMPLATE_NAME);
+    }
 
     private Settings commonSettings(IndexNameResolver.Rollover rollover) {
         return Settings.builder()
@@ -212,9 +214,9 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             auditor.close();
         }
 
-        cluster().wipe(Collections.<String>emptySet());
+        cluster().wipe(Collections.singleton(IndexAuditTrail.INDEX_TEMPLATE_NAME));
         if (remoteIndexing && cluster2 != null) {
-            cluster2.wipe(Collections.emptySet());
+            cluster2.wipe(Collections.singleton(IndexAuditTrail.INDEX_TEMPLATE_NAME));
             remoteClient.close();
             cluster2.close();
         }

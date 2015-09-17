@@ -19,10 +19,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
@@ -54,6 +51,11 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
                 .put("shield.audit.enabled", localAudit)
                 .put("shield.audit.outputs", outputs)
                 .build();
+    }
+
+    @Override
+    protected Set<String> excludeTemplates() {
+        return Collections.singleton(IndexAuditTrail.INDEX_TEMPLATE_NAME);
     }
 
     @Override

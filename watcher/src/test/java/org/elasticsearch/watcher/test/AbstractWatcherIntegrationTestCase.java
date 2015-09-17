@@ -34,10 +34,7 @@ import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.TestCluster;
-import org.elasticsearch.watcher.WatcherLifeCycleService;
-import org.elasticsearch.watcher.WatcherPlugin;
-import org.elasticsearch.watcher.WatcherService;
-import org.elasticsearch.watcher.WatcherState;
+import org.elasticsearch.watcher.*;
 import org.elasticsearch.watcher.actions.email.service.Authentication;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
@@ -45,8 +42,10 @@ import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.execution.ExecutionState;
+import org.elasticsearch.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
@@ -55,6 +54,7 @@ import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchStore;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
 import org.junit.After;
@@ -112,6 +112,15 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put(ShieldSettings.settings(shieldEnabled))
                 .put("watcher.trigger.schedule.engine", scheduleImplName)
                 .build();
+    }
+
+    @Override
+    protected Set<String> excludeTemplates() {
+        Set<String> excludes = new HashSet<>();
+        for (WatcherIndexTemplateRegistry.TemplateConfig templateConfig : WatcherModule.TEMPLATE_CONFIGS) {
+            excludes.add(templateConfig.getTemplateName());
+        }
+        return excludes;
     }
 
     @Override

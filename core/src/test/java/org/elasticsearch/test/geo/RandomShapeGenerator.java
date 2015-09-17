@@ -139,13 +139,21 @@ public class RandomShapeGenerator {
     }
 
     private static ShapeBuilder createShape(Random r, Point nearPoint, Rectangle within, ShapeType st) throws InvalidShapeException {
-        return createShape(r, nearPoint, within, st, ST_VALIDATE);
+        ShapeBuilder shape;
+        short i=0;
+        do {
+            shape = createShape(r, nearPoint, within, st, ST_VALIDATE);
+            if (shape != null) {
+                return shape;
+            }
+        } while (++i != 100);
+        throw new InvalidShapeException("Unable to create a valid random shape with provided seed");
     }
 
     /**
      * Creates a random shape useful for randomized testing, NOTE: exercise caution when using this to build random GeometryCollections
      * as creating a large random number of random shapes can result in massive resource consumption
-     * see: {@link org.elasticsearch.search.geo.GeoShapeIntegrationTests#testShapeFilterWithRandomGeoCollection}
+     * see: {@link org.elasticsearch.search.geo.GeoShapeIntegrationIT#testShapeFilterWithRandomGeoCollection}
      *
      * The following options are included
      * @param nearPoint Create a shape near a provided point
@@ -218,9 +226,14 @@ public class RandomShapeGenerator {
                     // The validate flag will check for these possibilities and bail if an incorrect geometry is created
                     try {
                         pgb.build();
-                    } catch (InvalidShapeException e) {
-                        // jts bug rarely results in an invalid shape, if it does happen we try again instead of returning null
-                        return createShape(r, nearPoint, within, st, validate);
+                    } catch (Throwable e) {
+                        // jts bug may occasionally misinterpret coordinate order causing an unhelpful ('geom' assertion)
+                        // or InvalidShapeException
+                        if (e instanceof InvalidShapeException || e instanceof AssertionError) {
+                            return null;
+                        }
+                        // throw any other exception
+                        throw e;
                     }
                 }
                 return pgb;

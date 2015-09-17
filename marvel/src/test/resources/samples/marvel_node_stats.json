@@ -15,8 +15,14 @@
         "size_in_bytes": 0,
         "throttle_time_in_millis": 0
       },
-      "indexing": {
-        "throttle_time_in_millis": 0
+      "indexing" : {
+        "index_total" : 1,
+        "index_time_in_millis" : 60,
+        "throttle_time_in_millis" : 0
+      },
+      "search" : {
+        "query_total" : 0,
+        "query_time_in_millis" : 0
       },
       "segments": {
         "count": 0

@@ -11,9 +11,8 @@ subprojects {
 
     luceneSnapshotRevision = '1702855'
     randomizedRunnerSnapshotRevision = 'pr202'
-    // dependnecy versions that are used in more than one place
+    // dependency versions that are used in more than one place
     versions = [
-      elasticsearch:      version,
       lucene:             "5.4.0-snapshot-${luceneSnapshotRevision}",
       randomizedrunner:   "2.2.0-snapshot-${randomizedRunnerSnapshotRevision}"
     ]

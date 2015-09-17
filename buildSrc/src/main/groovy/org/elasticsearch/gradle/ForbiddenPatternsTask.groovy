@@ -2,6 +2,8 @@ package org.elasticsearch.gradle
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.FileCollection
+import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.OutputFiles
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.util.PatternFilterable
@@ -25,9 +27,7 @@ class ForbiddenPatternsTask extends DefaultTask {
         filesFilter.exclude('**/*.jar')
         filesFilter.exclude('**/*.zip')
 
-        outputs.files {
-            files()
-        }
+        // TODO: add compile and test compile outputs as this tasks outputs, so we don't rerun when source files haven't changed
     }
 
     /** Adds a file glob pattern to be excluded */
@@ -49,6 +49,7 @@ class ForbiddenPatternsTask extends DefaultTask {
     }
 
     /** Returns the files this task will check */
+    @InputFiles
     FileCollection files() {
         List<FileCollection> collections = new ArrayList<>()
         for (SourceSet sourceSet : project.sourceSets) {

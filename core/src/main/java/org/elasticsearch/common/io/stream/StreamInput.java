@@ -487,8 +487,8 @@ public abstract class StreamInput extends InputStream {
             int key = readVInt();
             switch (key) {
                 case 0:
-                    final String name = readString();
-                    return (T) readException(this, name);
+                    final int ord = readVInt();
+                    return (T) readException(this, ord);
                 case 1:
                     String msg1 = readOptionalString();
                     String resource1 = readOptionalString();

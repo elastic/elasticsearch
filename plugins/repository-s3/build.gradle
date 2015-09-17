@@ -1,0 +1,17 @@
+
+esplugin {
+  description 'The S3 repository plugin adds S3 repositories.'
+  classname 'org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin'
+}
+dependencies {
+  compile 'com.amazonaws:aws-java-sdk-s3:1.10.12'
+  compile 'org.apache.httpcomponents:httpclient'
+}
+
+compileJava.options.compilerArgs << '-Xlint:-deprecation,-rawtypes'
+
+test {
+  // these two are needed for insecure plugins, remove if possible!
+  sysProp 'tests.artifact', project.name 
+  sysProp 'tests.plugin.classname', esplugin.classname
+}

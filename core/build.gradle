@@ -109,12 +109,12 @@ compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-ove
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
 
 task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
-    from sourceSets.main.java
+  classifier = 'sources'
+  from sourceSets.main.java
 }
 
 artifacts {
-    archives sourcesJar
+  archives sourcesJar
 }
 
 forbiddenPatterns {

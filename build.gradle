@@ -1,7 +1,6 @@
 apply plugin: 'idea'
 
-
-allprojects {
+subprojects {
 
   // injecting groovy property variables into all projects
   project.ext {
@@ -13,7 +12,7 @@ allprojects {
     randomizedRunnerSnapshotRevision = 'pr202'
     // dependnecy versions that are used in more than one place
     versions = [
-      elasticsearch:      '3.0.0-beta1-SNAPSHOT',
+      elasticsearch:      version,
       lucene:             "5.4.0-snapshot-${luceneSnapshotRevision}",
       randomizedrunner:   "2.2.0-snapshot-${randomizedRunnerSnapshotRevision}"
     ]
@@ -39,10 +38,7 @@ allprojects {
       options.compilerArgs << "-Werror" << "-Xlint:all" 
     }
   }
-}
 
-// substitute local projects
-subprojects {
   configurations {
     all {
       resolutionStrategy {

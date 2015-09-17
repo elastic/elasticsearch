@@ -33,7 +33,7 @@ class ClusterFormationTasks {
 
     static void addNodeStartupTasks(Task task, ClusterConfiguration config, File baseDir) {
         Project project = task.project
-        Task install = project.tasks.create(name: task.name + '#install', type: Copy, dependsOn: project.configurations.elasticsearchZip.buildDependencies) {
+        Task install = project.tasks.create(name: task.name + '#setup', type: Copy, dependsOn: project.configurations.elasticsearchZip.buildDependencies) {
             from project.zipTree(project.configurations.elasticsearchZip.asPath)
             into baseDir
         }
@@ -75,7 +75,9 @@ class ClusterFormationTasks {
                 "-Des.cluster.name=${clusterName}",
                 "-Des.http.port=${config.httpPort}",
                 "-Des.transport.tcp.port=${config.transportPort}",
-                "-Des.pidfile=${pidFile}"
+                "-Des.pidfile=${pidFile}",
+                "-Des.path.repo=${home}/repo",
+                "-Des.path.shared_data=${home}/../",
             ]
             esArgs.addAll(config.sysProps.collect {key, value -> "-D${key}=${value}"})
             args esArgs

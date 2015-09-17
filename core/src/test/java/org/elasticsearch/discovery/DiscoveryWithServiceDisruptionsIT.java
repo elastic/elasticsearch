@@ -467,7 +467,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 });
 
                 thread.setName(name);
-                thread.setDaemon(true);
                 thread.start();
                 indexers.add(thread);
             }

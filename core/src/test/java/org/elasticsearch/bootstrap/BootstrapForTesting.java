@@ -29,10 +29,14 @@ import org.elasticsearch.common.logging.Loggers;
 
 import java.io.FilePermission;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Path;
+import java.security.CodeSource;
+import java.security.Permission;
+import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
+import java.security.cert.Certificate;
+import java.util.Collections;
 import java.util.Objects;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
@@ -83,14 +87,7 @@ public class BootstrapForTesting {
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
             try {
                 Security.setCodebaseProperties();
-                // if its an insecure plugin, its not easy to simulate here, since we don't have a real plugin install.
-                // we just do our best so unit testing can work. integration tests for such plugins are essential.
-                String artifact = System.getProperty("tests.artifact");
-                String insecurePluginProp = Security.INSECURE_PLUGINS.get(artifact);
-                if (insecurePluginProp != null) {
-                    System.setProperty(insecurePluginProp, "file:/-");
-                }
-                // initialize paths the same exact way as bootstrap.
+                // initialize paths the same exact way as bootstrap
                 Permissions perms = new Permissions();
                 // add permissions to everything in classpath
                 for (URL url : JarHell.parseClassPath()) {
@@ -121,6 +118,14 @@ public class BootstrapForTesting {
                     // in case we get fancy and use the -integration goals later:
                     perms.add(new FilePermission(coverageDir.resolve("jacoco-it.exec").toString(), "read,write"));
                 }
+
+                // if its an insecure plugin, its not easy to simulate here, since we don't have a real plugin install.
+                // we just do our best so unit testing can work. integration tests for such plugins are essential.
+                String artifact = System.getProperty("tests.artifact");
+                String insecurePluginProp = Security.INSECURE_PLUGINS.get(artifact);
+                if (insecurePluginProp != null) {
+                    setInsecurePluginPermissions(perms, insecurePluginProp);
+                }
                 Policy.setPolicy(new ESPolicy(perms));
                 System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();
@@ -137,6 +142,44 @@ public class BootstrapForTesting {
                 throw new RuntimeException("unable to install test security manager", e);
             }
         }
+    }
+
+    /**
+     * with a real plugin install, we just set a property to plugin/foo*, which matches
+     * plugin code and all dependencies. when running unit tests, things are disorganized,
+     * and might even be on different filesystem roots (windows), so we can't even make
+     * a URL that will match everything. instead, add the extra permissions globally.
+     */
+    // TODO: maybe wrap with a policy so the extra permissions aren't applied to test classes/framework,
+    // so that stacks are always polluted and tests fail for missing AccessController blocks...
+    static void setInsecurePluginPermissions(Permissions permissions, String insecurePluginProp) throws Exception {
+        // the hack begins!
+        
+        // parse whole policy file, with and without the substitution, compute the delta, then add globally.
+        URL bogus = new URL("file:/bogus");
+        ESPolicy policy = new ESPolicy(new Permissions());
+        PermissionCollection small = policy.template.getPermissions(new CodeSource(bogus, (Certificate[])null));
+        System.setProperty(insecurePluginProp, bogus.toString());
+        policy = new ESPolicy(new Permissions());
+        System.clearProperty(insecurePluginProp);
+        PermissionCollection big = policy.template.getPermissions(new CodeSource(bogus, (Certificate[])null));
+        
+        PermissionCollection delta = delta(small, big);
+        for (Permission p : Collections.list(delta.elements())) {
+            permissions.add(p);
+        }
+    }
+    
+    // computes delta of small and big, the slow way
+    static PermissionCollection delta(PermissionCollection small, PermissionCollection big) {
+        Permissions extra = new Permissions();
+        for (Permission p : Collections.list(big.elements())) {
+            // check big too, to remove UnresolvedPermissions (acts like NaN)
+            if (big.implies(p) && small.implies(p) == false) {
+                extra.add(p);
+            }
+        }
+        return extra;
     }
 
     // does nothing, just easy way to make sure the class is loaded.

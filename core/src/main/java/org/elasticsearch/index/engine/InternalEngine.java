@@ -19,11 +19,12 @@
 
 package org.elasticsearch.index.engine;
 
+
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -31,7 +32,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -50,8 +51,8 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
-import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -131,6 +132,14 @@ public class InternalEngine extends Engine {
                 assert translogGeneration != null;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
+            } catch (AssertionError e) {
+                // IndexWriter throws AssertionError on init, if asserts are enabled, if any files don't exist, but tests that
+                // randomly throw FNFE/NSFE can also hit this:
+                if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+                    throw new EngineCreationFailureException(shardId, "failed to create engine", e);
+                } else {
+                    throw e;
+                }
             }
             this.translog = translog;
             manager = createSearcherManager();

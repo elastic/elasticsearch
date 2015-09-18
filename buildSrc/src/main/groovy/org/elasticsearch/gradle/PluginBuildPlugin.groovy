@@ -20,6 +20,7 @@ class PluginBuildPlugin extends BuildPlugin {
         configureRestSpecHack(project)
         Task bundle = configureBundleTask(project.tasks)
         project.integTest {
+            dependsOn bundle
             cluster {
                 setup {
                     run name: "installPlugin", args: ['bin/plugin', 'install', "file://${bundle.outputs.files.asPath}"]

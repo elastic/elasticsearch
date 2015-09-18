@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
+
 import java.io.IOException;
 
 /**
@@ -35,7 +37,7 @@ public class QueryFilterParser extends BaseQueryParser<QueryFilterBuilder> {
     }
 
     @Override
-    public QueryFilterBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryFilterBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         return new QueryFilterBuilder(parseContext.parseInnerQueryBuilder());
     }
 

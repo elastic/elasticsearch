@@ -46,7 +46,7 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;

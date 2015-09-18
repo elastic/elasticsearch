@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,7 +37,7 @@ public class SpanFirstQueryParser extends BaseQueryParser<SpanFirstQueryBuilder>
     }
 
     @Override
-    public SpanFirstQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SpanFirstQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -54,11 +55,11 @@ public class SpanFirstQueryParser extends BaseQueryParser<SpanFirstQueryBuilder>
                 if ("match".equals(currentFieldName)) {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     if (!(query instanceof SpanQueryBuilder)) {
-                        throw new QueryParsingException(parseContext, "spanFirst [match] must be of type span query");
+                        throw new ParsingException(parseContext, "spanFirst [match] must be of type span query");
                     }
                     match = (SpanQueryBuilder) query;
                 } else {
-                    throw new QueryParsingException(parseContext, "[span_first] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[span_first] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
@@ -68,15 +69,15 @@ public class SpanFirstQueryParser extends BaseQueryParser<SpanFirstQueryBuilder>
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[span_first] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[span_first] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (match == null) {
-            throw new QueryParsingException(parseContext, "spanFirst must have [match] span query clause");
+            throw new ParsingException(parseContext, "spanFirst must have [match] span query clause");
         }
         if (end == null) {
-            throw new QueryParsingException(parseContext, "spanFirst must have [end] set for it");
+            throw new ParsingException(parseContext, "spanFirst must have [end] set for it");
         }
         SpanFirstQueryBuilder queryBuilder = new SpanFirstQueryBuilder(match, end);
         queryBuilder.boost(boost).queryName(queryName);

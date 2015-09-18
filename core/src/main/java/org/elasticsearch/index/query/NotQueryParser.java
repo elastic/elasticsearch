@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -38,7 +39,7 @@ public class NotQueryParser extends BaseQueryParser<NotQueryBuilder> {
     }
 
     @Override
-    public NotQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public NotQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         QueryBuilder query = null;
@@ -68,13 +69,13 @@ public class NotQueryParser extends BaseQueryParser<NotQueryBuilder> {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new QueryParsingException(parseContext, "[not] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[not] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (!queryFound) {
-            throw new QueryParsingException(parseContext, "query is required when using `not` query");
+            throw new ParsingException(parseContext, "query is required when using `not` query");
         }
 
         NotQueryBuilder notQueryBuilder = new NotQueryBuilder(query);

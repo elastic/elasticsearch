@@ -44,7 +44,7 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
 import org.elasticsearch.search.MultiValueMode;
@@ -118,7 +118,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
      *
      * */
     @Override
-    public ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, QueryParsingException {
+    public ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, ParsingException {
         String currentFieldName;
         XContentParser.Token token;
         AbstractDistanceScoreFunction scoreFunction;
@@ -152,7 +152,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         // the doc later
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryParsingException(context.parseContext(), "unknown field [{}]", fieldName);
+            throw new ParsingException(context.parseContext(), "unknown field [{}]", fieldName);
         }
 
         // dates and time need special handling
@@ -164,7 +164,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return parseNumberVariable(fieldName, parser, context, (NumberFieldMapper.NumberFieldType) fieldType, mode);
         } else {
-            throw new QueryParsingException(context.parseContext(), "field [{}] is of type [{}], but only numeric types are supported.", fieldName, fieldType);
+            throw new ParsingException(context.parseContext(), "field [{}] is of type [{}], but only numeric types are supported.", fieldName, fieldType);
         }
     }
 

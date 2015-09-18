@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,7 +37,7 @@ public class SpanTermQueryParser extends BaseQueryParser<SpanTermQueryBuilder> {
     }
 
     @Override
-    public SpanTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SpanTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.currentToken();
@@ -67,7 +68,7 @@ public class SpanTermQueryParser extends BaseQueryParser<SpanTermQueryBuilder> {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new QueryParsingException(parseContext, "[span_term] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parseContext, "[span_term] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -79,7 +80,7 @@ public class SpanTermQueryParser extends BaseQueryParser<SpanTermQueryBuilder> {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "No value specified for term query");
+            throw new ParsingException(parseContext, "No value specified for term query");
         }
 
         SpanTermQueryBuilder result = new SpanTermQueryBuilder(fieldName, value);

@@ -73,7 +73,7 @@ public class DummyQueryParserPlugin extends Plugin {
         }
 
         @Override
-        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser.Token token = parseContext.parser().nextToken();
             assert token == XContentParser.Token.END_OBJECT;
             return new DummyQueryBuilder();

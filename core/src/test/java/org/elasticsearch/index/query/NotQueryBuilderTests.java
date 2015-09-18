@@ -24,6 +24,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public class NotQueryBuilderTests extends AbstractQueryTestCase<NotQueryBuilder>
     /**
      * @throws IOException
      */
-    @Test(expected=QueryParsingException.class)
+    @Test(expected=ParsingException.class)
     public void testMissingFilterSection() throws IOException {
         String queryString = "{ \"not\" : {}";
         parseQuery(queryString);

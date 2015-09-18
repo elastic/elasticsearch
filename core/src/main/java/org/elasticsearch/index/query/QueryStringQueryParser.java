@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -43,7 +44,7 @@ public class QueryStringQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         String currentFieldName = null;
         XContentParser.Token token;
@@ -99,7 +100,7 @@ public class QueryStringQueryParser extends BaseQueryParser {
                         fieldsAndWeights.put(fField, fBoost);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext, "[query_string] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[query_string] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -157,17 +158,17 @@ public class QueryStringQueryParser extends BaseQueryParser {
                     try {
                         timeZone = parser.text();
                     } catch (IllegalArgumentException e) {
-                        throw new QueryParsingException(parseContext, "[query_string] time_zone [" + parser.text() + "] is unknown");
+                        throw new ParsingException(parseContext, "[query_string] time_zone [" + parser.text() + "] is unknown");
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[query_string] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[query_string] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (queryString == null) {
-            throw new QueryParsingException(parseContext, "query_string must be provided with a [query]");
+            throw new ParsingException(parseContext, "query_string must be provided with a [query]");
         }
 
         QueryStringQueryBuilder queryStringQuery = new QueryStringQueryBuilder(queryString);

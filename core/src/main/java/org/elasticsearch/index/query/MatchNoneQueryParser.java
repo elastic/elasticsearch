@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,7 +39,7 @@ public class MatchNoneQueryParser extends BaseQueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new QueryParsingException(parseContext, "[match_none] query malformed");
+            throw new ParsingException(parseContext, "[match_none] query malformed");
         }
 
         return new MatchNoneQueryBuilder();

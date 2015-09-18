@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -38,7 +39,7 @@ public class PrefixQueryParser extends BaseQueryParser<PrefixQueryBuilder> {
     }
 
     @Override
-    public PrefixQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public PrefixQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = parser.currentName();
@@ -69,7 +70,7 @@ public class PrefixQueryParser extends BaseQueryParser<PrefixQueryBuilder> {
                         } else if ("rewrite".equals(currentFieldName)) {
                             rewrite = parser.textOrNull();
                         } else {
-                            throw new QueryParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -84,7 +85,7 @@ public class PrefixQueryParser extends BaseQueryParser<PrefixQueryBuilder> {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "No value specified for prefix query");
+            throw new ParsingException(parseContext, "No value specified for prefix query");
         }
         return new PrefixQueryBuilder(fieldName, value)
                 .rewrite(rewrite)

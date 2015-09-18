@@ -83,7 +83,7 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ESSingleNodeTest
             SearchContext.setCurrent(new TestSearchContext());
             // We need to rewrite, because range on date field initially returns LateParsingQuery
             queryParser.parse(query).query().rewrite(null);
-            fail("A Range Filter with a specific format but with an unexpected date should raise a QueryParsingException");
+            fail("A Range Filter with a specific format but with an unexpected date should raise a ParsingException");
         } catch (ElasticsearchParseException e) {
             // We expect it
         } finally {
@@ -119,7 +119,7 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ESSingleNodeTest
         try {
             SearchContext.setCurrent(new TestSearchContext());
             queryParser.parse(query).query().rewrite(null);
-            fail("A Range Query with a specific format but with an unexpected date should raise a QueryParsingException");
+            fail("A Range Query with a specific format but with an unexpected date should raise a ParsingException");
         } catch (ElasticsearchParseException e) {
             // We expect it
         } finally {

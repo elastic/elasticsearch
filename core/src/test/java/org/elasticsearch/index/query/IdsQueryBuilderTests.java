@@ -24,6 +24,7 @@ import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.ParsingException;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
      * check that parser throws exception on missing values field
      * @throws IOException
      */
-    @Test(expected=QueryParsingException.class)
+    @Test(expected=ParsingException.class)
     public void testIdsNotProvided() throws IOException {
         String noIdsFieldQuery = "{\"ids\" : { \"type\" : \"my_type\"  }";
         parseQuery(noIdsFieldQuery);

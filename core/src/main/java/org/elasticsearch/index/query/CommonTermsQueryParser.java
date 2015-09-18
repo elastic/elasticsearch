@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -35,11 +36,11 @@ public class CommonTermsQueryParser extends BaseQueryParser<CommonTermsQueryBuil
     }
 
     @Override
-    public CommonTermsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public CommonTermsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[common] query malformed, no field");
+            throw new ParsingException(parseContext, "[common] query malformed, no field");
         }
         String fieldName = parser.currentName();
         Object text = null;
@@ -70,13 +71,13 @@ public class CommonTermsQueryParser extends BaseQueryParser<CommonTermsQueryBuil
                                 } else if ("high_freq".equals(innerFieldName) || "highFreq".equals(innerFieldName)) {
                                     highFreqMinimumShouldMatch = parser.text();
                                 } else {
-                                    throw new QueryParsingException(parseContext, "[common] query does not support [" + innerFieldName
+                                    throw new ParsingException(parseContext, "[common] query does not support [" + innerFieldName
                                             + "] for [" + currentFieldName + "]");
                                 }
                             }
                         }
                     } else {
-                        throw new QueryParsingException(parseContext, "[common] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parseContext, "[common] query does not support [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
                     if ("query".equals(currentFieldName)) {
@@ -98,7 +99,7 @@ public class CommonTermsQueryParser extends BaseQueryParser<CommonTermsQueryBuil
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new QueryParsingException(parseContext, "[common] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parseContext, "[common] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -108,14 +109,14 @@ public class CommonTermsQueryParser extends BaseQueryParser<CommonTermsQueryBuil
             // move to the next token
             token = parser.nextToken();
             if (token != XContentParser.Token.END_OBJECT) {
-                throw new QueryParsingException(
+                throw new ParsingException(
                         parseContext,
                         "[common] query parsed in simplified form, with direct field name, but included more options than just the field name, possibly use its 'options' form, with 'query' element?");
             }
         }
 
         if (text == null) {
-            throw new QueryParsingException(parseContext, "No text specified for text query");
+            throw new ParsingException(parseContext, "No text specified for text query");
         }
         return new CommonTermsQueryBuilder(fieldName, text)
                 .lowFreqMinimumShouldMatch(lowFreqMinimumShouldMatch)

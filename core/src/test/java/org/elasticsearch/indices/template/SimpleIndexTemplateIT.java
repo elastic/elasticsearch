@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.SearchHit;
@@ -505,7 +505,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             fail("index creation should have failed due to invalid alias filter in matching index template");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
-            assertThat(e.getCause(), instanceOf(QueryParsingException.class));
+            assertThat(e.getCause(), instanceOf(ParsingException.class));
             assertThat(e.getCause().getMessage(), equalTo("No query registered for [invalid]"));
         }
     }

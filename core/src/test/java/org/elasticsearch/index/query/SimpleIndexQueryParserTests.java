@@ -64,6 +64,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.*;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
@@ -315,8 +316,8 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
 
         try {
             queryParser.parse(copyToStringFromClasspath("/org/elasticsearch/index/query/query-timezone-incorrect.json"));
-            fail("we expect a QueryParsingException as we are providing an unknown time_zome");
-        } catch (QueryParsingException e) {
+            fail("we expect a ParsingException as we are providing an unknown time_zome");
+        } catch (ParsingException e) {
             // We expect this one
         }
     }
@@ -338,7 +339,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         try {
             queryParser.parse(query).query();
             fail("did not hit exception");
-        } catch (QueryParsingException qpe) {
+        } catch (ParsingException qpe) {
             // expected
             assertTrue(qpe.getCause() instanceof TooComplexToDeterminizeException);
         }
@@ -464,7 +465,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(fieldQuery.getTerm().bytes(), equalTo(indexedValueForSearch(34l)));
     }
 
-    @Test(expected = QueryParsingException.class)
+    @Test(expected = ParsingException.class)
     public void testTermQueryArrayInvalid() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-array-invalid.json");
@@ -917,7 +918,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         try {
             queryParser.parse(query).query();
             fail();
-        } catch (QueryParsingException ex) {
+        } catch (ParsingException ex) {
             assertThat(ex.getMessage(), equalTo("[terms] query does not support multiple fields"));
         }
     }
@@ -931,7 +932,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         try {
             queryParser.parse(query).query();
             fail();
-        } catch (QueryParsingException ex) {
+        } catch (ParsingException ex) {
             assertThat(ex.getMessage(), equalTo("[terms] query does not support multiple fields"));
         }
     }
@@ -963,7 +964,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         try {
             queryParser.parse(query);
             fail("Expected Query Parsing Exception but did not happen");
-        } catch (QueryParsingException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("[term] query does not support different field names, use [bool] query instead"));
         }
     }
@@ -1757,7 +1758,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
             try {
                 queryParser.parse(query).query();
                 fail("parsing a broken geo_polygon filter didn't fail as expected while parsing: " + brokenFile);
-            } catch (QueryParsingException e) {
+            } catch (ParsingException e) {
                 // success!
             }
         }
@@ -1893,7 +1894,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertTrue(ectQuery.isCoordDisabled());
     }
 
-    @Test(expected = QueryParsingException.class)
+    @Test(expected = ParsingException.class)
     public void assureMalformedThrowsException() throws IOException {
         IndexQueryParserService queryParser;
         queryParser = queryParser();
@@ -1916,10 +1917,10 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     public void testBadTypeMatchQuery() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/match-query-bad-type.json");
-        QueryParsingException expectedException = null;
+        ParsingException expectedException = null;
         try {
             queryParser.parse(query).query();
-        } catch (QueryParsingException qpe) {
+        } catch (ParsingException qpe) {
             expectedException = qpe;
         }
         assertThat(expectedException, notNullValue());
@@ -1937,10 +1938,10 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     public void testBadTypeMultiMatchQuery() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/multiMatch-query-bad-type.json");
-        QueryParsingException expectedException = null;
+        ParsingException expectedException = null;
         try {
             queryParser.parse(query).query();
-        } catch (QueryParsingException qpe) {
+        } catch (ParsingException qpe) {
             expectedException = qpe;
         }
         assertThat(expectedException, notNullValue());
@@ -2003,7 +2004,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         try {
             queryParser.parse(query).query();
             fail("FunctionScoreQueryParser should throw an exception here because two functions in body are not allowed.");
-        } catch (QueryParsingException e) {
+        } catch (ParsingException e) {
             assertThat(e.getDetailedMessage(), containsString("use [functions] array if you want to define several functions."));
         }
     }
@@ -2048,7 +2049,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         try {
             queryParser.parse(query).query();
             fail("Expect exception here because array of functions and one weight in body is not allowed.");
-        } catch (QueryParsingException e) {
+        } catch (ParsingException e) {
             assertThat(e.getDetailedMessage(), containsString("you can either define [functions] array or a single function, not both. already found [functions] array, now encountering [weight]."));
         }
         query = jsonBuilder().startObject().startObject("function_score")
@@ -2060,7 +2061,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         try {
             queryParser.parse(query).query();
             fail("Expect exception here because array of functions and one weight in body is not allowed.");
-        } catch (QueryParsingException e) {
+        } catch (ParsingException e) {
             assertThat(e.getDetailedMessage(), containsString("you can either define [functions] array or a single function, not both. already found [weight], now encountering [functions]."));
         }
     }

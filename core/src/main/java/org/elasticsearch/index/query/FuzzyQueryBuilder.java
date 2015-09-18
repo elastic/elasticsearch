@@ -231,7 +231,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     }
 
     @Override
-    public Query doToQuery(QueryShardContext context) throws QueryParsingException, IOException {
+    public Query doToQuery(QueryShardContext context) throws IOException {
         Query query = null;
         if (rewrite == null && context.isFilter()) {
             rewrite = QueryParsers.CONSTANT_SCORE.getPreferredName();

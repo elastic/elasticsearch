@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -35,16 +36,16 @@ public class WrapperQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[wrapper] query malformed");
+            throw new ParsingException(parseContext, "[wrapper] query malformed");
         }
         String fieldName = parser.currentName();
         if (!fieldName.equals("query")) {
-            throw new QueryParsingException(parseContext, "[wrapper] query malformed");
+            throw new ParsingException(parseContext, "[wrapper] query malformed");
         }
         parser.nextToken();
 
@@ -53,7 +54,7 @@ public class WrapperQueryParser extends BaseQueryParser {
         parser.nextToken();
 
         if (source == null) {
-            throw new QueryParsingException(parseContext, "wrapper query has no [query] specified");
+            throw new ParsingException(parseContext, "wrapper query has no [query] specified");
         }
         return new WrapperQueryBuilder(source);
     }

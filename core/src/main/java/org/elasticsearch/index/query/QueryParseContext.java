@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -124,7 +125,7 @@ public class QueryParseContext {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new QueryParsingException(this, "[_na] query malformed, must start with start_object");
+                throw new ParsingException(this, "[_na] query malformed, must start with start_object");
             }
         }
         token = parser.nextToken();
@@ -133,18 +134,18 @@ public class QueryParseContext {
             return EmptyQueryBuilder.PROTOTYPE;
         }
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(this, "[_na] query malformed, no field after start_object");
+            throw new ParsingException(this, "[_na] query malformed, no field after start_object");
         }
         String queryName = parser.currentName();
         // move to the next START_OBJECT
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
-            throw new QueryParsingException(this, "[_na] query malformed, no field after start_object");
+            throw new ParsingException(this, "[_na] query malformed, no field after start_object");
         }
 
         QueryParser queryParser = queryParser(queryName);
         if (queryParser == null) {
-            throw new QueryParsingException(this, "No query registered for [" + queryName + "]");
+            throw new ParsingException(this, "No query registered for [" + queryName + "]");
         }
         QueryBuilder result = queryParser.fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
@@ -171,13 +172,13 @@ public class QueryParseContext {
     }
 
     //norelease setting and checking the isFilter Flag should completely be moved to toQuery/toFilter after query refactoring
-    public QueryBuilder parseInnerFilterToQueryBuilder(String queryName) throws IOException, QueryParsingException {
+    public QueryBuilder parseInnerFilterToQueryBuilder(String queryName) throws IOException {
         final boolean originalIsFilter = this.shardContext.isFilter;
         try {
             this.shardContext.isFilter = true;
             QueryParser queryParser = queryParser(queryName);
             if (queryParser == null) {
-                throw new QueryParsingException(this, "No query registered for [" + queryName + "]");
+                throw new ParsingException(this, "No query registered for [" + queryName + "]");
             }
             return queryParser.fromXContent(this);
         } finally {

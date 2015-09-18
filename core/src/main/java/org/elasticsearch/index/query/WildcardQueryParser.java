@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -35,12 +36,12 @@ public class WildcardQueryParser extends BaseQueryParser<WildcardQueryBuilder> {
     }
 
     @Override
-    public WildcardQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public WildcardQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[wildcard] query malformed, no field");
+            throw new ParsingException(parseContext, "[wildcard] query malformed, no field");
         }
         String fieldName = parser.currentName();
         String rewrite = null;
@@ -66,7 +67,7 @@ public class WildcardQueryParser extends BaseQueryParser<WildcardQueryBuilder> {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new QueryParsingException(parseContext, "[wildcard] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parseContext, "[wildcard] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -77,7 +78,7 @@ public class WildcardQueryParser extends BaseQueryParser<WildcardQueryBuilder> {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "No value specified for prefix query");
+            throw new ParsingException(parseContext, "No value specified for prefix query");
         }
         return new WildcardQueryBuilder(fieldName, value)
                 .rewrite(rewrite)

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -35,7 +36,7 @@ public class BoostingQueryParser extends BaseQueryParser<BoostingQueryBuilder> {
     }
 
     @Override
-    public BoostingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public BoostingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         QueryBuilder positiveQuery = null;
@@ -59,7 +60,7 @@ public class BoostingQueryParser extends BaseQueryParser<BoostingQueryBuilder> {
                     negativeQuery = parseContext.parseInnerQueryBuilder();
                     negativeQueryFound = true;
                 } else {
-                    throw new QueryParsingException(parseContext, "[boosting] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[boosting] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("negative_boost".equals(currentFieldName) || "negativeBoost".equals(currentFieldName)) {
@@ -69,19 +70,19 @@ public class BoostingQueryParser extends BaseQueryParser<BoostingQueryBuilder> {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new QueryParsingException(parseContext, "[boosting] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[boosting] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (!positiveQueryFound) {
-            throw new QueryParsingException(parseContext, "[boosting] query requires 'positive' query to be set'");
+            throw new ParsingException(parseContext, "[boosting] query requires 'positive' query to be set'");
         }
         if (!negativeQueryFound) {
-            throw new QueryParsingException(parseContext, "[boosting] query requires 'negative' query to be set'");
+            throw new ParsingException(parseContext, "[boosting] query requires 'negative' query to be set'");
         }
         if (negativeBoost < 0) {
-            throw new QueryParsingException(parseContext, "[boosting] query requires 'negative_boost' to be set to be a positive value'");
+            throw new ParsingException(parseContext, "[boosting] query requires 'negative_boost' to be set to be a positive value'");
         }
 
         BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);

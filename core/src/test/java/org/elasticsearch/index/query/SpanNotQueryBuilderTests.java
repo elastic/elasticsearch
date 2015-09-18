@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanNotQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.junit.Test;
@@ -142,9 +143,9 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
 
             try {
                 parseQuery(builder.string());
-                fail("QueryParsingException should have been caught");
-            } catch (QueryParsingException e) {
-                assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [include]"));
+                fail("ParsingException should have been caught");
+            } catch (ParsingException e) {
+                assertThat("ParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [include]"));
             }
         }
 
@@ -161,9 +162,9 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
 
             try {
                 parseQuery(builder.string());
-                fail("QueryParsingException should have been caught");
-            } catch (QueryParsingException e) {
-                assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [exclude]"));
+                fail("ParsingException should have been caught");
+            } catch (ParsingException e) {
+                assertThat("ParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [exclude]"));
             }
         }
 
@@ -183,9 +184,9 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
 
             try {
                 parseQuery(builder.string());
-                fail("QueryParsingException should have been caught");
-            } catch (QueryParsingException e) {
-                assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot can either use [dist] or [pre] & [post] (or none)"));
+                fail("ParsingException should have been caught");
+            } catch (ParsingException e) {
+                assertThat("ParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot can either use [dist] or [pre] & [post] (or none)"));
             }
         }
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanFirstQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.junit.Test;
@@ -61,7 +62,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
             try {
                 parseQuery(builder.string());
                 fail("missing [end] parameter should raise exception");
-            } catch (QueryParsingException e) {
+            } catch (ParsingException e) {
                 assertTrue(e.getMessage().contains("spanFirst must have [end] set"));
             }
         }
@@ -77,7 +78,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
             try {
                 parseQuery(builder.string());
                 fail("missing [match] parameter should raise exception");
-            } catch (QueryParsingException e) {
+            } catch (ParsingException e) {
                 assertTrue(e.getMessage().contains("spanFirst must have [match] span query clause"));
             }
         }

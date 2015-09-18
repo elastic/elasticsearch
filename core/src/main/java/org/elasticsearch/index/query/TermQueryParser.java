@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -39,7 +40,7 @@ public class TermQueryParser extends BaseQueryParser<TermQueryBuilder> {
     }
 
     @Override
-    public TermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public TermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String queryName = null;
@@ -56,7 +57,7 @@ public class TermQueryParser extends BaseQueryParser<TermQueryBuilder> {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // also support a format of "term" : {"field_name" : { ... }}
                 if (fieldName != null) {
-                    throw new QueryParsingException(parseContext, "[term] query does not support different field names, use [bool] query instead");
+                    throw new ParsingException(parseContext, "[term] query does not support different field names, use [bool] query instead");
                 }
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -72,7 +73,7 @@ public class TermQueryParser extends BaseQueryParser<TermQueryBuilder> {
                         } else if ("boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
                         } else {
-                            throw new QueryParsingException(parseContext, "[term] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parseContext, "[term] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -83,13 +84,13 @@ public class TermQueryParser extends BaseQueryParser<TermQueryBuilder> {
                     boost = parser.floatValue();
                 } else {
                     if (fieldName != null) {
-                        throw new QueryParsingException(parseContext, "[term] query does not support different field names, use [bool] query instead");
+                        throw new ParsingException(parseContext, "[term] query does not support different field names, use [bool] query instead");
                     }
                     fieldName = currentFieldName;
                     value = parser.objectBytes();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                throw new QueryParsingException(parseContext, "[term] query does not support array of values");
+                throw new ParsingException(parseContext, "[term] query does not support array of values");
             }
         }
 

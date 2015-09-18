@@ -20,6 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
@@ -55,7 +56,7 @@ public class TemplateQueryParser extends BaseQueryParser<TemplateQueryBuilder> {
      */
     @Override
     @Nullable
-    public TemplateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public TemplateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         Template template = parse(parser, parseContext.parseFieldMatcher());
         return new TemplateQueryBuilder(template);

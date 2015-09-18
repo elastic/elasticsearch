@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.MatchQuery;
@@ -40,7 +41,7 @@ public class MultiMatchQueryParser extends BaseQueryParser<MultiMatchQueryBuilde
     }
 
     @Override
-    public MultiMatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public MultiMatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         Object value = null;
@@ -76,7 +77,7 @@ public class MultiMatchQueryParser extends BaseQueryParser<MultiMatchQueryBuilde
                 } else if (token.isValue()) {
                     parseFieldAndBoost(parser, fieldsBoosts);
                 } else {
-                    throw new QueryParsingException(parseContext, "[" + MultiMatchQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[" + MultiMatchQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -116,22 +117,22 @@ public class MultiMatchQueryParser extends BaseQueryParser<MultiMatchQueryBuilde
                     } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
                         zeroTermsQuery = MatchQuery.ZeroTermsQuery.ALL;
                     } else {
-                        throw new QueryParsingException(parseContext, "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
+                        throw new ParsingException(parseContext, "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[match] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[match] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "No text specified for multi_match query");
+            throw new ParsingException(parseContext, "No text specified for multi_match query");
         }
 
         if (fieldsBoosts.isEmpty()) {
-            throw new QueryParsingException(parseContext, "No fields specified for multi_match query");
+            throw new ParsingException(parseContext, "No fields specified for multi_match query");
         }
 
         return new MultiMatchQueryBuilder(value)

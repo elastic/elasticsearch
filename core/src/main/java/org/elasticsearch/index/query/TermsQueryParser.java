@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
@@ -49,7 +50,7 @@ public class TermsQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -70,7 +71,7 @@ public class TermsQueryParser extends BaseQueryParser {
                 // skip
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if  (fieldName != null) {
-                    throw new QueryParsingException(parseContext, "[terms] query does not support multiple fields");
+                    throw new ParsingException(parseContext, "[terms] query does not support multiple fields");
                 }
                 fieldName = currentFieldName;
                 values = parseValues(parseContext, parser);
@@ -92,13 +93,13 @@ public class TermsQueryParser extends BaseQueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[terms] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[terms] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext, "terms query requires a field name, followed by array of terms or a document lookup specification");
+            throw new ParsingException(parseContext, "terms query requires a field name, followed by array of terms or a document lookup specification");
         }
         return new TermsQueryBuilder(fieldName, values, minShouldMatch, disableCoord, termsLookup)
                 .boost(boost)
@@ -111,7 +112,7 @@ public class TermsQueryParser extends BaseQueryParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             Object value = parser.objectBytes();
             if (value == null) {
-                throw new QueryParsingException(parseContext, "No value specified for terms query");
+                throw new ParsingException(parseContext, "No value specified for terms query");
             }
             values.add(value);
         }
@@ -137,19 +138,19 @@ public class TermsQueryParser extends BaseQueryParser {
                 } else if ("path".equals(currentFieldName)) {
                     termsLookup.path(parser.text());
                 } else {
-                    throw new QueryParsingException(parseContext, "[terms] query does not support [" + currentFieldName
+                    throw new ParsingException(parseContext, "[terms] query does not support [" + currentFieldName
                             + "] within lookup element");
                 }
             }
         }
         if (termsLookup.type() == null) {
-            throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the type");
+            throw new ParsingException(parseContext, "[terms] query lookup element requires specifying the type");
         }
         if (termsLookup.id() == null) {
-            throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the id");
+            throw new ParsingException(parseContext, "[terms] query lookup element requires specifying the id");
         }
         if (termsLookup.path() == null) {
-            throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the path");
+            throw new ParsingException(parseContext, "[terms] query lookup element requires specifying the path");
         }
         return termsLookup;
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -162,7 +163,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryShardException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(getShardContext().parseContext(), "Failed to parse", e);
+            throw new ParsingException(getShardContext().parseContext(), "Failed to parse", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -182,7 +183,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryShardException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(getShardContext().parseContext(), "Failed to parse", e);
+            throw new ParsingException(getShardContext().parseContext(), "Failed to parse", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -200,10 +201,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         try {
             parser = XContentFactory.xContent(source).createParser(source);
             return innerParse(context, parser);
-        } catch (QueryParsingException e) {
+        } catch (ParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(context.parseContext(), "Failed to parse", e);
+            throw new ParsingException(context.parseContext(), "Failed to parse", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -211,15 +212,15 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
-    public ParsedQuery parse(String source) throws QueryParsingException, QueryShardException {
+    public ParsedQuery parse(String source) throws ParsingException, QueryShardException {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source).createParser(source);
             return innerParse(cache.get(), parser);
-        } catch (QueryShardException|QueryParsingException e) {
+        } catch (QueryShardException|ParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(getShardContext().parseContext(), "Failed to parse [" + source + "]", e);
+            throw new ParsingException(getShardContext().parseContext(), "Failed to parse [" + source + "]", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -236,7 +237,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         try {
             return innerParse(context, parser);
         } catch (IOException e) {
-            throw new QueryParsingException(context.parseContext(), "Failed to parse", e);
+            throw new ParsingException(context.parseContext(), "Failed to parse", e);
         }
     }
 
@@ -307,7 +308,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                         XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
                         parsedQuery = parse(qSourceParser);
                     } else {
-                        throw new QueryParsingException(getShardContext().parseContext(), "request does not support [" + fieldName + "]");
+                        throw new ParsingException(getShardContext().parseContext(), "request does not support [" + fieldName + "]");
                     }
                 }
             }
@@ -317,10 +318,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryShardException e) {
             throw e;
         } catch (Throwable e) {
-            throw new QueryParsingException(getShardContext().parseContext(), "Failed to parse", e);
+            throw new ParsingException(getShardContext().parseContext(), "Failed to parse", e);
         }
 
-        throw new QueryParsingException(getShardContext().parseContext(), "Required query is missing");
+        throw new ParsingException(getShardContext().parseContext(), "Required query is missing");
     }
 
     //norelease

@@ -32,7 +32,7 @@ import java.io.IOException;
 public abstract class BaseQueryParserTemp implements QueryParser {
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         Query query = parse(parseContext.shardContext());
         return new QueryWrappingQueryBuilder(query);
     }

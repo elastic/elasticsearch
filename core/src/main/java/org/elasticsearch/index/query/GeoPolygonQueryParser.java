@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -54,7 +55,7 @@ public class GeoPolygonQueryParser extends BaseQueryParser<GeoPolygonQueryBuilde
     }
 
     @Override
-    public GeoPolygonQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public GeoPolygonQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -86,11 +87,11 @@ public class GeoPolygonQueryParser extends BaseQueryParser<GeoPolygonQueryBuilde
                                 shell.add(GeoUtils.parseGeoPoint(parser));
                             }
                         } else {
-                            throw new QueryParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName
+                            throw new ParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName
                                     + "]");
                         }
                     } else {
-                        throw new QueryParsingException(parseContext, "[geo_polygon] query does not support token type [" + token.name()
+                        throw new ParsingException(parseContext, "[geo_polygon] query does not support token type [" + token.name()
                                 + "] under [" + currentFieldName + "]");
                     }
                 }
@@ -107,10 +108,10 @@ public class GeoPolygonQueryParser extends BaseQueryParser<GeoPolygonQueryBuilde
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
                     ignoreMalformed = parser.booleanValue();
                 } else {
-                    throw new QueryParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new QueryParsingException(parseContext, "[geo_polygon] unexpected token type [" + token.name() + "]");
+                throw new ParsingException(parseContext, "[geo_polygon] unexpected token type [" + token.name() + "]");
             }
         }
         GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(fieldName, shell);

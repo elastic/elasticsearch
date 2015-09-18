@@ -67,7 +67,7 @@ public class GeoDistanceRangeQueryParser extends BaseQueryParser<GeoDistanceRang
     }
 
     @Override
-    public GeoDistanceRangeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public GeoDistanceRangeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;

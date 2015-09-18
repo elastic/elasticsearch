@@ -82,7 +82,7 @@ public class IndexQueryParserFilterDateRangeTimezoneTests extends ESSingleNodeTe
         try {
             SearchContext.setCurrent(new TestSearchContext());
             queryParser.parse(query).query();
-            fail("A Range Filter on a numeric field with a TimeZone should raise a QueryParsingException");
+            fail("A Range Filter on a numeric field with a TimeZone should raise a ParsingException");
         } catch (QueryShardException e) {
             // We expect it
         } finally {
@@ -119,7 +119,7 @@ public class IndexQueryParserFilterDateRangeTimezoneTests extends ESSingleNodeTe
         try {
             SearchContext.setCurrent(new TestSearchContext());
             queryParser.parse(query).query();
-            fail("A Range Query on a numeric field with a TimeZone should raise a QueryParsingException");
+            fail("A Range Query on a numeric field with a TimeZone should raise a ParsingException");
         } catch (QueryShardException e) {
             // We expect it
         } finally {

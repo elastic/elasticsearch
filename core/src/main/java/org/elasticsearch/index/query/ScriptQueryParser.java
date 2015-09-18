@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
@@ -41,7 +42,7 @@ public class ScriptQueryParser extends BaseQueryParser<ScriptQueryBuilder> {
     }
 
     @Override
-    public ScriptQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public ScriptQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         
@@ -65,7 +66,7 @@ public class ScriptQueryParser extends BaseQueryParser<ScriptQueryBuilder> {
                 } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
                     params = parser.map();
                 } else {
-                    throw new QueryParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
@@ -73,7 +74,7 @@ public class ScriptQueryParser extends BaseQueryParser<ScriptQueryBuilder> {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.parseFieldMatcher())) {
-                    throw new QueryParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -87,11 +88,11 @@ public class ScriptQueryParser extends BaseQueryParser<ScriptQueryBuilder> {
                 script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
         } else if (params != null) {
-            throw new QueryParsingException(parseContext, "script params must be specified inside script object in a [script] filter");
+            throw new ParsingException(parseContext, "script params must be specified inside script object in a [script] filter");
         }
 
         if (script == null) {
-            throw new QueryParsingException(parseContext, "script must be provided with a [script] filter");
+            throw new ParsingException(parseContext, "script must be provided with a [script] filter");
         }
 
         return new ScriptQueryBuilder(script)

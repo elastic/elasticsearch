@@ -60,7 +60,7 @@ import org.elasticsearch.index.engine.CreateFailedEngineException;
 import org.elasticsearch.index.engine.IndexFailedEngineException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -111,7 +111,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         final Path startPath = PathUtils.get(ElasticsearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI()).resolve("org").resolve("elasticsearch");
         final Set<? extends Class> ignore = Sets.newHashSet(
                 org.elasticsearch.test.rest.parser.RestTestParseException.class,
-                org.elasticsearch.index.query.TestQueryParsingException.class,
+                org.elasticsearch.index.query.TestParsingException.class,
                 org.elasticsearch.test.rest.client.RestException.class,
                 CancellableThreadsTests.CustomException.class,
                 org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
@@ -226,14 +226,14 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertNull(serialize.getCause());
     }
 
-    public void testQueryParsingException() throws IOException {
-        QueryParsingException ex = serialize(new QueryParsingException(new Index("foo"), 1, 2, "fobar", null));
+    public void testParsingException() throws IOException {
+        ParsingException ex = serialize(new ParsingException(new Index("foo"), 1, 2, "fobar", null));
         assertEquals(ex.getIndex(), "foo");
         assertEquals(ex.getMessage(), "fobar");
         assertEquals(ex.getLineNumber(),1);
         assertEquals(ex.getColumnNumber(), 2);
 
-        ex = serialize(new QueryParsingException(null, 1, 2, null, null));
+        ex = serialize(new ParsingException(null, 1, 2, null, null));
         assertNull(ex.getIndex());
         assertNull(ex.getMessage());
         assertEquals(ex.getLineNumber(),1);

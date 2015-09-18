@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ public class RangeQueryParser extends BaseQueryParser<RangeQueryBuilder> {
     }
 
     @Override
-    public RangeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public RangeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -93,7 +94,7 @@ public class RangeQueryParser extends BaseQueryParser<RangeQueryBuilder> {
                         } else if ("_name".equals(currentFieldName)) {
                             queryName = parser.text();
                         } else {
-                            throw new QueryParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -103,7 +104,7 @@ public class RangeQueryParser extends BaseQueryParser<RangeQueryBuilder> {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, FIELDDATA_FIELD)) {
                     // ignore
                 } else {
-                    throw new QueryParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
                 }
             }
         }

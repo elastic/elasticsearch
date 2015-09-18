@@ -290,7 +290,7 @@ public class GeohashCellQuery {
         }
 
         @Override
-        public Builder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        public Builder fromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser parser = parseContext.parser();
 
             String fieldName = null;

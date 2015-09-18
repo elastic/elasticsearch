@@ -22,13 +22,13 @@ package org.elasticsearch.index.query.functionscore;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
 
 public interface ScoreFunctionParser {
 
-    ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, QueryParsingException;
+    ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, ParsingException;
 
     /**
      * Returns the name of the function, for example "linear", "gauss" etc. This

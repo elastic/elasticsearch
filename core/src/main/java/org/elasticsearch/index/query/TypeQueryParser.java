@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -36,7 +37,7 @@ public class TypeQueryParser extends BaseQueryParser<TypeQueryBuilder> {
     }
 
     @Override
-    public TypeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public TypeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         BytesRef type = null;
 
@@ -57,12 +58,12 @@ public class TypeQueryParser extends BaseQueryParser<TypeQueryBuilder> {
                     type = parser.utf8Bytes();
                 }
             } else {
-                throw new QueryParsingException(parseContext, "[type] filter doesn't support [" + currentFieldName + "]");
+                throw new ParsingException(parseContext, "[type] filter doesn't support [" + currentFieldName + "]");
             }
         }
 
         if (type == null) {
-            throw new QueryParsingException(parseContext, "[type] filter needs to be provided with a value for the type");
+            throw new ParsingException(parseContext, "[type] filter needs to be provided with a value for the type");
         }
         return new TypeQueryBuilder(type)
                 .boost(boost)

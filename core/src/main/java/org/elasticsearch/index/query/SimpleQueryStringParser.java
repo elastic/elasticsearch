@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -68,7 +69,7 @@ public class SimpleQueryStringParser extends BaseQueryParser<SimpleQueryStringBu
     }
 
     @Override
-    public SimpleQueryStringBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SimpleQueryStringBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String currentFieldName = null;
@@ -110,7 +111,7 @@ public class SimpleQueryStringParser extends BaseQueryParser<SimpleQueryStringBu
                         fieldsAndWeights.put(fField, fBoost);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -146,14 +147,14 @@ public class SimpleQueryStringParser extends BaseQueryParser<SimpleQueryStringBu
                 } else if ("minimum_should_match".equals(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
                 } else {
-                    throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] unsupported field [" + parser.currentName() + "]");
+                    throw new ParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] unsupported field [" + parser.currentName() + "]");
                 }
             }
         }
 
         // Query text is required
         if (queryBody == null) {
-            throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] query text missing");
+            throw new ParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] query text missing");
         }
 
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);

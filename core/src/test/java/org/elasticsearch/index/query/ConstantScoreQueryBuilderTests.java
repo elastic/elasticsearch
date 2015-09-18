@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -50,9 +51,9 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     /**
-     * test that missing "filter" element causes {@link QueryParsingException}
+     * test that missing "filter" element causes {@link ParsingException}
      */
-    @Test(expected=QueryParsingException.class)
+    @Test(expected=ParsingException.class)
     public void testFilterElement() throws IOException {
         String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {}";
         parseQuery(queryString);

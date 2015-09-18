@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -46,7 +47,7 @@ public class GeoDistanceQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;
@@ -86,7 +87,7 @@ public class GeoDistanceQueryParser extends BaseQueryParser {
                         } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
                             point.resetFromGeoHash(parser.text());
                         } else {
-                            throw new QueryParsingException(parseContext, "[geo_distance] query does not support [" + currentFieldName
+                            throw new ParsingException(parseContext, "[geo_distance] query does not support [" + currentFieldName
                                     + "]");
                         }
                     }
@@ -132,7 +133,7 @@ public class GeoDistanceQueryParser extends BaseQueryParser {
         }
 
         if (vDistance == null) {
-            throw new QueryParsingException(parseContext, "geo_distance requires 'distance' to be specified");
+            throw new ParsingException(parseContext, "geo_distance requires 'distance' to be specified");
         }
 
         GeoDistanceQueryBuilder qb = new GeoDistanceQueryBuilder(fieldName);

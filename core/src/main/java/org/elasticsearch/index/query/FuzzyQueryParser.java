@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,12 +38,12 @@ public class FuzzyQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[fuzzy] query malformed, no field");
+            throw new ParsingException(parseContext, "[fuzzy] query malformed, no field");
         }
         
         String fieldName = parser.currentName();
@@ -83,7 +84,7 @@ public class FuzzyQueryParser extends BaseQueryParser {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new QueryParsingException(parseContext, "[fuzzy] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parseContext, "[fuzzy] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -95,7 +96,7 @@ public class FuzzyQueryParser extends BaseQueryParser {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "no value specified for fuzzy query");
+            throw new ParsingException(parseContext, "no value specified for fuzzy query");
         }
         return new FuzzyQueryBuilder(fieldName, value)
                 .fuzziness(fuzziness)

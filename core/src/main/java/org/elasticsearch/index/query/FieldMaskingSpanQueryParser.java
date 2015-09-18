@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,7 +36,7 @@ public class FieldMaskingSpanQueryParser extends BaseQueryParser<FieldMaskingSpa
     }
 
     @Override
-    public FieldMaskingSpanQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public FieldMaskingSpanQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -53,11 +54,11 @@ public class FieldMaskingSpanQueryParser extends BaseQueryParser<FieldMaskingSpa
                 if ("query".equals(currentFieldName)) {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     if (!(query instanceof SpanQueryBuilder)) {
-                        throw new QueryParsingException(parseContext, "[field_masking_span] query must be of type span query");
+                        throw new ParsingException(parseContext, "[field_masking_span] query must be of type span query");
                     }
                     inner = (SpanQueryBuilder) query;
                 } else {
-                    throw new QueryParsingException(parseContext, "[field_masking_span] query does not support ["
+                    throw new ParsingException(parseContext, "[field_masking_span] query does not support ["
                             + currentFieldName + "]");
                 }
             } else {
@@ -68,15 +69,15 @@ public class FieldMaskingSpanQueryParser extends BaseQueryParser<FieldMaskingSpa
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[field_masking_span] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[field_masking_span] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (inner == null) {
-            throw new QueryParsingException(parseContext, "field_masking_span must have [query] span query clause");
+            throw new ParsingException(parseContext, "field_masking_span must have [query] span query clause");
         }
         if (field == null) {
-            throw new QueryParsingException(parseContext, "field_masking_span must have [field] set for it");
+            throw new ParsingException(parseContext, "field_masking_span must have [field] set for it");
         }
 
         FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(inner, field);

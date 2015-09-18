@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -38,7 +39,7 @@ public class RegexpQueryParser extends BaseQueryParser<RegexpQueryBuilder> {
     }
 
     @Override
-    public RegexpQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public RegexpQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = parser.currentName();
@@ -78,7 +79,7 @@ public class RegexpQueryParser extends BaseQueryParser<RegexpQueryBuilder> {
                         } else if ("_name".equals(currentFieldName)) {
                             queryName = parser.text();
                         } else {
-                            throw new QueryParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -93,7 +94,7 @@ public class RegexpQueryParser extends BaseQueryParser<RegexpQueryBuilder> {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "No value specified for regexp query");
+            throw new ParsingException(parseContext, "No value specified for regexp query");
         }
         return new RegexpQueryBuilder(fieldName, value)
                 .flags(flagsValue)

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.QueryInnerHits;
@@ -40,7 +41,7 @@ public class HasChildQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String childType = null;
@@ -63,7 +64,7 @@ public class HasChildQueryParser extends BaseQueryParser {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     queryInnerHits = new QueryInnerHits(parser);
                 } else {
-                    throw new QueryParsingException(parseContext, "[has_child] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[has_child] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
@@ -79,7 +80,7 @@ public class HasChildQueryParser extends BaseQueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[has_child] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[has_child] query does not support [" + currentFieldName + "]");
                 }
             }
         }

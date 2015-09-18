@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -52,7 +53,7 @@ public class MatchAllQueryParser extends BaseQueryParser<MatchAllQueryBuilder> {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new QueryParsingException(parseContext, "[match_all] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[match_all] query does not support [" + currentFieldName + "]");
                 }
             }
         }

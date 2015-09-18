@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 
@@ -61,7 +62,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
     }
 
     @Override
-    public MoreLikeThisQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public MoreLikeThisQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         // document inputs
@@ -130,7 +131,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, Field.FIELDS)) {
@@ -166,7 +167,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
                         stopWords.add(parser.text());
                     }
                 } else {
-                    throw new QueryParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, Field.LIKE)) {
@@ -174,16 +175,16 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.UNLIKE)) {
                     parseLikeField(parseContext, unlikeTexts, unlikeItems);
                 } else {
-                    throw new QueryParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (likeTexts.isEmpty() && likeItems.isEmpty()) {
-            throw new QueryParsingException(parseContext, "more_like_this requires 'like' to be specified");
+            throw new ParsingException(parseContext, "more_like_this requires 'like' to be specified");
         }
         if (fields != null && fields.isEmpty()) {
-            throw new QueryParsingException(parseContext, "more_like_this requires 'fields' to be non-empty");
+            throw new ParsingException(parseContext, "more_like_this requires 'fields' to be non-empty");
         }
 
         MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(fields)

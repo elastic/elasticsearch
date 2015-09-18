@@ -44,7 +44,7 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -210,7 +210,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
             context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString ? true : false);
             return queryParserService.parseInnerQuery(context);
         } catch (IOException e) {
-            throw new QueryParsingException(context.parseContext(), "Failed to parse", e);
+            throw new ParsingException(context.parseContext(), "Failed to parse", e);
         } finally {
             if (type != null) {
                 QueryShardContext.setTypes(previousTypes);

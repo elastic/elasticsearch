@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.elasticsearch.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -34,22 +35,25 @@ import java.io.IOException;
  * Exception that can be used when parsing queries with a given {@link QueryParseContext}.
  * Can contain information about location of the error.
  */
-public class QueryParsingException extends ElasticsearchException {
+public class ParsingException extends ElasticsearchException {
 
-    static final int UNKNOWN_POSITION = -1;
+    protected static final int UNKNOWN_POSITION = -1;
     private final int lineNumber;
     private final int columnNumber;
 
-    public QueryParsingException(QueryParseContext parseContext, String msg, Object... args) {
+    public ParsingException(QueryParseContext parseContext, String msg, Object... args) {
         this(parseContext, msg, null, args);
     }
 
-    public QueryParsingException(QueryParseContext parseContext, String msg, Throwable cause, Object... args) {
+    public ParsingException(QueryParseContext parseContext, String msg, Throwable cause, Object... args) {
+        this(parseContext.index(), parseContext.parser(), msg, cause, args);
+    }
+
+    public ParsingException(Index index, XContentParser parser, String msg, Throwable cause, Object... args) {
         super(msg, cause, args);
-        setIndex(parseContext.index());
+        setIndex(index);
         int lineNumber = UNKNOWN_POSITION;
         int columnNumber = UNKNOWN_POSITION;
-        XContentParser parser = parseContext.parser();
         if (parser != null) {
             XContentLocation location = parser.getTokenLocation();
             if (location != null) {
@@ -65,14 +69,14 @@ public class QueryParsingException extends ElasticsearchException {
      * This constructor is provided for use in unit tests where a
      * {@link QueryParseContext} may not be available
      */
-    public QueryParsingException(Index index, int line, int col, String msg, Throwable cause) {
+    public ParsingException(Index index, int line, int col, String msg, Throwable cause) {
         super(msg, cause);
         setIndex(index);
         this.lineNumber = line;
         this.columnNumber = col;
     }
 
-    public QueryParsingException(StreamInput in) throws IOException{
+    public ParsingException(StreamInput in) throws IOException{
         super(in);
         lineNumber = in.readInt();
         columnNumber = in.readInt();

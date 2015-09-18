@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -64,7 +65,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException {
         QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
@@ -149,7 +150,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
                 } else if ("ignore_malformed".equals(currentFieldName) && coerce == false) {
                     ignoreMalformed = parser.booleanValue();
                 } else {
-                    throw new QueryParsingException(parseContext, "failed to parse [{}] query. unexpected field [{}]", NAME, currentFieldName);
+                    throw new ParsingException(parseContext, "failed to parse [{}] query. unexpected field [{}]", NAME, currentFieldName);
                 }
             }
         }
@@ -160,16 +161,16 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
         if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
             if (topLeft.lat() > 90.0 || topLeft.lat() < -90.0) {
-                throw new QueryParsingException(parseContext, "illegal latitude value [{}] for [{}]", topLeft.lat(), NAME);
+                throw new ParsingException(parseContext, "illegal latitude value [{}] for [{}]", topLeft.lat(), NAME);
             }
             if (topLeft.lon() > 180.0 || topLeft.lon() < -180) {
-                throw new QueryParsingException(parseContext, "illegal longitude value [{}] for [{}]", topLeft.lon(), NAME);
+                throw new ParsingException(parseContext, "illegal longitude value [{}] for [{}]", topLeft.lon(), NAME);
             }
             if (bottomRight.lat() > 90.0 || bottomRight.lat() < -90.0) {
-                throw new QueryParsingException(parseContext, "illegal latitude value [{}] for [{}]", bottomRight.lat(), NAME);
+                throw new ParsingException(parseContext, "illegal latitude value [{}] for [{}]", bottomRight.lat(), NAME);
             }
             if (bottomRight.lon() > 180.0 || bottomRight.lon() < -180) {
-                throw new QueryParsingException(parseContext, "illegal longitude value [{}] for [{}]", bottomRight.lon(), NAME);
+                throw new ParsingException(parseContext, "illegal longitude value [{}] for [{}]", bottomRight.lon(), NAME);
             }
         }
 
@@ -187,10 +188,10 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
 
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryParsingException(parseContext, "failed to parse [{}] query. could not find [{}] field [{}]", NAME, GeoPointFieldMapper.CONTENT_TYPE, fieldName);
+            throw new ParsingException(parseContext, "failed to parse [{}] query. could not find [{}] field [{}]", NAME, GeoPointFieldMapper.CONTENT_TYPE, fieldName);
         }
         if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryParsingException(parseContext, "failed to parse [{}] query. field [{}] is expected to be of type [{}], but is of [{}] type instead", NAME, fieldName, GeoPointFieldMapper.CONTENT_TYPE, fieldType.typeName());
+            throw new ParsingException(parseContext, "failed to parse [{}] query. field [{}] is expected to be of type [{}], but is of [{}] type instead", NAME, fieldName, GeoPointFieldMapper.CONTENT_TYPE, fieldType.typeName());
         }
         GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
@@ -201,7 +202,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
             IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
             filter = new InMemoryGeoBoundingBoxQuery(topLeft, bottomRight, indexFieldData);
         } else {
-            throw new QueryParsingException(parseContext, "failed to parse [{}] query. geo bounding box type [{}] is not supported. either [indexed] or [memory] are allowed", NAME, type);
+            throw new ParsingException(parseContext, "failed to parse [{}] query. geo bounding box type [{}] is not supported. either [indexed] or [memory] are allowed", NAME, type);
         }
         if (filter != null) {
             filter.setBoost(boost);

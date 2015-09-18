@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -37,7 +38,7 @@ public class SpanNearQueryParser extends BaseQueryParser<SpanNearQueryBuilder> {
     }
 
     @Override
-    public SpanNearQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SpanNearQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -58,12 +59,12 @@ public class SpanNearQueryParser extends BaseQueryParser<SpanNearQueryBuilder> {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         QueryBuilder query = parseContext.parseInnerQueryBuilder();
                         if (!(query instanceof SpanQueryBuilder)) {
-                            throw new QueryParsingException(parseContext, "spanNear [clauses] must be of type span query");
+                            throw new ParsingException(parseContext, "spanNear [clauses] must be of type span query");
                         }
                         clauses.add((SpanQueryBuilder) query);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext, "[span_near] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[span_near] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("in_order".equals(currentFieldName) || "inOrder".equals(currentFieldName)) {
@@ -77,19 +78,19 @@ public class SpanNearQueryParser extends BaseQueryParser<SpanNearQueryBuilder> {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[span_near] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[span_near] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new QueryParsingException(parseContext, "[span_near] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(parseContext, "[span_near] query does not support [" + currentFieldName + "]");
             }
         }
 
         if (clauses.isEmpty()) {
-            throw new QueryParsingException(parseContext, "span_near must include [clauses]");
+            throw new ParsingException(parseContext, "span_near must include [clauses]");
         }
 
         if (slop == null) {
-            throw new QueryParsingException(parseContext, "span_near must include [slop]");
+            throw new ParsingException(parseContext, "span_near must include [slop]");
         }
 
         SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(clauses.get(0), slop);

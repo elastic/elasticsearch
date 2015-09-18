@@ -2113,7 +2113,7 @@ functionScoreQuery(scriptFunction(new Script("_doc['score'].value")))).setMinSco
             client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("date").from(1388534400000L).to(1388537940999L).timeZone("+01:00"))
                     .get();
-            fail("A Range Filter using ms since epoch with a TimeZone should raise a QueryParsingException");
+            fail("A Range Filter using ms since epoch with a TimeZone should raise a ParsingException");
         } catch (SearchPhaseExecutionException e) {
             // We expect it
         }
@@ -2135,7 +2135,7 @@ functionScoreQuery(scriptFunction(new Script("_doc['score'].value")))).setMinSco
             client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("num").from("0").to("4").timeZone("-01:00"))
                     .get();
-            fail("A Range Filter on a numeric field with a TimeZone should raise a QueryParsingException");
+            fail("A Range Filter on a numeric field with a TimeZone should raise a ParsingException");
         } catch (SearchPhaseExecutionException e) {
             // We expect it
         }

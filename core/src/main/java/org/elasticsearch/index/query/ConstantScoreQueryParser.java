@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -38,7 +39,7 @@ public class ConstantScoreQueryParser extends BaseQueryParser<ConstantScoreQuery
     }
 
     @Override
-    public ConstantScoreQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public ConstantScoreQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         QueryBuilder query = null;
@@ -58,7 +59,7 @@ public class ConstantScoreQueryParser extends BaseQueryParser<ConstantScoreQuery
                     query = parseContext.parseInnerFilterToQueryBuilder();
                     queryFound = true;
                 } else {
-                    throw new QueryParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
@@ -66,12 +67,12 @@ public class ConstantScoreQueryParser extends BaseQueryParser<ConstantScoreQuery
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new QueryParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext, "[constant_score] requires a 'filter' element");
+            throw new ParsingException(parseContext, "[constant_score] requires a 'filter' element");
         }
 
         ConstantScoreQueryBuilder constantScoreBuilder = new ConstantScoreQueryBuilder(query);

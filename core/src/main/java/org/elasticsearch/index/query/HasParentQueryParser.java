@@ -20,6 +20,7 @@ package org.elasticsearch.index.query;
 
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.QueryInnerHits;
@@ -39,7 +40,7 @@ public class HasParentQueryParser extends BaseQueryParser  {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -60,7 +61,7 @@ public class HasParentQueryParser extends BaseQueryParser  {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     innerHits = new QueryInnerHits(parser);
                 } else {
-                    throw new QueryParsingException(parseContext, "[has_parent] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
@@ -72,7 +73,7 @@ public class HasParentQueryParser extends BaseQueryParser  {
                     } else if ("none".equals(scoreModeValue)) {
                         score = false;
                     } else {
-                        throw new QueryParsingException(parseContext, "[has_parent] query does not support [" + scoreModeValue + "] as an option for score_mode");
+                        throw new ParsingException(parseContext, "[has_parent] query does not support [" + scoreModeValue + "] as an option for score_mode");
                     }
                 } else if ("score".equals(currentFieldName)) {
                     score = parser.booleanValue();
@@ -81,7 +82,7 @@ public class HasParentQueryParser extends BaseQueryParser  {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[has_parent] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             }
         }

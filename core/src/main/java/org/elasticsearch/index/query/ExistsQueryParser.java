@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -35,7 +36,7 @@ public class ExistsQueryParser extends BaseQueryParser<ExistsQueryBuilder> {
     }
 
     @Override
-    public ExistsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public ExistsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldPattern = null;
@@ -55,13 +56,13 @@ public class ExistsQueryParser extends BaseQueryParser<ExistsQueryBuilder> {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new QueryParsingException(parseContext, "[exists] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[exists] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldPattern == null) {
-            throw new QueryParsingException(parseContext, "exists must be provided with a [field]");
+            throw new ParsingException(parseContext, "exists must be provided with a [field]");
         }
 
         ExistsQueryBuilder builder = new ExistsQueryBuilder(fieldPattern);

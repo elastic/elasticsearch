@@ -45,7 +45,7 @@ public interface QueryParser<QB extends QueryBuilder<QB>> {
      */
     //norelease can be removed in favour of fromXContent once search requests can be parsed on the coordinating node
     @Nullable
-    Query parse(QueryShardContext context) throws IOException, QueryParsingException;
+    Query parse(QueryShardContext context) throws IOException;
 
     /**
      * Creates a new {@link QueryBuilder} from the query held by the {@link QueryShardContext}
@@ -57,9 +57,8 @@ public interface QueryParser<QB extends QueryBuilder<QB>> {
      *            call
      * @return the new QueryBuilder
      * @throws IOException
-     * @throws QueryParsingException
      */
-    QB fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException;
+    QB fromXContent(QueryParseContext parseContext) throws IOException;
 
     /**
      * @return an empty {@link QueryBuilder} instance for this parser that can be used for deserialization

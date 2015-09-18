@@ -38,12 +38,12 @@ public class IndicesModuleTests extends ModuleTestCase {
         }
 
         @Override
-        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
             return null;
         }
 
         @Override
-        public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        public Query parse(QueryShardContext context) throws IOException {
             return null;
         }
 

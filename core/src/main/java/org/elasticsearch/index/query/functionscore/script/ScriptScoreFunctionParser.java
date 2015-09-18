@@ -27,7 +27,7 @@ import org.elasticsearch.common.lucene.search.function.ScriptScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
@@ -57,7 +57,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
     }
 
     @Override
-    public ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, QueryParsingException {
+    public ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, ParsingException {
         QueryParseContext parseContext = context.parseContext();
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         Script script = null;
@@ -73,11 +73,11 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
                 } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
                     vars = parser.map();
                 } else {
-                    throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.parseFieldMatcher())) {
-                    throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -91,11 +91,11 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
                 script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), vars);
             }
         } else if (vars != null) {
-            throw new QueryParsingException(parseContext, "script params must be specified inside script object");
+            throw new ParsingException(parseContext, "script params must be specified inside script object");
         }
 
         if (script == null) {
-            throw new QueryParsingException(parseContext, NAMES[0] + " requires 'script' field");
+            throw new ParsingException(parseContext, NAMES[0] + " requires 'script' field");
         }
 
         SearchScript searchScript;
@@ -103,7 +103,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             searchScript = context.scriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH);
             return new ScriptScoreFunction(script, searchScript);
         } catch (Exception e) {
-            throw new QueryParsingException(parseContext, NAMES[0] + " the script could not be loaded", e);
+            throw new ParsingException(parseContext, NAMES[0] + " the script could not be loaded", e);
         }
     }
 }

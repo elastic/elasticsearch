@@ -504,7 +504,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         exceptions.put(org.elasticsearch.index.mapper.MapperException.class, 37);
         exceptions.put(org.elasticsearch.indices.InvalidTypeNameException.class, 38);
         exceptions.put(org.elasticsearch.snapshots.SnapshotRestoreException.class, 39);
-        exceptions.put(org.elasticsearch.index.query.QueryParsingException.class, 40);
+        exceptions.put(org.elasticsearch.common.ParsingException.class, 40);
         exceptions.put(org.elasticsearch.index.shard.IndexShardClosedException.class, 41);
         exceptions.put(org.elasticsearch.script.expression.ExpressionScriptCompilationException.class, 42);
         exceptions.put(org.elasticsearch.indices.recovery.RecoverFilesRecoveryException.class, 43);

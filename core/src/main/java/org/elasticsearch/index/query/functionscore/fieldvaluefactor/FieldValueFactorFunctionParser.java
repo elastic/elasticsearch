@@ -27,7 +27,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -52,7 +52,7 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
     public static String[] NAMES = { "field_value_factor", "fieldValueFactor" };
 
     @Override
-    public ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, QueryParsingException {
+    public ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, ParsingException {
         QueryParseContext parseContext = context.parseContext();
 
         String currentFieldName = null;
@@ -74,15 +74,15 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
                 } else if ("missing".equals(currentFieldName)) {
                     missing = parser.doubleValue();
                 } else {
-                    throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             } else if("factor".equals(currentFieldName) && (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)) {
-                throw new QueryParsingException(parseContext, "[" + NAMES[0] + "] field 'factor' does not support lists or objects");
+                throw new ParsingException(parseContext, "[" + NAMES[0] + "] field 'factor' does not support lists or objects");
             }
         }
 
         if (field == null) {
-            throw new QueryParsingException(parseContext, "[" + NAMES[0] + "] required field 'field' missing");
+            throw new ParsingException(parseContext, "[" + NAMES[0] + "] required field 'field' missing");
         }
 
         SearchContext searchContext = SearchContext.current();

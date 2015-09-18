@@ -33,7 +33,7 @@ import java.io.IOException;
 public abstract class BaseQueryParser<QB extends QueryBuilder<QB>> implements QueryParser<QB> {
 
     @Override
-    public final Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+    public final Query parse(QueryShardContext context) throws IOException {
         return fromXContent(context.parseContext()).toQuery(context);
     }
 }

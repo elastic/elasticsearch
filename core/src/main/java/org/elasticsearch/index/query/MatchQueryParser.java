@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,7 +42,7 @@ public class MatchQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public MatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public MatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
@@ -55,7 +56,7 @@ public class MatchQueryParser extends BaseQueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[match] query malformed, no field");
+            throw new ParsingException(parseContext, "[match] query malformed, no field");
         }
         String fieldName = parser.currentName();
 
@@ -93,7 +94,7 @@ public class MatchQueryParser extends BaseQueryParser {
                         } else if ("phrase_prefix".equals(tStr) || "phrasePrefix".equals(currentFieldName)) {
                             type = MatchQuery.Type.PHRASE_PREFIX;
                         } else {
-                            throw new QueryParsingException(parseContext, "[match] query does not support type " + tStr);
+                            throw new ParsingException(parseContext, "[match] query does not support type " + tStr);
                         }
                     } else if ("analyzer".equals(currentFieldName)) {
                         analyzer = parser.text();
@@ -126,12 +127,12 @@ public class MatchQueryParser extends BaseQueryParser {
                         } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
                             zeroTermsQuery = MatchQuery.ZeroTermsQuery.ALL;
                         } else {
-                            throw new QueryParsingException(parseContext, "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
+                            throw new ParsingException(parseContext, "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
                         }
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new QueryParsingException(parseContext, "[match] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parseContext, "[match] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -141,13 +142,13 @@ public class MatchQueryParser extends BaseQueryParser {
             // move to the next token
             token = parser.nextToken();
             if (token != XContentParser.Token.END_OBJECT) {
-                throw new QueryParsingException(parseContext,
+                throw new ParsingException(parseContext,
                         "[match] query parsed in simplified form, with direct field name, but included more options than just the field name, possibly use its 'options' form, with 'query' element?");
             }
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "No text specified for text query");
+            throw new ParsingException(parseContext, "No text specified for text query");
         }
 
         MatchQueryBuilder matchQuery = new MatchQueryBuilder(fieldName, value);

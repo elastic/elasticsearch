@@ -664,9 +664,8 @@
                             <tests.cluster>${tests.cluster}</tests.cluster>
                             <tests.iters>${tests.iters}</tests.iters>
                             <tests.project>${project.groupId}:${project.artifactId}</tests.project>
-                            <!-- these two are needed for insecure plugins, remove if possible! -->
+                            <!-- needed to know which project we are in for plugin permissions -->
                             <tests.artifact>${project.artifactId}</tests.artifact>
-                            <tests.plugin.classname>${elasticsearch.plugin.classname}</tests.plugin.classname>
                             <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
                             <tests.failfast>${tests.failfast}</tests.failfast>
                             <tests.class>${tests.class}</tests.class>

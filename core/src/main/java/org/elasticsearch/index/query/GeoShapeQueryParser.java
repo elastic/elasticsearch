@@ -26,12 +26,12 @@ import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.search.shape.ShapeFetchService;
@@ -56,7 +56,7 @@ public class GeoShapeQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -91,7 +91,7 @@ public class GeoShapeQueryParser implements QueryParser {
                         } else if ("relation".equals(currentFieldName)) {
                             shapeRelation = ShapeRelation.getRelationByName(parser.text());
                             if (shapeRelation == null) {
-                                throw new QueryParsingException(parseContext, "Unknown shape operation [" + parser.text() + " ]");
+                                throw new ParsingException(parseContext, "Unknown shape operation [" + parser.text() + " ]");
                             }
                         } else if ("indexed_shape".equals(currentFieldName) || "indexedShape".equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -110,15 +110,15 @@ public class GeoShapeQueryParser implements QueryParser {
                                 }
                             }
                             if (id == null) {
-                                throw new QueryParsingException(parseContext, "ID for indexed shape not provided");
+                                throw new ParsingException(parseContext, "ID for indexed shape not provided");
                             } else if (type == null) {
-                                throw new QueryParsingException(parseContext, "Type for indexed shape not provided");
+                                throw new ParsingException(parseContext, "Type for indexed shape not provided");
                             }
                             GetRequest getRequest = new GetRequest(index, type, id);
                             getRequest.copyContextAndHeadersFrom(SearchContext.current());
                             shape = fetchService.fetch(getRequest, shapePath);
                         } else {
-                            throw new QueryParsingException(parseContext, "[geo_shape] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parseContext, "[geo_shape] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -128,25 +128,25 @@ public class GeoShapeQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[geo_shape] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[geo_shape] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (shape == null) {
-            throw new QueryParsingException(parseContext, "No Shape defined");
+            throw new ParsingException(parseContext, "No Shape defined");
         } else if (shapeRelation == null) {
-            throw new QueryParsingException(parseContext, "No Shape Relation defined");
+            throw new ParsingException(parseContext, "No Shape Relation defined");
         }
 
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryParsingException(parseContext, "Failed to find geo_shape field [" + fieldName + "]");
+            throw new ParsingException(parseContext, "Failed to find geo_shape field [" + fieldName + "]");
         }
 
         // TODO: This isn't the nicest way to check this
         if (!(fieldType instanceof GeoShapeFieldMapper.GeoShapeFieldType)) {
-            throw new QueryParsingException(parseContext, "Field [" + fieldName + "] is not a geo_shape");
+            throw new ParsingException(parseContext, "Field [" + fieldName + "] is not a geo_shape");
         }
 
         GeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (GeoShapeFieldMapper.GeoShapeFieldType) fieldType;

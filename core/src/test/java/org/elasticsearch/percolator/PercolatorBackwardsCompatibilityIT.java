@@ -23,7 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.index.percolator.PercolatorException;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -67,7 +67,7 @@ public class PercolatorBackwardsCompatibilityIT extends ESIntegTestCase {
             fail();
         } catch (PercolatorException e) {
             e.printStackTrace();
-            assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
+            assertThat(e.getRootCause(), instanceOf(ParsingException.class));
         }
     }
 

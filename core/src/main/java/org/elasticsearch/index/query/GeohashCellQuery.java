@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -180,7 +181,7 @@ public class GeohashCellQuery {
         }
 
         @Override
-        public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
             XContentParser parser = parseContext.parser();
 
             String fieldName = null;
@@ -232,21 +233,21 @@ public class GeohashCellQuery {
             }
 
             if (geohash == null) {
-                throw new QueryParsingException(parseContext, "failed to parse [{}] query. missing geohash value", NAME);
+                throw new ParsingException(parseContext, "failed to parse [{}] query. missing geohash value", NAME);
             }
 
             MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
             if (fieldType == null) {
-                throw new QueryParsingException(parseContext, "failed to parse [{}] query. missing [{}] field [{}]", NAME, GeoPointFieldMapper.CONTENT_TYPE, fieldName);
+                throw new ParsingException(parseContext, "failed to parse [{}] query. missing [{}] field [{}]", NAME, GeoPointFieldMapper.CONTENT_TYPE, fieldName);
             }
 
             if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-                throw new QueryParsingException(parseContext, "failed to parse [{}] query. field [{}] is not a geo_point field", NAME, fieldName);
+                throw new ParsingException(parseContext, "failed to parse [{}] query. field [{}] is not a geo_point field", NAME, fieldName);
             }
 
             GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
             if (!geoFieldType.isGeohashPrefixEnabled()) {
-                throw new QueryParsingException(parseContext, "failed to parse [{}] query. [geohash_prefix] is not enabled for field [{}]", NAME, fieldName);
+                throw new ParsingException(parseContext, "failed to parse [{}] query. [geohash_prefix] is not enabled for field [{}]", NAME, fieldName);
             }
 
             if(levels > 0) {

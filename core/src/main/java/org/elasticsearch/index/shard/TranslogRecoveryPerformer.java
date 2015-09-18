@@ -38,7 +38,7 @@ import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -214,7 +214,7 @@ public class TranslogRecoveryPerformer {
         Query query;
         try {
             query = queryParserService.parseQuery(source).query();
-        } catch (QueryParsingException ex) {
+        } catch (ParsingException ex) {
             // for BWC we try to parse directly the query since pre 1.0.0.Beta2 we didn't require a top level query field
             if (queryParserService.getIndexCreatedVersion().onOrBefore(Version.V_1_0_0_Beta2)) {
                 try {

@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -62,7 +63,7 @@ public class HasChildQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;
@@ -93,7 +94,7 @@ public class HasChildQueryParser implements QueryParser {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     innerHits = innerHitsQueryParserHelper.parse(parseContext);
                 } else {
-                    throw new QueryParsingException(parseContext, "[has_child] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[has_child] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
@@ -109,15 +110,15 @@ public class HasChildQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[has_child] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[has_child] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext, "[has_child] requires 'query' field");
+            throw new ParsingException(parseContext, "[has_child] requires 'query' field");
         }
         if (childType == null) {
-            throw new QueryParsingException(parseContext, "[has_child] requires 'type' field");
+            throw new ParsingException(parseContext, "[has_child] requires 'type' field");
         }
 
         Query innerQuery = iq.asQuery(childType);
@@ -129,11 +130,11 @@ public class HasChildQueryParser implements QueryParser {
 
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
-            throw new QueryParsingException(parseContext, "[has_child] No mapping for for type [" + childType + "]");
+            throw new ParsingException(parseContext, "[has_child] No mapping for for type [" + childType + "]");
         }
         ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
         if (parentFieldMapper.active() == false) {
-            throw new QueryParsingException(parseContext, "[has_child] _parent field has no parent type configured");
+            throw new ParsingException(parseContext, "[has_child] _parent field has no parent type configured");
         }
 
         if (innerHits != null) {
@@ -146,12 +147,12 @@ public class HasChildQueryParser implements QueryParser {
         String parentType = parentFieldMapper.type();
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext, "[has_child]  Type [" + childType + "] points to a non existent parent type ["
+            throw new ParsingException(parseContext, "[has_child]  Type [" + childType + "] points to a non existent parent type ["
                     + parentType + "]");
         }
 
         if (maxChildren > 0 && maxChildren < minChildren) {
-            throw new QueryParsingException(parseContext, "[has_child] 'max_children' is less than 'min_children'");
+            throw new ParsingException(parseContext, "[has_child] 'max_children' is less than 'min_children'");
         }
 
         // wrap the query with type query

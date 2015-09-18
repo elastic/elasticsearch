@@ -22,10 +22,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -47,7 +47,7 @@ public class FieldMaskingSpanQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         float boost = 1.0f;
@@ -65,11 +65,11 @@ public class FieldMaskingSpanQueryParser implements QueryParser {
                 if ("query".equals(currentFieldName)) {
                     Query query = parseContext.parseInnerQuery();
                     if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(parseContext, "[field_masking_span] query] must be of type span query");
+                        throw new ParsingException(parseContext, "[field_masking_span] query] must be of type span query");
                     }
                     inner = (SpanQuery) query;
                 } else {
-                    throw new QueryParsingException(parseContext, "[field_masking_span] query does not support ["
+                    throw new ParsingException(parseContext, "[field_masking_span] query does not support ["
                             + currentFieldName + "]");
                 }
             } else {
@@ -80,15 +80,15 @@ public class FieldMaskingSpanQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[field_masking_span] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[field_masking_span] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (inner == null) {
-            throw new QueryParsingException(parseContext, "field_masking_span must have [query] span query clause");
+            throw new ParsingException(parseContext, "field_masking_span must have [query] span query clause");
         }
         if (field == null) {
-            throw new QueryParsingException(parseContext, "field_masking_span must have [field] set for it");
+            throw new ParsingException(parseContext, "field_masking_span must have [field] set for it");
         }
 
         MappedFieldType fieldType = parseContext.fieldMapper(field);

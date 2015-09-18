@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -52,7 +53,7 @@ public class MultiMatchQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         Object value = null;
@@ -77,7 +78,7 @@ public class MultiMatchQueryParser implements QueryParser {
                 } else if (token.isValue()) {
                     extractFieldAndBoost(parseContext, parser, fieldNameWithBoosts);
                 } else {
-                    throw new QueryParsingException(parseContext, "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[" + NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -87,7 +88,7 @@ public class MultiMatchQueryParser implements QueryParser {
                 } else if ("analyzer".equals(currentFieldName)) {
                     String analyzer = parser.text();
                     if (parseContext.analysisService().analyzer(analyzer) == null) {
-                        throw new QueryParsingException(parseContext, "[" + NAME + "] analyzer [" + parser.text() + "] not found");
+                        throw new ParsingException(parseContext, "[" + NAME + "] analyzer [" + parser.text() + "] not found");
                     }
                     multiMatchQuery.setAnalyzer(analyzer);
                 } else if ("boost".equals(currentFieldName)) {
@@ -107,7 +108,7 @@ public class MultiMatchQueryParser implements QueryParser {
                     } else if ("and".equalsIgnoreCase(op)) {
                         multiMatchQuery.setOccur(BooleanClause.Occur.MUST);
                     } else {
-                        throw new QueryParsingException(parseContext, "text query requires operator to be either 'and' or 'or', not [" + op
+                        throw new ParsingException(parseContext, "text query requires operator to be either 'and' or 'or', not [" + op
                                 + "]");
                     }
                 } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
@@ -129,22 +130,22 @@ public class MultiMatchQueryParser implements QueryParser {
                     } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
                         multiMatchQuery.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.ALL);
                     } else {
-                        throw new QueryParsingException(parseContext, "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
+                        throw new ParsingException(parseContext, "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[match] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[match] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "No text specified for multi_match query");
+            throw new ParsingException(parseContext, "No text specified for multi_match query");
         }
 
         if (fieldNameWithBoosts.isEmpty()) {
-            throw new QueryParsingException(parseContext, "No fields specified for multi_match query");
+            throw new ParsingException(parseContext, "No fields specified for multi_match query");
         }
         if (type == null) {
             type = MultiMatchQueryBuilder.Type.BEST_FIELDS;

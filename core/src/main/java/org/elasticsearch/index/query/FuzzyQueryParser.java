@@ -24,6 +24,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -53,12 +54,12 @@ public class FuzzyQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[fuzzy] query malformed, no field");
+            throw new ParsingException(parseContext, "[fuzzy] query malformed, no field");
         }
         String fieldName = parser.currentName();
 
@@ -99,7 +100,7 @@ public class FuzzyQueryParser implements QueryParser {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new QueryParsingException(parseContext, "[fuzzy] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parseContext, "[fuzzy] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -111,7 +112,7 @@ public class FuzzyQueryParser implements QueryParser {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "No value specified for fuzzy query");
+            throw new ParsingException(parseContext, "No value specified for fuzzy query");
         }
         
         Query query = null;

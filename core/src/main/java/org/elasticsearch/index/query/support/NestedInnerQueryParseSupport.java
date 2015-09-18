@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -103,10 +103,10 @@ public class NestedInnerQueryParseSupport {
             return innerQuery;
         } else {
             if (path == null) {
-                throw new QueryParsingException(parseContext, "[nested] requires 'path' field");
+                throw new ParsingException(parseContext, "[nested] requires 'path' field");
             }
             if (!queryFound) {
-                throw new QueryParsingException(parseContext, "[nested] requires either 'query' or 'filter' field");
+                throw new ParsingException(parseContext, "[nested] requires either 'query' or 'filter' field");
             }
 
             XContentParser old = parseContext.parser();
@@ -132,10 +132,10 @@ public class NestedInnerQueryParseSupport {
             return innerFilter;
         } else {
             if (path == null) {
-                throw new QueryParsingException(parseContext, "[nested] requires 'path' field");
+                throw new ParsingException(parseContext, "[nested] requires 'path' field");
             }
             if (!filterFound) {
-                throw new QueryParsingException(parseContext, "[nested] requires either 'query' or 'filter' field");
+                throw new ParsingException(parseContext, "[nested] requires either 'query' or 'filter' field");
             }
 
             setPathLevel();
@@ -157,10 +157,10 @@ public class NestedInnerQueryParseSupport {
         this.path = path;
         nestedObjectMapper = parseContext.getObjectMapper(path);
         if (nestedObjectMapper == null) {
-            throw new QueryParsingException(parseContext, "[nested] failed to find nested object under path [" + path + "]");
+            throw new ParsingException(parseContext, "[nested] failed to find nested object under path [" + path + "]");
         }
         if (!nestedObjectMapper.nested().isNested()) {
-            throw new QueryParsingException(parseContext, "[nested] nested object under path [" + path + "] is not of nested type");
+            throw new ParsingException(parseContext, "[nested] nested object under path [" + path + "] is not of nested type");
         }
     }
 

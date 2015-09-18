@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomAccessWeight;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.LeafSearchScript;
@@ -59,7 +60,7 @@ public class ScriptQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
 
@@ -83,13 +84,13 @@ public class ScriptQueryParser implements QueryParser {
                 } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
                     params = parser.map();
                 } else {
-                    throw new QueryParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.parseFieldMatcher())) {
-                    throw new QueryParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -103,11 +104,11 @@ public class ScriptQueryParser implements QueryParser {
                 script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
         } else if (params != null) {
-            throw new QueryParsingException(parseContext, "script params must be specified inside script object in a [script] filter");
+            throw new ParsingException(parseContext, "script params must be specified inside script object in a [script] filter");
         }
 
         if (script == null) {
-            throw new QueryParsingException(parseContext, "script must be provided with a [script] filter");
+            throw new ParsingException(parseContext, "script must be provided with a [script] filter");
         }
 
         Query query = new ScriptQuery(script, parseContext.scriptService(), parseContext.lookup());

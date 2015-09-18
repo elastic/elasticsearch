@@ -23,6 +23,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +53,7 @@ public class BoolQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         boolean disableCoord = false;
@@ -101,7 +102,7 @@ public class BoolQueryParser implements QueryParser {
                     }
                     break;
                 default:
-                    throw new QueryParsingException(parseContext, "[bool] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[bool] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -135,7 +136,7 @@ public class BoolQueryParser implements QueryParser {
                         }
                         break;
                     default:
-                        throw new QueryParsingException(parseContext, "bool query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parseContext, "bool query does not support [" + currentFieldName + "]");
                     }
                 }
             } else if (token.isValue()) {
@@ -152,7 +153,7 @@ public class BoolQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[bool] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[bool] query does not support [" + currentFieldName + "]");
                 }
             }
         }

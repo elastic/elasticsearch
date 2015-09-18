@@ -25,7 +25,7 @@ import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.TermQueryParser;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ public class IndicesModuleTests extends ModuleTestCase {
             return new String[] {"fake-query-parser"};
         }
         @Override
-        public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
             return null;
         }
     }

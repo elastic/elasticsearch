@@ -42,7 +42,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
@@ -189,7 +189,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
             if (request.rewrite()) {
                 explanation = getRewrittenQuery(searcher.searcher(), searchContext.query());
             }   
-        } catch (QueryParsingException e) {
+        } catch (ParsingException e) {
             valid = false;
             error = e.getDetailedMessage();
         } catch (AssertionError|IOException e) {

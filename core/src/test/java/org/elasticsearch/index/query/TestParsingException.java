@@ -19,19 +19,20 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.Index;
 
 /**
  * Class used to avoid dragging QueryContext into unit testing framework for
  * basic exception handling
  */
-public class TestQueryParsingException extends QueryParsingException {
+public class TestParsingException extends ParsingException {
 
-    public TestQueryParsingException(Index index, int line, int col, String msg, Throwable cause) {
+    public TestParsingException(Index index, int line, int col, String msg, Throwable cause) {
         super(index, line, col, msg, cause);
     }
 
-    public TestQueryParsingException(Index index, String msg, Throwable cause) {
+    public TestParsingException(Index index, String msg, Throwable cause) {
         super(index, UNKNOWN_POSITION, UNKNOWN_POSITION, msg, cause);
     }
 }

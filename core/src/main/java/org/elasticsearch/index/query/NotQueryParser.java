@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,7 +46,7 @@ public class NotQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
@@ -72,13 +73,13 @@ public class NotQueryParser implements QueryParser {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[not] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[not] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (!queryFound) {
-            throw new QueryParsingException(parseContext, "filter is required when using `not` query");
+            throw new ParsingException(parseContext, "filter is required when using `not` query");
         }
 
         if (query == null) {

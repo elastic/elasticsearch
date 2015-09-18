@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 
@@ -64,7 +64,7 @@ public class DummyQueryParserPlugin extends Plugin {
         }
 
         @Override
-        public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
             XContentParser.Token token = parseContext.parser().nextToken();
             assert token == XContentParser.Token.END_OBJECT;
             return new DummyQuery(parseContext.isFilter());

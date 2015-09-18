@@ -107,16 +107,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     @Inject
     public MapperService(IndexSettings indexSettings, AnalysisService analysisService,
-                         SimilarityService similarityService,
-                         ScriptService scriptService) {
+                         SimilarityService similarityService) {
         super(indexSettings);
         this.analysisService = analysisService;
         this.fieldTypes = new FieldTypeLookup();
-        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityService, scriptService);
+        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityService);
         this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), p -> p.indexAnalyzer());
         this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), p -> p.searchAnalyzer());
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
-    
+
         this.dynamic = this.indexSettings.getSettings().getAsBoolean("index.mapper.dynamic", true);
         defaultPercolatorMappingSource = "{\n" +
             "\"_default_\":{\n" +

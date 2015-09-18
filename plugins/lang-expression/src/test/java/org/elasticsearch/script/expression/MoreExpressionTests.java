@@ -504,32 +504,6 @@ public class MoreExpressionTests extends ESIntegTestCase {
         }
     }
 
-    // test to make sure expressions are not allowed to be used as mapping scripts
-    public void testInvalidMappingScript() throws Exception{
-        try {
-            createIndex("test_index");
-            ensureGreen("test_index");
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            builder.startObject("transform");
-            builder.field("script", "1.0");
-            builder.field("lang", ExpressionScriptEngineService.NAME);
-            builder.endObject();
-            builder.startObject("properties");
-            builder.startObject("double_field");
-            builder.field("type", "double");
-            builder.endObject();
-            builder.endObject();
-            builder.endObject();
-            client().admin().indices().preparePutMapping("test_index").setType("trans_test").setSource(builder).get();
-            client().prepareIndex("test_index", "trans_test", "1").setSource("double_field", 0.0).get();
-            fail("Expression scripts should not be allowed to run as mapping scripts.");
-        } catch (Exception e) {
-            String message = ExceptionsHelper.detailedMessage(e);
-            assertThat(message + " should have contained failed to parse", message.contains("failed to parse"), equalTo(true));
-            assertThat(message + " should have contained not supported", message.contains("not supported"), equalTo(true));
-        }
-    }
-
     // test to make sure expressions are allowed to be used for reduce in pipeline aggregations
     public void testPipelineAggregationScript() throws Exception {
         createIndex("agg_index");

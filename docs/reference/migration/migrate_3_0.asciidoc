@@ -158,6 +158,12 @@ Previously, there were three settings for the ping timeout: `discovery.zen.initi
 the only setting key for the ping timeout is now `discovery.zen.ping_timeout`. The default value for
 ping timeouts remains at three seconds.
 
+=== Mapping changes ===
+
+==== Transform removed
+
+The `transform` feature from mappings has been removed. It made issues very hard to debug.
+
 === Plugins
 
 Plugins implementing custom queries need to implement the `fromXContent(QueryParseContext)` method in their

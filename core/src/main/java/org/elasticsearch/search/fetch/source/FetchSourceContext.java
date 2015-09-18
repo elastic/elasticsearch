@@ -47,7 +47,6 @@ public class FetchSourceContext implements Streamable, ToXContent {
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true);
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(false);
     private boolean fetchSource;
-    private boolean transformSource;
     private String[] includes;
     private String[] excludes;
 
@@ -62,7 +61,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
     }
 
     public FetchSourceContext(boolean fetchSource) {
-        this(fetchSource, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, false);
+        this(fetchSource, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
     }
 
     public FetchSourceContext(String include) {
@@ -72,23 +71,21 @@ public class FetchSourceContext implements Streamable, ToXContent {
     public FetchSourceContext(String include, String exclude) {
         this(true,
                 include == null ? Strings.EMPTY_ARRAY : new String[]{include},
-                exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude},
-                false);
+                exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
     }
 
     public FetchSourceContext(String[] includes) {
-        this(true, includes, Strings.EMPTY_ARRAY, false);
+        this(true, includes, Strings.EMPTY_ARRAY);
     }
 
     public FetchSourceContext(String[] includes, String[] excludes) {
-        this(true, includes, excludes, false);
+        this(true, includes, excludes);
     }
 
-    public FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes, boolean transform) {
+    public FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes) {
         this.fetchSource = fetchSource;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
-        this.transformSource = transform;
     }
 
     public boolean fetchSource() {
@@ -97,22 +94,6 @@ public class FetchSourceContext implements Streamable, ToXContent {
 
     public FetchSourceContext fetchSource(boolean fetchSource) {
         this.fetchSource = fetchSource;
-        return this;
-    }
-
-    /**
-     * Should the document be transformed after the source is loaded?
-     */
-    public boolean transformSource() {
-        return this.transformSource;
-    }
-
-    /**
-     * Should the document be transformed after the source is loaded?
-     * @return this for chaining
-     */
-    public FetchSourceContext transformSource(boolean transformSource) {
-        this.transformSource = transformSource;
         return this;
     }
 
@@ -179,10 +160,8 @@ public class FetchSourceContext implements Streamable, ToXContent {
             source_excludes = Strings.splitStringByCommaToArray(sExcludes);
         }
 
-        boolean transform = request.paramAsBoolean("_source_transform", false);
-
-        if (fetchSource != null || source_includes != null || source_excludes != null || transform) {
-            return new FetchSourceContext(fetchSource == null ? true : fetchSource, source_includes, source_excludes, transform);
+        if (fetchSource != null || source_includes != null || source_excludes != null) {
+            return new FetchSourceContext(fetchSource == null ? true : fetchSource, source_includes, source_excludes);
         }
         return null;
     }
@@ -272,7 +251,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
         fetchSource = in.readBoolean();
         includes = in.readStringArray();
         excludes = in.readStringArray();
-        transformSource = in.readBoolean();
+        in.readBoolean(); // Used to be transformSource but that was dropped in 2.1
     }
 
     @Override
@@ -280,7 +259,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
         out.writeBoolean(fetchSource);
         out.writeStringArray(includes);
         out.writeStringArray(excludes);
-        out.writeBoolean(transformSource);
+        out.writeBoolean(false); // Used to be transformSource but that was dropped in 2.1
     }
 
     @Override

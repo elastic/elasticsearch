@@ -217,7 +217,6 @@ final class Bootstrap {
      * This method is invoked by {@link Elasticsearch#main(String[])}
      * to startup elasticsearch.
      */
-    @SuppressForbidden(reason = "System#out")
     static void init(String[] args) throws Throwable {
         // Set the system property before anything has a chance to trigger its use
         System.setProperty("es.logger.prefix", "");

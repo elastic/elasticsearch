@@ -25,6 +25,6 @@ public class Ec2Module extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(AwsEc2Service.class).asEagerSingleton();
+        bind(AwsEc2Service.class).to(AwsEc2ServiceImpl.class).asEagerSingleton();
     }
 }

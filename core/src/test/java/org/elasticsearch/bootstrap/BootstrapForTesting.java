@@ -29,10 +29,10 @@ import org.elasticsearch.common.logging.Loggers;
 
 import java.io.FilePermission;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.security.Permissions;
 import java.security.Policy;
+import java.util.Map;
 import java.util.Objects;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
@@ -83,14 +83,7 @@ public class BootstrapForTesting {
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
             try {
                 Security.setCodebaseProperties();
-                // if its an insecure plugin, its not easy to simulate here, since we don't have a real plugin install.
-                // we just do our best so unit testing can work. integration tests for such plugins are essential.
-                String artifact = System.getProperty("tests.artifact");
-                String insecurePluginProp = Security.INSECURE_PLUGINS.get(artifact);
-                if (insecurePluginProp != null) {
-                    System.setProperty(insecurePluginProp, "file:/-");
-                }
-                // initialize paths the same exact way as bootstrap.
+                // initialize paths the same exact way as bootstrap
                 Permissions perms = new Permissions();
                 // add permissions to everything in classpath
                 for (URL url : JarHell.parseClassPath()) {
@@ -121,16 +114,41 @@ public class BootstrapForTesting {
                     // in case we get fancy and use the -integration goals later:
                     perms.add(new FilePermission(coverageDir.resolve("jacoco-it.exec").toString(), "read,write"));
                 }
-                Policy.setPolicy(new ESPolicy(perms));
+                // intellij hack: intellij test runner wants setIO and will
+                // screw up all test logging without it!
+                if (System.getProperty("tests.maven") == null) {
+                    perms.add(new RuntimePermission("setIO"));
+                }
+
+                final Policy policy;
+                // if its a plugin with special permissions, we use a wrapper policy impl to try
+                // to simulate what happens with a real distribution
+                String artifact = System.getProperty("tests.artifact");
+                // in case we are running from the IDE:
+                if (artifact == null && System.getProperty("tests.maven") == null) {
+                    // look for plugin classname as a resource to determine what project we are.
+                    // while gross, this will work with any IDE.
+                    for (Map.Entry<String,String> kv : Security.SPECIAL_PLUGINS.entrySet()) {
+                        String resource = kv.getValue().replace('.', '/') + ".class";
+                        if (BootstrapForTesting.class.getClassLoader().getResource(resource) != null) {
+                            artifact = kv.getKey();
+                            break;
+                        }
+                    }
+                }
+                String pluginProp = Security.getPluginProperty(artifact);
+                if (pluginProp != null) {
+                    policy = new MockPluginPolicy(perms, pluginProp);
+                } else {
+                    policy = new ESPolicy(perms);
+                }
+                Policy.setPolicy(policy);
                 System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();
 
-                if (insecurePluginProp != null) {
+                if (pluginProp != null) {
                     // initialize the plugin class, in case it has one-time hacks (unit tests often won't do this)
-                    String clazz = System.getProperty("tests.plugin.classname");
-                    if (clazz == null) {
-                        throw new IllegalStateException("plugin classname is needed for insecure plugin unit tests");
-                    }
+                    String clazz = Security.getPluginClass(artifact);
                     Class.forName(clazz);
                 }
             } catch (Exception e) {

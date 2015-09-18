@@ -28,8 +28,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import static org.junit.Assert.assertFalse;
-
 /**
  * Suspends all threads on the specified node in order to simulate a long gc.
  */
@@ -79,10 +77,20 @@ public class LongGCDisruption extends SingleNodeDisruption {
 
     @SuppressForbidden(reason = "stops/resumes threads intentionally")
     protected boolean stopNodeThreads(String node, Set<Thread> nodeThreads) {
-        Set<Thread> allThreadsSet = Thread.getAllStackTraces().keySet();
+        Thread[] allThreads = null;
+        while (allThreads == null) {
+            allThreads = new Thread[Thread.activeCount()];
+            if (Thread.enumerate(allThreads) > allThreads.length) {
+                // we didn't make enough space, retry
+                allThreads = null;
+            }
+        }
         boolean stopped = false;
         final String nodeThreadNamePart = "[" + node + "]";
-        for (Thread thread : allThreadsSet) {
+        for (Thread thread : allThreads) {
+            if (thread == null) {
+                continue;
+            }
             String name = thread.getName();
             if (name.contains(nodeThreadNamePart)) {
                 if (thread.isAlive() && nodeThreads.add(thread)) {

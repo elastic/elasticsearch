@@ -75,7 +75,7 @@ public class CopyOnWriteHashSet<T> extends ForwardingSet<T> {
      */
     public CopyOnWriteHashSet<T> copyAndAddAll(Collection<? extends T> entries) {
         CopyOnWriteHashMap<T, Boolean> updated = this.map.copyAndPutAll(entries.stream().map(
-                p -> new AbstractMap.SimpleImmutableEntry<>(p, true)
+                p -> new AbstractMap.SimpleImmutableEntry<T, Boolean>(p, true)
         ));
         return new CopyOnWriteHashSet<>(updated);
     }

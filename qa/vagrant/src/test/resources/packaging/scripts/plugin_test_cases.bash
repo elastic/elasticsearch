@@ -53,7 +53,6 @@ setup() {
     if [ $BATS_TEST_NUMBER == 1 ] ||
             [[ $BATS_TEST_NAME =~ install_jvm.*example ]] ||
             [ ! -d "$ESHOME" ]; then
-        echo "cleaning" >> /tmp/ss
         clean_before_test
         install
     fi
@@ -69,14 +68,13 @@ if [[ "$BATS_TEST_FILENAME" =~ 25_tar_plugins.bats$ ]]; then
     export ESHOME=/tmp/elasticsearch
     export_elasticsearch_paths
 else
+    load os_package
     if is_rpm; then
         GROUP='RPM PLUGINS'
     elif is_dpkg; then
         GROUP='DEB PLUGINS'
     fi
-    export ESHOME="/usr/share/elasticsearch"
-    export ESPLUGINS="$ESHOME/plugins"
-    export ESCONFIG="/etc/elasticsearch"
+    export_elasticsearch_paths
     install() {
         install_package
         verify_package_installation
@@ -95,6 +93,12 @@ fi
     chown -R elasticsearch:elasticsearch "$ESPLUGINS"
 
     install_jvm_example
+    start_elasticsearch_service
+    # check that configuration was actually picked up    
+    curl -s localhost:9200/_cat/configured_example | sed 's/ *$//' > /tmp/installed
+    echo "foo" > /tmp/expected
+    diff /tmp/installed /tmp/expected
+    stop_elasticsearch_service
     remove_jvm_example
 }
 
@@ -199,17 +203,18 @@ fi
     assert_file_exist "$ESHOME/plugins/site-example/_site/index.html"
 }
 
+@test "[$GROUP] check the installed plugins can be listed with 'plugins list' and result matches the list of plugins in plugins pom" {
+    "$ESHOME/bin/plugin" list | tail -n +2 | sed 's/^......//' > /tmp/installed
+    compare_plugins_list "/tmp/installed" "'plugins list'"
+}
+
 @test "[$GROUP] start elasticsearch with all plugins installed" {
     start_elasticsearch_service
 }
 
 @test "[$GROUP] check the installed plugins matches the list of build plugins" {
-    curl -s localhost:9200/_cat/plugins?h=c | sed 's/ *$//' |
-        sort > /tmp/installed
-    ls /elasticsearch/plugins/*/pom.xml | cut -d '/' -f 4 |
-        sort > /tmp/expected
-    echo "Checking installed plugins (<) against the plugins directory (>):"
-    diff /tmp/installed /tmp/expected
+    curl -s localhost:9200/_cat/plugins?h=c | sed 's/ *$//' > /tmp/installed
+    compare_plugins_list "/tmp/installed" "_cat/plugins"
 }
 
 @test "[$GROUP] stop elasticsearch" {

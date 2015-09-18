@@ -20,7 +20,7 @@
 package org.elasticsearch.cloud.aws.node;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.cloud.aws.AwsEc2Service;
+import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +53,7 @@ public class Ec2CustomNodeAttributes extends AbstractComponent implements Discov
         URLConnection urlConnection;
         InputStream in = null;
         try {
-            URL url = new URL(AwsEc2Service.EC2_METADATA_URL + "placement/availability-zone");
+            URL url = new URL(AwsEc2ServiceImpl.EC2_METADATA_URL + "placement/availability-zone");
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
             urlConnection = url.openConnection();
             urlConnection.setConnectTimeout(2000);

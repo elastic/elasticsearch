@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.primitives.Doubles;
-import com.google.common.primitives.Floats;
-import com.google.common.primitives.Ints;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -92,7 +89,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, int... values) {
-        this(fieldName, values != null ? Ints.asList(values) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.asList(values) : (Iterable<?>) null);
     }
 
     /**
@@ -119,7 +116,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, float... values) {
-        this(fieldName, values != null ? Floats.asList(values) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.asList(values) : (Iterable<?>) null);
     }
 
     /**
@@ -129,7 +126,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, double... values) {
-        this(fieldName, values != null ? Doubles.asList(values) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.asList(values) : (Iterable<?>) null);
     }
 
     /**

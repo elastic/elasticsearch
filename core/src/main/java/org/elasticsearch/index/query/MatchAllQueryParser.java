@@ -53,7 +53,7 @@ public class MatchAllQueryParser extends BaseQueryParser<MatchAllQueryBuilder> {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parseContext, "[match_all] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[match_all] query does not support [" + currentFieldName + "]");
                 }
             }
         }

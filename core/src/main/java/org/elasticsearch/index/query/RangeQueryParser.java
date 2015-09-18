@@ -94,7 +94,7 @@ public class RangeQueryParser extends BaseQueryParser<RangeQueryBuilder> {
                         } else if ("_name".equals(currentFieldName)) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -104,7 +104,7 @@ public class RangeQueryParser extends BaseQueryParser<RangeQueryBuilder> {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, FIELDDATA_FIELD)) {
                     // ignore
                 } else {
-                    throw new ParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
                 }
             }
         }

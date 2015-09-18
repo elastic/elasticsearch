@@ -154,36 +154,17 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return indicesQueriesRegistry;
     }
 
+    //norelease this needs to go away
     public ParsedQuery parse(QueryBuilder queryBuilder) {
         XContentParser parser = null;
         try {
             BytesReference bytes = queryBuilder.buildAsBytes();
             parser = XContentFactory.xContent(bytes).createParser(bytes);
-            return parse(cache.get(), parser);
-        } catch (QueryShardException e) {
+            return innerParse(cache.get(), parser);
+        } catch (ParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new ParsingException(getShardContext().parseContext(), "Failed to parse", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
-        }
-    }
-
-    public ParsedQuery parse(byte[] source) {
-        return parse(source, 0, source.length);
-    }
-
-    public ParsedQuery parse(byte[] source, int offset, int length) {
-        XContentParser parser = null;
-        try {
-            parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length);
-            return parse(cache.get(), parser);
-        } catch (QueryShardException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ParsingException(getShardContext().parseContext(), "Failed to parse", e);
+            throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -204,7 +185,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (ParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new ParsingException(context.parseContext(), "Failed to parse", e);
+            throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -220,7 +201,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryShardException|ParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new ParsingException(getShardContext().parseContext(), "Failed to parse [" + source + "]", e);
+            throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse [" + source + "]", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -229,15 +210,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     }
 
     public ParsedQuery parse(XContentParser parser) {
-        return parse(cache.get(), parser);
-    }
-
-    //norelease
-    public ParsedQuery parse(QueryShardContext context, XContentParser parser) {
         try {
-            return innerParse(context, parser);
-        } catch (IOException e) {
-            throw new ParsingException(context.parseContext(), "Failed to parse", e);
+            return innerParse(cache.get(), parser);
+        } catch(IOException e) {
+            throw new ParsingException(parser.getTokenLocation(), "Failed to parse", e);
         }
     }
 
@@ -295,9 +271,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
      * Selectively parses a query from a top level query or query_binary json field from the specified source.
      */
     public ParsedQuery parseQuery(BytesReference source) {
+        XContentParser parser = null;
         try {
+            parser = XContentHelper.createParser(source);
             ParsedQuery parsedQuery = null;
-            XContentParser parser = XContentHelper.createParser(source);
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
@@ -308,20 +285,19 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                         XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
                         parsedQuery = parse(qSourceParser);
                     } else {
-                        throw new ParsingException(getShardContext().parseContext(), "request does not support [" + fieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "request does not support [" + fieldName + "]");
                     }
                 }
             }
-            if (parsedQuery != null) {
-                return parsedQuery;
+            if (parsedQuery == null) {
+                throw new ParsingException(parser.getTokenLocation(), "Required query is missing");
             }
-        } catch (QueryShardException e) {
+            return parsedQuery;
+        } catch (ParsingException | QueryShardException e) {
             throw e;
         } catch (Throwable e) {
-            throw new ParsingException(getShardContext().parseContext(), "Failed to parse", e);
+            throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse", e);
         }
-
-        throw new ParsingException(getShardContext().parseContext(), "Required query is missing");
     }
 
     //norelease

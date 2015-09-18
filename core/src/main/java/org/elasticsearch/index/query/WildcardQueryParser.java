@@ -41,7 +41,7 @@ public class WildcardQueryParser extends BaseQueryParser<WildcardQueryBuilder> {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parseContext, "[wildcard] query malformed, no field");
+            throw new ParsingException(parser.getTokenLocation(), "[wildcard] query malformed, no field");
         }
         String fieldName = parser.currentName();
         String rewrite = null;
@@ -67,7 +67,7 @@ public class WildcardQueryParser extends BaseQueryParser<WildcardQueryBuilder> {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new ParsingException(parseContext, "[wildcard] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "[wildcard] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -78,7 +78,7 @@ public class WildcardQueryParser extends BaseQueryParser<WildcardQueryBuilder> {
         }
 
         if (value == null) {
-            throw new ParsingException(parseContext, "No value specified for prefix query");
+            throw new ParsingException(parser.getTokenLocation(), "No value specified for prefix query");
         }
         return new WildcardQueryBuilder(fieldName, value)
                 .rewrite(rewrite)

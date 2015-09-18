@@ -149,7 +149,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParser<GeoBoundingBoxQue
                 } else if ("ignore_malformed".equals(currentFieldName)) {
                     ignoreMalformed = parser.booleanValue();
                 } else {
-                    throw new ParsingException(parseContext, "failed to parse [{}] query. unexpected field [{}]", NAME, currentFieldName);
+                    throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]", NAME, currentFieldName);
                 }
             }
         }

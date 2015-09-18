@@ -60,7 +60,7 @@ public class DisMaxQueryParser extends BaseQueryParser<DisMaxQueryBuilder> {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     queries.add(query);
                 } else {
-                    throw new ParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("queries".equals(currentFieldName)) {
@@ -71,7 +71,7 @@ public class DisMaxQueryParser extends BaseQueryParser<DisMaxQueryBuilder> {
                         token = parser.nextToken();
                     }
                 } else {
-                    throw new ParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
@@ -81,13 +81,13 @@ public class DisMaxQueryParser extends BaseQueryParser<DisMaxQueryBuilder> {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (!queriesFound) {
-            throw new ParsingException(parseContext, "[dis_max] requires 'queries' field");
+            throw new ParsingException(parser.getTokenLocation(), "[dis_max] requires 'queries' field");
         }
 
         DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();

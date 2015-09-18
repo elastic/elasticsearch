@@ -64,7 +64,7 @@ public class HasChildQueryParser extends BaseQueryParser {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     queryInnerHits = new QueryInnerHits(parser);
                 } else {
-                    throw new ParsingException(parseContext, "[has_child] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
@@ -80,7 +80,7 @@ public class HasChildQueryParser extends BaseQueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[has_child] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
             }
         }

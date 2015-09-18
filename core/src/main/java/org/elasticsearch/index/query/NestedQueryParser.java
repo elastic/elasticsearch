@@ -70,7 +70,7 @@ public class NestedQueryParser extends BaseQueryParser<NestedQueryBuilder> {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     queryInnerHits = new QueryInnerHits(parser);
                 } else {
-                    throw new ParsingException(parseContext, "[nested] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("path".equals(currentFieldName)) {
@@ -90,12 +90,12 @@ public class NestedQueryParser extends BaseQueryParser<NestedQueryBuilder> {
                     } else if ("none".equals(sScoreMode)) {
                         scoreMode = ScoreMode.None;
                     } else {
-                        throw new ParsingException(parseContext, "illegal score_mode for nested query [" + sScoreMode + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "illegal score_mode for nested query [" + sScoreMode + "]");
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[nested] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");
                 }
             }
         }

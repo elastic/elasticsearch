@@ -62,11 +62,11 @@ public class IdsQueryParser extends BaseQueryParser<IdsQueryBuilder> {
                                 (token == XContentParser.Token.VALUE_NUMBER)) {
                             String id = parser.textOrNull();
                             if (id == null) {
-                                throw new ParsingException(parseContext, "No value specified for term filter");
+                                throw new ParsingException(parser.getTokenLocation(), "No value specified for term filter");
                             }
                             ids.add(id);
                         } else {
-                            throw new ParsingException(parseContext, "Illegal value for id, expecting a string or number, got: "
+                            throw new ParsingException(parser.getTokenLocation(), "Illegal value for id, expecting a string or number, got: "
                                     + token);
                         }
                     }
@@ -74,12 +74,12 @@ public class IdsQueryParser extends BaseQueryParser<IdsQueryBuilder> {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
-                            throw new ParsingException(parseContext, "No type specified for term filter");
+                            throw new ParsingException(parser.getTokenLocation(), "No type specified for term filter");
                         }
                         types.add(value);
                     }
                 } else {
-                    throw new ParsingException(parseContext, "[ids] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[ids] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
@@ -89,12 +89,12 @@ public class IdsQueryParser extends BaseQueryParser<IdsQueryBuilder> {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[ids] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[ids] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!idsProvided) {
-            throw new ParsingException(parseContext, "[ids] query, no ids values provided");
+            throw new ParsingException(parser.getTokenLocation(), "[ids] query, no ids values provided");
         }
 
         IdsQueryBuilder query = new IdsQueryBuilder(types.toArray(new String[types.size()]));

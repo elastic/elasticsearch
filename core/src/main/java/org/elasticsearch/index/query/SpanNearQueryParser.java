@@ -59,12 +59,12 @@ public class SpanNearQueryParser extends BaseQueryParser<SpanNearQueryBuilder> {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         QueryBuilder query = parseContext.parseInnerQueryBuilder();
                         if (!(query instanceof SpanQueryBuilder)) {
-                            throw new ParsingException(parseContext, "spanNear [clauses] must be of type span query");
+                            throw new ParsingException(parser.getTokenLocation(), "spanNear [clauses] must be of type span query");
                         }
                         clauses.add((SpanQueryBuilder) query);
                     }
                 } else {
-                    throw new ParsingException(parseContext, "[span_near] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("in_order".equals(currentFieldName) || "inOrder".equals(currentFieldName)) {
@@ -78,19 +78,19 @@ public class SpanNearQueryParser extends BaseQueryParser<SpanNearQueryBuilder> {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[span_near] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new ParsingException(parseContext, "[span_near] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
             }
         }
 
         if (clauses.isEmpty()) {
-            throw new ParsingException(parseContext, "span_near must include [clauses]");
+            throw new ParsingException(parser.getTokenLocation(), "span_near must include [clauses]");
         }
 
         if (slop == null) {
-            throw new ParsingException(parseContext, "span_near must include [slop]");
+            throw new ParsingException(parser.getTokenLocation(), "span_near must include [slop]");
         }
 
         SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(clauses.get(0), slop);

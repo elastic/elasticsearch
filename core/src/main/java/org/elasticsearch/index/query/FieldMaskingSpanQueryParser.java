@@ -54,11 +54,11 @@ public class FieldMaskingSpanQueryParser extends BaseQueryParser<FieldMaskingSpa
                 if ("query".equals(currentFieldName)) {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     if (!(query instanceof SpanQueryBuilder)) {
-                        throw new ParsingException(parseContext, "[field_masking_span] query must be of type span query");
+                        throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query must be of type span query");
                     }
                     inner = (SpanQueryBuilder) query;
                 } else {
-                    throw new ParsingException(parseContext, "[field_masking_span] query does not support ["
+                    throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query does not support ["
                             + currentFieldName + "]");
                 }
             } else {
@@ -69,15 +69,15 @@ public class FieldMaskingSpanQueryParser extends BaseQueryParser<FieldMaskingSpa
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[field_masking_span] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (inner == null) {
-            throw new ParsingException(parseContext, "field_masking_span must have [query] span query clause");
+            throw new ParsingException(parser.getTokenLocation(), "field_masking_span must have [query] span query clause");
         }
         if (field == null) {
-            throw new ParsingException(parseContext, "field_masking_span must have [field] set for it");
+            throw new ParsingException(parser.getTokenLocation(), "field_masking_span must have [field] set for it");
         }
 
         FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(inner, field);

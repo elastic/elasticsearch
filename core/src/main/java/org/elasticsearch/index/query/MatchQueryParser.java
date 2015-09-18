@@ -56,7 +56,7 @@ public class MatchQueryParser extends BaseQueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parseContext, "[match] query malformed, no field");
+            throw new ParsingException(parser.getTokenLocation(), "[match] query malformed, no field");
         }
         String fieldName = parser.currentName();
 
@@ -94,7 +94,7 @@ public class MatchQueryParser extends BaseQueryParser {
                         } else if ("phrase_prefix".equals(tStr) || "phrasePrefix".equals(currentFieldName)) {
                             type = MatchQuery.Type.PHRASE_PREFIX;
                         } else {
-                            throw new ParsingException(parseContext, "[match] query does not support type " + tStr);
+                            throw new ParsingException(parser.getTokenLocation(), "[match] query does not support type " + tStr);
                         }
                     } else if ("analyzer".equals(currentFieldName)) {
                         analyzer = parser.text();
@@ -127,12 +127,12 @@ public class MatchQueryParser extends BaseQueryParser {
                         } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
                             zeroTermsQuery = MatchQuery.ZeroTermsQuery.ALL;
                         } else {
-                            throw new ParsingException(parseContext, "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
+                            throw new ParsingException(parser.getTokenLocation(), "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
                         }
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new ParsingException(parseContext, "[match] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "[match] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -142,13 +142,13 @@ public class MatchQueryParser extends BaseQueryParser {
             // move to the next token
             token = parser.nextToken();
             if (token != XContentParser.Token.END_OBJECT) {
-                throw new ParsingException(parseContext,
+                throw new ParsingException(parser.getTokenLocation(),
                         "[match] query parsed in simplified form, with direct field name, but included more options than just the field name, possibly use its 'options' form, with 'query' element?");
             }
         }
 
         if (value == null) {
-            throw new ParsingException(parseContext, "No text specified for text query");
+            throw new ParsingException(parser.getTokenLocation(), "No text specified for text query");
         }
 
         MatchQueryBuilder matchQuery = new MatchQueryBuilder(fieldName, value);

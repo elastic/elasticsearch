@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
@@ -44,7 +44,6 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -207,10 +206,10 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
             // if index.percolator.map_unmapped_fields_as_string is set to true, query can contain unmapped fields which will be mapped
             // as an analyzed string.
             context.setAllowUnmappedFields(false);
-            context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString ? true : false);
+            context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
             return queryParserService.parseInnerQuery(context);
         } catch (IOException e) {
-            throw new ParsingException(context.parseContext(), "Failed to parse", e);
+            throw new ParsingException(parser.getTokenLocation(), "Failed to parse", e);
         } finally {
             if (type != null) {
                 QueryShardContext.setTypes(previousTypes);

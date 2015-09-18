@@ -153,7 +153,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         // the doc later
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new ParsingException(context.parseContext(), "unknown field [{}]", fieldName);
+            throw new ParsingException(context.parseContext().parser().getTokenLocation(), "unknown field [{}]", fieldName);
         }
 
         // dates and time need special handling
@@ -165,7 +165,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return parseNumberVariable(fieldName, parser, context, (NumberFieldMapper.NumberFieldType) fieldType, mode);
         } else {
-            throw new ParsingException(context.parseContext(), "field [{}] is of type [{}], but only numeric types are supported.", fieldName, fieldType);
+            throw new ParsingException(context.parseContext().parser().getTokenLocation(), "field [{}] is of type [{}], but only numeric types are supported.", fieldName, fieldType);
         }
     }
 

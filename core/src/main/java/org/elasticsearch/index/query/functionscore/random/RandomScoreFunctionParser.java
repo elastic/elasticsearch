@@ -67,17 +67,17 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
                         } else if (parser.numberType() == XContentParser.NumberType.LONG) {
                             seed = hash(parser.longValue());
                         } else {
-                            throw new ParsingException(parseContext, "random_score seed must be an int, long or string, not '"
+                            throw new ParsingException(parser.getTokenLocation(), "random_score seed must be an int, long or string, not '"
                                     + token.toString() + "'");
                         }
                     } else if (token == XContentParser.Token.VALUE_STRING) {
                         seed = parser.text().hashCode();
                     } else {
-                        throw new ParsingException(parseContext, "random_score seed must be an int/long or string, not '"
+                        throw new ParsingException(parser.getTokenLocation(), "random_score seed must be an int/long or string, not '"
                                 + token.toString() + "'");
                     }
                 } else {
-                    throw new ParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             }
         }

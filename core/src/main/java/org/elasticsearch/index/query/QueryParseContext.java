@@ -25,7 +25,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 
 import java.io.IOException;
@@ -36,7 +35,6 @@ public class QueryParseContext {
     private static final ParseField CACHE_KEY = new ParseField("_cache_key").withAllDeprecated("Filters are always used as cache keys");
 
     private XContentParser parser;
-    private final Index index;
     //norelease this flag is also used in the QueryShardContext, we need to make sure we set it there correctly in doToQuery()
     private ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
 
@@ -44,15 +42,13 @@ public class QueryParseContext {
     private final QueryShardContext shardContext;
     private IndicesQueriesRegistry indicesQueriesRegistry;
 
-    public QueryParseContext(Index index, IndicesQueriesRegistry registry) {
-        this.index = index;
+    public QueryParseContext(IndicesQueriesRegistry registry) {
         this.indicesQueriesRegistry = registry;
         this.shardContext = null;
     }
 
     QueryParseContext(QueryShardContext context) {
         this.shardContext = context;
-        this.index = context.index();
         this.indicesQueriesRegistry = context.indexQueryParserService().indicesQueriesRegistry();
     }
 
@@ -83,10 +79,6 @@ public class QueryParseContext {
 
     public boolean isDeprecatedSetting(String setting) {
         return parseFieldMatcher.match(setting, CACHE) || parseFieldMatcher.match(setting, CACHE_KEY);
-    }
-
-    public Index index() {
-        return this.index;
     }
 
     /**
@@ -129,7 +121,7 @@ public class QueryParseContext {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ParsingException(this, "[_na] query malformed, must start with start_object");
+                throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, must start with start_object");
             }
         }
         token = parser.nextToken();
@@ -138,18 +130,18 @@ public class QueryParseContext {
             return EmptyQueryBuilder.PROTOTYPE;
         }
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(this, "[_na] query malformed, no field after start_object");
+            throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
         String queryName = parser.currentName();
         // move to the next START_OBJECT
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
-            throw new ParsingException(this, "[_na] query malformed, no field after start_object");
+            throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
 
         QueryParser queryParser = queryParser(queryName);
         if (queryParser == null) {
-            throw new ParsingException(this, "No query registered for [" + queryName + "]");
+            throw new ParsingException(parser.getTokenLocation(), "No query registered for [" + queryName + "]");
         }
         QueryBuilder result = queryParser.fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
@@ -181,7 +173,7 @@ public class QueryParseContext {
             this.shardContext.isFilter = true;
             QueryParser queryParser = queryParser(queryName);
             if (queryParser == null) {
-                throw new ParsingException(this, "No query registered for [" + queryName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "No query registered for [" + queryName + "]");
             }
             return queryParser.fromXContent(this);
         } finally {

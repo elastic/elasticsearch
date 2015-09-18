@@ -68,7 +68,7 @@ public class SpanTermQueryParser extends BaseQueryParser<SpanTermQueryBuilder> {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new ParsingException(parseContext, "[span_term] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "[span_term] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -80,7 +80,7 @@ public class SpanTermQueryParser extends BaseQueryParser<SpanTermQueryBuilder> {
         }
 
         if (value == null) {
-            throw new ParsingException(parseContext, "No value specified for term query");
+            throw new ParsingException(parser.getTokenLocation(), "No value specified for term query");
         }
 
         SpanTermQueryBuilder result = new SpanTermQueryBuilder(fieldName, value);

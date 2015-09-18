@@ -83,12 +83,12 @@ public class GeoShapeQueryParser extends BaseQueryParser<GeoShapeQueryBuilder> {
                             String strategyName = parser.text();
                             strategy = SpatialStrategy.fromString(strategyName);
                             if (strategy == null) {
-                                throw new ParsingException(parseContext, "Unknown strategy [" + strategyName + " ]");
+                                throw new ParsingException(parser.getTokenLocation(), "Unknown strategy [" + strategyName + " ]");
                             }
                         } else if (parseContext.parseFieldMatcher().match(currentFieldName, RELATION_FIELD)) {
                             shapeRelation = ShapeRelation.getRelationByName(parser.text());
                             if (shapeRelation == null) {
-                                throw new ParsingException(parseContext, "Unknown shape operation [" + parser.text() + " ]");
+                                throw new ParsingException(parser.getTokenLocation(), "Unknown shape operation [" + parser.text() + " ]");
                             }
                         } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_SHAPE_FIELD)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -107,7 +107,7 @@ public class GeoShapeQueryParser extends BaseQueryParser<GeoShapeQueryBuilder> {
                                 }
                             }
                         } else {
-                            throw new ParsingException(parseContext, "[geo_shape] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(), "[geo_shape] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -117,7 +117,7 @@ public class GeoShapeQueryParser extends BaseQueryParser<GeoShapeQueryBuilder> {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[geo_shape] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[geo_shape] query does not support [" + currentFieldName + "]");
                 }
             }
         }

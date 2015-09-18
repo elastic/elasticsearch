@@ -43,7 +43,7 @@ public class FuzzyQueryParser extends BaseQueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parseContext, "[fuzzy] query malformed, no field");
+            throw new ParsingException(parser.getTokenLocation(), "[fuzzy] query malformed, no field");
         }
         
         String fieldName = parser.currentName();
@@ -84,7 +84,7 @@ public class FuzzyQueryParser extends BaseQueryParser {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new ParsingException(parseContext, "[fuzzy] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "[fuzzy] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -96,7 +96,7 @@ public class FuzzyQueryParser extends BaseQueryParser {
         }
 
         if (value == null) {
-            throw new ParsingException(parseContext, "no value specified for fuzzy query");
+            throw new ParsingException(parser.getTokenLocation(), "no value specified for fuzzy query");
         }
         return new FuzzyQueryBuilder(fieldName, value)
                 .fuzziness(fuzziness)

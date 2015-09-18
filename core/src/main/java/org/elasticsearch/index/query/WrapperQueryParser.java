@@ -41,11 +41,11 @@ public class WrapperQueryParser extends BaseQueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parseContext, "[wrapper] query malformed");
+            throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
         }
         String fieldName = parser.currentName();
         if (!fieldName.equals("query")) {
-            throw new ParsingException(parseContext, "[wrapper] query malformed");
+            throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
         }
         parser.nextToken();
 
@@ -54,7 +54,7 @@ public class WrapperQueryParser extends BaseQueryParser {
         parser.nextToken();
 
         if (source == null) {
-            throw new ParsingException(parseContext, "wrapper query has no [query] specified");
+            throw new ParsingException(parser.getTokenLocation(), "wrapper query has no [query] specified");
         }
         return new WrapperQueryBuilder(source);
     }

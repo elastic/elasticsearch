@@ -79,7 +79,7 @@ public class RegexpQueryParser extends BaseQueryParser<RegexpQueryBuilder> {
                         } else if ("_name".equals(currentFieldName)) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(), "[regexp] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -94,7 +94,7 @@ public class RegexpQueryParser extends BaseQueryParser<RegexpQueryBuilder> {
         }
 
         if (value == null) {
-            throw new ParsingException(parseContext, "No value specified for regexp query");
+            throw new ParsingException(parser.getTokenLocation(), "No value specified for regexp query");
         }
         return new RegexpQueryBuilder(fieldName, value)
                 .flags(flagsValue)

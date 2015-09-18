@@ -69,13 +69,13 @@ public class NotQueryParser extends BaseQueryParser<NotQueryBuilder> {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parseContext, "[not] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[not] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (!queryFound) {
-            throw new ParsingException(parseContext, "query is required when using `not` query");
+            throw new ParsingException(parser.getTokenLocation(), "query is required when using `not` query");
         }
 
         NotQueryBuilder notQueryBuilder = new NotQueryBuilder(query);

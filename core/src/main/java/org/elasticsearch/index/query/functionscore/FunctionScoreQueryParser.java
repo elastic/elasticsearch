@@ -132,7 +132,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                     // we try to parse a score function. If there is no score
                     // function for the current field name,
                     // functionParserMapper.get() will throw an Exception.
-                    scoreFunction = functionParserMapper.get(parseContext, currentFieldName).parse(context, parser);
+                    scoreFunction = functionParserMapper.get(parser.getTokenLocation(), currentFieldName).parse(context, parser);
                 }
                 if (functionArrayFound) {
                     String errorString = "already found [functions] array, now encountering [" + currentFieldName + "].";
@@ -203,7 +203,7 @@ public class FunctionScoreQueryParser implements QueryParser {
             ScoreFunction scoreFunction = null;
             Float functionWeight = null;
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ParsingException(parseContext, "failed to parse [{}]. malformed query, expected a [{}] while parsing functions but got a [{}] instead", XContentParser.Token.START_OBJECT, token, NAME);
+                throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}]. malformed query, expected a [{}] while parsing functions but got a [{}] instead", XContentParser.Token.START_OBJECT, token, NAME);
             } else {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -217,7 +217,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                             // do not need to check null here,
                             // functionParserMapper throws exception if parser
                             // non-existent
-                            ScoreFunctionParser functionParser = functionParserMapper.get(parseContext, currentFieldName);
+                            ScoreFunctionParser functionParser = functionParserMapper.get(parser.getTokenLocation(), currentFieldName);
                             scoreFunction = functionParser.parse(context, parser);
                         }
                     }
@@ -253,7 +253,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         } else if ("first".equals(scoreMode)) {
             return FiltersFunctionScoreQuery.ScoreMode.First;
         } else {
-            throw new ParsingException(parseContext, "failed to parse [{}] query. illegal score_mode [{}]", NAME, scoreMode);
+            throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. illegal score_mode [{}]", NAME, scoreMode);
         }
     }
 
@@ -261,7 +261,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         String boostMode = parser.text();
         CombineFunction cf = combineFunctionsMap.get(boostMode);
         if (cf == null) {
-            throw new ParsingException(parseContext, "failed to parse [{}] query. illegal boost_mode [{}]", NAME, boostMode);
+            throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. illegal boost_mode [{}]", NAME, boostMode);
         }
         return cf;
     }

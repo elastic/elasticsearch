@@ -22,15 +22,12 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
 /**
  * Parser for bool query
@@ -90,7 +87,7 @@ public class BoolQueryParser extends BaseQueryParser<BoolQueryBuilder> {
                     mustNotClauses.add(query);
                     break;
                 default:
-                    throw new ParsingException(parseContext, "[bool] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[bool] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -113,7 +110,7 @@ public class BoolQueryParser extends BaseQueryParser<BoolQueryBuilder> {
                         mustNotClauses.add(query);
                         break;
                     default:
-                        throw new ParsingException(parseContext, "bool query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "bool query does not support [" + currentFieldName + "]");
                     }
                 }
             } else if (token.isValue()) {
@@ -130,7 +127,7 @@ public class BoolQueryParser extends BaseQueryParser<BoolQueryBuilder> {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[bool] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[bool] query does not support [" + currentFieldName + "]");
                 }
             }
         }

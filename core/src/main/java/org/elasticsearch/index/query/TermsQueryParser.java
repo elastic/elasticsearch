@@ -70,13 +70,13 @@ public class TermsQueryParser extends BaseQueryParser {
                 // skip
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if  (fieldName != null) {
-                    throw new ParsingException(parseContext, "[terms] query does not support multiple fields");
+                    throw new ParsingException(parser.getTokenLocation(), "[terms] query does not support multiple fields");
                 }
                 fieldName = currentFieldName;
-                values = parseValues(parseContext, parser);
+                values = parseValues(parser);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 fieldName = currentFieldName;
-                termsLookup = TermsLookup.parseTermsLookup(parseContext, parser);
+                termsLookup = TermsLookup.parseTermsLookup(parser);
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, EXECUTION_FIELD)) {
                     // ignore
@@ -92,26 +92,25 @@ public class TermsQueryParser extends BaseQueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[terms] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[terms] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldName == null) {
-            throw new ParsingException(parseContext, "terms query requires a field name, followed by array of terms or a document lookup specification");
+            throw new ParsingException(parser.getTokenLocation(), "terms query requires a field name, followed by array of terms or a document lookup specification");
         }
         return new TermsQueryBuilder(fieldName, values, minShouldMatch, disableCoord, termsLookup)
                 .boost(boost)
                 .queryName(queryName);
     }
 
-    private static List<Object> parseValues(QueryParseContext parseContext, XContentParser parser) throws IOException {
+    private static List<Object> parseValues(XContentParser parser) throws IOException {
         List<Object> values = new ArrayList<>();
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             Object value = parser.objectBytes();
             if (value == null) {
-                throw new ParsingException(parseContext, "No value specified for terms query");
+                throw new ParsingException(parser.getTokenLocation(), "No value specified for terms query");
             }
             values.add(value);
         }

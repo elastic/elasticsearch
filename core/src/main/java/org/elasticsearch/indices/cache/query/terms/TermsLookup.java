@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -89,7 +88,7 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
         return this;
     }
 
-    public static TermsLookup parseTermsLookup(QueryParseContext parseContext, XContentParser parser) throws IOException {
+    public static TermsLookup parseTermsLookup(XContentParser parser) throws IOException {
         String index = null;
         String type = null;
         String id = null;
@@ -118,7 +117,7 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
                     path = parser.text();
                     break;
                 default:
-                    throw new ParsingException(parseContext, "[terms] query does not support [" + currentFieldName
+                    throw new ParsingException(parser.getTokenLocation(), "[terms] query does not support [" + currentFieldName
                             + "] within lookup element");
                 }
             }

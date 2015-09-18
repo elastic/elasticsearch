@@ -74,15 +74,15 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
                 } else if ("missing".equals(currentFieldName)) {
                     missing = parser.doubleValue();
                 } else {
-                    throw new ParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             } else if("factor".equals(currentFieldName) && (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)) {
-                throw new ParsingException(parseContext, "[" + NAMES[0] + "] field 'factor' does not support lists or objects");
+                throw new ParsingException(parser.getTokenLocation(), "[" + NAMES[0] + "] field 'factor' does not support lists or objects");
             }
         }
 
         if (field == null) {
-            throw new ParsingException(parseContext, "[" + NAMES[0] + "] required field 'field' missing");
+            throw new ParsingException(parser.getTokenLocation(), "[" + NAMES[0] + "] required field 'field' missing");
         }
 
         SearchContext searchContext = SearchContext.current();

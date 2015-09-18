@@ -52,11 +52,11 @@ public class SpanMultiTermQueryParser extends BaseQueryParser<SpanMultiTermQuery
                 if (MATCH_NAME.equals(currentFieldName)) {
                     QueryBuilder innerQuery = parseContext.parseInnerQueryBuilder();
                     if (innerQuery instanceof MultiTermQueryBuilder == false) {
-                        throw new ParsingException(parseContext, "[span_multi] [" + MATCH_NAME + "] must be of type multi term query");
+                        throw new ParsingException(parser.getTokenLocation(), "[span_multi] [" + MATCH_NAME + "] must be of type multi term query");
                     }
                     subQuery = (MultiTermQueryBuilder) innerQuery;
                 } else {
-                    throw new ParsingException(parseContext, "[span_multi] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[span_multi] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
@@ -64,13 +64,13 @@ public class SpanMultiTermQueryParser extends BaseQueryParser<SpanMultiTermQuery
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parseContext, "[span_multi] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[span_multi] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (subQuery == null) {
-            throw new ParsingException(parseContext, "[span_multi] must have [" + MATCH_NAME + "] multi term query clause");
+            throw new ParsingException(parser.getTokenLocation(), "[span_multi] must have [" + MATCH_NAME + "] multi term query clause");
         }
 
         return new SpanMultiTermQueryBuilder(subQuery).queryName(queryName).boost(boost);

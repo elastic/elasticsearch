@@ -53,32 +53,32 @@ public class SpanWithinQueryParser extends BaseQueryParser<SpanWithinQueryBuilde
                 if ("big".equals(currentFieldName)) {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     if (query instanceof SpanQueryBuilder == false) {
-                        throw new ParsingException(parseContext, "span_within [big] must be of type span query");
+                        throw new ParsingException(parser.getTokenLocation(), "span_within [big] must be of type span query");
                     }
                     big = (SpanQueryBuilder) query;
                 } else if ("little".equals(currentFieldName)) {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     if (query instanceof SpanQueryBuilder == false) {
-                        throw new ParsingException(parseContext, "span_within [little] must be of type span query");
+                        throw new ParsingException(parser.getTokenLocation(), "span_within [little] must be of type span query");
                     }
                     little = (SpanQueryBuilder) query;
                 } else {
-                    throw new ParsingException(parseContext, "[span_within] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[span_within] query does not support [" + currentFieldName + "]");
                 }
             } else if ("boost".equals(currentFieldName)) {
                 boost = parser.floatValue();
             } else if ("_name".equals(currentFieldName)) {
                 queryName = parser.text();
             } else {
-                throw new ParsingException(parseContext, "[span_within] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[span_within] query does not support [" + currentFieldName + "]");
             }
         }
 
         if (big == null) {
-            throw new ParsingException(parseContext, "span_within must include [big]");
+            throw new ParsingException(parser.getTokenLocation(), "span_within must include [big]");
         }
         if (little == null) {
-            throw new ParsingException(parseContext, "span_within must include [little]");
+            throw new ParsingException(parser.getTokenLocation(), "span_within must include [little]");
         }
 
         SpanWithinQueryBuilder query = new SpanWithinQueryBuilder(big, little);

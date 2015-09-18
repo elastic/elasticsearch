@@ -56,13 +56,13 @@ public class ExistsQueryParser extends BaseQueryParser<ExistsQueryBuilder> {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parseContext, "[exists] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[exists] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldPattern == null) {
-            throw new ParsingException(parseContext, "exists must be provided with a [field]");
+            throw new ParsingException(parser.getTokenLocation(), "exists must be provided with a [field]");
         }
 
         ExistsQueryBuilder builder = new ExistsQueryBuilder(fieldPattern);

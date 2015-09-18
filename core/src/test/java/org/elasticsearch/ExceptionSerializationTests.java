@@ -21,7 +21,6 @@ package org.elasticsearch;
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.google.common.collect.ImmutableSet;
-
 import org.apache.lucene.util.Constants;
 import org.codehaus.groovy.runtime.typehandling.GroovyCastException;
 import org.elasticsearch.action.FailedNodeException;
@@ -33,12 +32,7 @@ import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
-import org.elasticsearch.cluster.routing.RoutingTableValidation;
-import org.elasticsearch.cluster.routing.RoutingValidationException;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -47,12 +41,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CancellableThreadsTests;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.util.CancellableThreadsTests;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.Index;
@@ -111,7 +105,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         final Path startPath = PathUtils.get(ElasticsearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI()).resolve("org").resolve("elasticsearch");
         final Set<? extends Class> ignore = Sets.newHashSet(
                 org.elasticsearch.test.rest.parser.RestTestParseException.class,
-                org.elasticsearch.index.query.TestParsingException.class,
                 org.elasticsearch.test.rest.client.RestException.class,
                 CancellableThreadsTests.CustomException.class,
                 org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
@@ -227,13 +220,13 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testParsingException() throws IOException {
-        ParsingException ex = serialize(new ParsingException(new Index("foo"), 1, 2, "fobar", null));
-        assertEquals(ex.getIndex(), "foo");
+        ParsingException ex = serialize(new ParsingException(1, 2, "fobar", null));
+        assertNull(ex.getIndex());
         assertEquals(ex.getMessage(), "fobar");
         assertEquals(ex.getLineNumber(),1);
         assertEquals(ex.getColumnNumber(), 2);
 
-        ex = serialize(new ParsingException(null, 1, 2, null, null));
+        ex = serialize(new ParsingException(1, 2, null, null));
         assertNull(ex.getIndex());
         assertNull(ex.getMessage());
         assertEquals(ex.getLineNumber(),1);
@@ -643,15 +636,5 @@ public class ExceptionSerializationTests extends ESTestCase {
         InterruptedException orig = randomBoolean() ? new InterruptedException("boom") : new InterruptedException();
         InterruptedException ex = serialize(orig);
         assertEquals(orig.getMessage(), ex.getMessage());
-    }
-
-    public static class UnknownException extends Exception {
-        public UnknownException(String message) {
-            super(message);
-        }
-
-        public UnknownException(String message, Throwable cause) {
-            super(message, cause);
-        }
     }
 }

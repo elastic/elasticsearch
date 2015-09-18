@@ -66,7 +66,7 @@ public class ScriptQueryParser extends BaseQueryParser<ScriptQueryBuilder> {
                 } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
                     params = parser.map();
                 } else {
-                    throw new ParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
@@ -74,7 +74,7 @@ public class ScriptQueryParser extends BaseQueryParser<ScriptQueryBuilder> {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.parseFieldMatcher())) {
-                    throw new ParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -88,11 +88,11 @@ public class ScriptQueryParser extends BaseQueryParser<ScriptQueryBuilder> {
                 script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
         } else if (params != null) {
-            throw new ParsingException(parseContext, "script params must be specified inside script object in a [script] filter");
+            throw new ParsingException(parser.getTokenLocation(), "script params must be specified inside script object in a [script] filter");
         }
 
         if (script == null) {
-            throw new ParsingException(parseContext, "script must be provided with a [script] filter");
+            throw new ParsingException(parser.getTokenLocation(), "script must be provided with a [script] filter");
         }
 
         return new ScriptQueryBuilder(script)

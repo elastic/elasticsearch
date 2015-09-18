@@ -87,7 +87,7 @@ public class GeoDistanceQueryParser extends BaseQueryParser {
                         } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
                             point.resetFromGeoHash(parser.text());
                         } else {
-                            throw new ParsingException(parseContext, "[geo_distance] query does not support [" + currentFieldName
+                            throw new ParsingException(parser.getTokenLocation(), "[geo_distance] query does not support [" + currentFieldName
                                     + "]");
                         }
                     }
@@ -133,7 +133,7 @@ public class GeoDistanceQueryParser extends BaseQueryParser {
         }
 
         if (vDistance == null) {
-            throw new ParsingException(parseContext, "geo_distance requires 'distance' to be specified");
+            throw new ParsingException(parser.getTokenLocation(), "geo_distance requires 'distance' to be specified");
         }
 
         GeoDistanceQueryBuilder qb = new GeoDistanceQueryBuilder(fieldName);

@@ -77,7 +77,7 @@ public class MultiMatchQueryParser extends BaseQueryParser<MultiMatchQueryBuilde
                 } else if (token.isValue()) {
                     parseFieldAndBoost(parser, fieldsBoosts);
                 } else {
-                    throw new ParsingException(parseContext, "[" + MultiMatchQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + MultiMatchQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -117,22 +117,22 @@ public class MultiMatchQueryParser extends BaseQueryParser<MultiMatchQueryBuilde
                     } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
                         zeroTermsQuery = MatchQuery.ZeroTermsQuery.ALL;
                     } else {
-                        throw new ParsingException(parseContext, "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[match] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[match] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (value == null) {
-            throw new ParsingException(parseContext, "No text specified for multi_match query");
+            throw new ParsingException(parser.getTokenLocation(), "No text specified for multi_match query");
         }
 
         if (fieldsBoosts.isEmpty()) {
-            throw new ParsingException(parseContext, "No fields specified for multi_match query");
+            throw new ParsingException(parser.getTokenLocation(), "No fields specified for multi_match query");
         }
 
         return new MultiMatchQueryBuilder(value)

@@ -73,11 +73,11 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
                 } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
                     vars = parser.map();
                 } else {
-                    throw new ParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.parseFieldMatcher())) {
-                    throw new ParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -91,11 +91,11 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
                 script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), vars);
             }
         } else if (vars != null) {
-            throw new ParsingException(parseContext, "script params must be specified inside script object");
+            throw new ParsingException(parser.getTokenLocation(), "script params must be specified inside script object");
         }
 
         if (script == null) {
-            throw new ParsingException(parseContext, NAMES[0] + " requires 'script' field");
+            throw new ParsingException(parser.getTokenLocation(), NAMES[0] + " requires 'script' field");
         }
 
         SearchScript searchScript;
@@ -103,7 +103,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             searchScript = context.scriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH);
             return new ScriptScoreFunction(script, searchScript);
         } catch (Exception e) {
-            throw new ParsingException(parseContext, NAMES[0] + " the script could not be loaded", e);
+            throw new ParsingException(parser.getTokenLocation(), NAMES[0] + " the script could not be loaded", e);
         }
     }
 }

@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -124,7 +125,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         innerQuery.setBoost(boost);
         DocumentMapper parentDocMapper = context.mapperService().documentMapper(type);
         if (parentDocMapper == null) {
-            throw new ParsingException(context.parseContext(), "[has_parent] query configured 'parent_type' [" + type
+            throw new QueryShardException(context, "[has_parent] query configured 'parent_type' [" + type
                     + "] is not a valid type");
         }
 
@@ -159,7 +160,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             }
         }
         if (parentChildIndexFieldData == null) {
-            throw new ParsingException(context.parseContext(), "[has_parent] no _parent field configured");
+            throw new QueryShardException(context, "[has_parent] no _parent field configured");
         }
 
         Query parentTypeQuery = null;

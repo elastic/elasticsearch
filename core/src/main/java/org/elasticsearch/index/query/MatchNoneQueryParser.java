@@ -39,7 +39,7 @@ public class MatchNoneQueryParser extends BaseQueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ParsingException(parseContext, "[match_none] query malformed");
+            throw new ParsingException(parser.getTokenLocation(), "[match_none] query malformed");
         }
 
         return new MatchNoneQueryBuilder();

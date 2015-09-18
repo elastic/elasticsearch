@@ -61,7 +61,7 @@ public class HasParentQueryParser extends BaseQueryParser  {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     innerHits = new QueryInnerHits(parser);
                 } else {
-                    throw new ParsingException(parseContext, "[has_parent] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
@@ -73,7 +73,7 @@ public class HasParentQueryParser extends BaseQueryParser  {
                     } else if ("none".equals(scoreModeValue)) {
                         score = false;
                     } else {
-                        throw new ParsingException(parseContext, "[has_parent] query does not support [" + scoreModeValue + "] as an option for score_mode");
+                        throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + scoreModeValue + "] as an option for score_mode");
                     }
                 } else if ("score".equals(currentFieldName)) {
                     score = parser.booleanValue();
@@ -82,7 +82,7 @@ public class HasParentQueryParser extends BaseQueryParser  {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[has_parent] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             }
         }

@@ -61,13 +61,13 @@ public class MissingQueryParser extends BaseQueryParser<MissingQueryBuilder> {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parseContext, "[missing] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[missing] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldPattern == null) {
-            throw new ParsingException(parseContext, "missing must be provided with a [field]");
+            throw new ParsingException(parser.getTokenLocation(), "missing must be provided with a [field]");
         }
         return new MissingQueryBuilder(fieldPattern, nullValue, existence)
                 .boost(boost)

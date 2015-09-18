@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.primitives.Integers;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.shield.support.Exceptions;
@@ -38,7 +37,7 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
         logger.debug("group SID to DN search filter: [{}]", groupSearchFilter);
 
         SearchRequest searchRequest = new SearchRequest(baseDn, scope.scope(), groupSearchFilter, Strings.EMPTY_ARRAY);
-        searchRequest.setTimeLimitSeconds(Integers.checkedCast(timeout.seconds()));
+        searchRequest.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
         SearchResult results;
         try {
             results = search(connection, searchRequest, logger);
@@ -59,7 +58,7 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
     static Filter buildGroupQuery(LDAPInterface connection, String userDn, TimeValue timeout, ESLogger logger) {
         try {
             SearchRequest request = new SearchRequest(userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, "tokenGroups");
-            request.setTimeLimitSeconds(Integers.checkedCast(timeout.seconds()));
+            request.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
             SearchResultEntry entry = searchForEntry(connection, request, logger);
             Attribute attribute = entry.getAttribute("tokenGroups");
             byte[][] tokenGroupSIDBytes = attribute.getValueByteArrays();

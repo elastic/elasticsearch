@@ -11,7 +11,6 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.primitives.Integers;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
@@ -51,7 +50,7 @@ public class SearchGroupsResolverTests extends ESTestCase {
         options.setFollowReferrals(true);
         options.setAutoReconnect(true);
         options.setAllowConcurrentSocketFactoryUse(true);
-        options.setConnectTimeoutMillis(Integers.checkedCast(SessionFactory.TIMEOUT_DEFAULT.millis()));
+        options.setConnectTimeoutMillis(Math.toIntExact(SessionFactory.TIMEOUT_DEFAULT.millis()));
         options.setResponseTimeoutMillis(SessionFactory.TIMEOUT_DEFAULT.millis());
         ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(), BRUCE_BANNER_DN, OpenLdapTests.PASSWORD);
     }

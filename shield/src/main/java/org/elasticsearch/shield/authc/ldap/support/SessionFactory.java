@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.primitives.Integers;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
 
@@ -94,7 +93,7 @@ public abstract class SessionFactory {
 
     protected static LDAPConnectionOptions connectionOptions(Settings settings) {
         LDAPConnectionOptions options = new LDAPConnectionOptions();
-        options.setConnectTimeoutMillis(Integers.checkedCast(settings.getAsTime(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()));
+        options.setConnectTimeoutMillis(Math.toIntExact(settings.getAsTime(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()));
         options.setFollowReferrals(settings.getAsBoolean(FOLLOW_REFERRALS_SETTING, true));
         options.setResponseTimeoutMillis(settings.getAsTime(TIMEOUT_TCP_READ_SETTING, TIMEOUT_DEFAULT).millis());
         options.setAutoReconnect(true);

@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.primitives.Integers;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
@@ -170,7 +169,7 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
 
     private String findUserDN(String user) throws Exception {
         SearchRequest request = new SearchRequest(userSearchBaseDn, scope.scope(), createEqualityFilter(userAttribute, encodeValue(user)), Strings.EMPTY_ARRAY);
-        request.setTimeLimitSeconds(Integers.checkedCast(timeout.seconds()));
+        request.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
         LDAPConnectionPool connectionPool = connectionPool();
         SearchResultEntry entry = searchForEntry(connectionPool, request, logger);
         if (entry == null) {

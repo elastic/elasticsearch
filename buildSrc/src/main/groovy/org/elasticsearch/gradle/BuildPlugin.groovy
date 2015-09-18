@@ -15,9 +15,10 @@ class BuildPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
+        //getClass().getResource('/forbidden/core-signatures.txt').openConnection().setDefaultUseCaches(false)
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomizedtesting')
-        //project.pluginManager.apply('de.thetaphi.forbiddenapis')
+        project.pluginManager.apply('de.thetaphi.forbiddenapis')
         // TODO: license checker
 
         Closure testConfig = createSharedTestConfig(project)
@@ -25,7 +26,7 @@ class BuildPlugin implements Plugin<Project> {
         RandomizedTestingTask integTest = configureIntegTest(project.tasks, getIntegTestClass(), test, testConfig)
 
         List<Task> precommitTasks = new ArrayList<>()
-        //precommitTasks.add(configureForbiddenApis(project))
+        precommitTasks.add(configureForbiddenApis(project))
         precommitTasks.add(configureForbiddenPatterns(project.tasks))
 
         Map precommitOptions = [

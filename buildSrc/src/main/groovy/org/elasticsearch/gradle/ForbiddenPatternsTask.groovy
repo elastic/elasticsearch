@@ -63,7 +63,7 @@ class ForbiddenPatternsTask extends DefaultTask {
         Pattern allPatterns = Pattern.compile('(' + patterns.values().join(')|(') + ')')
         List<String> failures = new ArrayList<>()
         for (File f : files()) {
-            f.eachLine { line, lineNumber ->
+            f.eachLine('UTF-8') { line, lineNumber ->
                 if (allPatterns.matcher(line).find()) {
                     addErrorMessages(failures, f, (String)line, (int)lineNumber)
                 }

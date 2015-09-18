@@ -73,3 +73,10 @@ subprojects {
   }
 }
 
+idea {
+  project {
+    languageLevel = '1.8'
+    vcs = 'Git'
+  }
+}
+

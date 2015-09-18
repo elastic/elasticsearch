@@ -1,5 +1,6 @@
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'idea'
 
 jar {
   baseName = 'elasticsearch'
@@ -13,7 +14,7 @@ configurations {
 versions << [
   jackson:  '2.5.3',
   log4j:    '1.2.17',
-  slf4j:    '1.6.2' 
+  slf4j:    '1.6.2'
 ]
 
 dependencies {
@@ -86,7 +87,7 @@ dependencies {
   testCompile(group: 'junit', name: 'junit', version: '4.11') {
     transitive = false
   }
-  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.2.0-snapshot-${randomizedRunnerSnapshotRevision}"
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.2.0-snapshot-${randomizedRunnerSnapshotRevision}"
 
   testCompile("org.apache.lucene:lucene-test-framework:${versions.lucene}") {
     exclude group: 'com.carrotsearch.randomizedtesting', module: 'junit4-ant'
@@ -132,4 +133,9 @@ test {
   dependsOn copyRestSpec
 }
 
-
+idea {
+  module {
+    scopes.COMPILE.plus.add(configurations.optional)
+    scopes.TEST.plus.add(configurations.restSpec)
+  }
+}

@@ -78,13 +78,6 @@ public class EmptyQueryBuilder extends ToXContentToBytes implements QueryBuilder
         return null;
     }
 
-
-    @Override
-    public QueryValidationException validate() {
-        // nothing to validate
-        return null;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
     }

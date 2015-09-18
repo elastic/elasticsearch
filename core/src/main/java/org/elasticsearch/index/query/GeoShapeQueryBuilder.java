@@ -62,7 +62,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     public static final String DEFAULT_SHAPE_FIELD_NAME = "shape";
     public static final ShapeRelation DEFAULT_SHAPE_RELATION = ShapeRelation.INTERSECTS;
 
-    static final GeoShapeQueryBuilder PROTOTYPE = new GeoShapeQueryBuilder("", new BytesArray(new byte[0]));
+    static final GeoShapeQueryBuilder PROTOTYPE = new GeoShapeQueryBuilder("field", new BytesArray(new byte[1]));
 
     private final String fieldName;
 
@@ -114,11 +114,17 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     }
 
     private GeoShapeQueryBuilder(String fieldName, ShapeBuilder shape, String indexedShapeId, String indexedShapeType) throws IOException {
-        this(fieldName, new BytesArray(new byte[0]), indexedShapeId, indexedShapeType);
+        this(fieldName, new BytesArray(new byte[1]), indexedShapeId, indexedShapeType);
         if (shape != null) {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             shape.toXContent(builder, EMPTY_PARAMS);
-            this.shapeBytes = builder.bytes();
+            BytesReference bytes = builder.bytes();
+            if (bytes.length() == 0) {
+                throw new IllegalArgumentException("shape must not be empty");
+            }
+            this.shapeBytes = bytes;
+        } else {
+            throw new IllegalArgumentException("shape must not be null");
         }
     }
 
@@ -126,7 +132,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         if (fieldName == null) {
             throw new IllegalArgumentException("fieldName is required");
         }
-        if (shapeBytes == null && indexedShapeId == null) {
+        if ((shapeBytes == null || shapeBytes.length() == 0) && indexedShapeId == null) {
             throw new IllegalArgumentException("either shapeBytes or indexedShapeId and indexedShapeType are required");
         }
         if (indexedShapeId != null && indexedShapeType == null) {
@@ -232,6 +238,9 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      * @return this
      */
     public GeoShapeQueryBuilder relation(ShapeRelation relation) {
+        if (relation == null) {
+            throw new IllegalArgumentException("No Shape Relation defined");
+        }
         this.relation = relation;
         return this;
     }
@@ -243,21 +252,9 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         return relation;
     }
 
-    @Override
     public QueryValidationException validate() {
         QueryValidationException errors = null;
-        if (fieldName == null) {
-            errors = QueryValidationException.addValidationError(NAME, "No field defined", errors);
-        }
-        if ((shapeBytes == null || shapeBytes.length() == 0) && indexedShapeId == null) {
-            errors = QueryValidationException.addValidationError(NAME, "No Shape defined", errors);
-        }
-        if (relation == null) {
-            errors = QueryValidationException.addValidationError(NAME, "No Shape Relation defined", errors);
-        }
-        if (indexedShapeId != null && indexedShapeType == null) {
-            errors = QueryValidationException.addValidationError(NAME, "Type for indexed shape not provided", errors);
-        }
+        // TODO did we validate this before the refactoring and can we do this in setters at all?
         if (strategy != null && strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
             errors = QueryValidationException.addValidationError(NAME,
                     "strategy [" + strategy.getStrategyName() + "] only supports relation ["

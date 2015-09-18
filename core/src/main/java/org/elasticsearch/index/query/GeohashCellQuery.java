@@ -102,15 +102,11 @@ public class GeohashCellQuery {
         private String geohash;
         private Integer levels = null;
         private boolean neighbors = DEFAULT_NEIGHBORS;
-        private static final Builder PROTOTYPE = new Builder(null);
+        private static final Builder PROTOTYPE = new Builder("field", new GeoPoint());
 
-
-        public Builder(String field) {
-            this(field, null, false);
-        }
 
         public Builder(String field, GeoPoint point) {
-            this(field, point.geohash(), false);
+            this(field, point == null ? null : point.geohash(), false);
         }
 
         public Builder(String field, String geohash) {
@@ -118,7 +114,12 @@ public class GeohashCellQuery {
         }
 
         public Builder(String field, String geohash, boolean neighbors) {
-            super();
+            if (Strings.isEmpty(field)) {
+                throw new IllegalArgumentException("fieldName must not be null");
+            }
+            if (Strings.isEmpty(geohash)) {
+                throw new IllegalArgumentException("geohash or point must be defined");
+            }
             this.fieldName = field;
             this.geohash = geohash;
             this.neighbors = neighbors;
@@ -144,6 +145,9 @@ public class GeohashCellQuery {
         }
 
         public Builder precision(int levels) {
+            if (levels <= 0) {
+                throw new IllegalArgumentException("precision must be greater than 0. Found [" + levels + "]");
+            }
             this.levels = levels;
             return this;
         }
@@ -173,22 +177,6 @@ public class GeohashCellQuery {
 
         public String fieldName() {
             return fieldName;
-        }
-
-        @Override
-        public QueryValidationException validate() {
-            QueryValidationException errors = null;
-            if (fieldName == null) {
-                errors = QueryValidationException.addValidationError(NAME, "fieldName must not be null", errors);
-            }
-            if (geohash == null) {
-                errors = QueryValidationException.addValidationError(NAME, "geohash or point must be defined", errors);
-            }
-            if (levels != null && levels <= 0) {
-                errors = QueryValidationException.addValidationError(NAME, "precision must be greater than 0. Found [" + levels + "]",
-                        errors);
-            }
-            return errors;
         }
 
         @Override
@@ -348,8 +336,7 @@ public class GeohashCellQuery {
                     throw new ElasticsearchParseException("failed to parse [{}] query. unexpected token [{}]", NAME, token);
                 }
             }
-            Builder builder = new Builder(fieldName);
-            builder.geohash(geohash);
+            Builder builder = new Builder(fieldName, geohash);
             if (levels != null) {
                 builder.precision(levels);
             }

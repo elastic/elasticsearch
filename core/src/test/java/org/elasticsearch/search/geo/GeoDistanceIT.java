@@ -171,7 +171,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         }
 
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoDistanceRangeQuery("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731))
+                .setQuery(geoDistanceRangeQuery("location", 40.7143528, -74.0059731).from("1.0km").to("2.0km"))
                 .execute().actionGet();
         assertHitCount(searchResponse, 2);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
@@ -179,7 +179,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             assertThat(hit.id(), anyOf(equalTo("4"), equalTo("5")));
         }
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoDistanceRangeQuery("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731).optimizeBbox("indexed"))
+                .setQuery(geoDistanceRangeQuery("location", 40.7143528, -74.0059731).from("1.0km").to("2.0km").optimizeBbox("indexed"))
                 .execute().actionGet();
         assertHitCount(searchResponse, 2);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
@@ -188,13 +188,13 @@ public class GeoDistanceIT extends ESIntegTestCase {
         }
 
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoDistanceRangeQuery("location").to("2.0km").point(40.7143528, -74.0059731))
+                .setQuery(geoDistanceRangeQuery("location", 40.7143528, -74.0059731).to("2.0km"))
                 .execute().actionGet();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
 
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoDistanceRangeQuery("location").from("2.0km").point(40.7143528, -74.0059731))
+                .setQuery(geoDistanceRangeQuery("location", 40.7143528, -74.0059731).from("2.0km"))
                 .execute().actionGet();
         assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits().length, equalTo(3));

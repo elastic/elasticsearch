@@ -149,13 +149,9 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     public void testNoShape() throws IOException {
         try {
             GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, (ShapeBuilder) null);
-            QueryValidationException exception = builder.validate();
-            assertThat(exception, notNullValue());
-            assertThat(exception.validationErrors(), notNullValue());
-            assertThat(exception.validationErrors().size(), equalTo(1));
-            assertThat(exception.validationErrors().get(0), equalTo("[" + GeoShapeQueryBuilder.NAME + "] No Shape defined"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            fail("exception expected");
+        } catch (IllegalArgumentException e) {
+            // expected
         }
     }
 
@@ -170,18 +166,14 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     }
 
     @Test
-    public void testNoRelation() {
+    public void testNoRelation() throws IOException {
         ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null);
         try {
             GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
             builder.relation(null);
-            QueryValidationException exception = builder.validate();
-            assertThat(exception, notNullValue());
-            assertThat(exception.validationErrors(), notNullValue());
-            assertThat(exception.validationErrors().size(), equalTo(1));
-            assertThat(exception.validationErrors().get(0), equalTo("[" + GeoShapeQueryBuilder.NAME + "] No Shape Relation defined"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            fail("relation cannot be null");
+        } catch (IllegalArgumentException e) {
+            // expected
         }
     }
 

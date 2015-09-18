@@ -24,7 +24,6 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
-import org.joda.time.DateTime;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -32,22 +31,21 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanceRangeQueryBuilder> {
 
     @Override
     protected GeoDistanceRangeQueryBuilder doCreateTestQueryBuilder() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
+        GeoDistanceRangeQueryBuilder builder;
         if (randomBoolean()) {
-            builder.geohash(randomGeohash(1, 12));
+            builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, randomGeohash(1, 12));
         } else {
             double lat = randomDouble() * 180 - 90;
             double lon = randomDouble() * 360 - 180;
             if (randomBoolean()) {
-                builder.point(lat, lon);
+                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint(lat, lon));
             } else {
-                builder.point(new GeoPoint(lat, lon));
+                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, lat, lon);
             }
         }
         int fromValue = randomInt(1000000);
@@ -151,97 +149,63 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         super.testToQuery();
     }
 
-    @Test
+    @Test(expected=IllegalArgumentException.class)
     public void testNullFieldName() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(null);
-        builder.geohash(randomGeohash(1, 20));
-        builder.from(10);
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(1));
-        assertThat(exception.validationErrors().get(0), equalTo("[" + GeoDistanceRangeQueryBuilder.NAME + "] fieldName must not be null"));
+        if (randomBoolean()) {
+            new GeoDistanceRangeQueryBuilder(null, new GeoPoint());
+        } else {
+            new GeoDistanceRangeQueryBuilder("", new GeoPoint());
+        }
     }
 
-    @Test
+    @Test(expected=IllegalArgumentException.class)
     public void testNoPoint() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
-        builder.from(10);
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(1));
-        assertThat(exception.validationErrors().get(0), equalTo("[" + GeoDistanceRangeQueryBuilder.NAME + "] point must not be null"));
+        if (randomBoolean()) {
+            new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, (GeoPoint) null);
+        } else {
+            new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, (String) null);
+        }
     }
 
-    @Test
-    public void testNoFromOrTo() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
-        String geohash = randomGeohash(1, 20);
-        builder.geohash(geohash);
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(1));
-        assertThat(exception.validationErrors().get(0), equalTo("[" + GeoDistanceRangeQueryBuilder.NAME
-                + "] Must define at least one parameter from [from, to]"));
-    }
-
-    @Test
+    @Test(expected=IllegalArgumentException.class)
     public void testInvalidFrom() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
-        String geohash = randomGeohash(1, 20);
-        builder.geohash(geohash);
-        builder.from(new DateTime());
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(1));
-        assertThat(exception.validationErrors().get(0), equalTo("[" + GeoDistanceRangeQueryBuilder.NAME
-                + "] from must either be a number or a string. Found [" + DateTime.class.getName() + "]"));
+        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint());
+        if (randomBoolean()) {
+            builder.from((String) null);
+        } else {
+            builder.from((Number) null);
+        }
     }
 
-    @Test
+    @Test(expected=IllegalArgumentException.class)
     public void testInvalidTo() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
-        String geohash = randomGeohash(1, 20);
-        builder.geohash(geohash);
-        builder.to(new DateTime());
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(1));
-        assertThat(exception.validationErrors().get(0), equalTo("[" + GeoDistanceRangeQueryBuilder.NAME
-                + "] to must either be a number or a string. Found [" + DateTime.class.getName() + "]"));
+        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint());
+        if (randomBoolean()) {
+            builder.to((String) null);
+        } else {
+            builder.to((Number) null);
+        }
     }
 
-    @Test
+    @Test(expected=IllegalArgumentException.class)
     public void testInvalidOptimizeBBox() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
-        String geohash = randomGeohash(1, 20);
-        builder.geohash(geohash);
-        builder.from(10);
-        builder.optimizeBbox("foo");
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(1));
-        assertThat(exception.validationErrors().get(0), equalTo("[" + GeoDistanceRangeQueryBuilder.NAME
-                + "] optimizeBbox must be one of [none, memory, indexed]"));
+        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint());
+        if (randomBoolean()) {
+            builder.optimizeBbox(null);
+        } else {
+            builder.optimizeBbox("foo");
+        }
     }
 
-    @Test
-    public void testMultipleValidationErrors() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
-        double lat = randomDouble() * 360 - 180;
-        double lon = randomDouble() * 360 - 180;
-        builder.point(lat, lon);
-        builder.from(new DateTime());
-        builder.to(new DateTime());
-        builder.optimizeBbox("foo");
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(3));
+    @Test(expected=IllegalArgumentException.class)
+    public void testInvalidGeoDistance() {
+        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint());
+        builder.geoDistance(null);
+    }
+
+    @Test(expected=IllegalArgumentException.class)
+    public void testInvalidDistanceUnit() {
+        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint());
+        builder.unit(null);
     }
 }

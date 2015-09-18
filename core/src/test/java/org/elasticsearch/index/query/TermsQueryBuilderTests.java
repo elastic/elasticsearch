@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -31,7 +32,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
@@ -78,19 +78,14 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             query = new TermsQueryBuilder(fieldName, values);
         } else {
             // right now the mock service returns us a list of strings
-            query = new TermsQueryBuilder(randomBoolean() ? randomAsciiOfLengthBetween(1,10) : STRING_FIELD_NAME);
-            query.termsLookup(randomTermsLookup());
+            query = new TermsQueryBuilder(randomBoolean() ? randomAsciiOfLengthBetween(1,10) : STRING_FIELD_NAME, randomTermsLookup());
         }
         return query;
     }
 
     private TermsLookup randomTermsLookup() {
-        return new TermsLookup(
-                randomBoolean() ? randomAsciiOfLength(10) : null,
-                randomAsciiOfLength(10),
-                randomAsciiOfLength(10),
-                termsPath
-        ).routing(randomBoolean() ? randomAsciiOfLength(10) : null);
+        return new TermsLookup(randomBoolean() ? randomAsciiOfLength(10) : null, randomAsciiOfLength(10), randomAsciiOfLength(10),
+                termsPath).routing(randomBoolean() ? randomAsciiOfLength(10) : null);
     }
 
     @Override
@@ -131,38 +126,18 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms, booleanTerms);
     }
 
-    @Test
-    public void testValidate() {
-        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(null, "term");
-        assertThat(termsQueryBuilder.validate().validationErrors().size(), is(1));
-
-        termsQueryBuilder = new TermsQueryBuilder("field", "term").termsLookup(randomTermsLookup());
-        assertThat(termsQueryBuilder.validate().validationErrors().size(), is(1));
-
-        termsQueryBuilder = new TermsQueryBuilder(null, "term").termsLookup(randomTermsLookup());
-        assertThat(termsQueryBuilder.validate().validationErrors().size(), is(2));
-
-        termsQueryBuilder = new TermsQueryBuilder("field", "term");
-        assertNull(termsQueryBuilder.validate());
+    @Test(expected=IllegalArgumentException.class)
+    public void testEmtpyFieldName() {
+        if (randomBoolean()) {
+            new TermsQueryBuilder(null, "term");
+        } else {
+            new TermsQueryBuilder("", "term");
+        }
     }
 
-    @Test
-    public void testValidateLookupQuery() {
-        TermsQueryBuilder termsQuery = new TermsQueryBuilder("field").termsLookup(new TermsLookup());
-        int totalExpectedErrors = 3;
-        if (randomBoolean()) {
-            termsQuery.lookupId("id");
-            totalExpectedErrors--;
-        }
-        if (randomBoolean()) {
-            termsQuery.lookupType("type");
-            totalExpectedErrors--;
-        }
-        if (randomBoolean()) {
-            termsQuery.lookupPath("path");
-            totalExpectedErrors--;
-        }
-        assertValidate(termsQuery, totalExpectedErrors);
+    @Test(expected=IllegalArgumentException.class)
+    public void testEmtpyTermsLookup() {
+        new TermsQueryBuilder("field", (TermsLookup) null);
     }
 
     @Test
@@ -197,7 +172,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
     }
 
-    @Test
+    @Test(expected=IllegalArgumentException.class)
     public void testBothValuesAndLookupSet() throws IOException {
         String query = "{\n" +
                 "  \"terms\": {\n" +
@@ -214,7 +189,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 "  }\n" +
                 "}";
         QueryBuilder termsQueryBuilder = parseQuery(query);
-        assertThat(termsQueryBuilder.validate().validationErrors().size(), is(1));
     }
 
     public void testDeprecatedXContent() throws IOException {

@@ -39,33 +39,13 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygonQueryBuilder> {
 
     @Override
     protected GeoPolygonQueryBuilder doCreateTestQueryBuilder() {
-        GeoPolygonQueryBuilder builder;
         List<GeoPoint> polygon = randomPolygon(randomIntBetween(4, 50));
-        if (randomBoolean()) {
-            builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, polygon);
-        } else {
-            builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME);
-            for (GeoPoint point : polygon) {
-                int method = randomInt(2);
-                switch (method) {
-                case 0:
-                    builder.addPoint(point);
-                    break;
-                case 1:
-                    builder.addPoint(point.geohash());
-                    break;
-                case 2:
-                    builder.addPoint(point.lat(), point.lon());
-                    break;
-                }
-            }
-        }
+        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, polygon);
         builder.coerce(randomBoolean());
         builder.ignoreMalformed(randomBoolean());
         return builder;
@@ -123,45 +103,34 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     @Test(expected = IllegalArgumentException.class)
     public void testNullFieldName() {
-        new GeoPolygonQueryBuilder(null);
+        new GeoPolygonQueryBuilder(null, randomPolygon(5));
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testEmptyPolygon() {
-        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME);
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(1));
-        assertThat(exception.validationErrors().get(0), equalTo("[" + GeoPolygonQueryBuilder.NAME
-                + "] no points defined for geo_polygon query"));
+        if (randomBoolean()) {
+            new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, new ArrayList<GeoPoint>());
+        } else {
+            new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, null);
+        }
     }
 
-    @Test
+    @Test(expected=IllegalArgumentException.class)
     public void testInvalidClosedPolygon() {
-        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME);
-        builder.addPoint(new GeoPoint(0, 90));
-        builder.addPoint(new GeoPoint(90, 90));
-        builder.addPoint(new GeoPoint(0, 90));
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(1));
-        assertThat(exception.validationErrors().get(0), equalTo("[" + GeoPolygonQueryBuilder.NAME
-                + "] too few points defined for geo_polygon query"));
+        List<GeoPoint> points = new ArrayList<>();
+        points.add(new GeoPoint(0, 90));
+        points.add(new GeoPoint(90, 90));
+        points.add(new GeoPoint(0, 90));
+        new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, points);
+
     }
 
-    @Test
+    @Test(expected=IllegalArgumentException.class)
     public void testInvalidOpenPolygon() {
-        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME);
-        builder.addPoint(new GeoPoint(0, 90));
-        builder.addPoint(new GeoPoint(90, 90));
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(1));
-        assertThat(exception.validationErrors().get(0), equalTo("[" + GeoPolygonQueryBuilder.NAME
-                + "] too few points defined for geo_polygon query"));
+        List<GeoPoint> points = new ArrayList<>();
+        points.add(new GeoPoint(0, 90));
+        points.add(new GeoPoint(90, 90));
+        new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, points);
     }
 
     public void testDeprecatedXContent() throws IOException {

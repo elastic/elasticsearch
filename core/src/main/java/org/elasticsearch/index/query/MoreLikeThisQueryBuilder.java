@@ -943,7 +943,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
     }
 
-    @Override
     public QueryValidationException validate() {
         QueryValidationException validationException = null;
         if (likeTexts.isEmpty() && likeItems.isEmpty()) {

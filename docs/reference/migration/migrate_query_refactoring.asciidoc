@@ -111,9 +111,22 @@ The deprecated `docs(Item... docs)`, `ignoreLike(Item... docs)`,
 Removing individual setters for lon() and lat() values, both values should be set together
  using point(lon, lat).
 
+==== GeoDistanceRangeQueryBuilder
+
+Removing setters for to(Object ...) and from(Object ...) in favour of the only two allowed input
+arguments (String, Number). Removing setter for center point (point(), geohash()) because parameter 
+is mandatory and should already be set in constructor. 
+Also removing setters for lt(), lte(), gt(), gte() since they can all be replaced by equivallent 
+calls to to/from() and inludeLower()/includeUpper().
+
+==== GeoPolygonQueryBuilder
+
+Require shell of polygon already to be specified in constructor instead of adding it pointwise.
+This enables validation, but makes it necessary to remove the addPoint() methods. 
+
 ==== MultiMatchQueryBuilder
 
-Moving MultiMatchQueryBuilder.ZeroTermsQuery enum to MatchQuery..ZeroTermsQuery.
+Moving MultiMatchQueryBuilder.ZeroTermsQuery enum to MatchQuery.ZeroTermsQuery.
 Also reusing new Operator enum.
 
 Removed ability to pass in boost value using `field(String field)` method in form e.g. `field^2`.
@@ -124,3 +137,11 @@ Use the `field(String, float)` method instead.
 The two individual setters for existence() and nullValue() were removed in favour of
 optional constructor settings in order to better capture and validate their interdependent
 settings at construction time.
+
+==== TermsQueryBuilder
+
+Remove the setter for `termsLookup()`, making it only possible to either use a TermsLookUp object or
+individual values at constrution time. Also moving individual settings for the TermsLookUp (lookupIndex,
+lookupType, lookupId, lookupPath) to the separate TermsLookUp class, using construtor only and moving
+checks for validation there.
+

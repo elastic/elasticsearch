@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 
@@ -77,7 +76,7 @@ public class TermsQueryParser extends BaseQueryParser {
                 values = parseValues(parseContext, parser);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 fieldName = currentFieldName;
-                termsLookup = parseTermsLookup(parseContext, parser);
+                termsLookup = TermsLookup.parseTermsLookup(parseContext, parser);
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, EXECUTION_FIELD)) {
                     // ignore
@@ -117,42 +116,6 @@ public class TermsQueryParser extends BaseQueryParser {
             values.add(value);
         }
         return values;
-    }
-
-    private static TermsLookup parseTermsLookup(QueryParseContext parseContext, XContentParser parser) throws IOException {
-        TermsLookup termsLookup = new TermsLookup();
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if ("index".equals(currentFieldName)) {
-                    termsLookup.index(parser.textOrNull());
-                } else if ("type".equals(currentFieldName)) {
-                    termsLookup.type(parser.text());
-                } else if ("id".equals(currentFieldName)) {
-                    termsLookup.id(parser.text());
-                } else if ("routing".equals(currentFieldName)) {
-                    termsLookup.routing(parser.textOrNull());
-                } else if ("path".equals(currentFieldName)) {
-                    termsLookup.path(parser.text());
-                } else {
-                    throw new ParsingException(parseContext, "[terms] query does not support [" + currentFieldName
-                            + "] within lookup element");
-                }
-            }
-        }
-        if (termsLookup.type() == null) {
-            throw new ParsingException(parseContext, "[terms] query lookup element requires specifying the type");
-        }
-        if (termsLookup.id() == null) {
-            throw new ParsingException(parseContext, "[terms] query lookup element requires specifying the id");
-        }
-        if (termsLookup.path() == null) {
-            throw new ParsingException(parseContext, "[terms] query lookup element requires specifying the path");
-        }
-        return termsLookup;
     }
 
     @Override

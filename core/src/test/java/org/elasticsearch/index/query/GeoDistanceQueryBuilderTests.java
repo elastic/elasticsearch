@@ -116,14 +116,14 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
 
         try {
             query.distance("1", null);
-            fail("must not be null");
+            fail("unit must not be null");
         } catch (IllegalArgumentException ex) {
             // expected
         }
 
         try {
             query.distance(1, null);
-            fail("must not be null");
+            fail("unit must not be null");
         } catch (IllegalArgumentException ex) {
             // expected
         }

@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.GeohashCellQuery.Builder;
@@ -32,14 +33,12 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder> {
 
     @Override
     protected Builder doCreateTestQueryBuilder() {
-        GeohashCellQuery.Builder builder = new Builder(GEO_POINT_FIELD_NAME);
-        builder.geohash(randomGeohash(1, 12));
+        GeohashCellQuery.Builder builder = new Builder(GEO_POINT_FIELD_NAME, randomGeohash(1, 12));
         if (randomBoolean()) {
             builder.neighbors(randomBoolean());
         }
@@ -82,38 +81,28 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
         super.testToQuery();
     }
 
-    @Test
+    @Test(expected=IllegalArgumentException.class)
     public void testNullField() {
-        GeohashCellQuery.Builder builder = new Builder(null);
-        builder.geohash(randomGeohash(1, 12));
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(1));
-        assertThat(exception.validationErrors().get(0), equalTo("[" + GeohashCellQuery.NAME + "] fieldName must not be null"));
+        if (randomBoolean()) {
+            new Builder(null, new GeoPoint());
+        } else {
+            new Builder("", new GeoPoint());
+        }
     }
 
-    @Test
-    public void testNullGeohash() {
-        GeohashCellQuery.Builder builder = new Builder(GEO_POINT_FIELD_NAME);
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(1));
-        assertThat(exception.validationErrors().get(0), equalTo("[" + GeohashCellQuery.NAME + "] geohash or point must be defined"));
+    @Test(expected=IllegalArgumentException.class)
+    public void testNullGeoPoint() {
+        if (randomBoolean()) {
+            new Builder(GEO_POINT_FIELD_NAME, (GeoPoint) null);
+        } else {
+            new Builder(GEO_POINT_FIELD_NAME, "");
+        }
     }
 
-    @Test
+    @Test(expected=IllegalArgumentException.class)
     public void testInvalidPrecision() {
-        GeohashCellQuery.Builder builder = new Builder(GEO_POINT_FIELD_NAME);
-        builder.geohash(randomGeohash(1, 12));
+        GeohashCellQuery.Builder builder = new Builder(GEO_POINT_FIELD_NAME, new GeoPoint());
         builder.precision(-1);
-        QueryValidationException exception = builder.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), notNullValue());
-        assertThat(exception.validationErrors().size(), equalTo(1));
-        assertThat(exception.validationErrors().get(0), equalTo("[" + GeohashCellQuery.NAME + "] precision must be greater than 0. Found ["
-                + -1 + "]"));
     }
 
 }

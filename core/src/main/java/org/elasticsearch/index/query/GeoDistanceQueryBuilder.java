@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -76,12 +75,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     /** Whether or not to accept geo points with invalid latitude or longitude */
     private boolean ignoreMalformed = DEFAULT_IGNORE_MALFORMED;
 
-    static final GeoDistanceQueryBuilder PROTOTYPE = new GeoDistanceQueryBuilder();
-
-    /** For serialization purposes only. */
-    private GeoDistanceQueryBuilder() {
-        this.fieldName = null;
-    }
+    static final GeoDistanceQueryBuilder PROTOTYPE = new GeoDistanceQueryBuilder("_na_");
 
     /**
      * Construct new GeoDistanceQueryBuilder.
@@ -127,10 +121,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     /** Sets the distance from the center using the default distance unit.*/
     public GeoDistanceQueryBuilder distance(String distance) {
-        if (Strings.isEmpty(distance)) {
-            throw new IllegalArgumentException("distance must not be null or empty");
-        }
-        return this.distance(distance, DistanceUnit.DEFAULT);
+        return distance(distance, DistanceUnit.DEFAULT);
     }
 
     /** Sets the distance from the center for this query. */
@@ -147,11 +138,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     /** Sets the distance from the center for this query. */
     public GeoDistanceQueryBuilder distance(double distance, DistanceUnit unit) {
-        if (unit == null) {
-            throw new IllegalArgumentException("distance unit must not be null");
-        }
-        this.distance = DistanceUnit.DEFAULT.convert(distance, unit);
-        return this;
+        return distance(Double.toString(distance), unit);
     }
 
     /** Returns the distance configured as radius. */
@@ -188,8 +175,16 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
      * enclosing bounding box.
      **/
     public GeoDistanceQueryBuilder optimizeBbox(String optimizeBbox) {
-        if (Strings.isEmpty(optimizeBbox)) {
-            throw new IllegalArgumentException("optimizeBbox must not be null or empty");
+        if (optimizeBbox == null) {
+            throw new IllegalArgumentException("optimizeBox must not be null");
+        }
+        switch (optimizeBbox) {
+            case "none":
+            case "memory":
+            case "indexed":
+                break;
+            default:
+                throw new IllegalArgumentException("optimizeBbox must be one of [none, memory, indexed]");
         }
         this.optimizeBbox = optimizeBbox;
         return this;
@@ -249,9 +244,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         builder.startObject(NAME);
         builder.startArray(fieldName).value(center.lon()).value(center.lat()).endArray();
         builder.field("distance", distance);
-        if (geoDistance != null) {
-            builder.field("distance_type", geoDistance.name().toLowerCase(Locale.ROOT));
-        }
+        builder.field("distance_type", geoDistance.name().toLowerCase(Locale.ROOT));
         builder.field("optimize_bbox", optimizeBbox);
         builder.field("coerce", coerce);
         builder.field("ignore_malformed", ignoreMalformed);
@@ -297,29 +290,6 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         center.writeTo(out);
         out.writeString(optimizeBbox);
         geoDistance.writeTo(out);
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (!ignoreMalformed) {
-            if (Numbers.isValidDouble(center.getLat()) == false) {
-                validationException = addValidationError("center point latitude is invalid number: " + center.getLat(), validationException);
-            }
-            if (Numbers.isValidDouble(center.getLon()) == false) {
-                validationException = addValidationError("center point longitude is invalid number: " + center.getLon(),
-                        validationException);
-            }
-        }
-
-        if (Strings.isEmpty(fieldName)) {
-            validationException = addValidationError("field name must be non-null and non-empty", validationException);
-        }
-        if (optimizeBbox != null && !(optimizeBbox.equals("none") || optimizeBbox.equals("memory") || optimizeBbox.equals("indexed"))) {
-            validationException = QueryValidationException.addValidationError(NAME, "optimizeBbox must be one of [none, memory, indexed]",
-                    validationException);
-        }
-        return validationException;
     }
 
     /**

@@ -480,16 +480,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return createShardContext().parseContext();
     }
 
-    protected static void assertValidate(QueryBuilder queryBuilder, int totalExpectedErrors) {
-        QueryValidationException queryValidationException = queryBuilder.validate();
-        if (totalExpectedErrors > 0) {
-            assertThat(queryValidationException, notNullValue());
-            assertThat(queryValidationException.validationErrors().size(), equalTo(totalExpectedErrors));
-        } else {
-            assertThat(queryValidationException, nullValue());
-        }
-    }
-
     /**
      * create a random value for either {@link AbstractQueryTestCase#BOOLEAN_FIELD_NAME}, {@link AbstractQueryTestCase#INT_FIELD_NAME},
      * {@link AbstractQueryTestCase#DOUBLE_FIELD_NAME}, {@link AbstractQueryTestCase#STRING_FIELD_NAME} or

@@ -20,11 +20,15 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -49,7 +53,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "New York")
                 .startObject("location").field("lat", 40.714).field("lon", -74.006).endObject()
-                .endObject()), 
+                .endObject()),
         // to NY: 5.286 km
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("name", "Times Square")
@@ -85,14 +89,14 @@ public class GeoPolygonIT extends ESIntegTestCase {
 
     @Test
     public void simplePolygonTest() throws Exception {
-
+        List<GeoPoint> points = new ArrayList<>();
+        points.add(new GeoPoint(40.7, -74.0));
+        points.add(new GeoPoint(40.7, -74.1));
+        points.add(new GeoPoint(40.8, -74.1));
+        points.add(new GeoPoint(40.8, -74.0));
+        points.add(new GeoPoint(40.7, -74.0));
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
-                .setQuery(boolQuery().must(geoPolygonQuery("location")
-                        .addPoint(40.7, -74.0)
-                        .addPoint(40.7, -74.1)
-                        .addPoint(40.8, -74.1)
-                        .addPoint(40.8, -74.0)
-                        .addPoint(40.7, -74.0)))
+                .setQuery(boolQuery().must(geoPolygonQuery("location", points)))
                 .execute().actionGet();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
@@ -103,13 +107,13 @@ public class GeoPolygonIT extends ESIntegTestCase {
 
     @Test
     public void simpleUnclosedPolygon() throws Exception {
+        List<GeoPoint> points = new ArrayList<>();
+        points.add(new GeoPoint(40.7, -74.0));
+        points.add(new GeoPoint(40.7, -74.1));
+        points.add(new GeoPoint(40.8, -74.1));
+        points.add(new GeoPoint(40.8, -74.0));
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
-                .setQuery(boolQuery().must(geoPolygonQuery("location")
-                        .addPoint(40.7, -74.0)
-                        .addPoint(40.7, -74.1)
-                        .addPoint(40.8, -74.1)
-                        .addPoint(40.8, -74.0)))
-                .execute().actionGet();
+                .setQuery(boolQuery().must(geoPolygonQuery("location", points))).execute().actionGet();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {

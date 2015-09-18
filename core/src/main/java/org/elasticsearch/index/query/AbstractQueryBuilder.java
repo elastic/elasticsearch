@@ -114,13 +114,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
         return context.indexQueryParserService().indicesQueriesRegistry().queryParsers().get(getName()).parse(context);
     }
 
-    @Override
-    public QueryValidationException validate() {
-        // default impl does not validate, subclasses should override.
-        //norelease to be possibly made abstract once all queries support validation
-        return null;
-    }
-
     /**
      * Returns the query name for the query.
      */
@@ -265,27 +258,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
             }
         }
         return queries;
-    }
-
-    protected QueryValidationException validateInnerQueries(List<QueryBuilder> queryBuilders, QueryValidationException initialValidationException) {
-        QueryValidationException validationException = initialValidationException;
-        for (QueryBuilder queryBuilder : queryBuilders) {
-            validationException = validateInnerQuery(queryBuilder, validationException);
-        }
-        return validationException;
-    }
-
-    protected QueryValidationException validateInnerQuery(QueryBuilder queryBuilder, QueryValidationException initialValidationException) {
-        QueryValidationException validationException = initialValidationException;
-        if (queryBuilder != null) {
-            QueryValidationException queryValidationException = queryBuilder.validate();
-            if (queryValidationException != null) {
-                validationException = QueryValidationException.addValidationErrors(queryValidationException.validationErrors(), validationException);
-            }
-        } else {
-            validationException = addValidationError("inner query cannot be null", validationException);
-        }
-        return validationException;
     }
 
     @Override

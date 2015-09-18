@@ -19,12 +19,14 @@
 
 package org.elasticsearch.indices.cache.query.terms;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryValidationException;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -33,18 +35,24 @@ import java.util.Objects;
  * Encapsulates the parameters needed to fetch terms.
  */
 public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
-    static final TermsLookup PROTOTYPE = new TermsLookup();
+    static final TermsLookup PROTOTYPE = new TermsLookup("index", "type", "id", "path");
 
     private String index;
-    private String type;
-    private String id;
-    private String path;
+    private final String type;
+    private final String id;
+    private final String path;
     private String routing;
 
-    public TermsLookup() {
-    }
-
     public TermsLookup(String index, String type, String id, String path) {
+        if (id == null) {
+            throw new IllegalArgumentException("[terms] query lookup element requires specifying the id.");
+        }
+        if (type == null) {
+            throw new IllegalArgumentException("[terms] query lookup element requires specifying the type.");
+        }
+        if (path == null) {
+            throw new IllegalArgumentException("[terms] query lookup element requires specifying the path.");
+        }
         this.index = index;
         this.type = type;
         this.id = id;
@@ -64,27 +72,12 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
         return type;
     }
 
-    public TermsLookup type(String type) {
-        this.type = type;
-        return this;
-    }
-
     public String id() {
         return id;
     }
 
-    public TermsLookup id(String id) {
-        this.id = id;
-        return this;
-    }
-
     public String path() {
         return path;
-    }
-
-    public TermsLookup path(String path) {
-        this.path = path;
-        return this;
     }
 
     public String routing() {
@@ -96,6 +89,43 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
         return this;
     }
 
+    public static TermsLookup parseTermsLookup(QueryParseContext parseContext, XContentParser parser) throws IOException {
+        String index = null;
+        String type = null;
+        String id = null;
+        String path = null;
+        String routing = null;
+        XContentParser.Token token;
+        String currentFieldName = "";
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                switch (currentFieldName) {
+                case "index":
+                    index = parser.textOrNull();
+                    break;
+                case "type":
+                    type = parser.text();
+                    break;
+                case "id":
+                    id = parser.text();
+                    break;
+                case "routing":
+                    routing = parser.textOrNull();
+                    break;
+                case "path":
+                    path = parser.text();
+                    break;
+                default:
+                    throw new ParsingException(parseContext, "[terms] query does not support [" + currentFieldName
+                            + "] within lookup element");
+                }
+            }
+        }
+        return new TermsLookup(index, type, id, path).routing(routing);
+    }
+
     @Override
     public String toString() {
         return index + "/" + type + "/" + id + "/" + path;
@@ -103,11 +133,11 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
 
     @Override
     public TermsLookup readFrom(StreamInput in) throws IOException {
-        TermsLookup termsLookup = new TermsLookup();
-        termsLookup.index = in.readOptionalString();
-        termsLookup.type = in.readString();
-        termsLookup.id = in.readString();
-        termsLookup.path = in.readString();
+        String type = in.readString();
+        String id = in.readString();
+        String path = in.readString();
+        String index = in.readOptionalString();
+        TermsLookup termsLookup = new TermsLookup(index, type, id, path);
         termsLookup.routing = in.readOptionalString();
         return termsLookup;
     }
@@ -118,10 +148,10 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(index);
         out.writeString(type);
         out.writeString(id);
         out.writeString(path);
+        out.writeOptionalString(index);
         out.writeOptionalString(routing);
     }
 
@@ -158,23 +188,5 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
                 Objects.equals(id, other.id) &&
                 Objects.equals(path, other.path) &&
                 Objects.equals(routing, other.routing);
-    }
-
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (id == null) {
-            validationException = addValidationError("[terms] query lookup element requires specifying the id.", validationException);
-        }
-        if (type == null) {
-            validationException = addValidationError("[terms] query lookup element requires specifying the type.", validationException);
-        }
-        if (path == null) {
-            validationException = addValidationError("[terms] query lookup element requires specifying the path.", validationException);
-        }
-        return validationException;
-    }
-
-    private static QueryValidationException addValidationError(String validationError, QueryValidationException validationException) {
-        return QueryValidationException.addValidationError("terms_lookup", validationError, validationException);
     }
 }

@@ -23,7 +23,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -76,7 +75,6 @@ public class GeoDistanceRangeQueryParser extends BaseQueryParser<GeoDistanceRang
         String queryName = null;
         String currentFieldName = null;
         GeoPoint point = null;
-        String geohash = null;
         String fieldName = null;
         Object vFrom = null;
         Object vTo = null;
@@ -173,7 +171,7 @@ public class GeoDistanceRangeQueryParser extends BaseQueryParser<GeoDistanceRang
                     point.resetLon(parser.doubleValue());
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LON_SUFFIX.length());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.GEOHASH_SUFFIX)) {
-                    geohash = parser.text();
+                    point = GeoPoint.fromGeohash(parser.text());
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length());
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
@@ -195,8 +193,7 @@ public class GeoDistanceRangeQueryParser extends BaseQueryParser<GeoDistanceRang
             }
         }
 
-        GeoDistanceRangeQueryBuilder queryBuilder = new GeoDistanceRangeQueryBuilder(fieldName);
-
+        GeoDistanceRangeQueryBuilder queryBuilder = new GeoDistanceRangeQueryBuilder(fieldName, point);
         if (boost != null) {
             queryBuilder.boost(boost);
         }
@@ -205,20 +202,12 @@ public class GeoDistanceRangeQueryParser extends BaseQueryParser<GeoDistanceRang
             queryBuilder.queryName(queryName);
         }
 
-        if (point != null) {
-            queryBuilder.point(point.lat(), point.lon());
-        }
-
-        if (geohash != null) {
-            queryBuilder.geohash(geohash);
-        }
-
         if (vFrom != null) {
-            queryBuilder.from(vFrom);
+            queryBuilder.from(vFrom.toString());
         }
 
         if (vTo != null) {
-            queryBuilder.to(vTo);
+            queryBuilder.to(vTo.toString());
         }
 
         if (includeUpper != null) {

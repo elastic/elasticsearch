@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -55,7 +56,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     private boolean includeLower = DEFAULT_INCLUDE_LOWER;
     private boolean includeUpper = DEFAULT_INCLUDE_UPPER;
 
-    private GeoPoint point;
+    private final GeoPoint point;
 
     private GeoDistance geoDistance = DEFAULT_GEO_DISTANCE;
 
@@ -67,31 +68,47 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     private boolean ignoreMalformed = DEFAULT_IGNORE_MALFORMED;
 
-    static final GeoDistanceRangeQueryBuilder PROTOTYPE = new GeoDistanceRangeQueryBuilder(null);
+    static final GeoDistanceRangeQueryBuilder PROTOTYPE = new GeoDistanceRangeQueryBuilder("_na_", new GeoPoint());
 
-    public GeoDistanceRangeQueryBuilder(String fieldName) {
+    public GeoDistanceRangeQueryBuilder(String fieldName, GeoPoint point) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("fieldName must not be null");
+        }
+        if (point == null) {
+            throw new IllegalArgumentException("point must not be null");
+        }
         this.fieldName = fieldName;
+        this.point = point;
+    }
+
+    public GeoDistanceRangeQueryBuilder(String fieldName, double lat, double lon) {
+        this(fieldName, new GeoPoint(lat, lon));
+    }
+
+    public GeoDistanceRangeQueryBuilder(String fieldName, String geohash) {
+        this(fieldName, geohash == null ? null : new GeoPoint().resetFromGeoHash(geohash));
     }
 
     public String fieldName() {
         return fieldName;
     }
 
-    public GeoDistanceRangeQueryBuilder point(double lat, double lon) {
-        this.point = new GeoPoint(lat, lon);
-        return this;
-    }
-
-    public GeoDistanceRangeQueryBuilder point(GeoPoint point) {
-        this.point = point;
-        return this;
-    }
-
     public GeoPoint point() {
         return point;
     }
 
-    public GeoDistanceRangeQueryBuilder from(Object from) {
+    public GeoDistanceRangeQueryBuilder from(String from) {
+        if (from == null) {
+            throw new IllegalArgumentException("[from] must not be null");
+        }
+        this.from = from;
+        return this;
+    }
+
+    public GeoDistanceRangeQueryBuilder from(Number from) {
+        if (from == null) {
+            throw new IllegalArgumentException("[from] must not be null");
+        }
         this.from = from;
         return this;
     }
@@ -100,37 +117,24 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         return from;
     }
 
-    public GeoDistanceRangeQueryBuilder to(Object to) {
+    public GeoDistanceRangeQueryBuilder to(String to) {
+        if (to == null) {
+            throw new IllegalArgumentException("[to] must not be null");
+        }
+        this.to = to;
+        return this;
+    }
+
+    public GeoDistanceRangeQueryBuilder to(Number to) {
+        if (to == null) {
+            throw new IllegalArgumentException("[to] must not be null");
+        }
         this.to = to;
         return this;
     }
 
     public Object to() {
         return to;
-    }
-
-    public GeoDistanceRangeQueryBuilder gt(Object from) {
-        this.from = from;
-        this.includeLower = false;
-        return this;
-    }
-
-    public GeoDistanceRangeQueryBuilder gte(Object from) {
-        this.from = from;
-        this.includeLower = true;
-        return this;
-    }
-
-    public GeoDistanceRangeQueryBuilder lt(Object to) {
-        this.to = to;
-        this.includeUpper = false;
-        return this;
-    }
-
-    public GeoDistanceRangeQueryBuilder lte(Object to) {
-        this.to = to;
-        this.includeUpper = true;
-        return this;
     }
 
     public GeoDistanceRangeQueryBuilder includeLower(boolean includeLower) {
@@ -151,12 +155,10 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         return includeUpper;
     }
 
-    public GeoDistanceRangeQueryBuilder geohash(String geohash) {
-        this.point = new GeoPoint().resetFromGeoHash(geohash);
-        return this;
-    }
-
     public GeoDistanceRangeQueryBuilder geoDistance(GeoDistance geoDistance) {
+        if (geoDistance == null) {
+            throw new IllegalArgumentException("geoDistance calculation mode must not be null");
+        }
         this.geoDistance = geoDistance;
         return this;
     }
@@ -166,6 +168,9 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     }
 
     public GeoDistanceRangeQueryBuilder unit(DistanceUnit unit) {
+        if (unit == null) {
+            throw new IllegalArgumentException("distance unit must not be null");
+        }
         this.unit = unit;
         return this;
     }
@@ -175,6 +180,17 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     }
 
     public GeoDistanceRangeQueryBuilder optimizeBbox(String optimizeBbox) {
+        if (optimizeBbox == null) {
+            throw new IllegalArgumentException("optimizeBox must not be null");
+        }
+        switch (optimizeBbox) {
+            case "none":
+            case "memory":
+            case "indexed":
+                break;
+            default:
+                throw new IllegalArgumentException("optimizeBbox must be one of [none, memory, indexed]");
+        }
         this.optimizeBbox = optimizeBbox;
         return this;
     }
@@ -204,32 +220,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     public boolean ignoreMalformed() {
         return ignoreMalformed;
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException errors = null;
-        if (fieldName == null) {
-            errors = QueryValidationException.addValidationError(NAME, "fieldName must not be null", errors);
-        }
-        if (point == null) {
-            errors = QueryValidationException.addValidationError(NAME, "point must not be null", errors);
-        }
-        if (from == null && to == null) {
-            errors = QueryValidationException.addValidationError(NAME, "Must define at least one parameter from [from, to]", errors);
-        }
-        if (from != null && !(from instanceof Number || from instanceof String)) {
-            errors = QueryValidationException.addValidationError(NAME, "from must either be a number or a string. Found ["
-                    + from.getClass().getName() + "]", errors);
-        }
-        if (to != null && !(to instanceof Number || to instanceof String)) {
-            errors = QueryValidationException.addValidationError(NAME, "to must either be a number or a string. Found ["
-                    + to.getClass().getName() + "]", errors);
-        }
-        if (optimizeBbox != null && !(optimizeBbox.equals("none") || optimizeBbox.equals("memory") || optimizeBbox.equals("indexed"))) {
-            errors = QueryValidationException.addValidationError(NAME, "optimizeBbox must be one of [none, memory, indexed]", errors);
-        }
-        return errors;
     }
 
     @Override
@@ -292,15 +282,9 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         builder.field(GeoDistanceRangeQueryParser.TO_FIELD.getPreferredName(), to);
         builder.field(GeoDistanceRangeQueryParser.INCLUDE_LOWER_FIELD.getPreferredName(), includeLower);
         builder.field(GeoDistanceRangeQueryParser.INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
-        if (unit != null) {
-            builder.field(GeoDistanceRangeQueryParser.UNIT_FIELD.getPreferredName(), unit);
-        }
-        if (geoDistance != null) {
-            builder.field(GeoDistanceRangeQueryParser.DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
-        }
-        if (optimizeBbox != null) {
-            builder.field(GeoDistanceRangeQueryParser.OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
-        }
+        builder.field(GeoDistanceRangeQueryParser.UNIT_FIELD.getPreferredName(), unit);
+        builder.field(GeoDistanceRangeQueryParser.DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
+        builder.field(GeoDistanceRangeQueryParser.OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
         builder.field(GeoDistanceRangeQueryParser.COERCE_FIELD.getPreferredName(), coerce);
         builder.field(GeoDistanceRangeQueryParser.IGNORE_MALFORMED_FIELD.getPreferredName(), ignoreMalformed);
         printBoostAndQueryName(builder);
@@ -309,21 +293,14 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     @Override
     protected GeoDistanceRangeQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        GeoDistanceRangeQueryBuilder queryBuilder = new GeoDistanceRangeQueryBuilder(in.readString());
-        queryBuilder.point = GeoPoint.readGeoPointFrom(in);
+        GeoDistanceRangeQueryBuilder queryBuilder = new GeoDistanceRangeQueryBuilder(in.readString(), GeoPoint.readGeoPointFrom(in));
         queryBuilder.from = in.readGenericValue();
         queryBuilder.to = in.readGenericValue();
         queryBuilder.includeLower = in.readBoolean();
         queryBuilder.includeUpper = in.readBoolean();
-        String unit = in.readOptionalString();
-        if (unit != null) {
-            queryBuilder.unit = DistanceUnit.valueOf(unit);
-        }
-        String geoDistance = in.readOptionalString();
-        if (geoDistance != null) {
-            queryBuilder.geoDistance = GeoDistance.fromString(geoDistance);
-        }
-        queryBuilder.optimizeBbox = in.readOptionalString();
+        queryBuilder.unit = DistanceUnit.valueOf(in.readString());
+        queryBuilder.geoDistance = GeoDistance.readGeoDistanceFrom(in);
+        queryBuilder.optimizeBbox = in.readString();
         queryBuilder.coerce = in.readBoolean();
         queryBuilder.ignoreMalformed = in.readBoolean();
         return queryBuilder;
@@ -337,9 +314,9 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         out.writeGenericValue(to);
         out.writeBoolean(includeLower);
         out.writeBoolean(includeUpper);
-        out.writeOptionalString(unit.name());
-        out.writeOptionalString(geoDistance.name());
-        out.writeOptionalString(optimizeBbox);
+        out.writeString(unit.name());
+        geoDistance.writeTo(out);;
+        out.writeString(optimizeBbox);
         out.writeBoolean(coerce);
         out.writeBoolean(ignoreMalformed);
     }

@@ -31,13 +31,6 @@ import java.io.IOException;
 public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB>, ToXContent {
 
     /**
-     * Validate the query.
-     * @return a {@link QueryValidationException} containing error messages, {@code null} if query is valid.
-     * e.g. if fields that are needed to create the lucene query are missing.
-     */
-    QueryValidationException validate();
-
-    /**
      * Converts this QueryBuilder to a lucene {@link Query}.
      * Returns <tt>null</tt> if this query should be ignored in the context of
      * parent queries.

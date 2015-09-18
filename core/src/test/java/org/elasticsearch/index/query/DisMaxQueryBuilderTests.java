@@ -89,7 +89,6 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     public void testNoInnerQueries() throws IOException {
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder();
         assertNull(disMaxBuilder.toQuery(createShardContext()));
-        assertNull(disMaxBuilder.validate());
     }
 
     /**

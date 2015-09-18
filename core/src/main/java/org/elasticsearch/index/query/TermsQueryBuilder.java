@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -42,6 +43,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * A filter for a field based on several terms matching on any of them.
@@ -50,7 +52,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     public static final String NAME = "terms";
 
-    static final TermsQueryBuilder PROTOTYPE = new TermsQueryBuilder("");
+    static final TermsQueryBuilder PROTOTYPE = new TermsQueryBuilder("field", "value");
 
     public static final boolean DEFAULT_DISABLE_COORD = false;
 
@@ -60,13 +62,26 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private String minimumShouldMatch;
     @Deprecated
     private boolean disableCoord = DEFAULT_DISABLE_COORD;
-    private TermsLookup termsLookup;
+    private final TermsLookup termsLookup;
 
+    public TermsQueryBuilder(String fieldName, TermsLookup termsLookup) {
+        this(fieldName, null, null, DEFAULT_DISABLE_COORD, termsLookup);
+    }
+
+    /**
+     * constructor used internally for serialization of both value / termslookup variants
+     */
     TermsQueryBuilder(String fieldName, List<Object> values, String minimumShouldMatch, boolean disableCoord, TermsLookup termsLookup) {
-        this.fieldName = fieldName;
-        if (values == null && termsLookup == null) {
-            throw new IllegalArgumentException("No value specified for terms query");
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name cannot be null.");
         }
+        if (values == null && termsLookup == null) {
+            throw new IllegalArgumentException("No value or termsLookup specified for terms query");
+        }
+        if (values != null && termsLookup != null) {
+            throw new IllegalArgumentException("Both values and termsLookup specified for terms query");
+        }
+        this.fieldName = fieldName;
         this.values = values;
         this.disableCoord = disableCoord;
         this.minimumShouldMatch = minimumShouldMatch;
@@ -80,7 +95,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, String... values) {
-        this(fieldName, values != null ? Arrays.asList(values) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.asList(values) : null);
     }
 
     /**
@@ -100,14 +115,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, long... values) {
-        if (values == null) {
-            throw new IllegalArgumentException("No value specified for terms query");
-        }
-        this.fieldName = fieldName;
-        this.values = new ArrayList<>(values.length);
-        for (long longValue : values) {
-            this.values.add(longValue);
-        }
+        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).collect(Collectors.toList()) : (Iterable<?>) null);
     }
 
     /**
@@ -117,14 +125,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, float... values) {
-        if (values == null) {
-            throw new IllegalArgumentException("No value specified for terms query");
-        }
-        this.fieldName = fieldName;
-        this.values = new ArrayList<>(values.length);
-        for (float floatValue : values) {
-            this.values.add(floatValue);
-        }
+        this(fieldName, values != null ? IntStream.range(0, values.length)
+                           .mapToObj(i -> values[i]).collect(Collectors.toList()) : (Iterable<?>) null);
     }
 
     /**
@@ -148,27 +150,21 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     /**
-     * Constructor used for terms query lookup.
-     *
-     * @param fieldName The field name
-     */
-    public TermsQueryBuilder(String fieldName) {
-        this.fieldName = fieldName;
-        this.values = null;
-    }
-
-    /**
      * A filter for a field based on several terms matching on any of them.
      *
      * @param fieldName The field name
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, Iterable<?> values) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name cannot be null.");
+        }
         if (values == null) {
             throw new IllegalArgumentException("No value specified for terms query");
         }
         this.fieldName = fieldName;
         this.values = convertToBytesRefListIfStringList(values);
+        this.termsLookup = null;
     }
 
     public String fieldName() {
@@ -207,87 +203,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return this.disableCoord;
     }
 
-    private boolean isTermsLookupQuery() {
-        return this.termsLookup != null;
-    }
-
-    public TermsQueryBuilder termsLookup(TermsLookup termsLookup) {
-        this.termsLookup = termsLookup;
-        return this;
-    }
-
     public TermsLookup termsLookup() {
         return this.termsLookup;
-    }
-
-    /**
-     * Sets the index name to lookup the terms from.
-     */
-    public TermsQueryBuilder lookupIndex(String lookupIndex) {
-        if (lookupIndex == null) {
-            throw new IllegalArgumentException("Lookup index cannot be set to null");
-        }
-        if (this.termsLookup == null) {
-            this.termsLookup = new TermsLookup();
-        }
-        this.termsLookup.index(lookupIndex);
-        return this;
-    }
-
-    /**
-     * Sets the type name to lookup the terms from.
-     */
-    public TermsQueryBuilder lookupType(String lookupType) {
-        if (lookupType == null) {
-            throw new IllegalArgumentException("Lookup type cannot be set to null");
-        }
-        if (this.termsLookup == null) {
-            this.termsLookup = new TermsLookup();
-        }
-        this.termsLookup.type(lookupType);
-        return this;
-    }
-
-    /**
-     * Sets the document id to lookup the terms from.
-     */
-    public TermsQueryBuilder lookupId(String lookupId) {
-        if (lookupId == null) {
-            throw new IllegalArgumentException("Lookup id cannot be set to null");
-        }
-        if (this.termsLookup == null) {
-            this.termsLookup = new TermsLookup();
-        }
-        this.termsLookup.id(lookupId);
-        return this;
-    }
-
-    /**
-     * Sets the path name to lookup the terms from.
-     */
-    public TermsQueryBuilder lookupPath(String lookupPath) {
-        if (lookupPath == null) {
-            throw new IllegalArgumentException("Lookup path cannot be set to null");
-        }
-        if (this.termsLookup == null) {
-            this.termsLookup = new TermsLookup();
-        }
-        this.termsLookup.path(lookupPath);
-        return this;
-    }
-
-    /**
-     * Sets the routing to lookup the terms from.
-     */
-    public TermsQueryBuilder lookupRouting(String lookupRouting) {
-        if (lookupRouting == null) {
-            throw new IllegalArgumentException("Lookup routing cannot be set to null");
-        }
-        if (this.termsLookup == null) {
-            this.termsLookup = new TermsLookup();
-        }
-        this.termsLookup.routing(lookupRouting);
-        return this;
     }
 
     /**
@@ -325,7 +242,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (isTermsLookupQuery()) {
+        if (this.termsLookup != null) {
             builder.startObject(fieldName);
             termsLookup.toXContent(builder, params);
             builder.endObject();
@@ -350,7 +267,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         List<Object> terms;
-        if (isTermsLookupQuery()) {
+        if (this.termsLookup != null) {
             if (termsLookup.index() == null) {
                 termsLookup.index(context.index().name());
             }
@@ -413,24 +330,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return query;
     }
 
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (this.fieldName == null) {
-            validationException = addValidationError("field name cannot be null.", validationException);
-        }
-        if (isTermsLookupQuery() && this.values != null) {
-            validationException = addValidationError("can't have both a terms query and a lookup query.", validationException);
-        }
-        if (isTermsLookupQuery()) {
-            QueryValidationException exception = termsLookup.validate();
-            if (exception != null) {
-                validationException = QueryValidationException.addValidationErrors(exception.validationErrors(), validationException);
-            }
-        }
-        return validationException;
-    }
-
     @SuppressWarnings("unchecked")
     @Override
     protected TermsQueryBuilder doReadFrom(StreamInput in) throws IOException {
@@ -448,8 +347,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeBoolean(isTermsLookupQuery());
-        if (isTermsLookupQuery()) {
+        out.writeBoolean(termsLookup != null);
+        if (termsLookup != null) {
             termsLookup.writeTo(out);
         }
         out.writeGenericValue(values);

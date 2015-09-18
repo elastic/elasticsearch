@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -40,7 +42,10 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     public static final String NAME = "geo_polygon";
 
-    static final GeoPolygonQueryBuilder PROTOTYPE = new GeoPolygonQueryBuilder("");
+    private static final List<GeoPoint> PROTO_SHAPE = Arrays.asList(new GeoPoint[] { new GeoPoint(1.0, 1.0), new GeoPoint(1.0, 2.0),
+            new GeoPoint(2.0, 1.0) });
+
+    static final GeoPolygonQueryBuilder PROTOTYPE = new GeoPolygonQueryBuilder("field", PROTO_SHAPE);
 
     private final String fieldName;
 
@@ -50,16 +55,23 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     private boolean ignoreMalformed = false;
 
-    public GeoPolygonQueryBuilder(String fieldName) {
-        this(fieldName, new ArrayList<>());
-    }
-
     public GeoPolygonQueryBuilder(String fieldName, List<GeoPoint> points) {
-        if (fieldName == null) {
+        if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("fieldName must not be null");
         }
-        if (points == null) {
-            throw new IllegalArgumentException("polygon must not be null");
+        if (points == null || points.isEmpty()) {
+            throw new IllegalArgumentException("polygon must not be null or empty");
+        } else {
+            GeoPoint start = points.get(0);
+            if (start.equals(points.get(points.size() - 1))) {
+                if (points.size() < 4) {
+                    throw new IllegalArgumentException("too few points defined for geo_polygon query");
+                }
+            } else {
+                if (points.size() < 3) {
+                    throw new IllegalArgumentException("too few points defined for geo_polygon query");
+                }
+            }
         }
         this.fieldName = fieldName;
         this.shell = points;
@@ -67,26 +79,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     public String fieldName() {
         return fieldName;
-    }
-
-    /**
-     * Adds a point with lat and lon
-     *
-     * @param lat The latitude
-     * @param lon The longitude
-     * @return the current builder
-     */
-    public GeoPolygonQueryBuilder addPoint(double lat, double lon) {
-        return addPoint(new GeoPoint(lat, lon));
-    }
-
-    public GeoPolygonQueryBuilder addPoint(String geohash) {
-        return addPoint(GeoPoint.fromGeohash(geohash));
-    }
-
-    public GeoPolygonQueryBuilder addPoint(GeoPoint point) {
-        shell.add(point);
-        return this;
     }
 
     public List<GeoPoint> points() {
@@ -114,29 +106,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     public boolean ignoreMalformed() {
         return ignoreMalformed;
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException errors = null;
-        if (fieldName == null) {
-            errors = QueryValidationException.addValidationError(NAME, "field must not be null", errors);
-        }
-        if (shell.isEmpty()) {
-            errors = QueryValidationException.addValidationError(NAME, "no points defined for geo_polygon query", errors);
-        } else {
-            GeoPoint start = shell.get(0);
-            if (start.equals(shell.get(shell.size() - 1))) {
-                if (shell.size() < 4) {
-                    errors = QueryValidationException.addValidationError(NAME, "too few points defined for geo_polygon query", errors);
-                }
-            } else {
-                if (shell.size() < 3) {
-                    errors = QueryValidationException.addValidationError(NAME, "too few points defined for geo_polygon query", errors);
-                }
-            }
-        }
-        return errors;
     }
 
     @Override

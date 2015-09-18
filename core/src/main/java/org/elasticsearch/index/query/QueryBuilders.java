@@ -27,12 +27,14 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -579,8 +581,8 @@ public abstract class QueryBuilders {
     /**
      * A terms query that can extract the terms from another doc in an index.
      */
-    public static TermsQueryBuilder termsLookupQuery(String name) {
-        return new TermsQueryBuilder(name);
+    public static TermsQueryBuilder termsLookupQuery(String name, TermsLookup termsLookup) {
+        return new TermsQueryBuilder(name, termsLookup);
     }
 
     /**
@@ -606,9 +608,31 @@ public abstract class QueryBuilders {
      * A filter to filter based on a specific range from a specific geo location / point.
      *
      * @param name The location field name.
+     * @param point The point
      */
-    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name) {
-        return new GeoDistanceRangeQueryBuilder(name);
+    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, GeoPoint point) {
+        return new GeoDistanceRangeQueryBuilder(name, point);
+    }
+
+    /**
+     * A filter to filter based on a specific range from a specific geo location / point.
+     *
+     * @param name The location field name.
+     * @param point The point as geohash
+     */
+    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, String geohash) {
+        return new GeoDistanceRangeQueryBuilder(name, geohash);
+    }
+
+    /**
+     * A filter to filter based on a specific range from a specific geo location / point.
+     *
+     * @param name The location field name.
+     * @param lat The points latitude
+     * @param lon The points longitude
+     */
+    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, double lat, double lon) {
+        return new GeoDistanceRangeQueryBuilder(name, lat, lon);
     }
 
     /**
@@ -618,17 +642,6 @@ public abstract class QueryBuilders {
      */
     public static GeoBoundingBoxQueryBuilder geoBoundingBoxQuery(String name) {
         return new GeoBoundingBoxQueryBuilder(name);
-    }
-
-    /**
-     * A filter based on a bounding box defined by geohash. The field this filter is applied to
-     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
-     * to work.
-     *
-     * @param name The geo point field name.
-     */
-    public static GeohashCellQuery.Builder geoHashCellQuery(String name) {
-        return new GeohashCellQuery.Builder(name);
     }
 
     /**
@@ -673,8 +686,8 @@ public abstract class QueryBuilders {
      *
      * @param name The location field name.
      */
-    public static GeoPolygonQueryBuilder geoPolygonQuery(String name) {
-        return new GeoPolygonQueryBuilder(name);
+    public static GeoPolygonQueryBuilder geoPolygonQuery(String name, List<GeoPoint> points) {
+        return new GeoPolygonQueryBuilder(name, points);
     }
 
     /**

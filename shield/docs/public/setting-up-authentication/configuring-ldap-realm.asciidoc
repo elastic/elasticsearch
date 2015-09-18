@@ -120,10 +120,14 @@ shield:
 | `url`                          | yes      | Specifies an LDAP URL of the form of 
                                               `ldap[s]://<server>:<port>`. Shield attempts to 
                                               authenticate against this URL.
+| `user_group_attribute`         | no       | Specifies the attribute to examine on the user for group
+                                              membership. The default is `memberOf`. This setting will
+                                              be ignored if any `group_search` settings are specified.
 | `group_search.base_dn`         | no       | Specifies a container DN to search for groups in which 
                                               the user has membership. When this element is absent, 
-                                              Shield searches for a `memberOf` attribute set on the 
-                                              user to determine group membership.
+                                              Shield searches for the attribute specified by
+                                              `user_group_attribute` set on the user to determine
+                                              group membership.
 | `group_search.scope`           | no       | Specifies whether the group search should be 
                                               `sub_tree`, `one_level` or `base`.  `one_level` only 
                                               searches objects directly contained within the 

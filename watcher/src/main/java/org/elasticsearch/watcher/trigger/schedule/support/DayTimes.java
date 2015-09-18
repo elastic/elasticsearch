@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.trigger.schedule.support;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.util.primitives.Integers;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -226,7 +226,7 @@ public class DayTimes implements Times {
         if (minutes.isEmpty()) {
             minutes.add(0);
         }
-        return new DayTimes(Integers.toArray(hours), Integers.toArray(minutes));
+        return new DayTimes(CollectionUtils.toArray(hours), CollectionUtils.toArray(minutes));
     }
 
     public static int parseHourValue(XContentParser parser, XContentParser.Token token) throws IOException, ElasticsearchParseException {

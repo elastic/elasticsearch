@@ -9,7 +9,7 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.primitives.Integers;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -186,7 +186,7 @@ public class MonthTimes implements Times {
                 }
             }
         }
-        int[] days = daysSet.isEmpty() ? DEFAULT_DAYS : Integers.toArray(daysSet);
+        int[] days = daysSet.isEmpty() ? DEFAULT_DAYS : CollectionUtils.toArray(daysSet);
         DayTimes[] times = timesSet.isEmpty() ? new DayTimes[] { new DayTimes(0, 0) } : timesSet.toArray(new DayTimes[timesSet.size()]);
         return new MonthTimes(days, times);
     }
@@ -246,7 +246,7 @@ public class MonthTimes implements Times {
         }
 
         public MonthTimes build() {
-            return new MonthTimes(Integers.toArray(days), times.toArray(new DayTimes[times.size()]));
+            return new MonthTimes(CollectionUtils.toArray(days), times.toArray(new DayTimes[times.size()]));
         }
     }
 }

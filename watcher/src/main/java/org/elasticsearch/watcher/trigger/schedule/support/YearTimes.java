@@ -9,7 +9,7 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.primitives.Integers;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -182,7 +182,7 @@ public class YearTimes implements Times {
             }
         }
         EnumSet<Month> months = monthsSet.isEmpty() ? DEFAULT_MONTHS : EnumSet.copyOf(monthsSet);
-        int[] days = daysSet.isEmpty() ? DEFAULT_DAYS : Integers.toArray(daysSet);
+        int[] days = daysSet.isEmpty() ? DEFAULT_DAYS : CollectionUtils.toArray(daysSet);
         DayTimes[] times = timesSet.isEmpty() ? new DayTimes[] { new DayTimes(0, 0) } : timesSet.toArray(new DayTimes[timesSet.size()]);
         return new YearTimes(months, days, times);
     }
@@ -237,7 +237,7 @@ public class YearTimes implements Times {
         }
 
         public YearTimes build() {
-            return new YearTimes(EnumSet.copyOf(months), Integers.toArray(days), times.toArray(new DayTimes[times.size()]));
+            return new YearTimes(EnumSet.copyOf(months), CollectionUtils.toArray(days), times.toArray(new DayTimes[times.size()]));
         }
     }
 }

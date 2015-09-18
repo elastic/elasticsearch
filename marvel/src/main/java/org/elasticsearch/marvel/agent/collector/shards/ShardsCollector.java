@@ -32,7 +32,7 @@ import java.util.List;
 public class ShardsCollector extends AbstractCollector<ShardsCollector> {
 
     public static final String NAME = "shards-collector";
-    public static final String TYPE = "marvel_shards";
+    public static final String TYPE = "shards";
 
     @Inject
     public ShardsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, LicenseService licenseService) {

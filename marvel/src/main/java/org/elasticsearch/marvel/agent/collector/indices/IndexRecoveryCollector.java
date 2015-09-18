@@ -30,7 +30,7 @@ import java.util.List;
 public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryCollector> {
 
     public static final String NAME = "index-recovery-collector";
-    public static final String TYPE = "marvel_index_recovery";
+    public static final String TYPE = "index_recovery";
 
     private final Client client;
 

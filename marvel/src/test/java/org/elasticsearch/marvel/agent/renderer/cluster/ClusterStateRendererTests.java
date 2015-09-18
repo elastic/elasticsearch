@@ -20,7 +20,7 @@ import org.junit.Test;
 
 public class ClusterStateRendererTests extends ESSingleNodeTestCase {
 
-    private static final String SAMPLE_FILE = "/samples/marvel_cluster_state.json";
+    private static final String SAMPLE_FILE = "/samples/cluster_state.json";
 
     @Test
     public void testClusterStateRenderer() throws Exception {
@@ -36,7 +36,7 @@ public class ClusterStateRendererTests extends ESSingleNodeTestCase {
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().get();
 
         logger.debug("--> creating the cluster state marvel document");
-        ClusterStateMarvelDoc marvelDoc = new ClusterStateMarvelDoc("test", "marvel_cluster_state", 1437580442979L,
+        ClusterStateMarvelDoc marvelDoc = new ClusterStateMarvelDoc("test", "cluster_state", 1437580442979L,
                 clusterState, clusterHealth.getStatus());
 
         logger.debug("--> rendering the document");

@@ -30,7 +30,7 @@ import java.util.List;
 public class ClusterStateCollector extends AbstractCollector<ClusterStateCollector> {
 
     public static final String NAME = "cluster-state-collector";
-    public static final String TYPE = "marvel_cluster_state";
+    public static final String TYPE = "cluster_state";
 
     private final Client client;
 

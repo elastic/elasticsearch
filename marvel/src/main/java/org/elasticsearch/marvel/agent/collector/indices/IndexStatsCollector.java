@@ -31,7 +31,7 @@ import java.util.List;
 public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> {
 
     public static final String NAME = "index-stats-collector";
-    public static final String TYPE = "marvel_index_stats";
+    public static final String TYPE = "index_stats";
 
     private final Client client;
 

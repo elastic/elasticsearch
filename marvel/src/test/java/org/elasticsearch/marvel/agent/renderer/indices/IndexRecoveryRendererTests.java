@@ -25,7 +25,7 @@ import java.util.Map;
 
 public class IndexRecoveryRendererTests extends ESTestCase {
 
-    private static final String SAMPLE_FILE = "/samples/marvel_index_recovery.json";
+    private static final String SAMPLE_FILE = "/samples/index_recovery.json";
 
     @Test
     public void testIndexRecoveryRenderer() throws Exception {
@@ -50,7 +50,7 @@ public class IndexRecoveryRendererTests extends ESTestCase {
 
         RecoveryResponse recoveryResponse = new RecoveryResponse(2, 2, 2, false, shardResponses, null);
 
-        IndexRecoveryMarvelDoc marvelDoc = new IndexRecoveryMarvelDoc("test", "marvel_index_recovery", 1437580442979L, recoveryResponse);
+        IndexRecoveryMarvelDoc marvelDoc = new IndexRecoveryMarvelDoc("test", "index_recovery", 1437580442979L, recoveryResponse);
 
         logger.debug("--> rendering the document");
         Renderer renderer = new IndexRecoveryRenderer();

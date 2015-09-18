@@ -26,7 +26,7 @@ import java.util.Collections;
 public class IndicesStatsCollector extends AbstractCollector<IndicesStatsCollector> {
 
     public static final String NAME = "indices-stats-collector";
-    public static final String TYPE = "marvel_indices_stats";
+    public static final String TYPE = "indices_stats";
 
     private final Client client;
 

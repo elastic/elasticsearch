@@ -17,7 +17,7 @@ import org.junit.Test;
 
 public class IndicesStatsRendererTests extends ESSingleNodeTestCase {
 
-    private static final String SAMPLE_FILE = "/samples/marvel_indices_stats.json";
+    private static final String SAMPLE_FILE = "/samples/indices_stats.json";
 
     @Test
     public void testIndexStatsRenderer() throws Exception {
@@ -27,7 +27,7 @@ public class IndicesStatsRendererTests extends ESSingleNodeTestCase {
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().get();
 
         logger.debug("--> creating the indices stats marvel document");
-        IndicesStatsMarvelDoc marvelDoc = new IndicesStatsMarvelDoc("test", "marvel_indices_stats", 1437580442979L, indicesStats);
+        IndicesStatsMarvelDoc marvelDoc = new IndicesStatsMarvelDoc("test", "indices_stats", 1437580442979L, indicesStats);
 
         logger.debug("--> rendering the document");
         Renderer renderer = new IndicesStatsRenderer();

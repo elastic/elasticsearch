@@ -53,7 +53,7 @@ public class ClusterStateIT extends AbstractRendererTestCase {
 
     /**
      * This test should fail if the mapping for the 'nodes' attribute
-     * in the 'marvel_cluster_state' document is NOT set to 'enable: false'
+     * in the 'cluster_state' document is NOT set to 'enable: false'
      *
      * See
      */

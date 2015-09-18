@@ -29,7 +29,7 @@ import java.util.List;
 public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollector> {
 
     public static final String NAME = "cluster-stats-collector";
-    public static final String TYPE = "marvel_cluster_stats";
+    public static final String TYPE = "cluster_stats";
 
     private final Client client;
 

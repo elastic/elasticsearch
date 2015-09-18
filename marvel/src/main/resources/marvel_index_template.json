@@ -24,7 +24,7 @@
         }
       }
     },
-    "marvel_indices_stats": {
+    "indices_stats": {
       "properties": {
         "indices_stats": {
           "properties": {
@@ -58,7 +58,7 @@
         }
       }
     },
-    "marvel_index_stats": {
+    "index_stats": {
       "properties": {
         "index_stats": {
           "properties": {
@@ -146,7 +146,7 @@
         }
       }
     },
-    "marvel_cluster_stats": {
+    "cluster_stats": {
       "properties": {
         "cluster_stats": {
           "properties": {
@@ -160,7 +160,7 @@
         }
       }
     },
-    "marvel_cluster_state": {
+    "cluster_state": {
       "properties": {
         "cluster_state": {
           "properties": {
@@ -188,7 +188,7 @@
     "cluster_info": {
       "enabled": false
     },
-    "marvel_node_stats": {
+    "node_stats": {
       "properties": {
         "node_stats": {
           "properties": {
@@ -227,14 +227,14 @@
         }
       }
     },
-    "marvel_index_recovery": {
+    "index_recovery": {
       "properties": {
         "shards": {
           "type": "object"
         }
       }
     },
-    "marvel_shards": {
+    "shards": {
       "properties": {
         "state_uuid": {
           "type": "string",

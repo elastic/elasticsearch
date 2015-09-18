@@ -15,7 +15,7 @@ import org.junit.Test;
 
 public class ClusterStatsRendererTests extends ESSingleNodeTestCase {
 
-    private static final String SAMPLE_FILE = "/samples/marvel_cluster_stats.json";
+    private static final String SAMPLE_FILE = "/samples/cluster_stats.json";
 
     @Test
     public void testClusterStatsRenderer() throws Exception {
@@ -25,7 +25,7 @@ public class ClusterStatsRendererTests extends ESSingleNodeTestCase {
         ClusterStatsResponse clusterStats = client().admin().cluster().prepareClusterStats().get();
 
         logger.debug("--> creating the cluster stats marvel document");
-        ClusterStatsMarvelDoc marvelDoc = new ClusterStatsMarvelDoc("test", "marvel_cluster_stats", 1437580442979L, clusterStats);
+        ClusterStatsMarvelDoc marvelDoc = new ClusterStatsMarvelDoc("test", "cluster_stats", 1437580442979L, clusterStats);
 
         logger.debug("--> rendering the document");
         Renderer renderer = new ClusterStatsRenderer();

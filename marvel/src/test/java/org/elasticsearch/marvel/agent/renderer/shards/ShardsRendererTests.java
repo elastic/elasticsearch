@@ -20,7 +20,7 @@ import java.io.IOException;
 
 public class ShardsRendererTests extends ESSingleNodeTestCase {
 
-    private static final String SAMPLE_FILE = "/samples/marvel_shards.json";
+    private static final String SAMPLE_FILE = "/samples/shards.json";
 
     @Test
     public void testShardsRenderer() throws Exception {
@@ -33,7 +33,7 @@ public class ShardsRendererTests extends ESSingleNodeTestCase {
         ClusterState clusterState = getInstanceFromNode(ClusterService.class).state();
 
         logger.debug("--> creating the shard marvel document");
-        ShardMarvelDoc marvelDoc = new ShardMarvelDoc("my-index", "marvel_shards", "my-id",
+        ShardMarvelDoc marvelDoc = new ShardMarvelDoc("my-index", "shards", "my-id",
                 clusterState.metaData().clusterUUID(), 1437580442979L, clusterState.routingTable().allShards().iterator().next(), clusterState.stateUUID());
 
         logger.debug("--> rendering the document");
@@ -49,7 +49,7 @@ public class ShardsRendererTests extends ESSingleNodeTestCase {
 
     @Test
     public void testNoShard() throws IOException {
-        String result = RendererTestUtils.renderAsJSON(new ShardMarvelDoc("my-index", "marvel_shards", "my-id", "cluster-uuid", 1437580442979L, null, "my-state-uuid"), new ShardsRenderer());
+        String result = RendererTestUtils.renderAsJSON(new ShardMarvelDoc("my-index", "shards", "my-id", "cluster-uuid", 1437580442979L, null, "my-state-uuid"), new ShardsRenderer());
         RendererTestUtils.assertJSONStructureAndValues(result, "{\"cluster_uuid\":\"my-cluster-uuid\",\"timestamp\":\"2015-07-22T15:54:02.979Z\",\"state_uuid\":\"my-state-uuid\"}");
     }
 }

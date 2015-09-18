@@ -36,7 +36,7 @@ import java.util.List;
 public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
 
     public static final String NAME = "node-stats-collector";
-    public static final String TYPE = "marvel_node_stats";
+    public static final String TYPE = "node_stats";
 
     private final NodeService nodeService;
     private final DiscoveryService discoveryService;

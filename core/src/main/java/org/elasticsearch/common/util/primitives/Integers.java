@@ -27,12 +27,4 @@ public class Integers {
         Objects.requireNonNull(ints);
         return ints.stream().mapToInt(s -> s).toArray();
     }
-
-    public static int checkedCast(long value) {
-        int cast = (int)value;
-        if ((long)cast != value) {
-            throw new IllegalArgumentException(Long.toString(value));
-        }
-        return cast;
-    }
 }

@@ -16,7 +16,7 @@
 
     <properties>
         <elasticsearch.plugin.classname>org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin</elasticsearch.plugin.classname>
-        <amazonaws.version>1.10.12</amazonaws.version>
+        <amazonaws.version>1.10.19</amazonaws.version>
         <tests.jvms>1</tests.jvms>
         <tests.rest.suite>repository_s3</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>

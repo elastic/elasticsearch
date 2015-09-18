@@ -231,7 +231,8 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
             StringFieldMapper geohashMapper = null;
             if (enableGeoHash || enableGeohashPrefix) {
                 // TODO: possible also implicitly enable geohash if geohash precision is set
-                geohashMapper = stringField(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).omitNorms(true).indexOptions(IndexOptions.DOCS).build(context);
+                geohashMapper = stringField(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).store(fieldType.stored())
+                        .omitNorms(true).indexOptions(IndexOptions.DOCS).build(context);
                 geoPointFieldType.setGeohashEnabled(geohashMapper.fieldType(), geoHashPrecision, enableGeohashPrefix);
             }
             context.path().remove();
@@ -678,7 +679,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
     private void addGeohashField(ParseContext context, String geohash) throws IOException {
         int len = Math.min(fieldType().geohashPrecision(), geohash.length());
-        int min = fieldType().isGeohashPrefixEnabled() ? 1 : geohash.length();
+        int min = fieldType().isGeohashPrefixEnabled() ? 1 : len;
 
         for (int i = len; i >= min; i--) {
             // side effect of this call is adding the field

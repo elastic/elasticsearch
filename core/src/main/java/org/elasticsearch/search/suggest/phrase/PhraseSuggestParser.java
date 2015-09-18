@@ -26,6 +26,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -48,7 +49,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexQueryParserService queryParserService) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexQueryParserService queryParserService, IndexFieldDataService indexFieldDataService) throws IOException {
         PhraseSuggestionContext suggestion = new PhraseSuggestionContext(suggester);
         suggestion.setQueryParserService(queryParserService);
         XContentParser.Token token;

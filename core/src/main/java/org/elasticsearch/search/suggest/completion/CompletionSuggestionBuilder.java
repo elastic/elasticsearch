@@ -45,6 +45,7 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
     private FuzzyOptionsBuilder fuzzyOptionsBuilder;
     private RegexOptionsBuilder regexOptionsBuilder;
     private List<QueryContexts> queryContextsList;
+    private String[] payloadFields;
 
     public CompletionSuggestionBuilder(String name) {
         super(name, "completion");
@@ -257,6 +258,15 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
     }
 
     /**
+     * Sets the fields to be returned as suggestion payload.
+     * Note: Only doc values enabled fields are supported
+     */
+    public CompletionSuggestionBuilder payload(String... fields) {
+        this.payloadFields = fields;
+        return this;
+    }
+
+    /**
      * Sets query contexts for a category context
      * @param name of the category context to execute on
      * @param queryContexts a list of {@link CategoryQueryContext}
@@ -289,6 +299,13 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
 
     @Override
     protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        if (payloadFields != null) {
+            builder.startArray("payload");
+            for (String field : payloadFields) {
+                builder.value(field);
+            }
+            builder.endArray();
+        }
         if (fuzzyOptionsBuilder != null) {
             fuzzyOptionsBuilder.toXContent(builder, params);
         }

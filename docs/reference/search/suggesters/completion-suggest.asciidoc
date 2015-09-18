@@ -109,7 +109,9 @@ a weight with suggestion(s).
 ==== Querying
 
 Suggesting works as usual, except that you have to specify the suggest
-type as `completion`.
+type as `completion`. Suggestions are near real-time, which means
+new suggestions can be made visible by <<indices-refresh,refresh>> and
+documents once deleted are never shown.
 
 [source,js]
 --------------------------------------------------
@@ -144,17 +146,74 @@ POST music/_suggest?pretty
 The configured weight for a suggestion is returned as `score`.
 The `text` field uses the `input` of your indexed suggestion.
 
-The basic completion suggester query supports the following two parameters:
+Suggestions are document oriented, you can specify fields to be
+returned as part of suggestion payload. All field types (`string`,
+`numeric`, `date`, etc) are supported.
+
+For example, if you index a "title" field along with the suggestion
+as follows:
+
+[source,js]
+--------------------------------------------------
+POST music/song
+{
+    "suggest" : "Nirvana",
+    "title" : "Nevermind"
+}
+--------------------------------------------------
+
+You can get the "title" as part of the suggestion
+payload by specifying it as a `payload`:
+
+[source,js]
+--------------------------------------------------
+POST music/_suggest?pretty
+{
+    "song-suggest" : {
+        "prefix" : "n",
+        "completion" : {
+            "field" : "suggest"
+            "payload" : [ "title" ] <1>
+        }
+    }
+}
+
+{
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "failed" : 0
+  },
+  "song-suggest" : [ {
+    "text" : "n",
+    "offset" : 0,
+    "length" : 1,
+    "options" : [ {
+      "text" : "Nirvana",
+      "score" : 34.0,
+      "payload" : {
+        "title" : [ "Nevermind" ]
+      }
+    } ]
+  } ]
+}
+--------------------------------------------------
+<1> The fields to be returned as part of each suggestion payload.
+
+The basic completion suggester query supports the following parameters:
 
 `field`:: The name of the field on which to run the query (required).
 `size`::  The number of suggestions to return (defaults to `5`).
+`payload`::  The name of the field or field name array to be returned
+             as payload (defaults to no fields).
 
 NOTE: The completion suggester considers all documents in the index.
 See <<suggester-context>> for an explanation of how to query a subset of
 documents instead.
 
-NOTE: It will be possible to return the associated documents
-with each suggestion in the future (TODO).
+NOTE: Specifying `payload` fields will incur additional search performance
+hit. The `payload` fields are retrieved eagerly (single pass) for top
+suggestions at the shard level using field data or from doc values.
 
 [[fuzzy]]
 ==== Fuzzy queries

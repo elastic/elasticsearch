@@ -18,12 +18,15 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -34,16 +37,19 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder;
     private CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder;
     private Map<String, ContextMapping.QueryContexts> queryContexts;
+    private MapperService mapperService;
+    private IndexFieldDataService fieldData;
+    private Set<String> payloadFields;
 
     CompletionSuggestionContext(Suggester suggester) {
         super(suggester);
     }
 
-    CompletionFieldMapper.CompletionFieldType fieldType() {
+    CompletionFieldMapper.CompletionFieldType getFieldType() {
         return this.fieldType;
     }
 
-    void fieldType(CompletionFieldMapper.CompletionFieldType fieldType) {
+    void setFieldType(CompletionFieldMapper.CompletionFieldType fieldType) {
         this.fieldType = fieldType;
     }
 
@@ -69,5 +75,29 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
 
     Map<String, ContextMapping.QueryContexts> getQueryContexts() {
         return queryContexts;
+    }
+
+    void setMapperService(MapperService mapperService) {
+        this.mapperService = mapperService;
+    }
+
+    MapperService getMapperService() {
+        return mapperService;
+    }
+
+    void setFieldData(IndexFieldDataService fieldData) {
+        this.fieldData = fieldData;
+    }
+
+    IndexFieldDataService getFieldData() {
+        return fieldData;
+    }
+
+   void setPayloadFields(Set<String> fields) {
+        this.payloadFields = fields;
+    }
+
+    Set<String> getPayloadFields() {
+        return payloadFields;
     }
 }

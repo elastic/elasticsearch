@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.OldCompletionFieldMapper;
@@ -38,9 +39,7 @@ import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.search.suggest.completion.context.ContextMappingsParser;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.search.suggest.SuggestUtils.parseSuggestContext;
 import static org.elasticsearch.search.suggest.completion.context.ContextMappingsParser.parseQueryContext;
@@ -87,7 +86,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
 
     @Override
     public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService,
-                                                           IndexQueryParserService queryParserService) throws IOException {
+                                                           IndexQueryParserService queryParserService, IndexFieldDataService fieldDataService) throws IOException {
         XContentParser.Token token;
         String fieldName = null;
         CompletionSuggestionContext suggestion = new CompletionSuggestionContext(completionSuggester);
@@ -95,6 +94,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
         XContentParser contextParser = null;
         CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptions = null;
         CompletionSuggestionBuilder.RegexOptionsBuilder regexOptions = null;
+        Set<String> payloadFields = new HashSet<>(1);
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -105,6 +105,8 @@ public class CompletionSuggestParser implements SuggestContextParser {
                         if (parser.booleanValue()) {
                             fuzzyOptions = new CompletionSuggestionBuilder.FuzzyOptionsBuilder();
                         }
+                    } else if (token == XContentParser.Token.VALUE_STRING && "payload".equals(fieldName)) {
+                        payloadFields.add(parser.text());
                     }
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -158,6 +160,18 @@ public class CompletionSuggestParser implements SuggestContextParser {
                 } else {
                     throw new IllegalArgumentException("suggester [completion] doesn't support field [" + fieldName + "]");
                 }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("payload".equals(fieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.VALUE_STRING) {
+                            payloadFields.add(parser.text());
+                        } else {
+                            throw new IllegalArgumentException("suggester [completion] expected string values in [payload] array");
+                        }
+                    }
+                } else {
+                    throw new IllegalArgumentException("suggester [completion] doesn't support field [" + fieldName + "]");
+                }
             } else {
                 throw new IllegalArgumentException("suggester [completion] doesn't support field [" + fieldName + "]");
             }
@@ -177,10 +191,13 @@ public class CompletionSuggestParser implements SuggestContextParser {
                 contextParser.close();
             }
 
-            suggestion.fieldType(type);
+            suggestion.setFieldType(type);
             suggestion.setFuzzyOptionsBuilder(fuzzyOptions);
             suggestion.setRegexOptionsBuilder(regexOptions);
             suggestion.setQueryContexts(queryContexts);
+            suggestion.setMapperService(mapperService);
+            suggestion.setFieldData(fieldDataService);
+            suggestion.setPayloadFields(payloadFields);
             // TODO: pass a query builder or the query itself?
             // now we do it in CompletionSuggester#toQuery(CompletionSuggestionContext)
             return suggestion;

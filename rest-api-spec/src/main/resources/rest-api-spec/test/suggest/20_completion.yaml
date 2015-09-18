@@ -22,6 +22,11 @@ setup:
                      "type" : "completion"
                   "suggest_5b":
                      "type" : "completion"
+                  "suggest_6":
+                     "type" : "completion"
+                  "count":
+                    "type" : "integer"
+                    "doc_values" : "true"
 
 ---
 "Simple suggestion should work":
@@ -227,3 +232,52 @@ setup:
   - length: { result: 1  }
   - length: { result.0.options: 1  }
   - match:  { result.0.options.0.text: "baz" }
+
+---
+"Suggestions with payload fields should work":
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    1
+        body:
+          suggest_6:
+            input: "bar"
+            weight: 2
+          title: "title_bar"
+          count: 2
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    2
+        body:
+          suggest_6:
+            input: "baz"
+            weight: 3
+          title: "title_baz"
+          count: 3
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      suggest:
+        body:
+          result:
+            text: "b"
+            completion:
+              field: suggest_6
+              payload: [ title, count ]
+
+  - length: { result: 1  }
+  - length: { result.0.options: 2  }
+  - match:  { result.0.options.0.text: "baz" }
+  - match:  { result.0.options.0.payload.title: ["title_baz"] }
+  - match:  { result.0.options.0.payload.count: [3] }
+  - match:  { result.0.options.1.text: "bar" }
+  - match:  { result.0.options.1.payload.title: ["title_bar"] }
+  - match:  { result.0.options.1.payload.count: [2] }
+

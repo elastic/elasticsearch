@@ -54,6 +54,54 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
         super(name, size);
     }
 
+    private class OptionPriorityQueue extends org.apache.lucene.util.PriorityQueue<Entry.Option> {
+
+        public OptionPriorityQueue(int maxSize) {
+            super(maxSize);
+        }
+
+        @Override
+        protected boolean lessThan(Entry.Option a, Entry.Option b) {
+            return sortComparator().compare(a, b) > 0;
+        }
+
+        public Entry.Option[] get() {
+            int size = size();
+            Entry.Option[] results = new Entry.Option[size];
+            for (int i = size - 1; i >= 0; i--) {
+                results[i] = pop();
+            }
+            return results;
+        }
+    }
+
+    @Override
+    public Suggest.Suggestion<Entry> reduce(List<Suggest.Suggestion<Entry>> toReduce) {
+        if (toReduce.size() == 1) {
+            return toReduce.get(0);
+        } else {
+            // combine suggestion entries from participating shards on the coordinating node
+            // the global top <code>size</code> entries are collected from the shard results
+            // using a priority queue
+            OptionPriorityQueue priorityQueue = new OptionPriorityQueue(size);
+            for (Suggest.Suggestion<Entry> entries : toReduce) {
+                assert entries.getEntries().size() == 1 : "CompletionSuggestion must have only one entry";
+                for (Entry.Option option : entries.getEntries().get(0)) {
+                    if (option == priorityQueue.insertWithOverflow(option)) {
+                        // if the current option has overflown from pq,
+                        // we can assume all of the successive options
+                        // from this shard result will be overflown as well
+                        break;
+                    }
+                }
+            }
+            Entry options = this.entries.get(0);
+            options.getOptions().clear();
+            Collections.addAll(options.getOptions(), priorityQueue.get());
+            return this;
+        }
+    }
+
     @Override
     public int getType() {
         return TYPE;
@@ -81,11 +129,11 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
 
         public static class Option extends Suggest.Suggestion.Entry.Option {
             private Map<String, Set<CharSequence>> contexts = new TreeMap<>();
-            private int docID;
+            private Map<String, List<Object>> payload;
 
-            public Option(int docID, Text text, float score, Map.Entry<String, CharSequence> contextEntry) {
+            public Option(Text text, float score, Map.Entry<String, CharSequence> contextEntry, Map<String, List<Object>> payload) {
                 super(text, score);
-                this.docID = docID;
+                this.payload = payload;
                 addContextEntry(contextEntry);
             }
 
@@ -95,8 +143,9 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
 
             @Override
             protected void mergeInto(Suggest.Suggestion.Entry.Option otherOption) {
-                super.mergeInto(otherOption);
-                this.contexts.putAll(((Option) otherOption).contexts);
+                // Completion suggestions are reduced by
+                // org.elasticsearch.search.suggest.completion.CompletionSuggestion.reduce()
+                throw new UnsupportedOperationException();
             }
 
             public void addContextEntry(Map.Entry<String, CharSequence> entry) {
@@ -115,8 +164,8 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
                 }
             }
 
-            int getDocID() {
-                return docID;
+            public Map<String, List<Object>> getPayload() {
+                return payload;
             }
 
             public Map<String, Set<CharSequence>> getContexts() {
@@ -131,6 +180,17 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             @Override
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                 super.innerToXContent(builder, params);
+                if (payload.size() > 0) {
+                    builder.startObject("payload");
+                    for (Map.Entry<String, List<Object>> entry : payload.entrySet()) {
+                        builder.startArray(entry.getKey());
+                        for (Object payload : entry.getValue()) {
+                            builder.value(payload);
+                        }
+                        builder.endArray();
+                    }
+                    builder.endObject();
+                }
                 if (contexts.size() > 0) {
                     builder.startObject("contexts");
                     for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
@@ -148,9 +208,19 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             @Override
             public void readFrom(StreamInput in) throws IOException {
                 super.readFrom(in);
-                docID = in.readInt();
-                int size = in.readInt();
-                for (int i = 0; i < size; i++) {
+                int payloadSize = in.readInt();
+                this.payload = new LinkedHashMap<>(payloadSize);
+                for (int i = 0; i < payloadSize; i++) {
+                    String payloadName = in.readString();
+                    int nValues = in.readVInt();
+                    List<Object> values = new ArrayList<>(nValues);
+                    for (int j = 0; j < nValues; j++) {
+                        values.add(in.readGenericValue());
+                    }
+                    this.payload.put(payloadName, values);
+                }
+                int contextSize = in.readInt();
+                for (int i = 0; i < contextSize; i++) {
                     String contextName = in.readString();
                     int nContexts = in.readVInt();
                     Set<CharSequence> contexts = new HashSet<>(nContexts);
@@ -164,7 +234,15 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 super.writeTo(out);
-                out.writeInt(docID);
+                out.writeInt(payload.size());
+                for (Map.Entry<String, List<Object>> entry : payload.entrySet()) {
+                    out.writeString(entry.getKey());
+                    List<Object> values = entry.getValue();
+                    out.writeVInt(values.size());
+                    for (Object value : values) {
+                        out.writeGenericValue(value);
+                    }
+                }
                 out.writeInt(contexts.size());
                 for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
                     out.writeString(entry.getKey());

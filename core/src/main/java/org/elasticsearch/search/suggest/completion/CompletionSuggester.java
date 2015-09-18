@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexSearcher;
@@ -30,6 +31,9 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestContextParser;
@@ -50,7 +54,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
     @Override
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
             CompletionSuggestionContext suggestionContext, IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
-        if (suggestionContext.fieldType() == null) {
+        if (suggestionContext.getFieldType() == null) {
             throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
@@ -67,18 +71,38 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             // if we index a suggestion with n contexts, the suggestion and all its contexts
             // would count as n hits rather than 1, so we have to multiply the desired size
             // with n to get a suggestion with all n contexts
-            final String key = suggestDoc.key.toString();
             final float score = suggestDoc.score;
             final Map.Entry<String, CharSequence> contextEntry;
-            if (suggestionContext.fieldType().hasContextMappings() && suggestDoc.context != null) {
-                contextEntry = suggestionContext.fieldType().getContextMappings().getNamedContext(suggestDoc.context);
+            if (suggestionContext.getFieldType().hasContextMappings() && suggestDoc.context != null) {
+                contextEntry = suggestionContext.getFieldType().getContextMappings().getNamedContext(suggestDoc.context);
             } else {
                 assert suggestDoc.context == null;
                 contextEntry = null;
             }
-            final Option value = results.get(suggestDoc.doc);
+            final CompletionSuggestion.Entry.Option value = results.get(suggestDoc.doc);
             if (value == null) {
-                final Option option = new Option(suggestDoc.doc, new StringText(key), score, contextEntry);
+                final Map<String, List<Object>> payload;
+                Set<String> payloadFields = suggestionContext.getPayloadFields();
+                if (!payloadFields.isEmpty()) {
+                    int readerIndex = ReaderUtil.subIndex(suggestDoc.doc, searcher.getIndexReader().leaves());
+                    LeafReaderContext subReaderContext = searcher.getIndexReader().leaves().get(readerIndex);
+                    int subDocId = suggestDoc.doc - subReaderContext.docBase;
+                    payload = new LinkedHashMap<>(payloadFields.size());
+                    for (String field : payloadFields) {
+                        MappedFieldType fieldType = suggestionContext.getMapperService().smartNameFieldType(field);
+                        if (fieldType != null) {
+                            AtomicFieldData data = suggestionContext.getFieldData().getForField(fieldType).load(subReaderContext);
+                            ScriptDocValues scriptValues = data.getScriptValues();
+                            scriptValues.setNextDocId(subDocId);
+                            payload.put(field, scriptValues.getValues());
+                        } else {
+                            throw new ElasticsearchException("Payload field [" + field + "] does not exist");
+                        }
+                    }
+                } else {
+                    payload = Collections.emptyMap();
+                }
+                final CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(new StringText(suggestDoc.key.toString()), suggestDoc.score, contextEntry, payload);
                 results.put(suggestDoc.doc, option);
             } else {
                 value.addContextEntry(contextEntry);
@@ -100,7 +124,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
     so the CompletionSuggestionContext will have only the query instead
      */
     private CompletionQuery toQuery(CompletionSuggestionContext suggestionContext) throws IOException {
-        CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.fieldType();
+        CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.getFieldType();
         final CompletionQuery query;
         if (suggestionContext.getPrefix() != null) {
             if (suggestionContext.getFuzzyOptionsBuilder() != null) {

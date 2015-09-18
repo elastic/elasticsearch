@@ -61,6 +61,6 @@ public final class BootstrapInfo {
      * that require additional privileges as a workaround.
      */
     public static Set<String> getInsecurePluginList() {
-        return Collections.unmodifiableSet(Security.INSECURE_PLUGINS.keySet());
+        return Collections.unmodifiableSet(Security.SPECIAL_PLUGINS.keySet());
     }
 }

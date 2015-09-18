@@ -277,6 +277,11 @@ public enum CollectionUtils {
         }.sort(0, array.size());
     }
 
+    public static int[] toArray(Collection<Integer> ints) {
+        Objects.requireNonNull(ints);
+        return ints.stream().mapToInt(s -> s).toArray();
+    }
+
     private static class RotatedList<T> extends AbstractList<T> implements RandomAccess {
 
         private final List<T> in;

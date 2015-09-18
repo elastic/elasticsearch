@@ -86,6 +86,13 @@
                     }
                   }
                 },
+                "fielddata" : {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
                 "store": {
                   "properties": {
                     "size_in_bytes": {

@@ -26,6 +26,9 @@
       "refresh" : {
         "total_time_in_millis" : 978
       },
+      "fielddata" : {
+        "memory_size_in_bytes" : 123456
+      },
       "segments" : {
         "memory_in_bytes" : 87965412
       }

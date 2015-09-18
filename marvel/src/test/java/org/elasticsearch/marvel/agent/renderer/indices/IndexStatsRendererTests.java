@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.marvel.agent.renderer.indices;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -41,6 +43,7 @@ public class IndexStatsRendererTests extends ESTestCase {
                         stats.merge = new MergeStats();
                         stats.merge.add(0L, 0L, 0L, 42L, 0L, 0L, 0L, 0L, 0L, 0L);
                         stats.refresh = new RefreshStats(0L, 978L);
+                        stats.fieldData = new FieldDataStats(123456L, 0L, null);
                         stats.segments = new SegmentsStats();
                         stats.segments.add(0, 87965412L);
                         return stats;

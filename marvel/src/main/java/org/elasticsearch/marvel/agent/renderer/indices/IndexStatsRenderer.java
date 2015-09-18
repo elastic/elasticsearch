@@ -20,6 +20,7 @@ public class IndexStatsRenderer extends AbstractRenderer<IndexStatsMarvelDoc> {
             "index_stats.index",
             "index_stats.primaries.docs.count",
             "index_stats.total.docs.count",
+            "index_stats.total.fielddata.memory_size_in_bytes",
             "index_stats.total.indexing.index_total",
             "index_stats.total.indexing.index_time_in_millis",
             "index_stats.total.indexing.throttle_time_in_millis",

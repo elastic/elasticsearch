@@ -73,7 +73,7 @@ setup() {
 }
 
 @test "[TAR] elasticsearch fails if java executable is not found" {
-  export JAVA=$(which java)
+  local JAVA=$(which java)
 
   sudo chmod -x $JAVA
   run "$ESHOME/bin/elasticsearch"

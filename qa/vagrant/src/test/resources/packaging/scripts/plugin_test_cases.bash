@@ -127,7 +127,7 @@ fi
 
 @test "[$GROUP] fail if java executable is not found" {
   [ "$GROUP" == "TAR PLUGINS" ] || skip "Test case only supported by TAR PLUGINS"
-  export JAVA=$(which java)
+  local JAVA=$(which java)
 
   sudo chmod -x $JAVA
   run "$ESHOME/bin/plugin"

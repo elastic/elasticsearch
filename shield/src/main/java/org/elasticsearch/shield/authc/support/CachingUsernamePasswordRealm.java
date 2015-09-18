@@ -17,7 +17,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm {
+public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm implements CachingRealm {
 
     public static final String CACHE_HASH_ALGO_SETTING = "cache.hash_algo";
     public static final String CACHE_TTL_SETTING = "cache.ttl";

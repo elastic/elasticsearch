@@ -13,9 +13,9 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.authc.support.CachingRealm;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.Realms;
-import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -82,10 +82,10 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
     }
 
     private void clearCache(Realm realm, String[] usernames) {
-        if (!(realm instanceof CachingUsernamePasswordRealm)) {
+        if (!(realm instanceof CachingRealm)) {
             return;
         }
-        CachingUsernamePasswordRealm cachingRealm = (CachingUsernamePasswordRealm) realm;
+        CachingRealm cachingRealm = (CachingRealm) realm;
 
         if (usernames != null && usernames.length != 0) {
             for (String username : usernames) {

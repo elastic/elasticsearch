@@ -37,22 +37,22 @@ grant codeBase "${es.security.jar.lucene.core}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-//// Insecure plugin permissions:
-//// These are dangerous permissions due to problems in third-party library code
-//// We try our best to contain and protect the issues, but ultimately warn the user
-//// when installing these plugins that it can introduce a security risk
+//// Special plugin permissions:
+//// These are dangerous permissions only needed by special plugins that we don't
+//// want to grant in general. Some may be due to problems in third-party library code,
+//// others may just be more obscure integrations.
 
-grant codeBase "${es.security.insecure.plugin.repository-s3}" {
+grant codeBase "${es.security.plugin.repository-s3}" {
   // needed because of problems in aws-sdk
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${es.security.insecure.plugin.discovery-ec2}" {
+grant codeBase "${es.security.plugin.discovery-ec2}" {
   // needed because of problems in aws-sdk
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${es.security.insecure.plugin.cloud-gce}" {
+grant codeBase "${es.security.plugin.cloud-gce}" {
   // needed because of problems in cloud-gce
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

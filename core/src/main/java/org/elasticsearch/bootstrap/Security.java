@@ -20,8 +20,6 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
@@ -159,15 +157,39 @@ final class Security {
         }
     }
 
-    // mapping of insecure plugins to codebase properties
+    // mapping of plugins to plugin class name. see getPluginClass why we need this.
+    // plugin codebase property is always implicit (es.security.plugin.foobar)
     // note that this is only read once, when policy is parsed.
-    static final Map<String,String> INSECURE_PLUGINS;
+    static final Map<String,String> SPECIAL_PLUGINS;
     static {
         Map<String,String> m = new HashMap<>();
-        m.put("repository-s3", "es.security.insecure.plugin.repository-s3");
-        m.put("discovery-ec2", "es.security.insecure.plugin.discovery-ec2");
-        m.put("cloud-gce",     "es.security.insecure.plugin.cloud-gce" );
-        INSECURE_PLUGINS = Collections.unmodifiableMap(m);
+        m.put("repository-s3", "org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin");
+        m.put("discovery-ec2", "org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin");
+        m.put("cloud-gce",     "org.elasticsearch.plugin.cloud.gce.CloudGcePlugin");
+        SPECIAL_PLUGINS = Collections.unmodifiableMap(m);
+    }
+
+    /**
+     * Returns policy property for plugin, if it has special permissions.
+     * otherwise returns null.
+     */
+    static String getPluginProperty(String pluginName) {
+        if (SPECIAL_PLUGINS.containsKey(pluginName)) {
+            return "es.security.plugin." + pluginName;
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Returns plugin class name, if it has special permissions.
+     * otherwise returns null.
+     */
+    // this is only here to support the intellij IDE
+    // it sucks to duplicate information, but its worth the tradeoff: sanity
+    // if it gets out of sync, tests will fail.
+    static String getPluginClass(String pluginName) {
+        return SPECIAL_PLUGINS.get(pluginName);
     }
 
     /**
@@ -179,20 +201,18 @@ final class Security {
         if (Files.exists(environment.pluginsFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
                 for (Path plugin : stream) {
-                    String prop = INSECURE_PLUGINS.get(plugin.getFileName().toString());
+                    String prop = getPluginProperty(plugin.getFileName().toString());
                     if (prop != null) {
                         if (System.getProperty(prop) != null) {
                             throw new IllegalStateException("property: " + prop + " is unexpectedly set: " + System.getProperty(prop));
                         }
                         System.setProperty(prop, plugin.toUri().toURL().toString() + "*");
-                        ESLogger logger = Loggers.getLogger(Security.class);
-                        logger.warn("Adding permissions for insecure plugin [{}]", plugin.getFileName());
-                        logger.warn("There are unresolved issues with third-party code that may reduce the security of the system");
                     }
                 }
             }
         }
-        for (String prop : INSECURE_PLUGINS.values()) {
+        for (String plugin : SPECIAL_PLUGINS.keySet()) {
+            String prop = getPluginProperty(plugin);
             if (System.getProperty(prop) == null) {
                 System.setProperty(prop, "file:/dev/null"); // no chance to be interpreted as "all"
             }

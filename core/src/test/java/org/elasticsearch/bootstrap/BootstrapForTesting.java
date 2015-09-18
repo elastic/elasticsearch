@@ -32,6 +32,7 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.security.Permissions;
 import java.security.Policy;
+import java.util.Map;
 import java.util.Objects;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
@@ -115,16 +116,24 @@ public class BootstrapForTesting {
                 }
 
                 final Policy policy;
-                // if its an insecure plugin, we use a wrapper policy impl to try
+                // if its a plugin with special permissions, we use a wrapper policy impl to try
                 // to simulate what happens with a real distribution
                 String artifact = System.getProperty("tests.artifact");
                 // in case we are running from the IDE:
-                if (artifact == null || System.getProperty("tests.maven") == null) {
-                    artifact = PathUtils.get(System.getProperty("user.dir")).toAbsolutePath().getFileName().toString();
+                if (artifact == null && System.getProperty("tests.maven") == null) {
+                    // look for plugin classname as a resource to determine what project we are.
+                    // while gross, this will work with any IDE.
+                    for (Map.Entry<String,String> kv : Security.SPECIAL_PLUGINS.entrySet()) {
+                        String resource = kv.getValue().replace('.', '/') + ".class";
+                        if (BootstrapForTesting.class.getClassLoader().getResource(resource) != null) {
+                            artifact = kv.getKey();
+                            break;
+                        }
+                    }
                 }
-                String insecurePluginProp = Security.INSECURE_PLUGINS.get(artifact);
-                if (insecurePluginProp != null) {
-                    policy = new MockPluginPolicy(perms, insecurePluginProp);
+                String pluginProp = Security.getPluginProperty(artifact);
+                if (pluginProp != null) {
+                    policy = new MockPluginPolicy(perms, pluginProp);
                 } else {
                     policy = new ESPolicy(perms);
                 }
@@ -132,14 +141,10 @@ public class BootstrapForTesting {
                 System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();
 
-                if (insecurePluginProp != null) {
+                if (pluginProp != null) {
                     // initialize the plugin class, in case it has one-time hacks (unit tests often won't do this)
-                    String clazz = System.getProperty("tests.plugin.classname");
-                    if (clazz != null) {
-                        Class.forName(clazz);
-                    } else if (System.getProperty("tests.maven") != null) {
-                        throw new IllegalStateException("plugin classname is needed for insecure plugin unit tests: something wrong with build");
-                    }
+                    String clazz = Security.getPluginClass(artifact);
+                    Class.forName(clazz);
                 }
             } catch (Exception e) {
                 throw new RuntimeException("unable to install test security manager", e);

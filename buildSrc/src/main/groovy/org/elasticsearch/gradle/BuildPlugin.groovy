@@ -25,7 +25,7 @@ class BuildPlugin implements Plugin<Project> {
         RandomizedTestingTask integTest = configureIntegTest(project.tasks, getIntegTestClass(), test, testConfig)
 
         List<Task> precommitTasks = new ArrayList<>()
-        precommitTasks.add(configureForbiddenApis(project.tasks))
+        precommitTasks.add(configureForbiddenApis(project))
         precommitTasks.add(configureForbiddenPatterns(project.tasks))
 
         Map precommitOptions = [
@@ -140,31 +140,24 @@ class BuildPlugin implements Plugin<Project> {
         return integTest
     }
 
-    static Task configureForbiddenApis(TaskContainer tasks) {
-        Task forbiddenApis = tasks.findByName('forbiddenApis')
-        /*forbiddenApis.configure {
+    static Task configureForbiddenApis(Project project) {
+        project.forbiddenApis {
             internalRuntimeForbidden = true
             failOnUnsupportedJava = false
-            suppressAnnotations = ['**.SuppressForbidden']
-        }*/
-        tasks.findByName('forbiddenApisMain').configure {
-            internalRuntimeForbidden = true
-            failOnUnsupportedJava = false
-            suppressAnnotations = ['**.SuppressForbidden']
-            bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-system-out']
-            signaturesFiles = project.files(getClass().getResource('/forbidden/core-signatures.txt').getPath(),
-                    getClass().getResource('/forbidden/all-signatures.txt').getPath(),
-                    getClass().getResource('/forbidden/third-party-signatures.txt').getPath())
-        }
-        tasks.findByName('forbiddenApisTest').configure {
-            internalRuntimeForbidden = true
-            failOnUnsupportedJava = false
-            suppressAnnotations = ['**.SuppressForbidden']
             bundledSignatures = ['jdk-unsafe', 'jdk-deprecated']
-            signaturesFiles = project.files(getClass().getResource('/forbidden/test-signatures.txt').getPath(),
-                    getClass().getResource('/forbidden/all-signatures.txt').getPath())
+            signaturesFiles = project.files(new File(getClass().getResource('/forbidden/all-signatures.txt').toURI()))
+            suppressAnnotations = ['**.SuppressForbidden']
         }
-        return forbiddenApis
+        project.tasks.findByName('forbiddenApisMain').configure {
+            bundledSignatures += ['jdk-system-out']
+            signaturesFiles += project.files(
+                    new File(getClass().getResource('/forbidden/core-signatures.txt').toURI()),
+                    new File(getClass().getResource('/forbidden/third-party-signatures.txt').toURI()))
+        }
+        project.tasks.findByName('forbiddenApisTest').configure {
+            signaturesFiles += project.files(new File(getClass().getResource('/forbidden/test-signatures.txt').toURI()))
+        }
+        return project.tasks.findByName('forbiddenApis')
     }
 
     static Task configureForbiddenPatterns(TaskContainer tasks) {

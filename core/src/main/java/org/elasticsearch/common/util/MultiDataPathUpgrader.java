@@ -31,7 +31,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.primitives.Integers;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -359,12 +358,11 @@ public class MultiDataPathUpgrader {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
                 String currentIndex = indexPath.getFileName().toString();
                 for (Path shardPath : stream) {
-                    if (Files.isDirectory(shardPath)) {
-                        Integer shardId = Integers.tryParse(shardPath.getFileName().toString());
-                        if (shardId != null) {
-                            ShardId id = new ShardId(currentIndex, shardId);
-                            shardIds.add(id);
-                        }
+                    String fileName = shardPath.getFileName().toString();
+                    if (Files.isDirectory(shardPath) && fileName.chars().allMatch(Character::isDigit)) {
+                        int shardId = Integer.parseInt(fileName);
+                        ShardId id = new ShardId(currentIndex, shardId);
+                        shardIds.add(id);
                     }
                 }
             }

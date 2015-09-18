@@ -33,7 +33,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.primitives.Integers;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -693,12 +692,11 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
                 String currentIndex = indexPath.getFileName().toString();
                 for (Path shardPath : stream) {
-                    if (Files.isDirectory(shardPath)) {
-                        Integer shardId = Integers.tryParse(shardPath.getFileName().toString());
-                        if (shardId != null) {
-                            ShardId id = new ShardId(currentIndex, shardId);
-                            shardIds.add(id);
-                        }
+                    String fileName = shardPath.getFileName().toString();
+                    if (Files.isDirectory(shardPath) && fileName.chars().allMatch(Character::isDigit)) {
+                        int shardId = Integer.parseInt(fileName);
+                        ShardId id = new ShardId(currentIndex, shardId);
+                        shardIds.add(id);
                     }
                 }
             }

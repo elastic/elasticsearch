@@ -72,6 +72,17 @@ setup() {
     verify_archive_installation
 }
 
+@test "[TAR] elasticsearch fails if java executable is not found" {
+  export JAVA=$(which java)
+
+  sudo chmod -x $JAVA
+  run "$ESHOME/bin/elasticsearch"
+  sudo chmod +x $JAVA
+
+  [ "$status" -eq 1 ]
+  [ "$output" = "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME" ]
+}
+
 ##################################
 # Check that Elasticsearch is working
 ##################################

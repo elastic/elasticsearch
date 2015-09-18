@@ -20,8 +20,6 @@ import javax.inject.Inject
 
 class RandomizedTestingTask extends DefaultTask {
 
-    List<AggregatedEventListener> listeners = new ArrayList<>()
-
     PatternFilterable patternSet = new PatternSet()
 
     // TODO: change to "executable" to match gradle test params?
@@ -62,14 +60,15 @@ class RandomizedTestingTask extends DefaultTask {
     TestLoggingConfiguration testLoggingConfig = new TestLoggingConfiguration()
 
     BalancersConfiguration balancersConfig = new BalancersConfiguration(task: this)
+    ListenersConfiguration listenersConfig = new ListenersConfiguration(task: this)
 
     List<String> jvmArgs = new ArrayList<>()
     Map<String, String> sysProps = new HashMap<>()
 
     RandomizedTestingTask() {
         outputs.upToDateWhen {false} // randomized tests are never up to date
-        listeners.add(new TestProgressLogger(factory: getProgressLoggerFactory()))
-        listeners.add(new TestReportLogger(logger: logger, config: testLoggingConfig))
+        listenersConfig.listeners.add(new TestProgressLogger(factory: getProgressLoggerFactory()))
+        listenersConfig.listeners.add(new TestReportLogger(logger: logger, config: testLoggingConfig))
     }
 
     @Inject
@@ -154,8 +153,9 @@ class RandomizedTestingTask extends DefaultTask {
         ConfigureUtil.configure(closure, balancersConfig)
     }
 
-    void addListener(AggregatedEventListener listener) {
-        listeners.add(listener)
+    @Input
+    void listeners(Closure closure) {
+        ConfigureUtil.configure(closure, listenersConfig)
     }
 
     @Option(
@@ -260,7 +260,7 @@ class RandomizedTestingTask extends DefaultTask {
         def context = ant.getAntXmlContext()
         def parentWrapper = context.currentWrapper()
         def parent = parentWrapper.getProxy()
-        UnknownElement element = new ListenersElement(listeners: listeners)
+        UnknownElement element = new ListenersElement(listeners: listenersConfig.listeners)
         element.setProject(context.getProject())
         element.setRealThing(logger)
         ((UnknownElement)parent).addChild(element)

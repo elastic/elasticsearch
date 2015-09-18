@@ -43,11 +43,11 @@ class BalancersConfiguration {
             throw new IllegalArgumentException('Unknown properties for executionTime balancer: ' + properties.keySet())
         }
 
-        task.addListener(listener)
+        task.listenersConfig.listeners.add(listener)
         balancers.add(balancer)
     }
 
-    void addBalancer(SuiteBalancer balancer) {
+    void custom(SuiteBalancer balancer) {
         balancers.add(balancer)
     }
 }

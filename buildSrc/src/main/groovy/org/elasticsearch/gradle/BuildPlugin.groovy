@@ -104,6 +104,10 @@ class BuildPlugin implements Plugin<Project> {
                 executionTime cacheFilename: ".local-$version-$name-execution-times.log"
             }
 
+            listeners {
+                junitReport()
+            }
+
             exclude '**/*$*.class'
         }
     }

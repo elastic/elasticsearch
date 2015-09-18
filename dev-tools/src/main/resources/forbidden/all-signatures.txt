@@ -125,6 +125,7 @@ com.google.common.collect.ArrayListMultimap
 com.google.common.collect.HashMultimap
 com.google.common.collect.FluentIterable
 com.google.common.io.Files
+com.google.common.primitives.Ints
 
 @defaultMessage Do not violate java's access system
 java.lang.reflect.AccessibleObject#setAccessible(boolean)

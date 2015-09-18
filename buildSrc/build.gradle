@@ -11,6 +11,10 @@ String randomizedRunnerSnapshotRevision = 'pr202'
 repositories {
   mavenCentral()
   maven {
+    name 'sonatype-snapshots'
+    url "https://oss.sonatype.org/content/repositories/snapshots/"
+  }
+  maven {
     url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/rr-${randomizedRunnerSnapshotRevision}"
   }
 }
@@ -22,6 +26,7 @@ dependencies {
   compile(group: 'junit', name: 'junit', version: '4.11') {
     transitive = false
   }
+  compile 'de.thetaphi:forbiddenapis:2.0-SNAPSHOT'
 }
 
 Properties props = new Properties()

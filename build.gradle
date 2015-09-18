@@ -6,8 +6,8 @@ allprojects {
   // injecting groovy property variables into all projects
   project.ext {
     // minimum java 8
-    sourceCompatibility = '1.8'
-    targetCompatibility = '1.8'
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
 
     luceneSnapshotRevision = '1702855'
     randomizedRunnerSnapshotRevision = 'pr202'
@@ -23,15 +23,15 @@ allprojects {
     // Sonatype Snapshots (Elasticsearch)
     maven {
       name 'sonatype-snapshots'
-      url "https://oss.sonatype.org/content/repositories/snapshots/"
+      url 'http://oss.sonatype.org/content/repositories/snapshots/'
     }
     maven {
       name 'lucene-snapshots'
-      url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${luceneSnapshotRevision}"
+      url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${luceneSnapshotRevision}"
     }
     maven {
       name 'randomizedrunner-snapshots'
-      url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/rr-${randomizedRunnerSnapshotRevision}"
+      url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/rr-${randomizedRunnerSnapshotRevision}"
     }
   }
 }

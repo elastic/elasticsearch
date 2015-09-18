@@ -54,6 +54,18 @@ discovery:
     type: azure
 ----
 
+
+[IMPORTANT]
+.Binding the network host
+==============================================
+
+It's important to define `network.host` as by default it's bound to `localhost`.
+
+You can use {ref}/modules-network.html[core network host settings]. For example `_non_loopback_` or `_en0_`.
+
+==============================================
+
+
 [[cloud-azure-discovery-short]]
 ===== How to start (short story)
 

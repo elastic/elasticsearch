@@ -114,6 +114,11 @@ public class BootstrapForTesting {
                     // in case we get fancy and use the -integration goals later:
                     perms.add(new FilePermission(coverageDir.resolve("jacoco-it.exec").toString(), "read,write"));
                 }
+                // intellij hack: intellij test runner wants setIO and will
+                // screw up all test logging without it!
+                if (System.getProperty("tests.maven") == null) {
+                    perms.add(new RuntimePermission("setIO"));
+                }
 
                 final Policy policy;
                 // if its a plugin with special permissions, we use a wrapper policy impl to try

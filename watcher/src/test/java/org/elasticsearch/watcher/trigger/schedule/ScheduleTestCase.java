@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import com.google.common.primitives.Ints;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -174,7 +174,7 @@ public abstract class ScheduleTestCase extends ESTestCase {
         for (int i = 0; i < count; i++) {
             days.add(randomIntBetween(1, 31));
         }
-        return Ints.toArray(days);
+        return CollectionUtils.toArray(days);
     }
 
     protected static Object randomDayOfMonth() {

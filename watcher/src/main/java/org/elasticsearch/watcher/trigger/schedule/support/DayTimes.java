@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.support;
 
-import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
+import static org.elasticsearch.watcher.support.Strings.join;
 
 /**
  *
@@ -124,8 +125,8 @@ public class DayTimes implements Times {
     }
 
     public String cron() {
-        String hrs = Ints.join(",", hour);
-        String mins = Ints.join(",", minute);
+        String hrs = join(",", hour);
+        String mins = join(",", minute);
         return "0 " + mins + " " + hrs + " * * ?";
     }
 
@@ -225,7 +226,7 @@ public class DayTimes implements Times {
         if (minutes.isEmpty()) {
             minutes.add(0);
         }
-        return new DayTimes(Ints.toArray(hours), Ints.toArray(minutes));
+        return new DayTimes(CollectionUtils.toArray(hours), CollectionUtils.toArray(minutes));
     }
 
     public static int parseHourValue(XContentParser parser, XContentParser.Token token) throws IOException, ElasticsearchParseException {

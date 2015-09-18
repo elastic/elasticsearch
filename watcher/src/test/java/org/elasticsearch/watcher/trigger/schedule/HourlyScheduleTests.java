@@ -5,17 +5,20 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.watcher.support.Strings;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.support.Integers.asIterable;
+import static org.elasticsearch.watcher.support.Integers.contains;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -48,7 +51,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
     @Test
     public void test_MultipleMinutes() throws Exception {
         int[] minutes = validMinutes();
-        String minutesStr = Ints.join(",", minutes);
+        String minutesStr = Strings.join(",", minutes);
         HourlySchedule schedule = new HourlySchedule(minutes);
         String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(1));
@@ -134,7 +137,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         int[] minutes = validMinutes();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
-                .field("minute", Ints.asList(minutes))
+                .field("minute", asIterable(minutes))
                 .endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -143,7 +146,8 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         assertThat(schedule, notNullValue());
         assertThat(schedule.minutes().length, is(minutes.length));
         for (int i = 0; i < minutes.length; i++) {
-            assertThat(Ints.contains(schedule.minutes(), minutes[i]), is(true));
+            final int minute = minutes[i];
+            assertThat(contains(schedule.minutes(), minutes[i]), is(true));
         }
     }
 
@@ -152,7 +156,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         int[] minutes = invalidMinutes();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
-                .field("minute", Ints.asList(minutes))
+                .field("minute", asIterable(minutes))
                 .endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -165,7 +169,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         int[] minutes = validMinutes();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
-                .field("minute", Ints.asList(minutes).stream().map(p -> p.toString()).collect(Collectors.toList()))
+                .field("minute", Arrays.stream(minutes).mapToObj(p -> Integer.toString(p)).collect(Collectors.toList()))
                 .endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -174,7 +178,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         assertThat(schedule, notNullValue());
         assertThat(schedule.minutes().length, is(minutes.length));
         for (int i = 0; i < minutes.length; i++) {
-            assertThat(Ints.contains(schedule.minutes(), minutes[i]), is(true));
+            assertThat(contains(schedule.minutes(), minutes[i]), is(true));
         }
     }
 
@@ -183,7 +187,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         int[] minutes = invalidMinutes();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
-                .field("minute", Ints.asList(minutes).stream().map(p -> p.toString()).collect(Collectors.toList()))
+                .field("minute", Arrays.stream(minutes).mapToObj(p -> Integer.toString(p)).collect(Collectors.toList()))
                 .endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);

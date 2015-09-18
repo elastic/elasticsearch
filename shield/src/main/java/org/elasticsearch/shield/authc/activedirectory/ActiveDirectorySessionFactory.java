@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.activedirectory;
 
-import com.google.common.primitives.Ints;
 import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -107,7 +106,7 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
         try {
             connection.bind(userPrincipal, new String(password.internalChars()));
             SearchRequest searchRequest = new SearchRequest(userSearchDN, userSearchScope.scope(), createFilter(userSearchFilter, userName), Strings.EMPTY_ARRAY);
-            searchRequest.setTimeLimitSeconds(Ints.checkedCast(timeout.seconds()));
+            searchRequest.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
             SearchResult results = search(connection, searchRequest, logger);
             int numResults = results.getEntryCount();
             if (numResults > 1) {

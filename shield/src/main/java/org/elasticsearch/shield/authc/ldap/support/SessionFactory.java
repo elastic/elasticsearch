@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.ldap.support;
 
-import com.google.common.primitives.Ints;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
@@ -94,7 +93,7 @@ public abstract class SessionFactory {
 
     protected static LDAPConnectionOptions connectionOptions(Settings settings) {
         LDAPConnectionOptions options = new LDAPConnectionOptions();
-        options.setConnectTimeoutMillis(Ints.checkedCast(settings.getAsTime(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()));
+        options.setConnectTimeoutMillis(Math.toIntExact(settings.getAsTime(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()));
         options.setFollowReferrals(settings.getAsBoolean(FOLLOW_REFERRALS_SETTING, true));
         options.setResponseTimeoutMillis(settings.getAsTime(TIMEOUT_TCP_READ_SETTING, TIMEOUT_DEFAULT).millis());
         options.setAutoReconnect(true);

@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.trigger.schedule;
 
 
-import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,6 +17,7 @@ import org.elasticsearch.watcher.trigger.schedule.support.YearTimes;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.support.Strings.join;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -40,9 +40,9 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(time.times().length));
         for (DayTimes dayTimes : time.times()) {
-            String minStr = Ints.join(",", dayTimes.minute());
-            String hrStr = Ints.join(",", dayTimes.hour());
-            String dayStr = Ints.join(",", time.days());
+            String minStr = join(",", dayTimes.minute());
+            String hrStr = join(",", dayTimes.hour());
+            String dayStr = join(",", time.days());
             dayStr = dayStr.replace("32", "L");
             String monthStr = Strings.collectionToCommaDelimitedString(time.months());
             String expression = "0 " + minStr + " " + hrStr + " " + dayStr + " " + monthStr + " ?";
@@ -63,9 +63,9 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         assertThat(crons, arrayWithSize(count));
         for (YearTimes yearTimes : times) {
             for (DayTimes dayTimes : yearTimes.times()) {
-                String minStr = Ints.join(",", dayTimes.minute());
-                String hrStr = Ints.join(",", dayTimes.hour());
-                String dayStr = Ints.join(",", yearTimes.days());
+                String minStr = join(",", dayTimes.minute());
+                String hrStr = join(",", dayTimes.hour());
+                String dayStr = join(",", yearTimes.days());
                 dayStr = dayStr.replace("32", "L");
                 String monthStr = Strings.collectionToCommaDelimitedString(yearTimes.months());
                 assertThat(crons, hasItemInArray("0 " + minStr + " " + hrStr + " " + dayStr + " " + monthStr + " ?"));

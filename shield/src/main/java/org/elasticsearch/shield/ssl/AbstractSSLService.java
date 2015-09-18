@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.ssl;
 
-import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLogger;
@@ -207,7 +206,7 @@ public abstract class AbstractSSLService extends AbstractComponent {
                 SSLContext sslContext = SSLContext.getInstance(sslProtocol);
                 sslContext.init(keyManagers, trustManagers, null);
                 sslContext.getServerSessionContext().setSessionCacheSize(sessionCacheSize);
-                sslContext.getServerSessionContext().setSessionTimeout(Ints.checkedCast(sessionCacheTimeout.seconds()));
+                sslContext.getServerSessionContext().setSessionTimeout(Math.toIntExact(sessionCacheTimeout.seconds()));
                 return sslContext;
             } catch (Exception e) {
                 throw new ElasticsearchException("failed to initialize the SSLContext", e);

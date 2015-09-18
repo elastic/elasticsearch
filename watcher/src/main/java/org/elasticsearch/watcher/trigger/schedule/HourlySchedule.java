@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
@@ -128,7 +128,7 @@ public class HourlySchedule extends CronnableSchedule {
                 }
             }
 
-            return minutes.isEmpty() ? new HourlySchedule() : new HourlySchedule(Ints.toArray(minutes));
+            return minutes.isEmpty() ? new HourlySchedule() : new HourlySchedule(CollectionUtils.toArray(minutes));
         }
 
     }
@@ -148,7 +148,7 @@ public class HourlySchedule extends CronnableSchedule {
         }
 
         public HourlySchedule build() {
-            return minutes.isEmpty() ? new HourlySchedule() : new HourlySchedule(Ints.toArray(minutes));
+            return minutes.isEmpty() ? new HourlySchedule() : new HourlySchedule(CollectionUtils.toArray(minutes));
         }
     }
 }

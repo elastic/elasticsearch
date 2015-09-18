@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
-import com.google.common.primitives.Ints;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPURL;
@@ -51,7 +50,7 @@ public class SearchGroupsResolverTests extends ESTestCase {
         options.setFollowReferrals(true);
         options.setAutoReconnect(true);
         options.setAllowConcurrentSocketFactoryUse(true);
-        options.setConnectTimeoutMillis(Ints.checkedCast(SessionFactory.TIMEOUT_DEFAULT.millis()));
+        options.setConnectTimeoutMillis(Math.toIntExact(SessionFactory.TIMEOUT_DEFAULT.millis()));
         options.setResponseTimeoutMillis(SessionFactory.TIMEOUT_DEFAULT.millis());
         ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(), BRUCE_BANNER_DN, OpenLdapTests.PASSWORD);
     }

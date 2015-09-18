@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
-import com.google.common.primitives.Ints;
 import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
@@ -170,7 +169,7 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
 
     private String findUserDN(String user) throws Exception {
         SearchRequest request = new SearchRequest(userSearchBaseDn, scope.scope(), createEqualityFilter(userAttribute, encodeValue(user)), Strings.EMPTY_ARRAY);
-        request.setTimeLimitSeconds(Ints.checkedCast(timeout.seconds()));
+        request.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
         LDAPConnectionPool connectionPool = connectionPool();
         SearchResultEntry entry = searchForEntry(connectionPool, request, logger);
         if (entry == null) {

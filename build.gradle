@@ -1,7 +1,6 @@
-apply plugin: 'idea'
-apply plugin: 'eclipse'
-
 allprojects {
+  apply plugin: 'idea'
+  apply plugin: 'eclipse'
 
   // injecting groovy property variables into all projects
   project.ext {
@@ -75,7 +74,7 @@ subprojects {
 
 idea {
   project {
-    languageLevel = '1.8'
+    languageLevel = sourceCompatibility
     vcs = 'Git'
   }
 }

@@ -1,6 +1,5 @@
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'idea'
 
 jar {
   baseName = 'elasticsearch'

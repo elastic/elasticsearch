@@ -24,34 +24,66 @@ dependencies {
 
 // HACK: this is temporary until we have moved to gradle, at which
 // point we can physically move the test framework files to this project
-sourceSets {
-  main {
-    java {
-      //srcDirs = project(':core').sourceSets.test.java.srcDirs
-      include 'org/elasticsearch/test/**/*'
-      include 'org/elasticsearch/bootstrap/BootstrapForTesting.java'
-      include 'org/elasticsearch/bootstrap/XTestSecurityManager.java'
-      include 'org/elasticsearch/common/io/PathUtilsForTesting.java'
-      include 'org/elasticsearch/common/cli/CliToolTestCase.java'
-      include 'org/elasticsearch/cluster/MockInternalClusterInfoService.java'
-      include 'org/elasticsearch/index/shard/MockEngineFactoryPlugin.java'
-      include 'org/elasticsearch/search/MockSearchService.java'
-      include 'org/elasticsearch/cache/recycler/MockPageCacheRecycler.java'
-      include 'org/elasticsearch/common/util/MockBigArrays.java'
-      include 'org/elasticsearch/node/NodeMocksPlugin.java'
-      include 'org/elasticsearch/node/MockNode.java'
-      // unit tests for yaml suite parser & rest spec parser need to be excluded
-      exclude 'org/elasticsearch/test/rest/test/**/*'
-      // unit tests for test framework classes
-      exclude 'org/elasticsearch/test/test/**/*'
-
-      // no geo (requires optional deps)
-      exclude 'org/elasticsearch/test/hamcrest/ElasticsearchGeoAssertions.java'
-      exclude 'org/elasticsearch/test/geo/RandomShapeGenerator.java'
-      // this mock is just for a single logging test
-      exclude 'org/elasticsearch/test/MockLogAppender.java'
-    }
-  }
+project.ext {
+  srcDir = new File(project.buildDir, 'src')
+  coreDir = project(':core').sourceSets.test.java.srcDirs.iterator().next()
 }
+class ExecHack extends DefaultTask {
+  File srcDir = project.ext.srcDir
+  File coreDir = project.ext.coreDir
+  List commands = ["rm -rf ${srcDir}", "mkdir -p ${srcDir}"]
+  void copy(String path) {
+    File corePath = project.file("${coreDir}/${path}")
+    File srcPath = project.file("${srcDir}/${path}")
+    String dir = path
+    if (corePath.isDirectory()) {
+      srcPath = srcPath.getParentFile() 
+    } else {
+      dir = coreDir.toURI().relativize(corePath.getParentFile().toURI()).getPath()
+    }
+    commands.add("mkdir -p ${srcDir}/${dir}")
+    commands.add("cp -a ${corePath} ${srcPath}")
+  }
+  void remove(String path) {
+    commands.add("rm -rf ${srcDir}/${path}")
+  }
+  @TaskAction
+  void executeHack() {
+    for (String command : commands) {
+      logger.info(command)
+      def p = command.execute()
+      p.waitFor()
+      if (p.exitValue()) {
+        logger.error(p.text)
+        throw new GradleException("Failed to execute '${command}'")
+      }
+    }
+  } 
+}
+sourceSets.main.java.srcDir(srcDir)
+task copySourceFiles(type: ExecHack) {
+  copy 'org/elasticsearch/test'
+  copy 'org/elasticsearch/bootstrap/BootstrapForTesting.java'
+  copy 'org/elasticsearch/common/io/PathUtilsForTesting.java'
+  copy 'org/elasticsearch/common/cli/CliToolTestCase.java'
+  copy 'org/elasticsearch/cluster/MockInternalClusterInfoService.java'
+  copy 'org/elasticsearch/index/shard/MockEngineFactoryPlugin.java'
+  copy 'org/elasticsearch/search/MockSearchService.java'
+  copy 'org/elasticsearch/cache/recycler/MockPageCacheRecycler.java'
+  copy 'org/elasticsearch/common/util/MockBigArrays.java'
+  copy 'org/elasticsearch/node/NodeMocksPlugin.java'
+  copy 'org/elasticsearch/node/MockNode.java'
+  // unit tests for yaml suite parser & rest spec parser need to be excluded
+  remove 'org/elasticsearch/test/rest/test'
+  // unit tests for test framework classes
+  remove 'org/elasticsearch/test/test'
+
+  // no geo (requires optional deps)
+  remove 'org/elasticsearch/test/hamcrest/ElasticsearchGeoAssertions.java'
+  remove 'org/elasticsearch/test/geo/RandomShapeGenerator.java'
+  // this mock is just for a single logging test
+  remove 'org/elasticsearch/test/MockLogAppender.java'
+}
+compileJava.dependsOn copySourceFiles
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"

@@ -27,6 +27,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.TestParsingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchParseException;
@@ -97,7 +97,7 @@ public class ESExceptionTests extends ESTestCase {
             } else {
                 rootCauses = ElasticsearchException.guessRootCauses(randomBoolean() ? new RemoteTransportException("remoteboom", ex) : ex);
             }
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "test_query_parsing_exception");
+            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "test_parsing_exception");
             assertEquals(rootCauses[0].getMessage(), "foobar");
 
             ElasticsearchException oneLevel = new ElasticsearchException("foo", new RuntimeException("foobar"));
@@ -116,10 +116,10 @@ public class ESExceptionTests extends ESTestCase {
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", new ShardSearchFailure[]{failure, failure1, failure2});
             final ElasticsearchException[] rootCauses = ex.guessRootCauses();
             assertEquals(rootCauses.length, 2);
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "test_query_parsing_exception");
+            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "test_parsing_exception");
             assertEquals(rootCauses[0].getMessage(), "foobar");
             assertEquals(((ParsingException)rootCauses[0]).getIndex(), "foo");
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[1]), "test_query_parsing_exception");
+            assertEquals(ElasticsearchException.getExceptionName(rootCauses[1]), "test_parsing_exception");
             assertEquals(rootCauses[1].getMessage(), "foobar");
             assertEquals(((ParsingException) rootCauses[1]).getLineNumber(), 1);
             assertEquals(((ParsingException) rootCauses[1]).getColumnNumber(), 2);
@@ -148,7 +148,7 @@ public class ESExceptionTests extends ESTestCase {
             builder.startObject();
             ex.toXContent(builder, PARAMS);
             builder.endObject();
-            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}}]}";
+            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"test_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}}]}";
             assertEquals(expected, builder.string());
         }
         {
@@ -163,7 +163,7 @@ public class ESExceptionTests extends ESTestCase {
             builder.startObject();
             ex.toXContent(builder, PARAMS);
             builder.endObject();
-            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}},{\"shard\":1,\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo1\"}}]}";
+            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"test_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}},{\"shard\":1,\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"test_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo1\"}}]}";
             assertEquals(expected, builder.string());
         }
     }
@@ -224,7 +224,7 @@ public class ESExceptionTests extends ESTestCase {
             builder.startObject();
             ElasticsearchException.toXContent(builder, PARAMS, ex);
             builder.endObject();
-            String expected = "{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2}";
+            String expected = "{\"type\":\"test_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2}";
             assertEquals(expected, builder.string());
         }
 
@@ -253,8 +253,8 @@ public class ESExceptionTests extends ESTestCase {
             ElasticsearchException.toXContent(builder, PARAMS, ex);
             builder.endObject();
             assertThat(builder.string(), Matchers.anyOf( // iteration order depends on platform
-                    equalTo("{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2,\"header\":{\"test_multi\":[\"some value\",\"another value\"],\"test\":\"some value\"}}"),
-                    equalTo("{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2,\"header\":{\"test\":\"some value\",\"test_multi\":[\"some value\",\"another value\"]}}")
+                            equalTo("{\"type\":\"test_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2,\"header\":{\"test_multi\":[\"some value\",\"another value\"],\"test\":\"some value\"}}"),
+                            equalTo("{\"type\":\"test_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2,\"header\":{\"test\":\"some value\",\"test_multi\":[\"some value\",\"another value\"]}}")
             ));
         }
     }
@@ -325,7 +325,7 @@ public class ESExceptionTests extends ESTestCase {
                 assertEquals(e.getCause().getClass(), NotSerializableExceptionWrapper.class);
             }
             // TODO: fix this test
-            // on java 9, expected:<sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)> 
+            // on java 9, expected:<sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)>
             //            but was:<sun.reflect.NativeMethodAccessorImpl.invoke0(java.base@9.0/Native Method)>
             if (!Constants.JRE_IS_MINIMUM_JAVA9) {
                 assertArrayEquals(e.getStackTrace(), ex.getStackTrace());

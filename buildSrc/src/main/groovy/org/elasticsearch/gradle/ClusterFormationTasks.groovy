@@ -1,5 +1,6 @@
 package org.elasticsearch.gradle
 
+import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -33,16 +34,21 @@ class ClusterFormationTasks {
 
     static void addNodeStartupTasks(Task task, ClusterConfiguration config, File baseDir) {
         Project project = task.project
-        Task install = project.tasks.create(name: task.name + '#setup', type: Copy, dependsOn: project.configurations.elasticsearchZip.buildDependencies) {
+        String clusterName = "${task.path.replace(':', '_').substring(1)}"
+        File home = new File(baseDir, "elasticsearch-${ElasticsearchProperties.version}")
+        Task setup = project.tasks.create(name: task.name + '#setup', type: Copy, dependsOn: project.configurations.elasticsearchZip.buildDependencies) {
             from project.zipTree(project.configurations.elasticsearchZip.asPath)
             into baseDir
         }
-        File home = new File(baseDir, "elasticsearch-${ElasticsearchProperties.version}")
-        Task clean = project.tasks.create(name: "${task.name}#clean", type: Delete, dependsOn: install) {
+        // chain setup tasks to maintain their order
+        setup = project.tasks.create(name: "${task.name}#clean", type: Delete, dependsOn: setup) {
             delete new File(home, 'plugins'), new File(home, 'data'), new File(home, 'logs')
         }
-
-        Task setup = clean // chain setup tasks to maintain their order
+        setup = project.tasks.create(name: "${task.name}#configure", type: DefaultTask, dependsOn: setup) << {
+            File configFile = new File(home, 'config' + File.separator + 'elasticsearch.yml')
+            logger.info("Configuring ${configFile}")
+            configFile.text = "cluster.name: ${clusterName}"
+        }
         for (Map.Entry<String, String> command : config.setupConfig.commands.entrySet()) {
             Task nextSetup = project.tasks.create(name: "${task.name}#${command.getKey()}", type: Exec, dependsOn: setup) {
                 workingDir home
@@ -64,7 +70,6 @@ class ClusterFormationTasks {
             setup = nextSetup
         }
 
-        String clusterName = "test${task.path.replace(':', '_')}"
         File pidFile = pidFile(baseDir)
         Task start = project.tasks.create(name: "${task.name}#start", type: Exec, dependsOn: setup) {
             workingDir home
@@ -72,7 +77,6 @@ class ClusterFormationTasks {
             List esArgs = [
                 'bin/elasticsearch',
                 '-d', // daemonize!
-                "-Des.cluster.name=${clusterName}",
                 "-Des.http.port=${config.httpPort}",
                 "-Des.transport.tcp.port=${config.transportPort}",
                 "-Des.pidfile=${pidFile}",

@@ -29,8 +29,6 @@ import java.util.Enumeration;
 
 public class MacAddressProvider {
 
-    private static final ESLogger logger = Loggers.getLogger(MacAddressProvider.class);
-
     private static byte[] getMacAddress() throws SocketException {
         Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
         if (en != null) {
@@ -66,11 +64,15 @@ public class MacAddressProvider {
         try {
             address = getMacAddress();
         } catch( SocketException se ) {
+            // only grab the logger when necessary, since the logging system may not be setup yet
+            ESLogger logger = Loggers.getLogger(MacAddressProvider.class);
             logger.warn("Unable to get mac address, will use a dummy address", se);
             // address will be set below
         }
 
         if (!isValidAddress(address)) {
+            // only grab the logger when necessary, since the logging system may not be setup yet
+            ESLogger logger = Loggers.getLogger(MacAddressProvider.class);
             logger.warn("Unable to get a valid mac address, will use a dummy address");
             address = constructDummyMulticastAddress();
         }

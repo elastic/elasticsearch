@@ -26,6 +26,7 @@
         <elasticsearch.plugin.jvm>true</elasticsearch.plugin.jvm>
         <elasticsearch.plugin.isolated>true</elasticsearch.plugin.isolated>
         <elasticsearch.plugin.site>false</elasticsearch.plugin.site>
+        <amazonaws.version>1.10.19</amazonaws.version>
     </properties>
 
     <dependencies>

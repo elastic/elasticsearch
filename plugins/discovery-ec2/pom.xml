@@ -16,7 +16,6 @@
 
     <properties>
         <elasticsearch.plugin.classname>org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin</elasticsearch.plugin.classname>
-        <amazonaws.version>1.10.12</amazonaws.version>
         <tests.jvms>1</tests.jvms>
         <tests.rest.suite>discovery_ec2</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>

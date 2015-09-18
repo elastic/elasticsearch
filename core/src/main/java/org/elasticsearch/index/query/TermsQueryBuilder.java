@@ -41,6 +41,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * A filter for a field based on several terms matching on any of them.
@@ -89,7 +90,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, int... values) {
-        this(fieldName, values != null ? Arrays.asList(values) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).collect(Collectors.toList()) : (Iterable<?>) null);
     }
 
     /**
@@ -116,7 +117,14 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, float... values) {
-        this(fieldName, values != null ? Arrays.asList(values) : (Iterable<?>) null);
+        if (values == null) {
+            throw new IllegalArgumentException("No value specified for terms query");
+        }
+        this.fieldName = fieldName;
+        this.values = new ArrayList<>(values.length);
+        for (float floatValue : values) {
+            this.values.add(floatValue);
+        }
     }
 
     /**
@@ -126,7 +134,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, double... values) {
-        this(fieldName, values != null ? Arrays.asList(values) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).collect(Collectors.toList()) : (Iterable<?>) null);
     }
 
     /**

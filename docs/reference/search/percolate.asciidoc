@@ -366,7 +366,7 @@ Request:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/tweet/_mpercolate' --data-binary @requests.txt; echo
+curl -XGET 'localhost:9200/twitter/tweet/_mpercolate' --data-binary "@requests.txt"; echo
 --------------------------------------------------
 
 The index `twitter` is the default index, and the type `tweet` is the default type and will be used in the case a header

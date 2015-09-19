@@ -60,17 +60,13 @@ SearchResponse scrollResp = client.prepareSearch(test)
         .setQuery(qb)
         .setSize(100).execute().actionGet(); //100 hits per shard will be returned for each scroll
 //Scroll until no hits are returned
-while (true) {
-
+do {
     for (SearchHit hit : scrollResp.getHits().getHits()) {
         //Handle the hit...
     }
+
     scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(600000)).execute().actionGet();
-    //Break condition: No hits are returned
-    if (scrollResp.getHits().getHits().length == 0) {
-        break;
-    }
-}
+} while(scrollResp.getHits().getHits().length != 0); // Zero hits mark the end of the scroll and the while loop.
 --------------------------------------------------
 
 [[java-search-msearch]]

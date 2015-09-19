@@ -70,8 +70,9 @@ Checking shards may take a lot of time on large indices.
 
 [[index-codec]] `index.codec`::
 
-    experimental[] The `default` value compresses stored data with LZ4
-    compression, but this can be set to `best_compression` which uses https://en.wikipedia.org/wiki/DEFLATE[DEFLATE] for a higher
+    experimental[] The +default+ value compresses stored data with LZ4
+    compression, but this can be set to +best_compression+
+    which uses https://en.wikipedia.org/wiki/DEFLATE[DEFLATE] for a higher
     compression ratio, at the expense of slower stored fields performance.
 
 [float]

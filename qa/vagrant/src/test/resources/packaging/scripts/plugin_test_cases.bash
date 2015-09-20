@@ -134,7 +134,7 @@ fi
   sudo chmod +x $JAVA
 
   [ "$status" -eq 1 ]
-  [ "$output" = "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME" ]
+  [[ "$output" == *"Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"* ]]
 }
 
 # Note that all of the tests from here to the end of the file expect to be run

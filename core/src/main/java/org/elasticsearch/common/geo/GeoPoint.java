@@ -22,8 +22,8 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import java.io.IOException;
 
+import java.io.IOException;
 
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.XGeoHashUtils;
@@ -57,6 +57,10 @@ public final class GeoPoint implements Writeable<GeoPoint> {
     public GeoPoint(double lat, double lon) {
         this.lat = lat;
         this.lon = lon;
+    }
+
+    public GeoPoint(GeoPoint template) {
+        this(template.getLat(), template.getLon());
     }
 
     public GeoPoint reset(double lat, double lon) {
@@ -175,7 +179,7 @@ public final class GeoPoint implements Writeable<GeoPoint> {
     public static GeoPoint fromIndexLong(long indexLong) {
         return new GeoPoint().resetFromIndexHash(indexLong);
     }
-    
+
     @Override
     public GeoPoint readFrom(StreamInput in) throws IOException {
         double lat = in.readDouble();

@@ -316,6 +316,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         }
     }
 
+    @Override
+    public DiscoveryStats stats() {
+        return new DiscoveryStats(null);
+    }
+
     private LocalDiscovery[] members() {
         ClusterGroup clusterGroup = clusterGroups.get(clusterName);
         if (clusterGroup == null) {

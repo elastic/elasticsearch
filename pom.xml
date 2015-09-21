@@ -1050,10 +1050,8 @@ encoding/<project>=UTF-8
                                 <name>.settings/org.eclipse.jdt.core.prefs</name>
                                 <content>
                                <![CDATA[eclipse.preferences.version=1
-org.eclipse.jdt.core.compiler.annotation.inheritNullAnnotations=enabled
-org.eclipse.jdt.core.compiler.annotation.missingNonNullByDefaultAnnotation=ignore
-org.eclipse.jdt.core.compiler.annotation.nullable=org.elasticsearch.common.Nullable
-org.eclipse.jdt.core.compiler.annotation.nullanalysis=enabled
+# Shut down null analysis because we don't have all the required annotations (Nonnull and NonNullByDefault).
+org.eclipse.jdt.core.compiler.annotation.nullanalysis=disabled
 org.eclipse.jdt.core.compiler.codegen.targetPlatform=1.8
 org.eclipse.jdt.core.compiler.compliance=1.8
 org.eclipse.jdt.core.compiler.problem.forbiddenReference=warning

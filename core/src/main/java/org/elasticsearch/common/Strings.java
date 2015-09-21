@@ -556,7 +556,6 @@ public class Strings {
                 count++;
             }
         }
-        // TODO (MvG): No push: hppc or jcf?
         final Set<String> result = new HashSet<>(count);
         final int len = chars.length;
         int start = 0;  // starting index in chars of the current substring.

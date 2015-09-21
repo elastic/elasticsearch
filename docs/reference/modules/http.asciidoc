@@ -91,6 +91,8 @@ simple message will be returned. Defaults to `true`
 It also uses the common
 <<modules-network,network settings>>.
 
+Note that none of these settings is dynamically updatable.
+
 [float]
 === Disable HTTP
 

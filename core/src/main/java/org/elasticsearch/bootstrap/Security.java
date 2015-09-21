@@ -164,8 +164,10 @@ final class Security {
     static final Map<String,String> SPECIAL_PLUGINS;
     static {
         Map<String,String> m = new HashMap<>();
-        m.put("cloud-aws",     "org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin");
-        m.put("cloud-gce",     "org.elasticsearch.plugin.cloud.gce.CloudGcePlugin");
+        m.put("cloud-aws",           "org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin");
+        m.put("cloud-gce",           "org.elasticsearch.plugin.cloud.gce.CloudGcePlugin");
+        m.put("lang-javascript",     "org.elasticsearch.plugin.javascript.JavaScriptPlugin");
+        m.put("lang-python",         "org.elasticsearch.plugin.python.PythonPlugin");
         SPECIAL_PLUGINS = Collections.unmodifiableMap(m);
     }
 

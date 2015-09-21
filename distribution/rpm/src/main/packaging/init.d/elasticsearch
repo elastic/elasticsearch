@@ -40,13 +40,19 @@ MAX_MAP_COUNT=${packaging.os.max.map.count}
 LOG_DIR="${packaging.elasticsearch.log.dir}"
 DATA_DIR="${packaging.elasticsearch.data.dir}"
 CONF_DIR="${packaging.elasticsearch.conf.dir}"
-CONF_FILE="${packaging.elasticsearch.conf.dir}/elasticsearch.yml"
+
 PID_DIR="${packaging.elasticsearch.pid.dir}"
 
 # Source the default env file
 ES_ENV_FILE="${packaging.env.file}"
 if [ -f "$ES_ENV_FILE" ]; then
     . "$ES_ENV_FILE"
+fi
+
+# Elasticsearch configuration file (elasticsearch.yml)
+if [ -z "$CONF_FILE" ]; then
+    # file was not set by the user, use the configured conf path
+    CONF_FILE=$CONF_DIR/elasticsearch.yml
 fi
 
 exec="$ES_HOME/bin/elasticsearch"
@@ -110,7 +116,7 @@ start() {
     cd $ES_HOME
     echo -n $"Starting $prog: "
     # if not running, start it up here, usually something like "daemon $exec"
-    daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.conf=$CONF_DIR
+    daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Des.default.config=$CONF_FILE -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.conf=$CONF_DIR
     retval=$?
     echo
     [ $retval -eq 0 ] && touch $lockfile

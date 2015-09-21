@@ -239,12 +239,25 @@ clean_before_test() {
 start_elasticsearch_service() {
     local desiredStatus=${1:-green}
 
+# Set the CONF_DIR setting in case we start as a service
+    if [ ! -z "$CONF_DIR" ] ; then
+        if is_dpkg ; then
+            echo "CONF_DIR=$CONF_DIR" >> /etc/default/elasticsearch;
+        elif is_rpm; then
+            echo "CONF_DIR=$CONF_DIR" >> /etc/sysconfig/elasticsearch;
+        fi
+    fi
+
     if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
+        if [ -z "$CONF_DIR" ]; then
+            local CONF_DIR=""
+        fi
         # su and the Elasticsearch init script work together to break bats.
         # sudo isolates bats enough from the init script so everything continues
         # to tick along
         sudo -u elasticsearch /tmp/elasticsearch/bin/elasticsearch -d \
-            -p /tmp/elasticsearch/elasticsearch.pid
+            -p /tmp/elasticsearch/elasticsearch.pid \
+            -Des.path.conf="$CONF_DIR";
     elif is_systemd; then
         run systemctl daemon-reload
         [ "$status" -eq 0 ]
@@ -322,7 +335,7 @@ wait_for_elasticsearch_status() {
               if [ -e '/var/log/elasticsearch/elasticsearch.log' ]; then
                   cat /var/log/elasticsearch/elasticsearch.log
               else
-                  echo "The elasticsearch log doesn't exist. Maybe /vag/log/messages has something:"
+                  echo "The elasticsearch log doesn't exist. Maybe /var/log/messages has something:"
                   tail -n20 /var/log/messages
               fi
           fi

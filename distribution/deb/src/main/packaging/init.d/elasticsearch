@@ -85,9 +85,6 @@ DATA_DIR=/var/lib/$NAME
 # Elasticsearch configuration directory
 CONF_DIR=/etc/$NAME
 
-# Elasticsearch configuration file (elasticsearch.yml)
-CONF_FILE=$CONF_DIR/elasticsearch.yml
-
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 MAX_MAP_COUNT=262144
 
@@ -102,6 +99,12 @@ PID_DIR="${packaging.elasticsearch.pid.dir}"
 # overwrite settings from default file
 if [ -f "$DEFAULT" ]; then
 	. "$DEFAULT"
+fi
+
+# Elasticsearch configuration file (elasticsearch.yml)
+if [ -z "$CONF_FILE" ]; then
+    # file was not set by the user, use the configured conf path
+    CONF_FILE=$CONF_DIR/elasticsearch.yml
 fi
 
 # Define other required variables

@@ -7,7 +7,6 @@ After=network-online.target
 [Service]
 Environment=ES_HOME=${packaging.elasticsearch.home.dir}
 Environment=CONF_DIR=${packaging.elasticsearch.conf.dir}
-Environment=CONF_FILE=${packaging.elasticsearch.conf.dir}/elasticsearch.yml
 Environment=DATA_DIR=${packaging.elasticsearch.data.dir}
 Environment=LOG_DIR=${packaging.elasticsearch.log.dir}
 Environment=PID_DIR=${packaging.elasticsearch.pid.dir}
@@ -23,7 +22,7 @@ ExecStart=${packaging.elasticsearch.bin.dir}/elasticsearch \
                                                 -Des.default.path.home=${ES_HOME} \
                                                 -Des.default.path.logs=${LOG_DIR} \
                                                 -Des.default.path.data=${DATA_DIR} \
-                                                -Des.default.config=${CONF_FILE} \
+                                                -Des.default.config=${CONF_DIR}/elasticsearch.yml \
                                                 -Des.default.path.conf=${CONF_DIR}
 
 # Connects standard output to /dev/null

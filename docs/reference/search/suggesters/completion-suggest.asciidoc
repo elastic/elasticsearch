@@ -73,6 +73,11 @@ Mapping supports the following parameters:
 [[indexing]]
 ==== Indexing
 
+You index suggestions like any other field. A suggestion is made of an
+`input` and an optional `weight` attribute. An `input` is the expected
+text to be matched by a suggestion query and the `weight` determines how
+the suggestions will be scored. Indexing a suggestion is as follows:
+
 [source,js]
 --------------------------------------------------
 PUT music/song/1?refresh=true
@@ -94,6 +99,25 @@ The following parameters are supported:
     A positive integer or a string containing a positive integer,
     which defines a weight and allows you to rank your suggestions.
     This field is optional.
+
+You can index multiple suggestions for a document as follows:
+
+[source,js]
+--------------------------------------------------
+PUT music/song/1?refresh=true
+{
+    "suggest" : [
+        {
+            "input": "Nevermind",
+            "weight" : 10
+        },
+        {
+            "input": "Nirvana",
+            "weight" : 3
+        }
+    ]
+}
+--------------------------------------------------
 
 You can use the following shorthand form. Note that you can not specify
 a weight with suggestion(s).

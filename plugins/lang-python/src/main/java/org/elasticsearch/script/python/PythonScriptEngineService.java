@@ -20,6 +20,8 @@
 package org.elasticsearch.script.python;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Map;
 
 import org.apache.lucene.index.LeafReaderContext;
@@ -54,7 +56,13 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     public PythonScriptEngineService(Settings settings) {
         super(settings);
 
-        this.interp = PythonInterpreter.threadLocalStateInterpreter(null);
+        // classloader created here
+        this.interp = AccessController.doPrivileged(new PrivilegedAction<PythonInterpreter> () {
+            @Override
+            public PythonInterpreter run() {
+                return PythonInterpreter.threadLocalStateInterpreter(null);
+            }
+        });
     }
 
     @Override
@@ -74,7 +82,13 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public Object compile(String script) {
-        return interp.compile(script);
+        // classloader created here
+        return AccessController.doPrivileged(new PrivilegedAction<PyCode>() {
+            @Override
+            public PyCode run() {
+                return interp.compile(script);
+            }
+        });
     }
 
     @Override

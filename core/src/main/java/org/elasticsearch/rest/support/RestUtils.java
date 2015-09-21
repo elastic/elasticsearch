@@ -59,12 +59,14 @@ public class RestUtils {
         if (fromIndex >= s.length()) {
             return;
         }
+        
+        int queryStringLength = s.contains("#") ? s.indexOf("#") : s.length();
 
         String name = null;
         int pos = fromIndex; // Beginning of the unprocessed region
         int i;       // End of the unprocessed region
         char c = 0;  // Current character
-        for (i = fromIndex; i < s.length(); i++) {
+        for (i = fromIndex; i < queryStringLength; i++) {
             c = s.charAt(i);
             if (c == '=' && name == null) {
                 if (pos != i) {

@@ -544,7 +544,7 @@ You can download the sample dataset (accounts.json) from https://github.com/bly2
 
 [source,sh]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/account/_bulk?pretty' --data-binary @accounts.json
+curl -XPOST 'localhost:9200/bank/account/_bulk?pretty' --data-binary "@accounts.json"
 curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
 
@@ -915,7 +915,7 @@ In SQL, the above aggregation is similar in concept to:
 
 [source,sh]
 --------------------------------------------------
-SELECT COUNT(*) from bank GROUP BY state ORDER BY COUNT(*) DESC
+SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC
 --------------------------------------------------
 
 And the response (partially shown):

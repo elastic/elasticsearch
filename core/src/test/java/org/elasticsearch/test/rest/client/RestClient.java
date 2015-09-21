@@ -154,8 +154,6 @@ public class RestClient implements Closeable {
         logger.debug("calling api [{}]", apiName);
         HttpResponse httpResponse = httpRequestBuilder.execute();
 
-        // http HEAD doesn't support response body
-        // For the few api (exists class of api) that use it we need to accept 404 too
         if (!httpResponse.supportsBody()) {
             ignores.add(404);
         }
@@ -216,12 +214,16 @@ public class RestClient implements Closeable {
             if (!restApi.isBodySupported()) {
                 throw new IllegalArgumentException("body is not supported by [" + restApi.getName() + "] api");
             }
-            //test the GET with source param instead of GET/POST with body
-            if (supportedMethods.contains("GET") && RandomizedTest.rarely()) {
-                logger.debug("sending the request body as source param with GET method");
-                httpRequestBuilder.addParam("source", body).method("GET");
+            String method = RandomizedTest.randomFrom(supportedMethods);
+            if ("HEAD".equals(method) || ("GET".equals(method) && RandomizedTest.rarely())) {
+                // HEAD will always send the body as a parameter
+                // GET will rarely send the body as a parameter
+                if (logger.isDebugEnabled()) {
+                    logger.debug("sending the request body as source param with {} method", method);
+                }
+                httpRequestBuilder.addParam("source", body).method(method);
             } else {
-                httpRequestBuilder.body(body).method(RandomizedTest.randomFrom(supportedMethods));
+                httpRequestBuilder.body(body).method(method);
             }
         } else {
             if (restApi.isBodyRequired()) {

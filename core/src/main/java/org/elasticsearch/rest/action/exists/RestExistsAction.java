@@ -36,7 +36,7 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- * Action for /_search/exists endpoint
+ * Action for /_search/exists endpoint.
  */
 public class RestExistsAction extends BaseRestHandler {
 
@@ -65,9 +65,11 @@ public class RestExistsAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(ExistsResponse response, XContentBuilder builder) throws Exception {
                 RestStatus status = response.exists() ? OK : NOT_FOUND;
-                builder.startObject();
-                builder.field("exists", response.exists());
-                builder.endObject();
+                if (request.method() != RestRequest.Method.HEAD) {
+                    builder.startObject();
+                    builder.field("exists", response.exists());
+                    builder.endObject();
+                }
                 return new BytesRestResponse(status, builder);
             }
         });

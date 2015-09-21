@@ -86,10 +86,8 @@ public class RestResponse {
         JsonPath jsonPath = parsedResponse();
 
         if (jsonPath == null) {
-            //special case: api that don't support body (e.g. exists) return true if 200, false if 404, even if no body
-            //is_true: '' means the response had no body but the client returned true (caused by 200)
-            //is_false: '' means the response had no body but the client returned false (caused by 404)
-            if ("".equals(path) && !response.supportsBody()) {
+            //special case: apis that don't send a body always return true if 200, false if 404, even if no body
+            if (!response.supportsBody()) {
                 return !response.isError();
             }
             return null;
@@ -98,9 +96,16 @@ public class RestResponse {
         return jsonPath.evaluate(path, stash);
     }
 
+    /**
+     * Was this request over a method that supports a body?
+     */
+    public boolean supportsBody() {
+        return response.supportsBody();
+    }
+
     private boolean isJson() {
         String contentType = response.getHeaders().get("Content-Type");
-        return contentType != null && contentType.contains("application/json");
+        return response.supportsBody() && contentType != null && contentType.contains("application/json");
     }
 
     private JsonPath parsedResponse() throws IOException {

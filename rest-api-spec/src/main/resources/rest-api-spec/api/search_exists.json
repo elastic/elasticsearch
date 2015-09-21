@@ -1,7 +1,7 @@
 {
   "search_exists": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-exists.html",
-    "methods": ["POST", "GET"],
+    "methods": ["POST", "GET", "HEAD"],
     "url": {
       "path": "/_search/exists",
       "paths": ["/_search/exists", "/{index}/_search/exists", "/{index}/{type}/_search/exists"],
@@ -71,6 +71,10 @@
         "lowercase_expanded_terms": {
           "type" : "boolean",
           "description" : "Specify whether query terms should be lowercased"
+        },
+        "source": {
+          "type": "string",
+          "description": "source of the search query if the search query isn't included in the body"
         }
       }
     },

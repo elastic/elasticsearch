@@ -87,7 +87,9 @@ public class DoSection implements ExecutableSection {
 
         try {
             RestResponse restResponse = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(), apiCallSection.getBodies());
-            if (Strings.hasLength(catchParam)) {
+            // We ignore "missing" catch params on HEAD requests in favor of asserting them with "is_false: ''"-style assertions
+            boolean ignoreCatchParam = "missing".equals(catchParam) && !restResponse.supportsBody();
+            if (Strings.hasLength(catchParam) && !ignoreCatchParam) {
                 String catchStatusCode;
                 if (catches.containsKey(catchParam)) {
                     catchStatusCode = catches.get(catchParam).v1();

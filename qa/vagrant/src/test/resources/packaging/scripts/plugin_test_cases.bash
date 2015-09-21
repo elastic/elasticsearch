@@ -131,6 +131,18 @@ fi
     remove_jvm_example
 }
 
+@test "[$GROUP] fail if java executable is not found" {
+  [ "$GROUP" == "TAR PLUGINS" ] || skip "Test case only supported by TAR PLUGINS"
+  local JAVA=$(which java)
+
+  sudo chmod -x $JAVA
+  run "$ESHOME/bin/plugin"
+  sudo chmod +x $JAVA
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"* ]]
+}
+
 # Note that all of the tests from here to the end of the file expect to be run
 # in sequence and don't take well to being run one at a time.
 @test "[$GROUP] install jvm-example plugin" {

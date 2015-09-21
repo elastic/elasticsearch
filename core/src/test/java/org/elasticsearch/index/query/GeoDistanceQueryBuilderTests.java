@@ -59,11 +59,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         qb.point(new GeoPoint(p.getY(), p.getX()));
 
         if (randomBoolean()) {
-            qb.coerce(randomBoolean());
-        }
-
-        if (randomBoolean()) {
-            qb.ignoreMalformed(randomBoolean());
+            qb.setValidationMethod(randomFrom(GeoValidationMethod.values()));
         }
 
         if (randomBoolean()) {

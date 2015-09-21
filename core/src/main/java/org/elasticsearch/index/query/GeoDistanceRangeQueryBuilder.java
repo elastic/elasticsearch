@@ -46,8 +46,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.DEFAULT;
     public static final DistanceUnit DEFAULT_UNIT = DistanceUnit.DEFAULT;
     public static final String DEFAULT_OPTIMIZE_BBOX = "memory";
-    public static final boolean DEFAULT_COERCE = false;
-    public static final boolean DEFAULT_IGNORE_MALFORMED = false;
 
     private final String fieldName;
 
@@ -64,9 +62,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     private String optimizeBbox = DEFAULT_OPTIMIZE_BBOX;
 
-    private boolean coerce = DEFAULT_COERCE;
-
-    private boolean ignoreMalformed = DEFAULT_IGNORE_MALFORMED;
+    private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
 
     static final GeoDistanceRangeQueryBuilder PROTOTYPE = new GeoDistanceRangeQueryBuilder("_na_", new GeoPoint());
 
@@ -199,27 +195,15 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         return optimizeBbox;
     }
 
-    public GeoDistanceRangeQueryBuilder coerce(boolean coerce) {
-        if (coerce) {
-            this.ignoreMalformed = true;
-        }
-        this.coerce = coerce;
+    /** Set validation method for coordinates. */
+    public GeoDistanceRangeQueryBuilder setValidationMethod(GeoValidationMethod method) {
+        this.validationMethod = method;
         return this;
     }
-
-    public boolean coerce() {
-        return this.coerce;
-    }
-
-    public GeoDistanceRangeQueryBuilder ignoreMalformed(boolean ignoreMalformed) {
-        if (coerce == false) {
-            this.ignoreMalformed = ignoreMalformed;
-        }
-        return this;
-    }
-
-    public boolean ignoreMalformed() {
-        return ignoreMalformed;
+    
+    /** Returns validation method for coordinates. */
+    public GeoValidationMethod getValidationMethod(GeoValidationMethod method) {
+        return this.validationMethod;
     }
 
     @Override
@@ -228,7 +212,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
         // validation was not available prior to 2.x, so to support bwc
         // percolation queries we only ignore_malformed on 2.x created indexes
-        if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
+        if (!indexCreatedBeforeV2_0 && !GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
             if (!GeoUtils.isValidLatitude(point.lat())) {
                 throw new QueryShardException(context, "illegal latitude value [{}] for [{}]", point.lat(), NAME);
             }
@@ -237,8 +221,8 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             }
         }
 
-        if (coerce) {
-            GeoUtils.normalizePoint(point, coerce, coerce);
+        if (GeoValidationMethod.isCoerce(validationMethod)) {
+            GeoUtils.normalizePoint(point, true, true);
         }
 
         Double fromValue = null;
@@ -285,8 +269,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         builder.field(GeoDistanceRangeQueryParser.UNIT_FIELD.getPreferredName(), unit);
         builder.field(GeoDistanceRangeQueryParser.DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
         builder.field(GeoDistanceRangeQueryParser.OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
-        builder.field(GeoDistanceRangeQueryParser.COERCE_FIELD.getPreferredName(), coerce);
-        builder.field(GeoDistanceRangeQueryParser.IGNORE_MALFORMED_FIELD.getPreferredName(), ignoreMalformed);
+        builder.field(GeoDistanceRangeQueryParser.VALIDATION_METHOD.getPreferredName(), validationMethod);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -301,8 +284,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         queryBuilder.unit = DistanceUnit.valueOf(in.readString());
         queryBuilder.geoDistance = GeoDistance.readGeoDistanceFrom(in);
         queryBuilder.optimizeBbox = in.readString();
-        queryBuilder.coerce = in.readBoolean();
-        queryBuilder.ignoreMalformed = in.readBoolean();
+        queryBuilder.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
         return queryBuilder;
     }
 
@@ -317,49 +299,25 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         out.writeString(unit.name());
         geoDistance.writeTo(out);;
         out.writeString(optimizeBbox);
-        out.writeBoolean(coerce);
-        out.writeBoolean(ignoreMalformed);
+        validationMethod.writeTo(out);
     }
 
     @Override
     protected boolean doEquals(GeoDistanceRangeQueryBuilder other) {
-        if (!Objects.equals(fieldName, other.fieldName)) {
-            return false;
-        }
-        if (!Objects.equals(point, other.point)) {
-            return false;
-        }
-        if (!Objects.equals(from, other.from)) {
-            return false;
-        }
-        if (!Objects.equals(to, other.to)) {
-            return false;
-        }
-        if (!Objects.equals(includeUpper, other.includeUpper)) {
-            return false;
-        }
-        if (!Objects.equals(includeLower, other.includeLower)) {
-            return false;
-        }
-        if (!Objects.equals(geoDistance, other.geoDistance)) {
-            return false;
-        }
-        if (!Objects.equals(optimizeBbox, other.optimizeBbox)) {
-            return false;
-        }
-        if (!Objects.equals(coerce, other.coerce)) {
-            return false;
-        }
-        if (!Objects.equals(ignoreMalformed, other.ignoreMalformed)) {
-            return false;
-        }
-        return true;
+        return ((Objects.equals(fieldName, other.fieldName)) && 
+                (Objects.equals(point, other.point)) &&
+                (Objects.equals(from, other.from)) &&
+                (Objects.equals(to, other.to)) &&
+                (Objects.equals(includeUpper, other.includeUpper)) &&
+                (Objects.equals(includeLower, other.includeLower)) &&
+                (Objects.equals(geoDistance, other.geoDistance)) &&
+                (Objects.equals(optimizeBbox, other.optimizeBbox)) &&
+                (Objects.equals(validationMethod, other.validationMethod)));
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, point, from, to, includeUpper, includeLower, geoDistance, optimizeBbox, coerce,
-                ignoreMalformed);
+        return Objects.hash(fieldName, point, from, to, includeUpper, includeLower, geoDistance, optimizeBbox, validationMethod);
     }
 
     @Override

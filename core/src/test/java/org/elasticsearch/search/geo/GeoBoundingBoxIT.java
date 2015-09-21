@@ -22,12 +22,12 @@ package org.elasticsearch.search.geo;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -289,43 +289,43 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(
-                        geoBoundingBoxQuery("location").coerce(true).setCorners(50, -180, -50, 180)
+                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(50, -180, -50, 180)
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         searchResponse = client().prepareSearch()
                 .setQuery(
-                        geoBoundingBoxQuery("location").coerce(true).setCorners(50, -180, -50, 180).type("indexed")
+                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(50, -180, -50, 180).type("indexed")
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         searchResponse = client().prepareSearch()
                 .setQuery(
-                        geoBoundingBoxQuery("location").coerce(true).setCorners(90, -180, -90, 180)
+                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(90, -180, -90, 180)
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         searchResponse = client().prepareSearch()
                 .setQuery(
-                        geoBoundingBoxQuery("location").coerce(true).setCorners(90, -180, -90, 180).type("indexed")
+                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(90, -180, -90, 180).type("indexed")
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
 
         searchResponse = client().prepareSearch()
                 .setQuery(
-                        geoBoundingBoxQuery("location").coerce(true).setCorners(50, 0, -50, 360)
+                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(50, 0, -50, 360)
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         searchResponse = client().prepareSearch()
                 .setQuery(
-                        geoBoundingBoxQuery("location").coerce(true).setCorners(50, 0, -50, 360).type("indexed")
+                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(50, 0, -50, 360).type("indexed")
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         searchResponse = client().prepareSearch()
                 .setQuery(
-                        geoBoundingBoxQuery("location").coerce(true).setCorners(90, 0, -90, 360)
+                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(90, 0, -90, 360)
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         searchResponse = client().prepareSearch()
                 .setQuery(
-                        geoBoundingBoxQuery("location").coerce(true).setCorners(90, 0, -90, 360).type("indexed")
+                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(90, 0, -90, 360).type("indexed")
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
     }

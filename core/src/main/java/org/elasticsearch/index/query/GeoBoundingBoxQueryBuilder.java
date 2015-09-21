@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,10 +46,6 @@ import java.util.Objects;
 public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
     /** Name of the query. */
     public static final String NAME = "geo_bbox";
-    /** Default for geo point coerce (as of this writing false). */
-    public static final boolean DEFAULT_COERCE = false;
-    /** Default for skipping geo point validation (as of this writing false). */
-    public static final boolean DEFAULT_IGNORE_MALFORMED = false;
     /** Default type for executing this query (memory as of this writing). */
     public static final GeoExecType DEFAULT_TYPE = GeoExecType.MEMORY;
     /** Needed for serialization. */
@@ -62,10 +57,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     private GeoPoint topLeft = new GeoPoint(Double.NaN, Double.NaN);
     /** Bottom right corner coordinates of bounding box.*/
     private GeoPoint bottomRight = new GeoPoint(Double.NaN, Double.NaN);
-    /** Whether or not to infer correct coordinates for wrapping bounding boxes.*/
-    private boolean coerce = DEFAULT_COERCE;
-    /** Whether or not to skip geo point validation. */
-    private boolean ignoreMalformed = DEFAULT_IGNORE_MALFORMED;
+    /** How to deal with incorrect coordinates.*/
+    private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
     /** How the query should be run. */
     private GeoExecType type = DEFAULT_TYPE;
 
@@ -88,7 +81,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
      * @param right The right longitude
      */
     public GeoBoundingBoxQueryBuilder setCorners(double top, double left, double bottom, double right) {
-        if (!ignoreMalformed) {
+        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) == false) {
             if (Numbers.isValidDouble(top) == false) {
                 throw new IllegalArgumentException("top latitude is invalid: " + top);
             }
@@ -165,38 +158,20 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     }
 
     /**
-     * Specify whether or not to try and fix broken/wrapping bounding boxes.
-     * If set to true, also enables ignoreMalformed thus disabling geo point
-     * validation altogether.
-     **/
-    public GeoBoundingBoxQueryBuilder coerce(boolean coerce) {
-        if (coerce) {
-            this.ignoreMalformed = true;
-        }
-        this.coerce = coerce;
-        return this;
-    }
-
-    /** Returns whether or not to try and fix broken/wrapping bounding boxes. */
-    public boolean coerce() {
-        return this.coerce;
-    }
-
-    /**
      * Specify whether or not to ignore validation errors of bounding boxes.
      * Can only be set if coerce set to false, otherwise calling this
      * method has no effect.
      **/
-    public GeoBoundingBoxQueryBuilder ignoreMalformed(boolean ignoreMalformed) {
-        if (coerce == false) {
-            this.ignoreMalformed = ignoreMalformed;
-        }
+    public GeoBoundingBoxQueryBuilder setValidationMethod(GeoValidationMethod method) {
+        this.validationMethod = method;
         return this;
     }
-
-    /** Returns whether or not to skip bounding box validation. */
-    public boolean ignoreMalformed() {
-        return ignoreMalformed;
+    
+    /**
+     * Returns geo coordinate validation method to use.
+     * */
+    public GeoValidationMethod getValidationMethod() {
+        return this.validationMethod;
     }
 
     /**
@@ -230,7 +205,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     QueryValidationException checkLatLon(boolean indexCreatedBeforeV2_0) {
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
-        if (ignoreMalformed || indexCreatedBeforeV2_0) {
+        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) == true || indexCreatedBeforeV2_0) {
             return null;
         }
 
@@ -264,7 +239,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
         GeoPoint luceneTopLeft = new GeoPoint(topLeft);
         GeoPoint luceneBottomRight = new GeoPoint(bottomRight);
-        if (coerce) {
+        if (GeoValidationMethod.isCoerce(validationMethod)) {
             // Special case: if the difference between the left and right is 360 and the right is greater than the left, we are asking for
             // the complete longitude range so need to set longitude to the complete longditude range
             double right = luceneBottomRight.getLon();
@@ -313,8 +288,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.array(GeoBoundingBoxQueryParser.TOP_LEFT, topLeft.getLon(), topLeft.getLat());
         builder.array(GeoBoundingBoxQueryParser.BOTTOM_RIGHT, bottomRight.getLon(), bottomRight.getLat());
         builder.endObject();
-        builder.field("coerce", coerce);
-        builder.field("ignore_malformed", ignoreMalformed);
+        builder.field("validation_method", validationMethod);
         builder.field("type", type);
 
         printBoostAndQueryName(builder);
@@ -327,14 +301,13 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return Objects.equals(topLeft, other.topLeft) &&
                 Objects.equals(bottomRight, other.bottomRight) &&
                 Objects.equals(type, other.type) &&
-                Objects.equals(coerce, other.coerce) &&
-                Objects.equals(ignoreMalformed, other.ignoreMalformed) &&
+                Objects.equals(validationMethod, other.validationMethod) &&
                 Objects.equals(fieldName, other.fieldName);
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(topLeft, bottomRight, type, coerce, ignoreMalformed, fieldName);
+        return Objects.hash(topLeft, bottomRight, type, validationMethod, fieldName);
     }
 
     @Override
@@ -344,8 +317,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         geo.topLeft = geo.topLeft.readFrom(in);
         geo.bottomRight = geo.bottomRight.readFrom(in);
         geo.type = GeoExecType.readTypeFrom(in);
-        geo.coerce = in.readBoolean();
-        geo.ignoreMalformed = in.readBoolean();
+        geo.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
         return geo;
     }
 
@@ -355,8 +327,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         topLeft.writeTo(out);
         bottomRight.writeTo(out);
         type.writeTo(out);
-        out.writeBoolean(coerce);
-        out.writeBoolean(ignoreMalformed);
+        validationMethod.writeTo(out);
     }
 
     @Override

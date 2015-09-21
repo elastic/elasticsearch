@@ -54,6 +54,7 @@ public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRange
     public static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox");
     public static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
     public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
+    public static final ParseField VALIDATION_METHOD = new ParseField("validation_method");
 
     @Override
     public String[] names() {
@@ -83,8 +84,10 @@ public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRange
         DistanceUnit unit = null;
         GeoDistance geoDistance = null;
         String optimizeBbox = null;
-        Boolean coerce = null;
-        Boolean ignoreMalformed = null;
+        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        GeoValidationMethod validationMethod = null;
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -183,6 +186,8 @@ public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRange
                     coerce = parser.booleanValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
                     ignoreMalformed = parser.booleanValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALIDATION_METHOD)) {
+                    validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else {
                     if (point == null) {
                         point = new GeoPoint();
@@ -238,12 +243,11 @@ public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRange
             queryBuilder.optimizeBbox(optimizeBbox);
         }
 
-        if (coerce != null) {
-            queryBuilder.coerce(coerce);
-        }
-
-        if (ignoreMalformed != null) {
-            queryBuilder.ignoreMalformed(ignoreMalformed);
+        if (validationMethod != null) {
+            // if validation method is set explicitly ignore deprecated coerce/ignore malformed fields if any
+            queryBuilder.setValidationMethod(validationMethod);
+        } else {
+            queryBuilder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
         }
         return queryBuilder;
     }

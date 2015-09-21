@@ -22,9 +22,10 @@ package org.elasticsearch.common.path;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -33,7 +34,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class PathTrieTests extends ESTestCase {
 
-    @Test
     public void testPath() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("/a/b/c", "walla");
@@ -54,27 +54,25 @@ public class PathTrieTests extends ESTestCase {
         assertThat(trie.retrieve("a/b/c/d"), nullValue());
         assertThat(trie.retrieve("g/t/x"), equalTo("three"));
 
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("index1/insert/12", params), equalTo("bingo"));
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("index"), equalTo("index1"));
         assertThat(params.get("docId"), equalTo("12"));
     }
 
-    @Test
     public void testEmptyPath() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("/", "walla");
         assertThat(trie.retrieve(""), equalTo("walla"));
     }
 
-    @Test
     public void testDifferentNamesOnDifferentPath() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("/a/{type}", "test1");
         trie.insert("/b/{name}", "test2");
 
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/a/test", params), equalTo("test1"));
         assertThat(params.get("type"), equalTo("test"));
 
@@ -83,13 +81,12 @@ public class PathTrieTests extends ESTestCase {
         assertThat(params.get("name"), equalTo("testX"));
     }
 
-    @Test
     public void testSameNameOnDifferentPath() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("/a/c/{name}", "test1");
         trie.insert("/b/{name}", "test2");
 
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/a/c/test", params), equalTo("test1"));
         assertThat(params.get("name"), equalTo("test"));
 
@@ -98,7 +95,6 @@ public class PathTrieTests extends ESTestCase {
         assertThat(params.get("name"), equalTo("testX"));
     }
 
-    @Test
     public void testPreferNonWildcardExecution() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("{test}", "test1");
@@ -108,20 +104,19 @@ public class PathTrieTests extends ESTestCase {
         trie.insert("{test}/{testB}", "test5");
         trie.insert("{test}/x/{testC}", "test6");
 
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/b", params), equalTo("test2"));
         assertThat(trie.retrieve("/b/a", params), equalTo("test4"));
         assertThat(trie.retrieve("/v/x", params), equalTo("test5"));
         assertThat(trie.retrieve("/v/x/c", params), equalTo("test6"));
     }
 
-    @Test
     public void testSamePathConcreteResolution() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("{x}/{y}/{z}", "test1");
         trie.insert("{x}/_y/{k}", "test2");
 
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/a/b/c", params), equalTo("test1"));
         assertThat(params.get("x"), equalTo("a"));
         assertThat(params.get("y"), equalTo("b"));
@@ -132,7 +127,6 @@ public class PathTrieTests extends ESTestCase {
         assertThat(params.get("k"), equalTo("c"));
     }
 
-    @Test
     public void testNamedWildcardAndLookupWithWildcard() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("x/{test}", "test1");
@@ -141,24 +135,45 @@ public class PathTrieTests extends ESTestCase {
         trie.insert("/{test}/_endpoint", "test4");
         trie.insert("/*/{test}/_endpoint", "test5");
 
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/x/*", params), equalTo("test1"));
         assertThat(params.get("test"), equalTo("*"));
 
-        params = newHashMap();
+        params = new HashMap<>();
         assertThat(trie.retrieve("/b/a", params), equalTo("test2"));
         assertThat(params.get("test"), equalTo("b"));
 
-        params = newHashMap();
+        params = new HashMap<>();
         assertThat(trie.retrieve("/*", params), equalTo("test3"));
         assertThat(params.get("test"), equalTo("*"));
 
-        params = newHashMap();
+        params = new HashMap<>();
         assertThat(trie.retrieve("/*/_endpoint", params), equalTo("test4"));
         assertThat(params.get("test"), equalTo("*"));
 
-        params = newHashMap();
+        params = new HashMap<>();
         assertThat(trie.retrieve("a/*/_endpoint", params), equalTo("test5"));
         assertThat(params.get("test"), equalTo("*"));
     }
+
+    public void testSplitPath() {
+        PathTrie<String> trie = new PathTrie<>();
+        assertThat(trie.splitPath("/a/"), arrayContaining("a"));
+        assertThat(trie.splitPath("/a/b"),arrayContaining("a", "b"));
+        assertThat(trie.splitPath("/a/b/c"), arrayContaining("a", "b", "c"));
+        assertThat(trie.splitPath("/a/b/<c/d>"), arrayContaining("a", "b", "<c/d>"));
+        assertThat(trie.splitPath("/a/b/<c/d>/d"), arrayContaining("a", "b", "<c/d>", "d"));
+
+        assertThat(trie.splitPath("/<logstash-{now}>/_search"), arrayContaining("<logstash-{now}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/d}>/_search"), arrayContaining("<logstash-{now/d}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM}}>/_search"), arrayContaining("<logstash-{now/M{YYYY.MM}}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM}}>/_search"), arrayContaining("<logstash-{now/M{YYYY.MM}}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM|UTC}}>/log/_search"), arrayContaining("<logstash-{now/M{YYYY.MM|UTC}}>", "log", "_search"));
+
+        assertThat(trie.splitPath("/<logstash-{now/M}>,<logstash-{now/M-1M}>/_search"), arrayContaining("<logstash-{now/M}>,<logstash-{now/M-1M}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/M}>,<logstash-{now/M-1M}>/_search"), arrayContaining("<logstash-{now/M}>,<logstash-{now/M-1M}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM}}>,<logstash-{now/M-1M{YYYY.MM}}>/_search"), arrayContaining("<logstash-{now/M{YYYY.MM}}>,<logstash-{now/M-1M{YYYY.MM}}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM|UTC}}>,<logstash-{now/M-1M{YYYY.MM|UTC}}>/_search"), arrayContaining("<logstash-{now/M{YYYY.MM|UTC}}>,<logstash-{now/M-1M{YYYY.MM|UTC}}>", "_search"));
+    }
+
 }

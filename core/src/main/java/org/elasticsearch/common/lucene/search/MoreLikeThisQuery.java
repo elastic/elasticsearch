@@ -158,7 +158,7 @@ public class MoreLikeThisQuery extends Query {
         if (this.unlikeText != null || this.unlikeFields != null) {
             handleUnlike(mlt, this.unlikeText, this.unlikeFields);
         }
-        
+
         return createQuery(mlt);
     }
 
@@ -182,7 +182,7 @@ public class MoreLikeThisQuery extends Query {
 
         BooleanQuery bq = bqBuilder.build();
         bq.setBoost(getBoost());
-        return bq;    
+        return bq;
     }
 
     private void handleUnlike(XMoreLikeThis mlt, String[] unlikeText, Fields[] unlikeFields) throws IOException {
@@ -257,8 +257,8 @@ public class MoreLikeThisQuery extends Query {
         this.unlikeFields = unlikeFields;
     }
 
-    public void setUnlikeText(List<String> unlikeText) {
-        this.unlikeText = unlikeText.toArray(Strings.EMPTY_ARRAY);
+    public void setUnlikeText(String[] unlikeText) {
+        this.unlikeText = unlikeText;
     }
 
     public String[] getMoreLikeFields() {

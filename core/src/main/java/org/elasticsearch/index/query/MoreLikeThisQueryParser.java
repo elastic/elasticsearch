@@ -187,11 +187,15 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
             throw new ParsingException(parser.getTokenLocation(), "more_like_this requires 'fields' to be non-empty");
         }
 
-        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(fields)
-                .like(likeTexts.toArray(new String[likeTexts.size()]))
-                .unlike(unlikeTexts.toArray(new String[unlikeTexts.size()]))
-                .like(likeItems.toArray(new Item[likeItems.size()]))
-                .unlike(unlikeItems.toArray(new Item[unlikeItems.size()]))
+        String[] fieldsArray = fields == null ? null : fields.toArray(new String[fields.size()]);
+        String[] likeTextsArray = likeTexts.isEmpty() ? null : likeTexts.toArray(new String[likeTexts.size()]);
+        String[] unlikeTextsArray = unlikeTexts.isEmpty() ? null : unlikeTexts.toArray(new String[unlikeTexts.size()]);
+        Item[] likeItemsArray = likeItems.isEmpty() ? null : likeItems.toArray(new Item[likeItems.size()]);
+        Item[] unlikeItemsArray = unlikeItems.isEmpty() ? null : unlikeItems.toArray(new Item[unlikeItems.size()]);
+
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(fieldsArray, likeTextsArray, likeItemsArray)
+                .unlike(unlikeTextsArray)
+                .unlike(unlikeItemsArray)
                 .maxQueryTerms(maxQueryTerms)
                 .minTermFreq(minTermFreq)
                 .minDocFreq(minDocFreq)

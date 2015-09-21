@@ -229,8 +229,8 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
                 .get();
         transportClient().admin().indices().prepareRefresh(lookupIndex, queryIndex).get();
 
-        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = QueryBuilders.moreLikeThisQuery("name")
-                .like(new Item(lookupIndex, "type", "1"))
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"name"}, null,
+                new Item[] {new Item(lookupIndex, "type", "1")})
                 .minTermFreq(1)
                 .minDocFreq(1);
 

@@ -109,8 +109,11 @@ Also reusing new Operator enum.
 Removed `MoreLikeThisQueryBuilder.Item#id(String id)`, `Item#doc(BytesReference doc)`,
 `Item#doc(XContentBuilder doc)`. Use provided constructors instead.
 
-Removed `MoreLikeThisQueryBuilder#addLike` and `addUnlike` in favor to using the `like`
-and `unlike` methods.
+Removed `MoreLikeThisQueryBuilder#addLike` in favor of texts and/or items beeing provided
+at construction time. Using arrays there instead of lists now.
+
+Removed `MoreLikeThisQueryBuilder#addUnlike` in favor to using the `unlike` methods
+which take arrays as arguments now rather than the lists used before. 
 
 The deprecated `docs(Item... docs)`, `ignoreLike(Item... docs)`,
 `ignoreLike(String... likeText)`, `addItem(Item... likeItems)` have been removed.

@@ -75,11 +75,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public static final boolean DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS = true;
 
     // document inputs
-    private final List<String> fields;
-    private List<String> likeTexts = new ArrayList<>();
-    private List<String> unlikeTexts = new ArrayList<>();
-    private List<Item> likeItems = new ArrayList<>();
-    private List<Item> unlikeItems = new ArrayList<>();
+    private final String[] fields;
+    private final String[] likeTexts;
+    private String[] unlikeTexts = Strings.EMPTY_ARRAY;
+    private final Item[] likeItems;
+    private Item[] unlikeItems = new Item[0];
 
     // term selection parameters
     private int maxQueryTerms = DEFAULT_MAX_QUERY_TERMS;
@@ -99,7 +99,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     // other parameters
     private boolean failOnUnsupportedField = DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS;
 
-    static final MoreLikeThisQueryBuilder PROTOTYPE = new MoreLikeThisQueryBuilder();
+    static final MoreLikeThisQueryBuilder PROTOTYPE = new MoreLikeThisQueryBuilder(new String[]{"_na_"}, null);
 
     /**
      * A single item to be used for a {@link MoreLikeThisQueryBuilder}.
@@ -437,82 +437,66 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Constructs a new more like this query which uses the "_all" field.
-     */
-    public MoreLikeThisQueryBuilder() {
-        this.fields = null;
-    }
-
-    /**
-     * Sets the field names that will be used when generating the 'More Like This' query.
-     *
-     * @param fields the field names that will be used when generating the 'More Like This' query.
-     */
-    public MoreLikeThisQueryBuilder(String... fields) {
-        this(Collections.unmodifiableList(Arrays.asList(fields)));
-    }
-
-    /**
-     * Sets the field names that will be used when generating the 'More Like This' query.
-     *
-     * @param fields the field names that will be used when generating the 'More Like This' query.
-     */
-    public MoreLikeThisQueryBuilder(List<String> fields) {
-        this.fields = fields;
-    }
-
-    public List<String> fields() {
-        return fields;
-    }
-
-    /**
-     * Sets the text to use in order to find documents that are "like" this.
-     *
      * @param likeTexts the text to use when generating the 'More Like This' query.
+     * @param likeItems the documents to use when generating the 'More Like This' query.
      */
-    public MoreLikeThisQueryBuilder like(String... likeTexts) {
-        this.likeTexts = Collections.unmodifiableList(Arrays.asList(likeTexts));
-        return this;
+    public MoreLikeThisQueryBuilder(String[] likeTexts, Item[] likeItems) {
+        this(null, likeTexts, likeItems);
     }
 
-    public List<String> likeTexts() {
+    /**
+     * Sets the field names that will be used when generating the 'More Like This' query.
+     *
+     * @param fields the field names that will be used when generating the 'More Like This' query.
+     * @param likeTexts the text to use when generating the 'More Like This' query.
+     * @param likeItems the documents to use when generating the 'More Like This' query.
+     */
+    public MoreLikeThisQueryBuilder(@Nullable String[] fields, @Nullable String[] likeTexts, @Nullable Item[] likeItems) {
+        // TODO we allow null here for the _all field, but this is forbidden in the parser. Re-check
+        if (fields != null && fields.length == 0) {
+            throw new IllegalArgumentException("mlt query requires 'fields' to be specified");
+        }
+        if ((likeTexts == null || likeTexts.length == 0) && (likeItems == null || likeItems.length == 0)) {
+            throw new IllegalArgumentException("mlt query requires either 'like' texts or items to be specified.");
+        }
+        this.fields = fields;
+        this.likeTexts = Optional.ofNullable(likeTexts).orElse(Strings.EMPTY_ARRAY);
+        this.likeItems = Optional.ofNullable(likeItems).orElse(new Item[0]);
+    }
+
+    public String[] fields() {
+        return this.fields;
+    }
+
+    public String[] likeTexts() {
         return likeTexts;
     }
 
-    /**
-     * Sets the documents to use in order to find documents that are "like" this.
-     *
-     * @param likeItems the documents to use when generating the 'More Like This' query.
-     */
-    public MoreLikeThisQueryBuilder like(Item... likeItems) {
-        this.likeItems = Collections.unmodifiableList(Arrays.asList(likeItems));
-        return this;
-    }
-
-    public List<Item> likeItems() {
+    public Item[] likeItems() {
         return likeItems;
     }
 
     /**
      * Sets the text from which the terms should not be selected from.
      */
-    public MoreLikeThisQueryBuilder unlike(String... unlikeTexts) {
-        this.unlikeTexts = Collections.unmodifiableList(Arrays.asList(unlikeTexts));
+    public MoreLikeThisQueryBuilder unlike(String[] unlikeTexts) {
+        this.unlikeTexts = Optional.ofNullable(unlikeTexts).orElse(Strings.EMPTY_ARRAY);
         return this;
     }
 
-    public List<String> unlikeTexts() {
+    public String[] unlikeTexts() {
         return unlikeTexts;
     }
 
     /**
      * Sets the documents from which the terms should not be selected from.
      */
-    public MoreLikeThisQueryBuilder unlike(Item... unlikeItems) {
-        this.unlikeItems = Collections.unmodifiableList(Arrays.asList(unlikeItems));
+    public MoreLikeThisQueryBuilder unlike(Item[] unlikeItems) {
+        this.unlikeItems = Optional.ofNullable(unlikeItems).orElse(new Item[0]);
         return this;
     }
 
-    public List<Item> unlikeItems() {
+    public Item[] unlikeItems() {
         return unlikeItems;
     }
 
@@ -685,20 +669,18 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * The text to use in order to find documents that are "like" this.
+     * Converts an array of String ids to and Item[].
+     * @param ids the ids to convert
+     * @return the new items array
+     * @deprecated construct the items array externaly and use it in the constructor / setter
      */
     @Deprecated
-    public MoreLikeThisQueryBuilder likeText(String likeText) {
-        return like(likeText);
-    }
-
-    @Deprecated
-    public MoreLikeThisQueryBuilder ids(String... ids) {
+    public static Item[] ids(String... ids) {
         Item[] items = new Item[ids.length];
         for (int i = 0; i < items.length; i++) {
             items[i] = new Item(null, null, ids[i]);
         }
-        return like(items);
+        return items;
     }
 
     @Override
@@ -708,9 +690,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             builder.field(MoreLikeThisQueryParser.Field.FIELDS.getPreferredName(), fields);
         }
         buildLikeField(builder, MoreLikeThisQueryParser.Field.LIKE.getPreferredName(), likeTexts, likeItems);
-        if (!unlikeTexts.isEmpty() || !unlikeItems.isEmpty()) {
-            buildLikeField(builder, MoreLikeThisQueryParser.Field.UNLIKE.getPreferredName(), unlikeTexts, unlikeItems);
-        }
+        buildLikeField(builder, MoreLikeThisQueryParser.Field.UNLIKE.getPreferredName(), unlikeTexts, unlikeItems);
         builder.field(MoreLikeThisQueryParser.Field.MAX_QUERY_TERMS.getPreferredName(), maxQueryTerms);
         builder.field(MoreLikeThisQueryParser.Field.MIN_TERM_FREQ.getPreferredName(), minTermFreq);
         builder.field(MoreLikeThisQueryParser.Field.MIN_DOC_FREQ.getPreferredName(), minDocFreq);
@@ -731,15 +711,17 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         builder.endObject();
     }
 
-    private static void buildLikeField(XContentBuilder builder, String fieldName, List<String> texts, List<Item> items) throws IOException {
-        builder.startArray(fieldName);
-        for (String text : texts) {
-            builder.value(text);
+    private static void buildLikeField(XContentBuilder builder, String fieldName, String[] texts, Item[] items) throws IOException {
+        if (texts.length > 0 || items.length > 0) {
+            builder.startArray(fieldName);
+            for (String text : texts) {
+                builder.value(text);
+            }
+            for (Item item : items) {
+                builder.value(item);
+            }
+            builder.endArray();
         }
-        for (Item item : items) {
-            builder.value(item);
-        }
-        builder.endArray();
     }
 
     @Override
@@ -799,15 +781,15 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         mltQuery.setMoreLikeFields(moreLikeFields.toArray(Strings.EMPTY_ARRAY));
 
         // handle like texts
-        if (likeTexts.isEmpty() == false) {
+        if (likeTexts.length > 0) {
             mltQuery.setLikeText(likeTexts);
         }
-        if (unlikeTexts.isEmpty() == false) {
+        if (unlikeTexts.length > 0) {
             mltQuery.setUnlikeText(unlikeTexts);
         }
 
         // handle items
-        if (likeItems.isEmpty() == false) {
+        if (likeItems.length > 0) {
             return handleItems(context, mltQuery, likeItems, unlikeItems, include, moreLikeFields, useDefaultField);
         } else {
             return mltQuery;
@@ -828,7 +810,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return moreLikeFields;
     }
 
-    private Query handleItems(QueryShardContext context, MoreLikeThisQuery mltQuery, List<Item> likeItems, List<Item> unlikeItems,
+    private Query handleItems(QueryShardContext context, MoreLikeThisQuery mltQuery, Item[] likeItems, Item[] unlikeItems,
                               boolean include, List<String> moreLikeFields, boolean useDefaultField) throws IOException {
         // set default index, type and fields if not specified
         for (Item item : likeItems) {
@@ -845,7 +827,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         mltQuery.setLikeText(getFieldsFor(responses, likeItems));
 
         // getting the Fields for unliked items
-        if (!unlikeItems.isEmpty()) {
+        if (unlikeItems.length > 0) {
             org.apache.lucene.index.Fields[] unlikeFields = getFieldsFor(responses, unlikeItems);
             if (unlikeFields.length > 0) {
                 mltQuery.setUnlikeText(unlikeFields);
@@ -885,22 +867,20 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
     }
 
-    private MultiTermVectorsResponse fetchResponse(Client client, List<Item> likeItems, @Nullable List<Item> unlikeItems,
+    private MultiTermVectorsResponse fetchResponse(Client client, Item[] likeItems, @Nullable Item[] unlikeItems,
                                                    SearchContext searchContext) throws IOException {
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
         for (Item item : likeItems) {
             request.add(item.toTermVectorsRequest());
         }
-        if (unlikeItems != null) {
-            for (Item item : unlikeItems) {
-                request.add(item.toTermVectorsRequest());
-            }
+        for (Item item : unlikeItems) {
+            request.add(item.toTermVectorsRequest());
         }
         request.copyContextAndHeadersFrom(searchContext);
         return client.multiTermVectors(request).actionGet();
     }
 
-    private static Fields[] getFieldsFor(MultiTermVectorsResponse responses, List<Item> items) throws IOException {
+    private static Fields[] getFieldsFor(MultiTermVectorsResponse responses, Item[] items) throws IOException {
         List<Fields> likeFields = new ArrayList<>();
 
         Set<Item> selectedItems = new HashSet<>();
@@ -928,7 +908,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return selectedItems.contains(new Item(response.getIndex(), response.getType(), response.getId()));
     }
 
-    private static void handleExclude(BooleanQuery boolQuery, List<Item> likeItems) {
+    private static void handleExclude(BooleanQuery boolQuery, Item[] likeItems) {
         // artificial docs get assigned a random id and should be disregarded
         List<BytesRef> uids = new ArrayList<>();
         for (Item item : likeItems) {
@@ -943,23 +923,13 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
     }
 
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (likeTexts.isEmpty() && likeItems.isEmpty()) {
-            validationException = addValidationError("requires 'like' to be specified.", validationException);
-        }
-        if (fields != null && fields.isEmpty()) {
-            validationException = addValidationError("requires 'fields' to be specified", validationException);
-        }
-        return validationException;
-    }
-
     @Override
     protected MoreLikeThisQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder((List<String>) in.readGenericValue());
-        moreLikeThisQueryBuilder.likeTexts = (List<String>) in.readGenericValue();
-        moreLikeThisQueryBuilder.unlikeTexts = (List<String>) in.readGenericValue();
-        moreLikeThisQueryBuilder.likeItems = readItems(in);
+        String[] fields = in.readOptionalStringArray();
+        String[] likeTexts = in.readStringArray();
+        Item[] likeItems = readItems(in);
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(fields, likeTexts, likeItems);
+        moreLikeThisQueryBuilder.unlikeTexts = in.readStringArray();
         moreLikeThisQueryBuilder.unlikeItems = readItems(in);
         moreLikeThisQueryBuilder.maxQueryTerms = in.readVInt();
         moreLikeThisQueryBuilder.minTermFreq = in.readVInt();
@@ -976,21 +946,21 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return moreLikeThisQueryBuilder;
     }
 
-    private static List<Item> readItems(StreamInput in) throws IOException {
-        List<Item> items = new ArrayList<>();
+    private static Item[] readItems(StreamInput in) throws IOException {
         int size = in.readVInt();
+        Item[] items = new Item[size];
         for (int i = 0; i < size; i++) {
-            items.add(Item.readItemFrom(in));
+            items[i] = Item.readItemFrom(in);
         }
         return items;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeGenericValue(fields);
-        out.writeGenericValue(likeTexts);
-        out.writeGenericValue(unlikeTexts);
+        out.writeOptionalStringArray(fields);
+        out.writeStringArray(likeTexts);
         writeItems(likeItems, out);
+        out.writeStringArray(unlikeTexts);
         writeItems(unlikeItems, out);
         out.writeVInt(maxQueryTerms);
         out.writeVInt(minTermFreq);
@@ -1006,8 +976,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         out.writeBoolean(failOnUnsupportedField);
     }
 
-    private static void writeItems(List<Item> items, StreamOutput out) throws IOException {
-        out.writeVInt(items.size());
+    private static void writeItems(Item[] items, StreamOutput out) throws IOException {
+        out.writeVInt(items.length);
         for (Item item : items) {
             item.writeTo(out);
         }
@@ -1015,18 +985,19 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fields, likeTexts, unlikeTexts, likeItems, unlikeItems, maxQueryTerms, minTermFreq,
-                minDocFreq, maxDocFreq, minWordLength, maxWordLength, Arrays.hashCode(stopWords), analyzer, minimumShouldMatch,
-                boostTerms, include, failOnUnsupportedField);
+        return Objects.hash(Arrays.hashCode(fields), Arrays.hashCode(likeTexts),
+                Arrays.hashCode(unlikeTexts), Arrays.hashCode(likeItems), Arrays.hashCode(unlikeItems),
+                maxQueryTerms, minTermFreq, minDocFreq, maxDocFreq, minWordLength, maxWordLength,
+                Arrays.hashCode(stopWords), analyzer, minimumShouldMatch, boostTerms, include, failOnUnsupportedField);
     }
 
     @Override
     protected boolean doEquals(MoreLikeThisQueryBuilder other) {
-        return Objects.equals(fields, other.fields) &&
-                Objects.equals(likeTexts, other.likeTexts) &&
-                Objects.equals(unlikeTexts, other.unlikeTexts) &&
-                Objects.equals(likeItems, other.likeItems) &&
-                Objects.equals(unlikeItems, other.unlikeItems) &&
+        return Arrays.equals(fields, other.fields) &&
+                Arrays.equals(likeTexts, other.likeTexts) &&
+                Arrays.equals(unlikeTexts, other.unlikeTexts) &&
+                Arrays.equals(likeItems, other.likeItems) &&
+                Arrays.equals(unlikeItems, other.unlikeItems) &&
                 Objects.equals(maxQueryTerms, other.maxQueryTerms) &&
                 Objects.equals(minTermFreq, other.minTermFreq) &&
                 Objects.equals(minDocFreq, other.minDocFreq) &&

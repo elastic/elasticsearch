@@ -13,8 +13,10 @@ filter type:
 |Setting |Description
 |`word_list` |A list of words to use.
 
-|`word_list_path` |A path (either relative to `config` location, or
-absolute) to a list of words.
+|`word_list_path` |A path (either relative to config location,
+or absolute) to a stopwords file configuration. Each stop word
+should be in its own "line" (separated by a line break).
+The file must be UTF-8 encoded.
 
 |`hyphenation_patterns_path` |A path (either relative to `config` location, or
 absolute) to a FOP XML hyphenation pattern file. (See http://offo.sourceforge.net/hyphenation/)
@@ -44,7 +46,7 @@ index :
         filter :
             myTokenFilter1 :
                 type : dictionary_decompounder
-                word_list: [one, two, three]                
+                word_list: [one, two, three]
             myTokenFilter2 :
                 type : hyphenation_decompounder
                 word_list_path: path/to/words.txt

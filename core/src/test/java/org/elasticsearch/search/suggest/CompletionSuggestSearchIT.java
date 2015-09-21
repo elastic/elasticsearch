@@ -23,8 +23,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.xdocument.ContextSuggestField;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -238,14 +236,12 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject();
         request.suggest(suggest.bytes());
-        ensureYellow();
+        ensureGreen();
 
         SuggestResponse suggestResponse = client().suggest(request).get();
         assertThat(suggestResponse.getSuccessfulShards(), equalTo(0));
         for (ShardOperationFailedException exception : suggestResponse.getShardFailures()) {
-            Throwable unwrap = ExceptionsHelper.unwrap(exception.getCause(), IllegalArgumentException.class);
-            assertNotNull(unwrap);
-            assertThat(unwrap.getMessage(), containsString("payload"));
+            assertThat(exception.reason(), containsString("expected string values in [payload] array"));
         }
     }
 

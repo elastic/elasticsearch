@@ -1,7 +1,8 @@
 [[mapping-roles]]
 === Mapping Users and Groups to Roles
 
-If you authenticate users with an `esusers` realm, you can assign roles when you <<esusers-add,add a user>> and use the <<esusers-roles,`roles`>> command to add or remove roles. 
+If you authenticate users with an `esusers` realm, you can assign roles when you 
+<<esusers-add,add a user>> and use the <<esusers-roles,`roles`>> command to add or remove roles. 
 
 For other types of realms, you configure role mappings for users and groups in a YAML file 
 and copy it to each node in the cluster. Tools like Puppet or Chef can help with this.
@@ -28,8 +29,12 @@ groups in the role mappings, you use their _Distinguished Names_ (DNs).  A  DN
 is a string that uniquely identifies the user or group, for example  
 `"cn=John Doe,cn=contractors,dc=example,dc=com"`. 
 
+NOTE: Shield only supports Active Directory security groups. You cannot map distribution groups
+to roles.
+
 [[ldap-role-mapping]]
-LDAP and Active Directory realms support mapping both users and groups to roles. For example:
+For example, the following snippet maps the `admins` group to the `monitoring` role and maps   
+`John Doe`, the `users` group, and the `admins` group to the `user` role. 
 
 [source, yaml]
 ------------------------------------------------------------
@@ -41,7 +46,7 @@ user:
   - "cn=admins,dc=example,dc=com"
 ------------------------------------------------------------
 <1> The name of a Shield role defined in the <<defining-roles, roles file>>.
-<2> The distinguished name of an LDAP or Active Directory group.
+<2> The distinguished name of an LDAP group or an Active Directory security group.
 <3> The distinguished name of an LDAP or Active Directory user. added[1.1.0]
 
 [[pki-role-mapping]]

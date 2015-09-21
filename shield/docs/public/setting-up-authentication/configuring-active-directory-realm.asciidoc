@@ -21,6 +21,8 @@ unit_ (`ou`), _organization_ (`o`), and _domain controller_ (`dc`).
 The path to a entry is a _Distinguished Name_ (DN) that uniquely identifies a user or group. User 
 and group  names typically have attributes such as a _common name_ (`cn`) or _unique ID_ (`uid`). 
 A DN is specified as a string, for example  `"cn=admin,dc=example,dc=com"`. White space is ignored.
+Shield only supports Active Directory security groups. You cannot map distribution groups
+to roles.
 
 NOTE: When you use Active Directory for authentication, the username entered by the user is expected 
       to match the `sAMAccountName` or `userPrincipalName`, not the common name. 

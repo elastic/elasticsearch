@@ -35,7 +35,7 @@ class ForbiddenPatternsTask extends DefaultTask {
         this.filesFilter.exclude(excludes)
     }
 
-    /** Adds pattern to forbide */
+    /** Adds pattern to forbid */
     void rule(Map<String,String> props) {
         String name = props.get('name')
         if (name == null) {
@@ -45,6 +45,7 @@ class ForbiddenPatternsTask extends DefaultTask {
         if (pattern == null) {
             throw new IllegalArgumentException('Missing [pattern] for invalid pattern rule')
         }
+        // TODO: fail if pattern contains a newline, it won't work (currently)
         patterns.put(name, pattern)
     }
 

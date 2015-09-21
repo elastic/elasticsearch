@@ -47,7 +47,7 @@ class ClusterFormationTasks {
         setup = project.tasks.create(name: "${task.name}#configure", type: DefaultTask, dependsOn: setup) << {
             File configFile = new File(home, 'config' + File.separator + 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
-            configFile.text = "cluster.name: ${clusterName}"
+            configFile.setText("cluster.name: ${clusterName}", 'UTF-8')
         }
         for (Map.Entry<String, String> command : config.setupConfig.commands.entrySet()) {
             Task nextSetup = project.tasks.create(name: "${task.name}#${command.getKey()}", type: Exec, dependsOn: setup) {

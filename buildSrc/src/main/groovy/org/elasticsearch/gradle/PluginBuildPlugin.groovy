@@ -27,6 +27,7 @@ class PluginBuildPlugin extends BuildPlugin {
                 }
             }
         }
+        configureDependencyLicenses(project)
         project.configurations.archives.artifacts.removeAll { it.archiveTask.is project.jar }
         project.configurations.runtime.artifacts.removeAll { it.archiveTask.is project.jar }
         project.artifacts {
@@ -111,5 +112,12 @@ class PluginBuildPlugin extends BuildPlugin {
         }
         tasks.getByName('assemble').dependsOn(bundle)
         return bundle
+    }
+
+    static configureDependencyLicenses(Project project) {
+        Task dependencyLicensesTask = DependencyLicensesTask.addToProject(project) {
+            dependencies = project.configurations.runtime - project.configurations.provided
+        }
+        project.tasks.getByName('precommit').dependsOn(dependencyLicensesTask)
     }
 }

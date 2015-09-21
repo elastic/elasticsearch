@@ -1,5 +1,6 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.apache.tools.ant.filters.FixCrLfFilter
+import org.elasticsearch.gradle.DependencyLicensesTask
 
 plugins {
   id "nebula.os-package" version "2.2.6"
@@ -50,6 +51,20 @@ CopySpec libFiles = copySpec {
   from project(':core').configurations.runtime
   from project(':core').configurations.optional.copyRecursive().exclude(module: 'slf4j-api')
 }
+
+Configuration runtimeDeps = project(':core').configurations.runtime
+Configuration optionalDeps = project(':core').configurations.optional.copyRecursive().exclude(module: 'slf4j-api')
+
+// TODO: dependency checks should really be when building the jar itself, which would remove the need
+// for this hackery and instead we can do this inside the BuildPlugin
+//task check() {}
+DependencyLicensesTask.addToProject(project) {
+  dependsOn = [runtimeDeps.buildDependencies, optionalDeps.buildDependencies]
+  dependencies = runtimeDeps + optionalDeps 
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+
 
 CopySpec configFiles = copySpec {
   from 'src/main/resources/config'

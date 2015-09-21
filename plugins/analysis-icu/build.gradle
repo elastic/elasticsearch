@@ -8,5 +8,9 @@ dependencies {
   compile "org.apache.lucene:lucene-analyzers-icu:${versions.lucene}"
 }
 
+dependencyLicenses {
+  mapping from: /lucene-.*/, to: 'lucene'
+}
+
 compileJava.options.compilerArgs << "-Xlint:-deprecation"
 

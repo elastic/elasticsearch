@@ -36,10 +36,18 @@ allprojects {
 }
 
 subprojects {
-  // fail on all javac warnings
   gradle.projectsEvaluated {
+    // fail on all javac warnings
     tasks.withType(JavaCompile) {
-      options.compilerArgs << "-Werror" << "-Xlint:all" 
+      options.compilerArgs << '-Werror' << '-Xlint:all' 
+    }
+    // include license and notice in jars
+    tasks.withType(Jar) {
+      into('META-INF') {
+        from project.rootProject.rootDir
+        include 'LICENSE.txt'   
+        include 'NOTICE.txt'   
+      }
     }
   }
 

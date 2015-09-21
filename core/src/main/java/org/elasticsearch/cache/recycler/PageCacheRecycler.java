@@ -29,13 +29,14 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.util.Arrays;
 import java.util.Locale;
 
 import static org.elasticsearch.common.recycler.Recyclers.*;
 
 /** A recycler of fixed-size pages. */
-public class PageCacheRecycler extends AbstractComponent {
+public class PageCacheRecycler extends AbstractComponent implements Closeable {
 
     public static final String TYPE = "recycler.page.type";
     public static final String LIMIT_HEAP = "recycler.page.limit.heap";

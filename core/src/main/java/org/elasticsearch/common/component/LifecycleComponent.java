@@ -27,7 +27,7 @@ import java.io.Closeable;
 /**
  *
  */
-public interface LifecycleComponent<T> extends Releasable {
+public interface LifecycleComponent<T> extends Releasable, Closeable {
 
     Lifecycle.State lifecycleState();
 

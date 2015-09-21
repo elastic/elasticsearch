@@ -69,6 +69,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 
+import java.io.Closeable;
+
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
  * <p/>
@@ -82,7 +84,7 @@ import org.elasticsearch.common.settings.Settings;
  * @see org.elasticsearch.node.Node#client()
  * @see org.elasticsearch.client.transport.TransportClient
  */
-public interface Client extends ElasticsearchClient, Releasable {
+public interface Client extends ElasticsearchClient, Releasable, Closeable {
 
     String CLIENT_TYPE_SETTING = "client.type";
 

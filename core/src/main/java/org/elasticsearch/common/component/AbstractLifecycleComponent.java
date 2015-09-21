@@ -21,13 +21,14 @@ package org.elasticsearch.common.component;
 
 import org.elasticsearch.common.settings.Settings;
 
+import java.io.Closeable;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  *
  */
-public abstract class AbstractLifecycleComponent<T> extends AbstractComponent implements LifecycleComponent<T> {
+public abstract class AbstractLifecycleComponent<T> extends AbstractComponent implements LifecycleComponent<T>, Closeable {
 
     protected final Lifecycle lifecycle = new Lifecycle();
 

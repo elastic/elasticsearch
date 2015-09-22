@@ -194,15 +194,6 @@ public final class SearchSlowLog{
             } else {
                 sb.append("source[], ");
             }
-            if (context.request().extraSource() != null && context.request().extraSource().length() > 0) {
-                try {
-                    sb.append("extra_source[").append(XContentHelper.convertToJson(context.request().extraSource(), reformat)).append("], ");
-                } catch (IOException e) {
-                    sb.append("extra_source[_failed_to_convert_], ");
-                }
-            } else {
-                sb.append("extra_source[], ");
-            }
             return sb.toString();
         }
     }

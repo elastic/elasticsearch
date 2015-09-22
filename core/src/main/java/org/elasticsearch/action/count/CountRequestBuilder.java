@@ -31,13 +31,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 /**
  * A count action request builder.
  */
 public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountRequest, CountResponse, CountRequestBuilder> {
-
-    private QuerySourceBuilder sourceBuilder;
 
     public CountRequestBuilder(ElasticsearchClient client, CountAction action) {
         super(client, action, new CountRequest());
@@ -88,65 +87,24 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
     }
 
     /**
-     * The query source to execute.
-     *
-     * @see org.elasticsearch.index.query.QueryBuilders
-     */
-    public CountRequestBuilder setQuery(QueryBuilder queryBuilder) {
-        sourceBuilder().setQuery(queryBuilder);
-        return this;
-    }
-
-    /**
-     * The query binary to execute
-     */
-    public CountRequestBuilder setQuery(BytesReference queryBinary) {
-        sourceBuilder().setQuery(queryBinary);
-        return this;
-    }
-
-    /**
-     * Constructs a new builder with a raw search query.
-     */
-    public CountRequestBuilder setQuery(XContentBuilder query) {
-        return setQuery(query.bytes());
-    }
-
-
-    /**
      * The source to execute.
      */
-    public CountRequestBuilder setSource(BytesReference source) {
-        request().source(source);
+    public CountRequestBuilder setSource(SearchSourceBuilder source) {
+        request().searchSource(source);
         return this;
     }
 
     /**
      * The query source to execute.
      */
-    public CountRequestBuilder setSource(byte[] querySource) {
-        request.source(querySource);
+    public CountRequestBuilder setQuery(QueryBuilder<?> builder) {
+        request.query(builder);
         return this;
     }
 
     public CountRequestBuilder setTerminateAfter(int terminateAfter) {
         request().terminateAfter(terminateAfter);
         return this;
-    }
-
-    @Override
-    protected CountRequest beforeExecute(CountRequest request) {
-        if (sourceBuilder != null) {
-            request.source(sourceBuilder);
-        }
-        return request;
-    }
-
-    private QuerySourceBuilder sourceBuilder() {
-        if (sourceBuilder == null) {
-            sourceBuilder = new QuerySourceBuilder();
-        }
-        return sourceBuilder;
     }
 
     @Override
@@ -162,15 +120,8 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
 
     @Override
     public String toString() {
-        if (sourceBuilder != null) {
-            return sourceBuilder.toString();
-        }
-        if (request.source() != null) {
-            try {
-                return XContentHelper.convertToJson(request.source().toBytesArray(), false, true);
-            } catch (Exception e) {
-                return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
-            }
+        if (request.sourceBuilder() != null) {
+            return request.sourceBuilder().toString();
         }
         return new QuerySourceBuilder().toString();
     }

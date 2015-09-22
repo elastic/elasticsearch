@@ -67,8 +67,6 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     private String[] types = Strings.EMPTY_ARRAY;
     private String[] filteringAliases;
     private SearchSourceBuilder source;
-    private BytesReference extraSource;
-    private BytesReference templateSource;
     private Template template;
     private Boolean requestCache;
     private long nowInMillis;
@@ -80,8 +78,6 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
                             String[] filteringAliases, long nowInMillis) {
         this(shardRouting.shardId(), numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.requestCache());
-        this.extraSource = searchRequest.extraSource();
-        this.templateSource = searchRequest.templateSource();
         this.template = searchRequest.template();
         this.scroll = searchRequest.scroll();
         this.filteringAliases = filteringAliases;
@@ -136,11 +132,6 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     }
 
     @Override
-    public BytesReference extraSource() {
-        return extraSource;
-    }
-
-    @Override
     public int numberOfShards() {
         return numberOfShards;
     }
@@ -159,15 +150,9 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     public long nowInMillis() {
         return nowInMillis;
     }
-
     @Override
     public Template template() {
         return template;
-    }
-
-    @Override
-    public BytesReference templateSource() {
-        return templateSource;
     }
 
     @Override
@@ -189,18 +174,11 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
-
         source = SearchSourceBuilder.PROTOTYPE.readFrom(in);
-        extraSource = in.readBytesReference();
-
         types = in.readStringArray();
         filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
-
-        templateSource = in.readBytesReference();
-        if (in.readBoolean()) {
-            template = Template.readTemplate(in);
-        }
+        template = in.readOptionalStreamable(new Template());
         requestCache = in.readOptionalBoolean();
     }
 
@@ -218,19 +196,13 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
             scroll.writeTo(out);
         }
         source.writeTo(out);
-        out.writeBytesReference(extraSource);
         out.writeStringArray(types);
         out.writeStringArrayNullable(filteringAliases);
         if (!asKey) {
             out.writeVLong(nowInMillis);
         }
 
-        out.writeBytesReference(templateSource);
-        boolean hasTemplate = template != null;
-        out.writeBoolean(hasTemplate);
-        if (hasTemplate) {
-            template.writeTo(out);
-        }
+        out.writeOptionalStreamable(template);
         out.writeOptionalBoolean(requestCache);
     }
 

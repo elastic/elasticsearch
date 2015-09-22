@@ -41,8 +41,8 @@ import java.util.List;
  */
 public class FetchSourceContext implements Streamable, ToXContent {
 
-    public static final ParseField INCLUDES_FIELD = new ParseField("includes");
-    public static final ParseField EXCLUDES_FIELD = new ParseField("excludes");
+    public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
+    public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
 
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true);
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(false);
@@ -194,6 +194,14 @@ public class FetchSourceContext implements Streamable, ToXContent {
         String[] excludes = Strings.EMPTY_ARRAY;
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
             fetchSource = parser.booleanValue();
+        } else if (token == XContentParser.Token.VALUE_STRING) {
+            includes = new String[]{parser.text()};
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            ArrayList<String> list = new ArrayList<>();
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                list.add(parser.text());
+            }
+            includes = list.toArray(new String[list.size()]);
         } else if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -206,8 +214,8 @@ public class FetchSourceContext implements Streamable, ToXContent {
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 includesList.add(parser.text());
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in ["
-                                        + currentFieldName + "].");
+                                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                        parser.getTokenLocation());
                             }
                         }
                         includes = includesList.toArray(new String[includesList.size()]);
@@ -217,22 +225,29 @@ public class FetchSourceContext implements Streamable, ToXContent {
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 excludesList.add(parser.text());
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in ["
-                                        + currentFieldName + "].");
+                                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                        parser.getTokenLocation());
                             }
                         }
                         excludes = excludesList.toArray(new String[excludesList.size()]);
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
-                                + "].");
+                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                parser.getTokenLocation());
+                    }
+                } else if (token == XContentParser.Token.VALUE_STRING) {
+                    if (context.parseFieldMatcher().match(currentFieldName, INCLUDES_FIELD)) {
+                        includes = new String[] {parser.text()};
+                    } else if (context.parseFieldMatcher().match(currentFieldName, EXCLUDES_FIELD)) {
+                        excludes = new String[] {parser.text()};
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].");
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                            parser.getTokenLocation());
                 }
             }
         } else {
             throw new ParsingException(parser.getTokenLocation(), "Expected one of [" + XContentParser.Token.VALUE_BOOLEAN + ", "
-                    + XContentParser.Token.START_OBJECT + "] but found [" + token + "]");
+                    + XContentParser.Token.START_OBJECT + "] but found [" + token + "]", parser.getTokenLocation());
         }
         this.fetchSource = fetchSource;
         this.includes = includes;

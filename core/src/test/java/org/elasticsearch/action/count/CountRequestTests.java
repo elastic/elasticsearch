@@ -22,6 +22,7 @@ package org.elasticsearch.action.count;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.internal.SearchContext;
@@ -56,8 +57,9 @@ public class CountRequestTests extends ESTestCase {
         if (randomBoolean()) {
             countRequest.preference(randomAsciiOfLengthBetween(1, 10));
         }
-        if (randomBoolean()) {
-            countRequest.source(new QuerySourceBuilder().setQuery(QueryBuilders.termQuery("field", "value")));
+        final boolean querySet;
+        if (querySet = randomBoolean()) {
+            countRequest.query(QueryBuilders.termQuery("field", "value"));
         }
         if (randomBoolean()) {
             countRequest.minScore(randomFloat());
@@ -72,29 +74,29 @@ public class CountRequestTests extends ESTestCase {
         assertThat(searchRequest.types(), equalTo(countRequest.types()));
         assertThat(searchRequest.routing(), equalTo(countRequest.routing()));
         assertThat(searchRequest.preference(), equalTo(countRequest.preference()));
-
-        if (countRequest.source() == null) {
-            assertThat(searchRequest.source(), nullValue());
-        } else {
-            assertThat(searchRequest.source().query(), notNullValue());
-        }
-
-        Map<String, Object> extraSourceMap = XContentHelper.convertToMap(searchRequest.extraSource(), false).v2();
+        BytesArray array = new BytesArray(XContentHelper.toString(searchRequest.source()));
+        Map<String, Object> sourceMap = XContentHelper.convertToMap(array, false).v2();
         int count = 1;
-        assertThat((Integer)extraSourceMap.get("size"), equalTo(0));
-        if (countRequest.minScore() == CountRequest.DEFAULT_MIN_SCORE) {
-            assertThat(extraSourceMap.get("min_score"), nullValue());
+        assertThat(sourceMap.get("size"), equalTo(0));
+        if (querySet) {
+            count++;
+            assertThat(sourceMap.get("query"), notNullValue());
         } else {
-            assertThat(((Number)extraSourceMap.get("min_score")).floatValue(), equalTo(countRequest.minScore()));
+            assertNull(sourceMap.get("query"));
+        }
+        if (countRequest.minScore() == CountRequest.DEFAULT_MIN_SCORE) {
+            assertThat(sourceMap.get("min_score"), nullValue());
+        } else {
+            assertThat(((Number)sourceMap.get("min_score")).floatValue(), equalTo(countRequest.minScore()));
             count++;
         }
         if (countRequest.terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER) {
-            assertThat(extraSourceMap.get("terminate_after"), nullValue());
+            assertThat(sourceMap.get("terminate_after"), nullValue());
         } else {
-            assertThat((Integer)extraSourceMap.get("terminate_after"), equalTo(countRequest.terminateAfter()));
+            assertThat(sourceMap.get("terminate_after"), equalTo(countRequest.terminateAfter()));
             count++;
         }
-        assertThat(extraSourceMap.size(), equalTo(count));
+        assertThat(sourceMap.toString(), sourceMap.size(), equalTo(count));
     }
 
     private static String[] randomStringArray() {

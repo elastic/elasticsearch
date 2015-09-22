@@ -25,6 +25,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 
 import java.io.IOException;
@@ -43,6 +44,10 @@ public class QueryParseContext {
     private IndicesQueriesRegistry indicesQueriesRegistry;
 
     public QueryParseContext(IndicesQueriesRegistry registry) {
+        this(null, registry); // NOCOMMIT - remove index
+    }
+
+    public QueryParseContext(Index index, IndicesQueriesRegistry registry) {
         this.indicesQueriesRegistry = registry;
         this.shardContext = null;
     }

@@ -68,15 +68,6 @@ public class BroadcastActionsIT extends ESIntegTestCase {
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
         }
-
-        for (int i = 0; i < 5; i++) {
-            // test failed (simply query that can't be parsed)
-            try {
-                client().count(countRequest("test").source("{ term : { _type : \"type1 } }".getBytes(StandardCharsets.UTF_8))).actionGet();
-            } catch(SearchPhaseExecutionException e) {
-                assertThat(e.shardFailures().length, equalTo(numShards.numPrimaries));
-            }
-        }
     }
 
     private XContentBuilder source(String id, String nameValue) throws IOException {

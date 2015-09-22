@@ -98,11 +98,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public BytesReference extraSource() {
-        return shardSearchLocalRequest.extraSource();
-    }
-
-    @Override
     public int numberOfShards() {
         return shardSearchLocalRequest.numberOfShards();
     }
@@ -121,15 +116,9 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public long nowInMillis() {
         return shardSearchLocalRequest.nowInMillis();
     }
-
     @Override
     public Template template() {
         return shardSearchLocalRequest.template();
-    }
-
-    @Override
-    public BytesReference templateSource() {
-        return shardSearchLocalRequest.templateSource();
     }
 
     @Override

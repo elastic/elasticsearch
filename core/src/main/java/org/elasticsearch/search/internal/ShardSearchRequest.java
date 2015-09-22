@@ -45,8 +45,6 @@ public interface ShardSearchRequest extends HasContextAndHeaders {
 
     void source(SearchSourceBuilder source);
 
-    BytesReference extraSource();
-
     int numberOfShards();
 
     SearchType searchType();
@@ -56,8 +54,6 @@ public interface ShardSearchRequest extends HasContextAndHeaders {
     long nowInMillis();
 
     Template template();
-
-    BytesReference templateSource();
 
     Boolean requestCache();
 

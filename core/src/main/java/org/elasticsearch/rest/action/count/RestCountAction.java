@@ -19,16 +19,22 @@
 
 package org.elasticsearch.rest.action.count;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -37,6 +43,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+
+import java.io.IOException;
 
 import static org.elasticsearch.action.count.CountRequest.DEFAULT_MIN_SCORE;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -49,8 +58,10 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
  */
 public class RestCountAction extends BaseRestHandler {
 
+    private final IndicesQueriesRegistry indicesQueriesRegistry;
+
     @Inject
-    public RestCountAction(Settings settings, RestController controller, Client client) {
+    public RestCountAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
         super(settings, controller, client);
         controller.registerHandler(POST, "/_count", this);
         controller.registerHandler(GET, "/_count", this);
@@ -58,6 +69,7 @@ public class RestCountAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_count", this);
         controller.registerHandler(POST, "/{index}/{type}/_count", this);
         controller.registerHandler(GET, "/{index}/{type}/_count", this);
+        this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
 
     @Override
@@ -65,13 +77,19 @@ public class RestCountAction extends BaseRestHandler {
         CountRequest countRequest = new CountRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         if (RestActions.hasBodyContent(request)) {
-            countRequest.source(RestActions.getRestContent(request));
+            BytesReference restContent = RestActions.getRestContent(request);
+            try (XContentParser requestParser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+                context.reset(requestParser);
+                final SearchSourceBuilder builder = SearchSourceBuilder.PROTOTYPE.fromXContent(requestParser, context);
+                countRequest.searchSource(builder);
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to parse source", e);
+            }
         } else {
             QueryBuilder<?> queryBuilder = RestActions.parseQuerySource(request);
             if (queryBuilder != null) {
-                QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
-                querySourceBuilder.setQuery(queryBuilder);
-                countRequest.source(querySourceBuilder.buildAsBytes());
+                countRequest.query(queryBuilder);
             }
         }
         countRequest.routing(request.param("routing"));

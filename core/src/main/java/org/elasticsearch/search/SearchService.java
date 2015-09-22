@@ -34,6 +34,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,6 +51,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -62,6 +64,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
@@ -578,10 +581,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 context.scrollContext(new ScrollContext());
                 context.scrollContext().scroll = request.scroll();
             }
-
-            parseTemplate(request, context);
+            if (request.template() != null) {
+                ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, context);
+                BytesReference run = (BytesReference) executable.run();
+                try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
+                    // NOCOMMIT this override the source entirely
+                    request.source(SearchSourceBuilder.PROTOTYPE.fromXContent(parser, new QueryParseContext(indexService.queryParserService().indicesQueriesRegistry())));
+                }
+            }
             parseSource(context, request.source());
-            // parseSource(context, request.extraSource()); NOCOMMIT fix this
 
             // if the from and size are still not set, default them
             if (context.from() == -1) {
@@ -668,70 +676,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         } catch (Throwable e) {
             logger.warn("failed to process shard failure to (potentially) send back shard failure on corruption", e);
         }
-    }
-
-    private void parseTemplate(ShardSearchRequest request, SearchContext searchContext) {
-
-        BytesReference processedQuery;
-        if (request.template() != null) {
-            ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, searchContext);
-            processedQuery = (BytesReference) executable.run();
-        } else {
-            if (!hasLength(request.templateSource())) {
-                return;
-            }
-            XContentParser parser = null;
-            Template template = null;
-
-            try {
-                parser = XContentFactory.xContent(request.templateSource()).createParser(request.templateSource());
-                template = TemplateQueryParser.parse(parser, searchContext.parseFieldMatcher(), "params", "template");
-
-                if (template.getType() == ScriptService.ScriptType.INLINE) {
-                    //Try to double parse for nested template id/file
-                    parser = null;
-                    try {
-                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext);
-                        processedQuery = (BytesReference) executable.run();
-                        parser = XContentFactory.xContent(processedQuery).createParser(processedQuery);
-                    } catch (ElasticsearchParseException epe) {
-                        //This was an non-nested template, the parse failure was due to this, it is safe to assume this refers to a file
-                        //for backwards compatibility and keep going
-                        template = new Template(template.getScript(), ScriptService.ScriptType.FILE, MustacheScriptEngineService.NAME,
-                                null, template.getParams());
-                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext);
-                        processedQuery = (BytesReference) executable.run();
-                    }
-                    if (parser != null) {
-                        try {
-                            Template innerTemplate = TemplateQueryParser.parse(parser, searchContext.parseFieldMatcher());
-                            if (hasLength(innerTemplate.getScript()) && !innerTemplate.getType().equals(ScriptService.ScriptType.INLINE)) {
-                                //An inner template referring to a filename or id
-                                template = new Template(innerTemplate.getScript(), innerTemplate.getType(),
-                                        MustacheScriptEngineService.NAME, null, template.getParams());
-                                ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH,
-                                        searchContext);
-                                processedQuery = (BytesReference) executable.run();
-                            }
-                        } catch (ScriptParseException e) {
-                            // No inner template found, use original template from above
-                        }
-                    }
-                } else {
-                    ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext);
-                    processedQuery = (BytesReference) executable.run();
-                }
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("Failed to parse template", e);
-            } finally {
-                Releasables.closeWhileHandlingException(parser);
-            }
-
-            if (!hasLength(template.getScript())) {
-                throw new ElasticsearchParseException("Template must have [template] field configured");
-            }
-        }
-        // request.source(processedQuery); NOCOMMIT fix this
     }
 
     private void parseSource(SearchContext context, SearchSourceBuilder source) throws SearchParseException {

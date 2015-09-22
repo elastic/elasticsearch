@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
@@ -145,7 +146,6 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
 
     /**
      * Setup for the whole base test class.
-     * @throws IOException
      */
     @BeforeClass
     public static void init() throws IOException {
@@ -571,4 +571,55 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
         throw new UnsupportedOperationException("this test can't handle MultiTermVector requests");
     }
 
+    public void testParseIncludeExclude() throws IOException {
+        SearchSourceBuilder builder = new SearchSourceBuilder();
+        {
+            String restContent = " { \"_source\": { \"includes\": \"include\", \"excludes\": \"*.field2\"}}";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(queryParserService.indicesQueriesRegistry()));
+                assertArrayEquals(new String[]{"*.field2" }, searchSourceBuilder.fetchSource().excludes());
+                assertArrayEquals(new String[]{"include" }, searchSourceBuilder.fetchSource().includes());
+            }
+        }
+        {
+            String restContent = " { \"_source\": false}";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(queryParserService.indicesQueriesRegistry()));
+                assertArrayEquals(new String[]{}, searchSourceBuilder.fetchSource().excludes());
+                assertArrayEquals(new String[]{}, searchSourceBuilder.fetchSource().includes());
+                assertFalse(searchSourceBuilder.fetchSource().fetchSource());
+            }
+        }
+    }
+
+    public void testParseSort() throws IOException {
+        SearchSourceBuilder builder = new SearchSourceBuilder();
+        {
+            String restContent = " { \"sort\": \"foo\"}";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(queryParserService.indicesQueriesRegistry()));
+                assertEquals(1, searchSourceBuilder.sorts().size());
+                assertEquals("{\"foo\":{}}", searchSourceBuilder.sorts().get(0).toUtf8());
+            }
+        }
+
+        {
+            String restContent = "{\"sort\" : [\n" +
+                    "        { \"post_date\" : {\"order\" : \"asc\"}},\n" +
+                    "        \"user\",\n" +
+                    "        { \"name\" : \"desc\" },\n" +
+                    "        { \"age\" : \"desc\" },\n" +
+                    "        \"_score\"\n" +
+                    "    ]}";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(queryParserService.indicesQueriesRegistry()));
+                assertEquals(5, searchSourceBuilder.sorts().size());
+                assertEquals("{\"post_date\":{\"order\":\"asc\"}}", searchSourceBuilder.sorts().get(0).toUtf8());
+                assertEquals("\"user\"", searchSourceBuilder.sorts().get(1).toUtf8());
+                assertEquals("{\"name\":\"desc\"}", searchSourceBuilder.sorts().get(2).toUtf8());
+                assertEquals("{\"age\":\"desc\"}", searchSourceBuilder.sorts().get(3).toUtf8());
+                assertEquals("\"_score\"", searchSourceBuilder.sorts().get(4).toUtf8());
+            }
+        }
+    }
 }

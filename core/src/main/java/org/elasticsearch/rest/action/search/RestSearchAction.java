@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -31,8 +30,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -41,6 +42,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.exists.RestExistsAction;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -91,26 +94,36 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
         SearchRequest searchRequest;
-        searchRequest = RestSearchAction.parseSearchRequest(request, parseFieldMatcher, queryRegistry);
-        client.search(searchRequest, new RestStatusToXContentListener<SearchResponse>(channel));
+        searchRequest = RestSearchAction.parseSearchRequest(queryRegistry, request, parseFieldMatcher);
+        client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
-    public static SearchRequest parseSearchRequest(RestRequest request, ParseFieldMatcher parseFieldMatcher, IndicesQueriesRegistry queryRegistry) throws IOException {
+    public static SearchRequest parseSearchRequest(IndicesQueriesRegistry indicesQueriesRegistry,  RestRequest request, ParseFieldMatcher parseFieldMatcher) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         SearchRequest searchRequest = new SearchRequest(indices);
         // get the content, and put it in the body
         // add content/source as template if template flag is set
         boolean isTemplateRequest = request.path().endsWith("/template");
+        final SearchSourceBuilder builder;
         if (RestActions.hasBodyContent(request)) {
+            BytesReference restContent = RestActions.getRestContent(request);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+            System.out.println(restContent.toUtf8());
             if (isTemplateRequest) {
-                searchRequest.templateSource(RestActions.getRestContent(request));
+                try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                    context.reset(parser);
+                    Template template = TemplateQueryParser.parse(parser, context.parseFieldMatcher(), "params", "template");
+                    searchRequest.template(template);
+                }
+                builder = null;
             } else {
-                BytesReference sourceBytes = RestActions.getRestContent(request);
-                XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes);
-                QueryParseContext queryParseContext = new QueryParseContext(queryRegistry);
-                queryParseContext.reset(parser);
-                searchRequest.source(SearchSourceBuilder.PROTOTYPE.fromXContent(parser, queryParseContext));
+                try (XContentParser requestParser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                    context.reset(requestParser);
+                    builder = SearchSourceBuilder.PROTOTYPE.fromXContent(requestParser, context);
+                }
             }
+        } else {
+            builder = null;
         }
 
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
@@ -123,8 +136,15 @@ public class RestSearchAction extends BaseRestHandler {
         } else {
             searchRequest.searchType(searchType);
         }
-
-        searchRequest.extraSource(parseSearchSource(request));
+        if (builder == null) {
+            SearchSourceBuilder extraBuilder = new SearchSourceBuilder();
+            if (parseSearchSource(extraBuilder, request)) {
+                searchRequest.source(extraBuilder);
+            }
+        } else {
+            parseSearchSource(builder, request);
+            searchRequest.source(builder);
+        }
         searchRequest.requestCache(request.paramAsBoolean("request_cache", null));
 
         String scroll = request.param("scroll");
@@ -140,111 +160,89 @@ public class RestSearchAction extends BaseRestHandler {
         return searchRequest;
     }
 
-    public static SearchSourceBuilder parseSearchSource(RestRequest request) {
-        SearchSourceBuilder searchSourceBuilder = null;
+    public static boolean parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request) {
 
+        boolean modified = false;
         QueryBuilder<?> queryBuilder = RestActions.parseQuerySource(request);
         if (queryBuilder != null) {
-            searchSourceBuilder = new SearchSourceBuilder();
             searchSourceBuilder.query(queryBuilder);
+            modified = true;
         }
 
         int from = request.paramAsInt("from", -1);
         if (from != -1) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             searchSourceBuilder.from(from);
+            modified = true;
         }
         int size = request.paramAsInt("size", -1);
         if (size != -1) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             searchSourceBuilder.size(size);
+            modified = true;
         }
 
         if (request.hasParam("explain")) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             searchSourceBuilder.explain(request.paramAsBoolean("explain", null));
+            modified = true;
         }
         if (request.hasParam("version")) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             searchSourceBuilder.version(request.paramAsBoolean("version", null));
+            modified = true;
         }
         if (request.hasParam("timeout")) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
+            modified = true;
         }
         if (request.hasParam("terminate_after")) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             int terminateAfter = request.paramAsInt("terminate_after",
                     SearchContext.DEFAULT_TERMINATE_AFTER);
             if (terminateAfter < 0) {
                 throw new IllegalArgumentException("terminateAfter must be > 0");
             } else if (terminateAfter > 0) {
                 searchSourceBuilder.terminateAfter(terminateAfter);
+                modified = true;
             }
         }
 
         String sField = request.param("fields");
         if (sField != null) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             if (!Strings.hasText(sField)) {
                 searchSourceBuilder.noFields();
+                modified = true;
             } else {
                 String[] sFields = Strings.splitStringByCommaToArray(sField);
                 if (sFields != null) {
                     for (String field : sFields) {
                         searchSourceBuilder.field(field);
+                        modified = true;
                     }
                 }
             }
         }
         String sFieldDataFields = request.param("fielddata_fields");
         if (sFieldDataFields != null) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             if (Strings.hasText(sFieldDataFields)) {
                 String[] sFields = Strings.splitStringByCommaToArray(sFieldDataFields);
                 if (sFields != null) {
                     for (String field : sFields) {
                         searchSourceBuilder.fieldDataField(field);
+                        modified = true;
                     }
                 }
             }
         }
         FetchSourceContext fetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         if (fetchSourceContext != null) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             searchSourceBuilder.fetchSource(fetchSourceContext);
+            modified = true;
         }
 
         if (request.hasParam("track_scores")) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
+            modified = true;
         }
 
         String sSorts = request.param("sort");
         if (sSorts != null) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             String[] sorts = Strings.splitStringByCommaToArray(sSorts);
             for (String sort : sorts) {
                 int delimiter = sort.lastIndexOf(":");
@@ -253,37 +251,33 @@ public class RestSearchAction extends BaseRestHandler {
                     String reverse = sort.substring(delimiter + 1);
                     if ("asc".equals(reverse)) {
                         searchSourceBuilder.sort(sortField, SortOrder.ASC);
+                        modified = true;
                     } else if ("desc".equals(reverse)) {
                         searchSourceBuilder.sort(sortField, SortOrder.DESC);
+                        modified = true;
                     }
                 } else {
                     searchSourceBuilder.sort(sort);
+                    modified = true;
                 }
             }
         }
 
         String sStats = request.param("stats");
         if (sStats != null) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             searchSourceBuilder.stats(Strings.splitStringByCommaToArray(sStats));
+            modified = true;
         }
 
         String suggestField = request.param("suggest_field");
         if (suggestField != null) {
             String suggestText = request.param("suggest_text", request.param("q"));
             int suggestSize = request.paramAsInt("suggest_size", 5);
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
             String suggestMode = request.param("suggest_mode");
             searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(
-                    termSuggestion(suggestField).field(suggestField).text(suggestText).size(suggestSize)
-.suggestMode(suggestMode))
-            );
+                    termSuggestion(suggestField).field(suggestField).text(suggestText).size(suggestSize).suggestMode(suggestMode)));
+            modified = true;
         }
-
-        return searchSourceBuilder;
+        return modified;
     }
 }

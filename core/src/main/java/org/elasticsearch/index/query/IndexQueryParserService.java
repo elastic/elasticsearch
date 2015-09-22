@@ -150,7 +150,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return this.queryStringLenient;
     }
 
-    IndicesQueriesRegistry indicesQueriesRegistry() {
+    public IndicesQueriesRegistry indicesQueriesRegistry() {
         return indicesQueriesRegistry;
     }
 

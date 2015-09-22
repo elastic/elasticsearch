@@ -1,6 +1,10 @@
 [[search-percolate]]
 == Percolator
 
+added[2.1.0,Percolator queries modifications aren't visible immediately and a refresh is required]
+
+added[2.1.0,For indices created on or after version 2.1.0 the percolator automatically indexes the query terms with the percolator queries this allows the percolator to percolate documents quicker. It is advisable to reindex any pre 2.1.0 indices to take advantage of this new optimization]
+
 Traditionally you design documents based on your data, store them into an index, and then define queries via the search API
 in order to retrieve these documents. The percolator works in the opposite direction. First you store queries into an
 index and then, via the percolate API, you define documents in order to retrieve these queries.
@@ -9,9 +13,6 @@ The reason that queries can be stored comes from the fact that in Elasticsearch 
 JSON. This allows you to embed queries into documents via the index API. Elasticsearch can extract the query from a
 document and make it available to the percolate API. Since documents are also defined as JSON, you can define a document
 in a request to the percolate API.
-
-The percolator and most of its features work in realtime, so once a percolate query is indexed it can immediately be used
-in the percolate API.
 
 [IMPORTANT]
 =====================================

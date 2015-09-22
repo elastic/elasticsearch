@@ -94,7 +94,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         logger.info("--> Percolate doc with field1=b");
         PercolateResponse response = client().preparePercolate()
@@ -170,6 +170,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "test1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field2", "value")).endObject())
                 .execute().actionGet();
+        refresh();
 
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -182,6 +183,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "test2")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field1", 1)).endObject())
                 .execute().actionGet();
+        refresh();
 
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -193,6 +195,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
 
         client().prepareDelete("test", PercolatorService.TYPE_NAME, "test2").execute().actionGet();
+        refresh();
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(doc).execute().actionGet();
@@ -215,6 +218,7 @@ public class PercolatorIT extends ESIntegTestCase {
                     .setRouting(Integer.toString(i % 2))
                     .execute().actionGet();
         }
+        refresh();
 
         logger.info("--> Percolate doc with no routing");
         PercolateResponse response = client().preparePercolate()
@@ -244,7 +248,7 @@ public class PercolatorIT extends ESIntegTestCase {
     }
 
     @Test
-    public void storePeroclateQueriesOnRecreatedIndex() throws Exception {
+    public void storePercolateQueriesOnRecreatedIndex() throws Exception {
         createIndex("test");
         ensureGreen();
 
@@ -299,6 +303,7 @@ public class PercolatorIT extends ESIntegTestCase {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
+        refresh();
 
         PercolateResponse percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("doc")
@@ -326,8 +331,8 @@ public class PercolatorIT extends ESIntegTestCase {
                         .field("query", termQuery("field1", "value1"))
                         .endObject())
                 .execute().actionGet();
-
         refresh();
+
         CountResponse countResponse = client().prepareCount()
                 .setQuery(matchAllQuery()).setTypes(PercolatorService.TYPE_NAME)
                 .execute().actionGet();
@@ -488,7 +493,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         logger.info("--> First percolate request");
         PercolateResponse response = client().preparePercolate()
@@ -591,7 +596,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         logger.info("--> Percolate existing doc with id 1");
         PercolateResponse response = client().preparePercolate()
@@ -665,7 +670,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         logger.info("--> Percolate existing doc with id 1");
         PercolateResponse response = client().preparePercolate()
@@ -731,7 +736,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         logger.info("--> Percolate existing doc with id 2 and version 1");
         PercolateResponse response = client().preparePercolate()
@@ -777,6 +782,7 @@ public class PercolatorIT extends ESIntegTestCase {
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .execute().actionGet();
         }
+        refresh();
 
         logger.info("--> Percolate doc to index test1");
         PercolateResponse response = client().preparePercolate()
@@ -945,7 +951,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         logger.info("--> Count percolate doc with field1=b");
         PercolateResponse response = client().preparePercolate()
@@ -1017,7 +1023,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         logger.info("--> Count percolate existing doc with id 1");
         PercolateResponse response = client().preparePercolate()
@@ -1068,6 +1074,7 @@ public class PercolatorIT extends ESIntegTestCase {
                         .execute().actionGet();
             }
         }
+        refresh();
 
         boolean onlyCount = randomBoolean();
         PercolateResponse response = client().preparePercolate()
@@ -1093,7 +1100,7 @@ public class PercolatorIT extends ESIntegTestCase {
         }
 
         // The query / filter capabilities are NOT in realtime
-        client().admin().indices().prepareRefresh("my-index").execute().actionGet();
+        refresh();
 
         int runs = randomIntBetween(3, 16);
         for (int i = 0; i < runs; i++) {
@@ -1312,26 +1319,6 @@ public class PercolatorIT extends ESIntegTestCase {
     }
 
     @Test
-    public void testPercolateNotEmptyIndexButNoRefresh() throws Exception {
-        client().admin().indices().prepareCreate("my-index")
-                .setSettings(settingsBuilder().put("index.refresh_interval", -1))
-                .execute().actionGet();
-        ensureGreen();
-
-        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "1")
-                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 1).endObject())
-                .execute().actionGet();
-
-        PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
-                .setSortByScore(true)
-                .setSize(2)
-                .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
-                .execute().actionGet();
-        assertMatchCount(response, 0l);
-    }
-
-    @Test
     public void testPercolatorWithHighlighting() throws Exception {
         StringBuilder fieldMapping = new StringBuilder("type=string")
                 .append(",store=").append(randomBoolean());
@@ -1358,6 +1345,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "5")
                 .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "fox")).endObject())
                 .execute().actionGet();
+        refresh();
 
         logger.info("--> Percolate doc with field1=The quick brown fox jumps over the lazy dog");
         PercolateResponse response = client().preparePercolate()
@@ -1383,9 +1371,6 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(matches[2].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox <em>jumps</em> over the lazy dog"));
         assertThat(matches[3].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the lazy <em>dog</em>"));
         assertThat(matches[4].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown <em>fox</em> jumps over the lazy dog"));
-
-        // Anything with percolate query isn't realtime
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
 
         logger.info("--> Query percolate doc with field1=The quick brown fox jumps over the lazy dog");
         response = client().preparePercolate()
@@ -1513,6 +1498,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject())
                 .get();
+        refresh();
 
         logger.info("--> Top percolate for doc with field1=The quick brown fox jumps over the lazy dog");
         response = client().preparePercolate()
@@ -1561,6 +1547,7 @@ public class PercolatorIT extends ESIntegTestCase {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
+        refresh();
 
         PercolateResponse percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("doc")
@@ -1636,6 +1623,7 @@ public class PercolatorIT extends ESIntegTestCase {
             fail();
         } catch (PercolatorException e) {
         }
+        refresh();
 
         PercolateResponse percolateResponse = client().preparePercolate().setDocumentType("type")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(jsonBuilder().startObject().startObject("custom").field("color", "blue").endObject().endObject()))
@@ -1652,6 +1640,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("idx", PercolatorService.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryStringQuery("custom.color:blue")).field("type", "type").endObject())
                 .get();
+        refresh();
 
         // The second request will yield a match, since the query during the proper field during parsing.
         percolateResponse = client().preparePercolate().setDocumentType("type")
@@ -1751,6 +1740,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", constantScoreQuery(rangeQuery("timestamp").from("now-1d").to("now"))).endObject())
                 .get();
+        refresh();
 
         logger.info("--> Percolate doc with field1=b");
         PercolateResponse response = client().preparePercolate()
@@ -1945,6 +1935,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setSettings(settings));
         client().prepareIndex("test", PercolatorService.TYPE_NAME)
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject()).get();
+        refresh();
         logger.info("--> Percolate doc with field1=value");
         PercolateResponse response1 = client().preparePercolate()
                 .setIndices("test").setDocumentType("type")
@@ -1999,6 +1990,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("index", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
+        refresh();
 
         // Just percolating a document that has a _parent field in its mapping should just work:
         PercolateResponse response = client().preparePercolate()

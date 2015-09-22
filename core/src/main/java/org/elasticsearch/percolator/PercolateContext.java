@@ -90,13 +90,13 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class PercolateContext extends SearchContext {
 
-    private final PercolatorQueriesRegistry percolateQueryRegistry;
     public boolean limit;
     private int size;
     public boolean doSort;
     public byte percolatorTypeId;
     private boolean trackScores;
 
+    private final ConcurrentMap<BytesRef, Query> percolateQueries;
     private final SearchShardTarget searchShardTarget;
     private final IndexService indexService;
     private final IndexFieldDataService fieldDataService;
@@ -125,6 +125,7 @@ public class PercolateContext extends SearchContext {
     private Sort sort;
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
+    private Query queryMetaDataQuery;
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, PageCacheRecycler pageCacheRecycler,
@@ -134,7 +135,7 @@ public class PercolateContext extends SearchContext {
         this.indexService = indexService;
         this.fieldDataService = indexService.fieldData();
         this.searchShardTarget = searchShardTarget;
-        this.percolateQueryRegistry = indexShard.percolateRegistry();
+        this.percolateQueries = indexShard.percolateRegistry().getPercolateQueries();
         this.types = new String[]{request.documentType()};
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -180,7 +181,7 @@ public class PercolateContext extends SearchContext {
     }
 
     public ConcurrentMap<BytesRef, Query> percolateQueries() {
-        return percolateQueryRegistry.percolateQueries();
+        return percolateQueries;
     }
 
     public Query percolateQuery() {
@@ -751,6 +752,14 @@ public class PercolateContext extends SearchContext {
     @Override
     public Map<Class<?>, Collector> queryCollectors() {
         return queryCollectors;
+    }
+
+    public void setQueryMetaDataQuery(Query queryMetaDataQuery) {
+        this.queryMetaDataQuery = queryMetaDataQuery;
+    }
+
+    public Query getQueryMetaDataQuery() {
+        return queryMetaDataQuery;
     }
 
     @Override

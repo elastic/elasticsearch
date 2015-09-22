@@ -66,3 +66,12 @@ MoreLikeThisBuilder#addLikeItem.
 If sorting on field inside a nested object then the `nested_path` should be specified.
 Before there was an attempt to resolve the nested path automatically, but that was sometimes incorrect.
 To avoid confusion the `nested_path` should always be specified.
+
+=== Percolator
+
+Adding percolator queries and modifications to existing percolator queries are no longer visible in immediately
+to the percolator. A refresh is required to run before the changes are visible to the percolator.
+
+The reason that this has changed is that on newly created indices the percolator automatically indexes the query terms
+and these query terms are used at percolate time to reduce the amount of queries the percolate API needs evaluate.
+This optimization didn't work in the percolate API mode where modifications to queries are immedialtely visible.

@@ -27,6 +27,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -80,6 +82,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
+    private final QueryMetadataService queryMetadataService;
     private boolean mapUnmappedFieldsAsString;
     private final MeanMetric percolateMetric = new MeanMetric();
     private final CounterMetric currentMetric = new CounterMetric();
@@ -94,11 +97,16 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         this.indexingService = indexingService;
         this.indexFieldDataService = indexFieldDataService;
         this.mapUnmappedFieldsAsString = indexSettings.getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
+        this.queryMetadataService = new QueryMetadataService();
         mapperService.addTypeListener(percolateTypeListener);
     }
 
-    public ConcurrentMap<BytesRef, Query> percolateQueries() {
+    public ConcurrentMap<BytesRef, Query> getPercolateQueries() {
         return percolateQueries;
+    }
+
+    public QueryMetadataService getQueryMetadataService() {
+        return queryMetadataService;
     }
 
     @Override
@@ -245,7 +253,10 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         public Engine.Create preCreate(Engine.Create create) {
             // validate the query here, before we index
             if (PercolatorService.TYPE_NAME.equals(create.type())) {
-                parsePercolatorDocument(create.id(), create.source());
+                Query query = parsePercolatorDocument(create.id(), create.source());
+                if (indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_2_1_0)) {
+                    queryMetadataService.extractQueryMetadata(query, create.parsedDoc().rootDoc());
+                }
             }
             return create;
         }
@@ -262,7 +273,10 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         public Engine.Index preIndex(Engine.Index index) {
             // validate the query here, before we index
             if (PercolatorService.TYPE_NAME.equals(index.type())) {
-                parsePercolatorDocument(index.id(), index.source());
+                Query query = parsePercolatorDocument(index.id(), index.source());
+                if (indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_2_1_0)) {
+                    queryMetadataService.extractQueryMetadata(query, index.parsedDoc().rootDoc());
+                }
             }
             return index;
         }

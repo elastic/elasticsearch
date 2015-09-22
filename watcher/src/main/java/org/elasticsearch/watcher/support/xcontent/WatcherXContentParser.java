@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.support.xcontent;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -68,6 +69,8 @@ public class WatcherXContentParser implements XContentParser {
     private final Clock clock;
     private final XContentParser parser;
     private final @Nullable SecretService secretService;
+
+    private ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
 
     public WatcherXContentParser(XContentParser parser, Clock clock, @Nullable SecretService secretService) {
         this.clock = clock;
@@ -258,6 +261,16 @@ public class WatcherXContentParser implements XContentParser {
     @Override
     public boolean isClosed() {
         return parser.isClosed();
+    }
+
+    @Override
+    public ParseFieldMatcher getParseFieldMatcher() {
+        return parseFieldMatcher;
+    }
+
+    @Override
+    public void setParseFieldMatcher(ParseFieldMatcher matcher) {
+        this.parseFieldMatcher = matcher;
     }
 
     @Override

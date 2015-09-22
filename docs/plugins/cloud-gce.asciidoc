@@ -143,7 +143,7 @@ sudo apt-get update
 wget https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-2.0.0.deb
 
 # Prepare Java installation
-sudo apt-get install java7-runtime-headless
+sudo apt-get install java8-runtime-headless
 
 # Prepare Elasticsearch installation
 sudo dpkg -i elasticsearch-2.0.0.deb
@@ -412,7 +412,7 @@ Set the service account scopes when creating the machine:
 --------------------------------------------------
 knife google server create www1 \
     -m n1-standard-1 \
-    -I debian-7-wheezy-v20131120 \
+    -I debian-8 \
     -Z us-central1-a \
     -i ~/.ssh/id_rsa \
     -x jdoe \

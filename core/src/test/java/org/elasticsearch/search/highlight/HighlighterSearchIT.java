@@ -51,7 +51,23 @@ import java.util.Map;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -61,7 +77,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNotHighlighted;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class HighlighterSearchIT extends ESIntegTestCase {
 
@@ -936,8 +957,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         Field fooField = new Field("foo").numOfFragments(1).order("score").fragmentSize(25)
                 .highlighterType("fvh").requireFieldMatch(requireFieldMatch);
-        Field barField = new Field("bar").numOfFragments(1).order("score").fragmentSize(25)
-                .highlighterType("fvh").requireFieldMatch(requireFieldMatch);
         SearchRequestBuilder req = client().prepareSearch("test").highlighter(new HighlightBuilder().field(fooField));
 
         // First check highlighting without any matched fields set
@@ -950,21 +969,31 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         // Add the subfield to the list of matched fields but don't match it.  Everything should still work
         // like before we added it.
+        fooField = new Field("foo").numOfFragments(1).order("score").fragmentSize(25).highlighterType("fvh")
+                .requireFieldMatch(requireFieldMatch);
         fooField.matchedFields("foo", "foo.plain");
+        req = client().prepareSearch("test").highlighter(new HighlightBuilder().field(fooField));
         resp = req.setQuery(queryStringQuery("running scissors").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
+
 
         // Now make half the matches come from the stored field and half from just a matched field.
         resp = req.setQuery(queryStringQuery("foo.plain:running scissors").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
 
         // Now remove the stored field from the matched field list.  That should work too.
+        fooField = new Field("foo").numOfFragments(1).order("score").fragmentSize(25).highlighterType("fvh")
+                .requireFieldMatch(requireFieldMatch);
         fooField.matchedFields("foo.plain");
+        req = client().prepareSearch("test").highlighter(new HighlightBuilder().field(fooField));
         resp = req.setQuery(queryStringQuery("foo.plain:running scissors").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with scissors"));
 
         // Now make sure boosted fields don't blow up when matched fields is both the subfield and stored field.
+        fooField = new Field("foo").numOfFragments(1).order("score").fragmentSize(25).highlighterType("fvh")
+                .requireFieldMatch(requireFieldMatch);
         fooField.matchedFields("foo", "foo.plain");
+        req = client().prepareSearch("test").highlighter(new HighlightBuilder().field(fooField));
         resp = req.setQuery(queryStringQuery("foo.plain:running^5 scissors").field("foo")).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
 
@@ -991,41 +1020,46 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         // Speaking of two fields, you can have two fields, only one of which has matchedFields enabled
         QueryBuilder twoFieldsQuery = queryStringQuery("cats").field("foo").field("foo.plain", 5)
                 .field("bar").field("bar.plain", 5);
-        resp = req.setQuery(twoFieldsQuery).highlighter(new HighlightBuilder().field(barField)).get();
+        Field barField = new Field("bar").numOfFragments(1).order("score").fragmentSize(25).highlighterType("fvh")
+                .requireFieldMatch(requireFieldMatch);
+        resp = req.setQuery(twoFieldsQuery).highlighter(new HighlightBuilder().field(fooField).field(barField)).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
         assertHighlight(resp, 0, "bar", 0, equalTo("<em>cat</em> <em>cat</em> junk junk junk junk"));
-
         // And you can enable matchedField highlighting on both
         barField.matchedFields("bar", "bar.plain");
-        resp = req.get();
+        resp = req.setQuery(twoFieldsQuery).highlighter(new HighlightBuilder().field(fooField).field(barField)).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
         assertHighlight(resp, 0, "bar", 0, equalTo("junk junk <em>cats</em> junk junk"));
 
         // Setting a matchedField that isn't searched/doesn't exist is simply ignored.
         barField.matchedFields("bar", "candy");
-        resp = req.get();
+        resp = req.setQuery(twoFieldsQuery).highlighter(new HighlightBuilder().field(fooField).field(barField)).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
         assertHighlight(resp, 0, "bar", 0, equalTo("<em>cat</em> <em>cat</em> junk junk junk junk"));
 
         // If the stored field doesn't have a value it doesn't matter what you match, you get nothing.
         barField.matchedFields("bar", "foo.plain");
-        resp = req.setQuery(queryStringQuery("running scissors").field("foo.plain").field("bar")).get();
+        resp = req.setQuery(queryStringQuery("running scissors").field("foo.plain").field("bar"))
+                .highlighter(new HighlightBuilder().field(fooField).field(barField)).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
         assertThat(resp.getHits().getAt(0).getHighlightFields(), not(hasKey("bar")));
 
         // If the stored field is found but the matched field isn't then you don't get a result either.
         fooField.matchedFields("bar.plain");
-        resp = req.setQuery(queryStringQuery("running scissors").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
+        resp = req.setQuery(queryStringQuery("running scissors").field("foo").field("foo.plain").field("bar").field("bar.plain"))
+                .highlighter(new HighlightBuilder().field(fooField).field(barField)).get();
         assertThat(resp.getHits().getAt(0).getHighlightFields(), not(hasKey("foo")));
 
         // But if you add the stored field to the list of matched fields then you'll get a result again
         fooField.matchedFields("foo", "bar.plain");
-        resp = req.setQuery(queryStringQuery("running scissors").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
+        resp = req.setQuery(queryStringQuery("running scissors").field("foo").field("foo.plain").field("bar").field("bar.plain"))
+                .highlighter(new HighlightBuilder().field(fooField).field(barField)).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
         assertThat(resp.getHits().getAt(0).getHighlightFields(), not(hasKey("bar")));
 
         // You _can_ highlight fields that aren't subfields of one another.
-        resp = req.setQuery(queryStringQuery("weird").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
+        resp = req.setQuery(queryStringQuery("weird").field("foo").field("foo.plain").field("bar").field("bar.plain"))
+                .highlighter(new HighlightBuilder().field(fooField).field(barField)).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("<em>weird</em>"));
         assertHighlight(resp, 0, "bar", 0, equalTo("<em>resul</em>t"));
 
@@ -1702,9 +1736,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         response = search.get();
         assertHighlight(response, 0, "text", 0, searchQueryMatcher);
 
+        field = new HighlightBuilder.Field("text");
 
         Matcher<String> hlQueryMatcher = equalTo("Testing the highlight <em>query</em> feature");
         field.highlightQuery(matchQuery("text", "query"));
+        highlightBuilder = new HighlightBuilder().field(field);
+        search = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "testing")).highlighter(highlightBuilder);
 
         field.highlighterType("fvh");
         response = search.get();

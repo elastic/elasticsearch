@@ -79,6 +79,7 @@ import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
@@ -389,7 +390,8 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
         }
         if (randomBoolean()) {
             // NORELEASE need a random suggest builder method
-            builder.suggest(new SuggestBuilder(randomAsciiOfLengthBetween(5, 20)).setText(randomAsciiOfLengthBetween(1, 5)));
+            builder.suggest(new SuggestBuilder().setText(randomAsciiOfLengthBetween(1, 5)).addSuggestion(
+                    SuggestBuilders.termSuggestion(randomAsciiOfLengthBetween(1, 5))));
         }
         if (randomBoolean()) {
             // NORELEASE need a random inner hits builder method

@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
@@ -456,9 +456,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public SearchSourceBuilder suggest(SuggestBuilder suggestBuilder) {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
             suggestBuilder.toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
             this.suggestBuilder = builder.bytes();
             return this;
         } catch (IOException e) {
@@ -689,7 +687,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         XContentParser.Token token;
         String currentFieldName = null;
         if ((token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
-            throw new QueryParsingException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] but found [" + token + "]",
+            throw new ParsingException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] but found [" + token + "]",
                     parser.getTokenLocation());
         }
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -716,7 +714,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     FetchSourceContext fetchSourceContext = FetchSourceContext.parse(parser, context);
                     builder.fetchSourceContext = fetchSourceContext;
                 } else {
-                    throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                    throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -741,7 +739,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                         scriptFields
                                                 .add(new ScriptField(scriptFieldName, Script.parse(parser, context.parseFieldMatcher())));
                                     } else {
-                                        throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName
+                                        throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName
                                                 + "].", parser.getTokenLocation());
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
@@ -749,16 +747,16 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                         scriptFields
                                                 .add(new ScriptField(scriptFieldName, Script.parse(parser, context.parseFieldMatcher())));
                                     } else {
-                                        throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName
+                                        throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName
                                                 + "].", parser.getTokenLocation());
                                     }
                                 } else {
-                                    throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName
+                                    throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName
                                             + "].", parser.getTokenLocation());
                                 }
                             }
                         } else {
-                            throw new QueryParsingException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] in ["
+                            throw new ParsingException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] in ["
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
@@ -771,7 +769,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         } else if (token.isValue()) {
                             indexBoost.put(currentFieldName, parser.floatValue());
                         } else {
-                            throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                            throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
                                     parser.getTokenLocation());
                         }
                     }
@@ -789,7 +787,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                             xContentBuilder.endObject();
                             aggregations.add(xContentBuilder.bytes());
                         } else {
-                            throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                            throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
                                     parser.getTokenLocation());
                         }
                     }
@@ -804,7 +802,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType()).copyCurrentStructure(parser);
                     builder.suggestBuilder = xContentBuilder.bytes();
                 } else {
-                    throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                    throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
@@ -814,7 +812,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         if (token == XContentParser.Token.VALUE_STRING) {
                             fieldNames.add(parser.text());
                         } else {
-                            throw new QueryParsingException(context, "Expected [" + XContentParser.Token.VALUE_STRING + "] in ["
+                            throw new ParsingException(context, "Expected [" + XContentParser.Token.VALUE_STRING + "] in ["
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
@@ -825,7 +823,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         if (token == XContentParser.Token.VALUE_STRING) {
                             fieldDataFields.add(parser.text());
                         } else {
-                            throw new QueryParsingException(context, "Expected [" + XContentParser.Token.VALUE_STRING + "] in ["
+                            throw new ParsingException(context, "Expected [" + XContentParser.Token.VALUE_STRING + "] in ["
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
@@ -850,17 +848,17 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         if (token == XContentParser.Token.VALUE_STRING) {
                             stats.add(parser.text());
                         } else {
-                            throw new QueryParsingException(context, "Expected [" + XContentParser.Token.VALUE_STRING + "] in ["
+                            throw new ParsingException(context, "Expected [" + XContentParser.Token.VALUE_STRING + "] in ["
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
                     builder.stats = stats.toArray(new String[stats.size()]);
                 } else {
-                    throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                    throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
                 }
             } else {
-                throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
                         parser.getTokenLocation());
             }
         }

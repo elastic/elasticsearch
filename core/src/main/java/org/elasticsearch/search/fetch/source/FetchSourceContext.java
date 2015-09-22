@@ -21,6 +21,7 @@ package org.elasticsearch.search.fetch.source;
 
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -206,7 +206,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 includesList.add(parser.text());
                             } else {
-                                throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
                                         parser.getTokenLocation());
                             }
                         }
@@ -217,22 +217,22 @@ public class FetchSourceContext implements Streamable, ToXContent {
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 excludesList.add(parser.text());
                             } else {
-                                throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
                                         parser.getTokenLocation());
                             }
                         }
                         excludes = excludesList.toArray(new String[excludesList.size()]);
                     } else {
-                        throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                        throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
                                 parser.getTokenLocation());
                     }
                 } else {
-                    throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                    throw new ParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
                 }
             }
         } else {
-            throw new QueryParsingException(context, "Expected one of [" + XContentParser.Token.VALUE_BOOLEAN + ", "
+            throw new ParsingException(context, "Expected one of [" + XContentParser.Token.VALUE_BOOLEAN + ", "
                     + XContentParser.Token.START_OBJECT + "] but found [" + token + "]", parser.getTokenLocation());
         }
         this.fetchSource = fetchSource;

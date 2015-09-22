@@ -31,6 +31,7 @@ import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
  * separated by white space. The fields respectively are described as follows:
  *
  * <table cellspacing="8">
+ * <caption>Fields in cron expressions</caption>
  * <tr>
  * <th align="left">Field Name</th>
  * <th align="left">&nbsp;</th>
@@ -40,51 +41,51 @@ import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
  * </tr>
  * <tr>
  * <td align="left"><code>Seconds</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>0-59</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>, - * /</code></td>
  * </tr>
  * <tr>
  * <td align="left"><code>Minutes</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>0-59</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>, - * /</code></td>
  * </tr>
  * <tr>
  * <td align="left"><code>Hours</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>0-23</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>, - * /</code></td>
  * </tr>
  * <tr>
  * <td align="left"><code>Day-of-month</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>1-31</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>, - * ? / L W</code></td>
  * </tr>
  * <tr>
  * <td align="left"><code>Month</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>0-11 or JAN-DEC</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>, - * /</code></td>
  * </tr>
  * <tr>
  * <td align="left"><code>Day-of-Week</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>1-7 or SUN-SAT</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>, - * ? / L #</code></td>
  * </tr>
  * <tr>
  * <td align="left"><code>Year (Optional)</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>empty, 1970-2199</code></td>
- * <td align="left">&nbsp;</th>
+ * <td align="left">&nbsp;</td>
  * <td align="left"><code>, - * /</code></td>
  * </tr>
  * </table>
@@ -154,7 +155,6 @@ import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
  * no firing will occur that month.  If the '#' character is used, there can
  * only be one expression in the day-of-week field (&quot;3#1,6#3&quot; is
  * not valid, since there are two expressions).
- * <P>
  * <!--The 'C' character is allowed for the day-of-month and day-of-week fields.
  * This character is short-hand for "calendar". This means values are
  * calculated against the associated calendar, if any. If no calendar is
@@ -180,7 +180,6 @@ import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
  * interpretation CronExpression chooses. An example would be
  * "0 0 14-6 ? * FRI-MON". </li>
  * </ul>
- * </p>
  *
  *
  * @author Sharada Jambula, James House
@@ -256,7 +255,7 @@ public class Cron {
      *
      * @param expression String representation of the cron expression the
      *                       new object should represent
-     * @throws java.text.ParseException
+     * @throws IllegalArgumentException
      *         if the string expression cannot be parsed into a valid
      *         <CODE>CronExpression</CODE>
      */

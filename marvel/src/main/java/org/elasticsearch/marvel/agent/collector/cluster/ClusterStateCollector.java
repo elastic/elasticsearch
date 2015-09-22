@@ -23,7 +23,7 @@ import java.util.List;
 
 /**
  * Collector for cluster state.
- * <p/>
+ * <p>
  * This collector runs on the master node only and collects the {@link ClusterStateMarvelDoc} document
  * at a given frequency.
  */

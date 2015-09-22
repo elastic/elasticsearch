@@ -87,7 +87,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
     }
 
     /**
-     * @return Sets the initial active state of the watch
+     * Sets the initial active state of the watch
      */
     public void setActive(boolean active) {
         this.active = active;

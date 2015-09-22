@@ -31,7 +31,7 @@ public class HandshakeWaitingHandler extends SimpleChannelHandler {
     private Queue<MessageEvent> pendingWrites = new LinkedList<>();
 
     /**
-     * @param logger    We pass a context aware logger here (logger that is aware of the node name & env)
+     * @param logger    We pass a context aware logger here (logger that is aware of the node name &amp; env)
      */
     public HandshakeWaitingHandler(ESLogger logger) {
         this.logger = logger;

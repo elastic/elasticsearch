@@ -25,7 +25,7 @@ import java.util.List;
 
 /**
  * Collector for shards.
- * <p/>
+ * <p>
  * This collector runs on the master node only and collects the {@link ShardMarvelDoc} documents
  * for every index shard.
  */

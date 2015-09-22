@@ -24,7 +24,7 @@ import java.util.List;
 
 /**
  * Collector for indices statistics.
- * <p/>
+ * <p>
  * This collector runs on the master node only and collect a {@link IndexStatsMarvelDoc} document
  * for each existing index in the cluster.
  */

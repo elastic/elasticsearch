@@ -23,7 +23,7 @@ import java.util.List;
 
 /**
  * Collector for the Recovery API.
- * <p/>
+ * <p>
  * This collector runs on the master node only and collects a {@link IndexRecoveryMarvelDoc} document
  * for every index that has on-going shard recoveries.
  */

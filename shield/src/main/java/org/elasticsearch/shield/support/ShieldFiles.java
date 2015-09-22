@@ -27,8 +27,6 @@ public class ShieldFiles {
      * If the destination path exists, it is overwritten
      *
      * @param path The path of the destination file
-     * @return
-     * @throws IOException
      */
     public static final Writer openAtomicMoveWriter(final Path path) throws IOException {
         final Path tempFile = Files.createTempFile(path.getParent(), path.getFileName().toString(), "tmp");

@@ -36,8 +36,6 @@ public class ManualTriggerEngine implements TriggerEngine<ManualTrigger,ManualTr
     /**
      * It's the responsibility of the trigger engine implementation to select the appropriate jobs
      * from the given list of jobs
-     *
-     * @param jobs
      */
     @Override
     public void start(Collection<Job> jobs) {

@@ -211,7 +211,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
      * the first realm that successfully authenticates will "win" and its authenticated user will be returned.
      * If none of the configured realms successfully authenticates the request, an {@link ElasticsearchSecurityException}
      * will be thrown.
-     * <p/>
+     * <p>
      * The order by which the realms are checked is defined in {@link Realms}.
      *
      * @param action       The executed action

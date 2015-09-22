@@ -29,7 +29,7 @@ import java.util.List;
 
 /**
  * Collector for nodes statistics.
- * <p/>
+ * <p>
  * This collector runs on every non-client node and collect
  * a {@link NodeStatsMarvelDoc} document for each node of the cluster.
  */

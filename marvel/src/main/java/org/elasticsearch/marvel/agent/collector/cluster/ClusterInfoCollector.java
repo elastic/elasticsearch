@@ -25,7 +25,7 @@ import java.util.List;
 
 /**
  * Collector for registered licenses and additional cluster information.
- * <p/>
+ * <p>
  * This collector runs on the master node and collect data about all
  * known licenses that are currently registered. It also ships some stats
  * about the cluster (to be used in Phone Home feature).

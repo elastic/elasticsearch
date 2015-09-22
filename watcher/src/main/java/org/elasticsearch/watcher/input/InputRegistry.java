@@ -30,7 +30,6 @@ public class InputRegistry {
      *
      * @param parser    The parser containing the input definition
      * @return          A new input instance from the parser
-     * @throws java.io.IOException
      */
     public ExecutableInput parse(String watchId, XContentParser parser) throws IOException {
         String type = null;

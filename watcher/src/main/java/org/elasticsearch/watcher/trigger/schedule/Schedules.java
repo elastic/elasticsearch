@@ -16,11 +16,11 @@ public class Schedules {
     /**
      * Creates an interval schedule. The provided string can have the following format:
      * <ul>
-     *     <li>34s</li> - a 34 seconds long interval
-     *     <li>23m</li> - a 23 minutes long interval
-     *     <li>40h</li> - a 40 hours long interval
-     *     <li>63d</li> - a 63 days long interval
-     *     <li>27w</li> - a 27 weeks long interval
+     *     <li>34s - a 34 seconds long interval</li>
+     *     <li>23m - a 23 minutes long interval</li>
+     *     <li>40h - a 40 hours long interval</li>
+     *     <li>63d - a 63 days long interval</li>
+     *     <li>27w - a 27 weeks long interval</li>
      * </ul>
      *
      * @param interval  The fixed interval by which the schedule will trigger.

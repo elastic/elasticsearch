@@ -45,7 +45,7 @@ import java.util.function.Predicate;
  *                      user can execute a request as
  *     </li>
  *     <li>
- *         Global -     a composite permission that combines a both cluster & indices permissions
+ *         Global -     a composite permission that combines a both cluster &amp; indices permissions
  *     </li>
  * </ul>
  */

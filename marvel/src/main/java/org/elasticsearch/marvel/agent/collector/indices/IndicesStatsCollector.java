@@ -20,7 +20,7 @@ import java.util.Collections;
 
 /**
  * Collector for indices statistics.
- * <p/>
+ * <p>
  * This collector runs on the master node only and collect one {@link IndicesStatsMarvelDoc} document.
  */
 public class IndicesStatsCollector extends AbstractCollector<IndicesStatsCollector> {

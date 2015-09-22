@@ -12,20 +12,9 @@ package org.elasticsearch.shield.authc;
  */
 public interface AuthenticationToken {
 
-    /**
-     *
-     * @return
-     */
     String principal();
 
-    /**
-     *
-     * @return
-     */
     Object credentials();
 
-    /**
-     * 
-     */
     void clearCredentials();
 }

@@ -14,7 +14,7 @@ import java.util.Arrays;
  * This is not a string but a CharSequence that can be cleared of its memory.  Important for handling passwords.
  *
  * Not thread safe There is a chance that the chars could be cleared while doing operations on the chars.
- * <p/>
+ * <p>
  * TODO: dot net's SecureString implementation does some obfuscation of the password to prevent gleaming passwords
  * from memory dumps.  (this is hard as dot net uses windows system crypto.  Thats probably the reason java still doesn't have it)
  */

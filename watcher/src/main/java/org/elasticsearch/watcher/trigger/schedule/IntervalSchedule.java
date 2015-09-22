@@ -106,9 +106,9 @@ public class IntervalSchedule implements Schedule {
 
     /**
      * Represents a time interval. Ideally we would have used TimeValue here, but we don't because:
-     * 1. We should limit the time values that the user can configure (we don't want to support nanos & millis
-     * 2. TimeValue formatting & parsing is inconsistent (it doesn't format to a value that it can parse)
-     * 3. The equals of TimeValue is odd - it will only equate two time values that have the exact same unit & duration,
+     * 1. We should limit the time values that the user can configure (we don't want to support nanos &amp; millis
+     * 2. TimeValue formatting &amp; parsing is inconsistent (it doesn't format to a value that it can parse)
+     * 3. The equals of TimeValue is odd - it will only equate two time values that have the exact same unit &amp; duration,
      *    this interval on the other hand, equates based on the millis value.
      * 4. We have the advantage of making this interval construct a ToXContent
      */

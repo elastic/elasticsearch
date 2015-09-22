@@ -22,7 +22,7 @@ import java.util.List;
 
 /**
  * Collector for cluster stats.
- * <p/>
+ * <p>
  * This collector runs on the master node only and collects the {@link ClusterStatsMarvelDoc} document
  * at a given frequency.
  */

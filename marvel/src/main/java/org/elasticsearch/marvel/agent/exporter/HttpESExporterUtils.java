@@ -90,21 +90,21 @@ public class HttpESExporterUtils {
     }
 
     /**
-     * Extract & parse the version contained in the given template
+     * Extract &amp; parse the version contained in the given template
      */
     public static Version parseTemplateVersion(byte[] template) {
         return parseTemplateVersion(new String(template, Charset.forName("UTF-8")));
     }
 
     /**
-     * Extract & parse the version contained in the given template
+     * Extract &amp; parse the version contained in the given template
      */
     public static Version parseTemplateVersion(String template) {
         return parseVersion(MARVEL_VERSION_FIELD, template);
     }
 
     /**
-     * Extract & parse the elasticsearch version, as returned by the REST API
+     * Extract &amp; parse the elasticsearch version, as returned by the REST API
      */
     public static Version parseElasticsearchVersion(byte[] template) {
         return parseVersion(VERSION_FIELD, new String(template, Charset.forName("UTF-8")));

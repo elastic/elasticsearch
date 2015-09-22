@@ -34,13 +34,13 @@ public class ConditionRegistry {
 
     /**
      * Parses the xcontent and returns the appropriate executable condition. Expecting the following format:
-     * <code><pre>
+     * <pre><code>
      *     {
      *         "condition_type" : {
      *             ...              //condition body
      *         }
      *     }
-     * </pre></code>
+     * </code></pre>
      */
     public ExecutableCondition parseExecutable(String watchId, XContentParser parser) throws IOException {
         Condition condition = parseCondition(watchId, parser);
@@ -49,13 +49,13 @@ public class ConditionRegistry {
 
     /**
      * Parses the xcontent and returns the appropriate condition. Expecting the following format:
-     * <code><pre>
+     * <pre><code>
      *     {
      *         "condition_type" : {
      *             ...              //condition body
      *         }
      *     }
-     * </pre></code>
+     * </code></pre>
      */
     public Condition parseCondition(String watchId, XContentParser parser) throws IOException {
         Condition condition = null;

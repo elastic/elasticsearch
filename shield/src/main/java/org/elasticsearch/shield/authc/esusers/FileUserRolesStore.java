@@ -106,8 +106,8 @@ public class FileUserRolesStore {
 
     /**
      * parses the users_roles file. Should never return return {@code null}, if the file doesn't exist
-     * an empty map is returned. The read file holds a mapping per line of the form "role -> users" while the returned
-     * map holds entries of the form  "user -> roles".
+     * an empty map is returned. The read file holds a mapping per line of the form "role -&gt; users" while the returned
+     * map holds entries of the form  "user -&gt; roles".
      */
     public static ImmutableMap<String, String[]> parseFile(Path path, @Nullable ESLogger logger) {
         if (logger == null) {
@@ -181,7 +181,7 @@ public class FileUserRolesStore {
     }
 
     /**
-     * Accepts a mapping of user -> list of roles
+     * Accepts a mapping of user -&gt; list of roles
      */
     public static void writeFile(Map<String, String[]> userToRoles, Path path) {
         HashMap<String, List<String>> roleToUsers = new HashMap<>();

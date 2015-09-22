@@ -34,16 +34,12 @@ input {
 }
 
 output {
-  elasticsearch {
-    protocol => "http"
-    host => "localhost" <2>
-  }
+  elasticsearch { }
   stdout { }
 }
 ----------------------------------------------------------
-
 <1> Checks the feed every hour. 
-<2> The hostname or IP address of the host to use to connect to your Elasticsearch cluster. 
++
 For more information see {logstash-ref}/plugins-outputs-elasticsearch.html#plugins-outputs-elasticsearch-host[Elasticsearch output] in the Logstash Reference.
 
 . Run Logstash with the `rss.conf` config file to start indexing the feed:

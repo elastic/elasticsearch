@@ -65,7 +65,6 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
     /**
      * Test that orientation parameter correctly parses
-     * @throws IOException
      */
     public void testOrientationParsing() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
@@ -104,7 +103,6 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
     /**
      * Test that orientation parameter correctly parses
-     * @throws IOException
      */
     public void testCoerceParsing() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")

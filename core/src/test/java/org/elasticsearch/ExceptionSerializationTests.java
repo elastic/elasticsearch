@@ -60,7 +60,8 @@ import org.elasticsearch.index.engine.CreateFailedEngineException;
 import org.elasticsearch.index.engine.IndexFailedEngineException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.query.TestParsingException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -105,12 +106,12 @@ public class ExceptionSerializationTests extends ESTestCase {
             throws ClassNotFoundException, IOException, URISyntaxException {
         final Set<Class> notRegistered = new HashSet<>();
         final Set<Class> hasDedicatedWrite = new HashSet<>();
-        final Set<String> registered = new HashSet<>();
+        final Set<Class> registered = new HashSet<>();
         final String path = "/org/elasticsearch";
         final Path startPath = PathUtils.get(ElasticsearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI()).resolve("org").resolve("elasticsearch");
         final Set<? extends Class> ignore = Sets.newHashSet(
                 org.elasticsearch.test.rest.parser.RestTestParseException.class,
-                org.elasticsearch.index.query.TestQueryParsingException.class,
+                TestParsingException.class,
                 org.elasticsearch.test.rest.client.RestException.class,
                 CancellableThreadsTests.CustomException.class,
                 org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
@@ -136,10 +137,10 @@ public class ExceptionSerializationTests extends ESTestCase {
                         Class<?> clazz = loadClass(filename);
                         if (ignore.contains(clazz) == false) {
                             if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false && isEsException(clazz)) {
-                                if (ElasticsearchException.isRegistered(clazz.getName()) == false && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
+                                if (ElasticsearchException.isRegistered((Class<? extends Throwable>)clazz) == false && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
                                     notRegistered.add(clazz);
-                                } else if (ElasticsearchException.isRegistered(clazz.getName())) {
-                                    registered.add(clazz.getName());
+                                } else if (ElasticsearchException.isRegistered((Class<? extends Throwable>)clazz)) {
+                                    registered.add(clazz);
                                     try {
                                         if (clazz.getDeclaredMethod("writeTo", StreamOutput.class) != null) {
                                             hasDedicatedWrite.add(clazz);
@@ -225,14 +226,14 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertNull(serialize.getCause());
     }
 
-    public void testQueryParsingException() throws IOException {
-        QueryParsingException ex = serialize(new QueryParsingException(new Index("foo"), 1, 2, "fobar", null));
+    public void testParsingException() throws IOException {
+        ParsingException ex = serialize(new ParsingException(new Index("foo"), 1, 2, "fobar", null));
         assertEquals(ex.getIndex(), "foo");
         assertEquals(ex.getMessage(), "fobar");
         assertEquals(ex.getLineNumber(),1);
         assertEquals(ex.getColumnNumber(), 2);
 
-        ex = serialize(new QueryParsingException(null, 1, 2, null, null));
+        ex = serialize(new ParsingException(null, 1, 2, null, null));
         assertNull(ex.getIndex());
         assertNull(ex.getMessage());
         assertEquals(ex.getLineNumber(),1);

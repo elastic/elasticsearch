@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -62,7 +63,7 @@ public class GeoPolygonQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -96,11 +97,11 @@ public class GeoPolygonQueryParser implements QueryParser {
                                 shell.add(shell.get(0));
                             }
                         } else {
-                            throw new QueryParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName
+                            throw new ParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName
                                     + "]");
                         }
                     } else {
-                        throw new QueryParsingException(parseContext, "[geo_polygon] query does not support token type [" + token.name()
+                        throw new ParsingException(parseContext, "[geo_polygon] query does not support token type [" + token.name()
                                 + "] under [" + currentFieldName + "]");
                     }
                 }
@@ -115,25 +116,25 @@ public class GeoPolygonQueryParser implements QueryParser {
                 } else if ("ignore_malformed".equals(currentFieldName) && coerce == false) {
                     ignoreMalformed = parser.booleanValue();
                 } else {
-                    throw new QueryParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new QueryParsingException(parseContext, "[geo_polygon] unexpected token type [" + token.name() + "]");
+                throw new ParsingException(parseContext, "[geo_polygon] unexpected token type [" + token.name() + "]");
             }
         }
 
         if (shell.isEmpty()) {
-            throw new QueryParsingException(parseContext, "no points defined for geo_polygon query");
+            throw new ParsingException(parseContext, "no points defined for geo_polygon query");
         } else {
             if (shell.size() < 3) {
-                throw new QueryParsingException(parseContext, "too few points defined for geo_polygon query");
+                throw new ParsingException(parseContext, "too few points defined for geo_polygon query");
             }
             GeoPoint start = shell.get(0);
             if (!start.equals(shell.get(shell.size() - 1))) {
                 shell.add(start);
             }
             if (shell.size() < 4) {
-                throw new QueryParsingException(parseContext, "too few points defined for geo_polygon query");
+                throw new ParsingException(parseContext, "too few points defined for geo_polygon query");
             }
         }
 
@@ -141,10 +142,10 @@ public class GeoPolygonQueryParser implements QueryParser {
         if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
             for (GeoPoint point : shell) {
                 if (point.lat() > 90.0 || point.lat() < -90.0) {
-                    throw new QueryParsingException(parseContext, "illegal latitude value [{}] for [{}]", point.lat(), NAME);
+                    throw new ParsingException(parseContext, "illegal latitude value [{}] for [{}]", point.lat(), NAME);
                 }
                 if (point.lon() > 180.0 || point.lon() < -180) {
-                    throw new QueryParsingException(parseContext, "illegal longitude value [{}] for [{}]", point.lon(), NAME);
+                    throw new ParsingException(parseContext, "illegal longitude value [{}] for [{}]", point.lon(), NAME);
                 }
             }
         }
@@ -157,10 +158,10 @@ public class GeoPolygonQueryParser implements QueryParser {
 
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
+            throw new ParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
         }
         if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
+            throw new ParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
         }
 
         IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);

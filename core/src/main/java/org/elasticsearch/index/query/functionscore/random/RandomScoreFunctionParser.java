@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.SearchContext;
@@ -49,7 +49,7 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
     }
 
     @Override
-    public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
+    public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, ParsingException {
 
         int seed = -1;
 
@@ -66,17 +66,17 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
                         } else if (parser.numberType() == XContentParser.NumberType.LONG) {
                             seed = hash(parser.longValue());
                         } else {
-                            throw new QueryParsingException(parseContext, "random_score seed must be an int, long or string, not '"
+                            throw new ParsingException(parseContext, "random_score seed must be an int, long or string, not '"
                                     + token.toString() + "'");
                         }
                     } else if (token == XContentParser.Token.VALUE_STRING) {
                         seed = parser.text().hashCode();
                     } else {
-                        throw new QueryParsingException(parseContext, "random_score seed must be an int/long or string, not '"
+                        throw new ParsingException(parseContext, "random_score seed must be an int/long or string, not '"
                                 + token.toString() + "'");
                     }
                 } else {
-                    throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             }
         }

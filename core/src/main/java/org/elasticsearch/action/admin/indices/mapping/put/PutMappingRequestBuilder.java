@@ -42,7 +42,7 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMapp
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     * <p/>
+     * <p>
      * For example indices that don't exist.
      */
     public PutMappingRequestBuilder setIndicesOptions(IndicesOptions options) {

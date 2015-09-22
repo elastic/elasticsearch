@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -44,20 +45,20 @@ public class TypeQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
+            throw new ParsingException(parseContext, "[type] filter should have a value field, and the type name");
         }
         String fieldName = parser.currentName();
         if (!fieldName.equals("value")) {
-            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
+            throw new ParsingException(parseContext, "[type] filter should have a value field, and the type name");
         }
         token = parser.nextToken();
         if (token != XContentParser.Token.VALUE_STRING) {
-            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
+            throw new ParsingException(parseContext, "[type] filter should have a value field, and the type name");
         }
         BytesRef type = parser.utf8Bytes();
         // move to the next token

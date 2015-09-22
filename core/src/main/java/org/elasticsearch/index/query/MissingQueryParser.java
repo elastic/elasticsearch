@@ -24,6 +24,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -53,7 +54,7 @@ public class MissingQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldPattern = null;
@@ -76,13 +77,13 @@ public class MissingQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[missing] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[missing] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldPattern == null) {
-            throw new QueryParsingException(parseContext, "missing must be provided with a [field]");
+            throw new ParsingException(parseContext, "missing must be provided with a [field]");
         }
 
         return newFilter(parseContext, fieldPattern, existence, nullValue, queryName);
@@ -90,7 +91,7 @@ public class MissingQueryParser implements QueryParser {
 
     public static Query newFilter(QueryParseContext parseContext, String fieldPattern, boolean existence, boolean nullValue, String queryName) {
         if (!existence && !nullValue) {
-            throw new QueryParsingException(parseContext, "missing must have either existence, or null_value, or both set to true");
+            throw new ParsingException(parseContext, "missing must have either existence, or null_value, or both set to true");
         }
 
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);

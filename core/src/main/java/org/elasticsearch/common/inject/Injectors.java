@@ -50,10 +50,10 @@ public class Injectors {
     /**
      * Returns an instance of the given type with the {@link org.elasticsearch.common.inject.name.Named}
      * annotation value.
-     * <p/>
+     * <p>
      * This method allows you to switch this code
      * <code>injector.getInstance(Key.get(type, Names.named(name)));</code>
-     * <p/>
+     * <p>
      * to the more concise
      * <code>Injectors.getInstance(injector, type, name);</code>
      */

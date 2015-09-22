@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +47,7 @@ public class DisMaxQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         float boost = 1.0f;
@@ -69,7 +70,7 @@ public class DisMaxQueryParser implements QueryParser {
                         queries.add(query);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("queries".equals(currentFieldName)) {
@@ -82,7 +83,7 @@ public class DisMaxQueryParser implements QueryParser {
                         token = parser.nextToken();
                     }
                 } else {
-                    throw new QueryParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
@@ -92,13 +93,13 @@ public class DisMaxQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (!queriesFound) {
-            throw new QueryParsingException(parseContext, "[dis_max] requires 'queries' field");
+            throw new ParsingException(parseContext, "[dis_max] requires 'queries' field");
         }
 
         if (queries.isEmpty()) {

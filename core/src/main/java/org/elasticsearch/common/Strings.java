@@ -64,10 +64,10 @@ public class Strings {
 
     /**
      * Splits a backslash escaped string on the separator.
-     * <p/>
+     * <p>
      * Current backslash escaping supported:
      * <br> \n \t \r \b \f are escaped the same as a Java String
-     * <br> Other characters following a backslash are produced verbatim (\c => c)
+     * <br> Other characters following a backslash are produced verbatim (\c =&gt; c)
      *
      * @param s         the string to split
      * @param separator the separator to split on
@@ -131,7 +131,7 @@ public class Strings {
     /**
      * Check that the given CharSequence is neither <code>null</code> nor of length 0.
      * Note: Will return <code>true</code> for a CharSequence that purely consists of whitespace.
-     * <p><pre>
+     * <pre>
      * StringUtils.hasLength(null) = false
      * StringUtils.hasLength("") = false
      * StringUtils.hasLength(" ") = true
@@ -174,7 +174,7 @@ public class Strings {
     /**
      * Check that the given CharSequence is either <code>null</code> or of length 0.
      * Note: Will return <code>false</code> for a CharSequence that purely consists of whitespace.
-     * <p><pre>
+     * <pre>
      * StringUtils.isEmpty(null) = true
      * StringUtils.isEmpty("") = true
      * StringUtils.isEmpty(" ") = false
@@ -193,7 +193,7 @@ public class Strings {
      * Check whether the given CharSequence has actual text.
      * More specifically, returns <code>true</code> if the string not <code>null</code>,
      * its length is greater than 0, and it contains at least one non-whitespace character.
-     * <p><pre>
+     * <pre>
      * StringUtils.hasText(null) = false
      * StringUtils.hasText("") = false
      * StringUtils.hasText(" ") = false
@@ -400,7 +400,7 @@ public class Strings {
      *
      * @param str the input String (e.g. "myString")
      * @return the quoted String (e.g. "'myString'"),
-     *         or <code>null<code> if the input was <code>null</code>
+     *         or <code>null</code> if the input was <code>null</code>
      */
     public static String quote(String str) {
         return (str != null ? "'" + str + "'" : null);

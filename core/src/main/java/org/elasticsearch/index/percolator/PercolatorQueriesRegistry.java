@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
@@ -44,7 +43,7 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -61,7 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Each shard will have a percolator registry even if there isn't a {@link PercolatorService#TYPE_NAME} document type in the index.
  * For shards with indices that have no {@link PercolatorService#TYPE_NAME} document type, this will hold no percolate queries.
- * <p/>
+ * <p>
  * Once a document type has been created, the real-time percolator will start to listen to write events and update the
  * this registry with queries in real time.
  */
@@ -209,7 +208,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
             context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString ? true : false);
             return queryParserService.parseInnerQuery(context);
         } catch (IOException e) {
-            throw new QueryParsingException(context, "Failed to parse", e);
+            throw new ParsingException(context, "Failed to parse", e);
         } finally {
             if (type != null) {
                 QueryParseContext.setTypes(previousTypes);

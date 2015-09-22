@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * A prioritizing executor which uses a priority queue as a work queue. The jobs that will be submitted will be treated
  * as {@link PrioritizedRunnable} and/or {@link PrioritizedCallable}, those tasks that are not instances of these two will
  * be wrapped and assign a default {@link Priority#NORMAL} priority.
- * <p/>
+ * <p>
  * Note, if two tasks have the same priority, the first to arrive will be executed first (FIFO style).
  */
 public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {

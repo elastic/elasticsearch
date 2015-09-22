@@ -102,7 +102,7 @@ public class FieldSortBuilder extends SortBuilder {
     /**
      * Defines what values to pick in the case a document contains multiple values for the targeted sort field.
      * Possible values: min, max, sum and avg
-     * <p/>
+     * <p>
      * The last two values are only applicable for number based fields.
      */
     public FieldSortBuilder sortMode(String sortMode) {

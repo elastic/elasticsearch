@@ -74,7 +74,7 @@ public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestB
     }
 
     /**
-     * Waits for N number of nodes. Use "12" for exact mapping, ">12" and "<12" for range.
+     * Waits for N number of nodes. Use "12" for exact mapping, "&gt;12" and "&lt;12" for range.
      */
     public ClusterHealthRequestBuilder setWaitForNodes(String waitForNodes) {
         request.waitForNodes(waitForNodes);

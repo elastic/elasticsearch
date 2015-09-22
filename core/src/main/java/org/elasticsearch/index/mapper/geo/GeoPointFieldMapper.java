@@ -69,7 +69,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 
 /**
  * Parsing: We handle:
- * <p/>
+ * <p>
  * - "field" : "geo_hash"
  * - "field" : "lat,lon"
  * - "field" : {

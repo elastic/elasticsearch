@@ -34,7 +34,7 @@ import org.elasticsearch.common.lucene.search.function.*;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,7 +76,7 @@ public class FunctionScoreQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
@@ -195,7 +195,7 @@ public class FunctionScoreQueryParser implements QueryParser {
             ScoreFunction scoreFunction = null;
             Float functionWeight = null;
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new QueryParsingException(parseContext, "failed to parse [{}]. malformed query, expected a [{}] while parsing functions but got a [{}] instead", XContentParser.Token.START_OBJECT, token, NAME);
+                throw new ParsingException(parseContext, "failed to parse [{}]. malformed query, expected a [{}] while parsing functions but got a [{}] instead", XContentParser.Token.START_OBJECT, token, NAME);
             } else {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -245,7 +245,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         } else if ("first".equals(scoreMode)) {
             return FiltersFunctionScoreQuery.ScoreMode.First;
         } else {
-            throw new QueryParsingException(parseContext, "failed to parse [{}] query. illegal score_mode [{}]", NAME, scoreMode);
+            throw new ParsingException(parseContext, "failed to parse [{}] query. illegal score_mode [{}]", NAME, scoreMode);
         }
     }
 
@@ -253,7 +253,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         String boostMode = parser.text();
         CombineFunction cf = combineFunctionsMap.get(boostMode);
         if (cf == null) {
-            throw new QueryParsingException(parseContext, "failed to parse [{}] query. illegal boost_mode [{}]", NAME, boostMode);
+            throw new ParsingException(parseContext, "failed to parse [{}] query. illegal boost_mode [{}]", NAME, boostMode);
         }
         return cf;
     }

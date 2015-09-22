@@ -57,6 +57,8 @@ include::security.asciidoc[]
 
 include::repository.asciidoc[]
 
+include::store.asciidoc[]
+
 include::transport.asciidoc[]
 
 include::integrations.asciidoc[]

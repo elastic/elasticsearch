@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
@@ -59,7 +60,7 @@ public class IndicesQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         Query noMatchQuery = null;
@@ -82,30 +83,30 @@ public class IndicesQueryParser implements QueryParser {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
                     innerNoMatchQuery = new XContentStructure.InnerQuery(parseContext, (String[])null);
                 } else {
-                    throw new QueryParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("indices".equals(currentFieldName)) {
                     if (indicesFound) {
-                        throw new QueryParsingException(parseContext, "[indices] indices or index already specified");
+                        throw new ParsingException(parseContext, "[indices] indices or index already specified");
                     }
                     indicesFound = true;
                     Collection<String> indices = new ArrayList<>();
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
-                            throw new QueryParsingException(parseContext, "[indices] no value specified for 'indices' entry");
+                            throw new ParsingException(parseContext, "[indices] no value specified for 'indices' entry");
                         }
                         indices.add(value);
                     }
                     currentIndexMatchesIndices = matchesIndices(parseContext.index().name(), indices.toArray(new String[indices.size()]));
                 } else {
-                    throw new QueryParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("index".equals(currentFieldName)) {
                     if (indicesFound) {
-                        throw new QueryParsingException(parseContext, "[indices] indices or index already specified");
+                        throw new ParsingException(parseContext, "[indices] indices or index already specified");
                     }
                     indicesFound = true;
                     currentIndexMatchesIndices = matchesIndices(parseContext.index().name(), parser.text());
@@ -119,15 +120,15 @@ public class IndicesQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext, "[indices] requires 'query' element");
+            throw new ParsingException(parseContext, "[indices] requires 'query' element");
         }
         if (!indicesFound) {
-            throw new QueryParsingException(parseContext, "[indices] requires 'indices' or 'index' element");
+            throw new ParsingException(parseContext, "[indices] requires 'indices' or 'index' element");
         }
 
         Query chosenQuery;

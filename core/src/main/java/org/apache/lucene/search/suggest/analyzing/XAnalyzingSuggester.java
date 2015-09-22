@@ -100,7 +100,7 @@ import java.util.*;
 public class XAnalyzingSuggester extends Lookup {
 
   /**
-   * FST<Weight,Surface>: 
+   * FST&lt;Weight,Surface&gt;: 
    *  input is the analyzed form, with a null byte between terms
    *  weights are encoded as costs: (Integer.MAX_VALUE-weight)
    *  surface is the original, unanalyzed form.
@@ -129,14 +129,14 @@ public class XAnalyzingSuggester extends Lookup {
    */
   private final boolean preserveSep;
 
-  /** Include this flag in the options parameter to {@link
+  /** Include this flag in the options parameter to {@code
    *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)} to always
    *  return the exact match first, regardless of score.  This
    *  has no performance impact but could result in
    *  low-quality suggestions. */
   public static final int EXACT_FIRST = 1;
 
-  /** Include this flag in the options parameter to {@link
+  /** Include this flag in the options parameter to {@code
    *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)} to preserve
    *  token separators when matching. */
   public static final int PRESERVE_SEP = 2;
@@ -183,7 +183,7 @@ public class XAnalyzingSuggester extends Lookup {
   private long count = 0;
 
     /**
-   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
+   * Calls {@code #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
    * AnalyzingSuggester(analyzer, analyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
    */
@@ -192,7 +192,7 @@ public class XAnalyzingSuggester extends Lookup {
   }
 
   /**
-   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
+   * Calls {@code #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
    * AnalyzingSuggester(indexAnalyzer, queryAnalyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
    */
@@ -986,12 +986,12 @@ public long ramBytesUsed() {
     throw new UnsupportedOperationException();
   }
   
-  /** cost -> weight */
+  /** cost -&gt; weight */
   public static int decodeWeight(long encoded) {
     return (int)(Integer.MAX_VALUE - encoded);
   }
   
-  /** weight -> cost */
+  /** weight -&gt; cost */
   public static int encodeWeight(long value) {
     if (value < 0 || value > Integer.MAX_VALUE) {
       throw new UnsupportedOperationException("cannot encode value: " + value);

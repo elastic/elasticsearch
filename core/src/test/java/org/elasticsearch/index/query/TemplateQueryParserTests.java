@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -142,7 +143,7 @@ public class TemplateQueryParserTests extends ESTestCase {
      * expressed as a single string but still it expects only the query
      * specification (thus this test should fail with specific exception).
      */
-    @Test(expected = QueryParsingException.class)
+    @Test(expected = ParsingException.class)
     public void testParseTemplateFailsToParseCompleteQueryAsSingleString() throws IOException {
         String templateString = "{" + "  \"inline\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
                 + "  \"params\":{" + "    \"size\":2" + "  }\n" + "}";

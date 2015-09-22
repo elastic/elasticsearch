@@ -127,7 +127,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      *
      * @param in input stream
      * @return a deserialized shard-level result
-     * @throws IOException
      */
     protected abstract ShardOperationResult readShardResult(StreamInput in) throws IOException;
 
@@ -150,7 +149,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      *
      * @param in input stream
      * @return a de-serialized request
-     * @throws IOException
      */
     protected abstract Request readRequestFrom(StreamInput in) throws IOException;
 

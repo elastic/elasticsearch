@@ -37,24 +37,34 @@ grant codeBase "${es.security.jar.lucene.core}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-//// Insecure plugin permissions:
-//// These are dangerous permissions due to problems in third-party library code
-//// We try our best to contain and protect the issues, but ultimately warn the user
-//// when installing these plugins that it can introduce a security risk
+//// Special plugin permissions:
+//// These are dangerous permissions only needed by special plugins that we don't
+//// want to grant in general. Some may be due to problems in third-party library code,
+//// others may just be more obscure integrations.
 
-grant codeBase "${es.security.insecure.plugin.repository-s3}" {
+grant codeBase "${es.security.plugin.repository-s3}" {
   // needed because of problems in aws-sdk
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${es.security.insecure.plugin.discovery-ec2}" {
+grant codeBase "${es.security.plugin.discovery-ec2}" {
   // needed because of problems in aws-sdk
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${es.security.insecure.plugin.cloud-gce}" {
+grant codeBase "${es.security.plugin.cloud-gce}" {
   // needed because of problems in cloud-gce
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${es.security.plugin.lang-javascript}" {
+  // needed to generate runtime classes
+  permission java.lang.RuntimePermission "createClassLoader";
+};
+
+grant codeBase "${es.security.plugin.lang-python}" {
+  // needed to generate runtime classes
+  permission java.lang.RuntimePermission "createClassLoader";
 };
 
 //// test framework permissions.
@@ -62,8 +72,11 @@ grant codeBase "${es.security.insecure.plugin.cloud-gce}" {
 //// to provide on our behalf. But tests themselves cannot do this stuff!
 
 grant codeBase "${es.security.jar.elasticsearch.securemock}" {
+  // needed to access ReflectionFactory (see below)
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   // needed to support creation of mocks
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
+  // needed for spy interception, etc
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 

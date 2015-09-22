@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,7 +46,7 @@ public class SpanFirstQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         float boost = 1.0f;
@@ -63,11 +64,11 @@ public class SpanFirstQueryParser implements QueryParser {
                 if ("match".equals(currentFieldName)) {
                     Query query = parseContext.parseInnerQuery();
                     if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(parseContext, "spanFirst [match] must be of type span query");
+                        throw new ParsingException(parseContext, "spanFirst [match] must be of type span query");
                     }
                     match = (SpanQuery) query;
                 } else {
-                    throw new QueryParsingException(parseContext, "[span_first] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[span_first] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
@@ -77,15 +78,15 @@ public class SpanFirstQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[span_first] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[span_first] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (match == null) {
-            throw new QueryParsingException(parseContext, "spanFirst must have [match] span query clause");
+            throw new ParsingException(parseContext, "spanFirst must have [match] span query clause");
         }
         if (end == -1) {
-            throw new QueryParsingException(parseContext, "spanFirst must have [end] set for it");
+            throw new ParsingException(parseContext, "spanFirst must have [end] set for it");
         }
 
         SpanFirstQuery query = new SpanFirstQuery(match, end);

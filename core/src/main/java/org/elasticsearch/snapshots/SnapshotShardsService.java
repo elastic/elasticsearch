@@ -358,7 +358,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
 
     /**
      * Checks if any shards were processed that the new master doesn't know about
-     * @param event
      */
     private void syncShardStatsOnNewMaster(ClusterChangedEvent event) {
         SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);

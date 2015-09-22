@@ -76,7 +76,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
-     * <p/>
+     * <p>
      * The script works with the variable <code>ctx</code>, which is bound to the entry,
      * e.g. <code>ctx._source.mycounter += 1</code>.
      *

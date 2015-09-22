@@ -623,12 +623,11 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
         /**
          * Snapshot individual file
-         * <p/>
+         * <p>
          * This is asynchronous method. Upon completion of the operation latch is getting counted down and any failures are
          * added to the {@code failures} list
          *
          * @param fileInfo file to be snapshotted
-         * @throws IOException
          */
         private void snapshotFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
             final String file = fileInfo.physicalName();

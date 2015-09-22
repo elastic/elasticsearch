@@ -61,7 +61,7 @@ public class XShapeCollection<S extends Shape> extends ShapeCollection<S> {
 
   /**
    * Spatial4J shapes have no knowledge of directed edges. For this reason, a bounding box
-   * that wraps the dateline can have a min longitude that is mathematically > than the
+   * that wraps the dateline can have a min longitude that is mathematically &gt; than the
    * Rectangles' minX value.  This is an issue for geometric collections (e.g., MultiPolygon
    * and ShapeCollection) Until geometry logic can be cleaned up in Spatial4J, ES provides
    * the following expansion algorithm for GeometryCollections

@@ -179,8 +179,6 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
 
     /**
      * Checks the request parameters against enabled settings for error trace support
-     * @param request
-     * @param channel
      * @return true if the request does not have any parameters that conflict with system settings
      */
     boolean checkRequestParameters(final RestRequest request, final RestChannel channel) {

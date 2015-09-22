@@ -20,7 +20,7 @@
 package org.elasticsearch.cloud.aws.network;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.cloud.aws.AwsEc2Service;
+import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +37,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * Resolves certain ec2 related 'meta' hostnames into an actual hostname
  * obtained from ec2 meta-data.
- * <p/>
+ * <p>
  * Valid config values for {@link Ec2HostnameType}s are -
  * <ul>
  * <li>_ec2_ - maps to privateIpv4</li>
@@ -88,15 +88,14 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
 
     /**
      * @param type the ec2 hostname type to discover.
-     * @return the appropriate host resolved from ec2 meta-data.
-     * @throws IOException if ec2 meta-data cannot be obtained.
+     * @return the appropriate host resolved from ec2 meta-data, or null if it cannot be obtained.
      * @see CustomNameResolver#resolveIfPossible(String)
      */
     public InetAddress[] resolve(Ec2HostnameType type, boolean warnOnFailure) {
         URLConnection urlConnection = null;
         InputStream in = null;
         try {
-            URL url = new URL(AwsEc2Service.EC2_METADATA_URL + type.ec2Name);
+            URL url = new URL(AwsEc2ServiceImpl.EC2_METADATA_URL + type.ec2Name);
             logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
             urlConnection = url.openConnection();
             urlConnection.setConnectTimeout(2000);

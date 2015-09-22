@@ -21,8 +21,10 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -33,6 +35,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Random;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
@@ -68,11 +71,12 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     }
 
     /**
-     * Wipes any data that a test can leave behind: indices, templates and repositories
+     * Wipes any data that a test can leave behind: indices, templates (except exclude templates) and repositories
      */
-    public void wipe() {
+    public void wipe(Set<String> excludeTemplates) {
         wipeIndices("_all");
         wipeTemplates();
+        wipeAllTemplates(excludeTemplates);
         wipeRepositories();
     }
 
@@ -156,6 +160,25 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
                 ESTestCase.printStackDump(logger);
                 logger.info("done dump all threads on AssertionError");
                 throw ae;
+            }
+        }
+    }
+
+    /**
+     * Removes all templates, except the templates defined in the exclude
+     */
+    public void wipeAllTemplates(Set<String> exclude) {
+        if (size() > 0) {
+            GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+            for (IndexTemplateMetaData indexTemplate : response.getIndexTemplates()) {
+                if (exclude.contains(indexTemplate.getName())) {
+                    continue;
+                }
+                try {
+                    client().admin().indices().prepareDeleteTemplate(indexTemplate.getName()).execute().actionGet();
+                } catch (IndexTemplateMissingException e) {
+                    // ignore
+                }
             }
         }
     }

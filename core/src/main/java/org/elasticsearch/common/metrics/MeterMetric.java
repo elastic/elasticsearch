@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
  * fifteen-minute exponentially-weighted moving average throughputs.
  *
  * @see <a href="http://en.wikipedia.org/wiki/Moving_average#Exponential_moving_average">EMA</a>
- *      <p/>
+ *      <p>
  *      taken from codahale metric module, replaced with LongAdder
  */
 public class MeterMetric implements Metric {

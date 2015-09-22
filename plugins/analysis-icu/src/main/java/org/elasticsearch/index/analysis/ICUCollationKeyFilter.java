@@ -23,6 +23,7 @@ import com.ibm.icu.text.RawCollationKey;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.collation.ICUCollationDocValuesField;
 
 import java.io.IOException;
 
@@ -63,7 +64,7 @@ import java.io.IOException;
  *   generation timing and key length comparisons between ICU4J and
  *   java.text.Collator over several languages.
  * </p>
- *  @deprecated Use {@link ICUCollationAttributeFactory} instead, which encodes
+ *  @deprecated Use {@link ICUCollationDocValuesField} instead, which encodes
  *  terms directly as bytes. This filter WAS removed in Lucene 5.0
  */
 @Deprecated

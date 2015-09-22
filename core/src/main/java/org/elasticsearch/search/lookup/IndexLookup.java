@@ -25,32 +25,32 @@ import org.apache.lucene.index.LeafReaderContext;
 public class IndexLookup {
 
     /**
-     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * Flag to pass to {@link IndexField#get(Object, int)} if you require
      * offsets in the returned {@link IndexFieldTerm}.
      */
     public static final int FLAG_OFFSETS = 2;
 
     /**
-     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * Flag to pass to {@link IndexField#get(Object, int)} if you require
      * payloads in the returned {@link IndexFieldTerm}.
      */
     public static final int FLAG_PAYLOADS = 4;
 
     /**
-     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * Flag to pass to {@link IndexField#get(Object, int)} if you require
      * frequencies in the returned {@link IndexFieldTerm}. Frequencies might be
      * returned anyway for some lucene codecs even if this flag is no set.
      */
     public static final int FLAG_FREQUENCIES = 8;
 
     /**
-     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * Flag to pass to {@link IndexField#get(Object, int)} if you require
      * positions in the returned {@link IndexFieldTerm}.
      */
     public static final int FLAG_POSITIONS = 16;
 
     /**
-     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * Flag to pass to {@link IndexField#get(Object, int)} if you require
      * positions in the returned {@link IndexFieldTerm}.
      */
     public static final int FLAG_CACHE = 32;

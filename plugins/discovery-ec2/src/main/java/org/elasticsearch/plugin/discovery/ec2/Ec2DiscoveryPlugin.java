@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugin.discovery.ec2;
 
-import org.elasticsearch.cloud.aws.AwsEc2Service;
+import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cloud.aws.Ec2Module;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
@@ -75,7 +75,7 @@ public class Ec2DiscoveryPlugin extends Plugin {
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
-        services.add(AwsEc2Service.class);
+        services.add(AwsEc2ServiceImpl.class);
         return services;
     }
 

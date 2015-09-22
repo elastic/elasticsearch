@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,32 +56,32 @@ import java.util.Set;
  *     multibinder.addBinding().to(Skittles.class);
  *   }
  * }</code></pre>
- * <p/>
- * <p>With this binding, a {@link Set}{@code <Snack>} can now be injected:
+ * <p>
+ * With this binding, a {@link Set}{@code <Snack>} can now be injected:
  * <pre><code>
  * class SnackMachine {
  *   {@literal @}Inject
  *   public SnackMachine(Set&lt;Snack&gt; snacks) { ... }
  * }</code></pre>
- * <p/>
- * <p>Create multibindings from different modules is supported. For example, it
+ * <p>
+ * Create multibindings from different modules is supported. For example, it
  * is okay to have both {@code CandyModule} and {@code ChipsModule} to both
  * create their own {@code Multibinder<Snack>}, and to each contribute bindings
  * to the set of snacks. When that set is injected, it will contain elements
  * from both modules.
- * <p/>
- * <p>Elements are resolved at set injection time. If an element is bound to a
+ * <p>
+ * Elements are resolved at set injection time. If an element is bound to a
  * provider, that provider's get method will be called each time the set is
  * injected (unless the binding is also scoped).
- * <p/>
- * <p>Annotations are be used to create different sets of the same element
+ * <p>
+ * Annotations are be used to create different sets of the same element
  * type. Each distinct annotation gets its own independent collection of
  * elements.
- * <p/>
- * <p><strong>Elements must be distinct.</strong> If multiple bound elements
+ * <p>
+ * <strong>Elements must be distinct.</strong> If multiple bound elements
  * have the same value, set injection will fail.
- * <p/>
- * <p><strong>Elements must be non-null.</strong> If any set element is null,
+ * <p>
+ * <strong>Elements must be non-null.</strong> If any set element is null,
  * set injection will fail.
  *
  * @author jessewilson@google.com (Jesse Wilson)
@@ -164,33 +164,33 @@ public abstract class Multibinder<T> {
      * Returns a binding builder used to add a new element in the set. Each
      * bound element must have a distinct value. Bound providers will be
      * evaluated each time the set is injected.
-     * <p/>
-     * <p>It is an error to call this method without also calling one of the
+     * <p>
+     * It is an error to call this method without also calling one of the
      * {@code to} methods on the returned binding builder.
-     * <p/>
-     * <p>Scoping elements independently is supported. Use the {@code in} method
+     * <p>
+     * Scoping elements independently is supported. Use the {@code in} method
      * to specify a binding scope.
      */
     public abstract LinkedBindingBuilder<T> addBinding();
 
     /**
      * The actual multibinder plays several roles:
-     * <p/>
-     * <p>As a Multibinder, it acts as a factory for LinkedBindingBuilders for
+     * <p>
+     * As a Multibinder, it acts as a factory for LinkedBindingBuilders for
      * each of the set's elements. Each binding is given an annotation that
      * identifies it as a part of this set.
-     * <p/>
-     * <p>As a Module, it installs the binding to the set itself. As a module,
+     * <p>
+     * As a Module, it installs the binding to the set itself. As a module,
      * this implements equals() and hashcode() in order to trick Guice into
      * executing its configure() method only once. That makes it so that
      * multiple multibinders can be created for the same target collection, but
      * only one is bound. Since the list of bindings is retrieved from the
      * injector itself (and not the multibinder), each multibinder has access to
      * all contributions from all multibinders.
-     * <p/>
-     * <p>As a Provider, this constructs the set instances.
-     * <p/>
-     * <p>We use a subclass to hide 'implements Module, Provider' from the public
+     * <p>
+     * As a Provider, this constructs the set instances.
+     * <p>
+     * We use a subclass to hide 'implements Module, Provider' from the public
      * API.
      */
     public static final class RealMultibinder<T> extends Multibinder<T>

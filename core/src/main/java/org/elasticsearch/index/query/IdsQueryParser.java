@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.iterable.Iterables;
@@ -52,7 +53,7 @@ public class IdsQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         List<BytesRef> ids = new ArrayList<>();
@@ -73,11 +74,11 @@ public class IdsQueryParser implements QueryParser {
                                 (token == XContentParser.Token.VALUE_NUMBER)) {
                             BytesRef value = parser.utf8BytesOrNull();
                             if (value == null) {
-                                throw new QueryParsingException(parseContext, "No value specified for term filter");
+                                throw new ParsingException(parseContext, "No value specified for term filter");
                             }
                             ids.add(value);
                         } else {
-                            throw new QueryParsingException(parseContext, "Illegal value for id, expecting a string or number, got: "
+                            throw new ParsingException(parseContext, "Illegal value for id, expecting a string or number, got: "
                                     + token);
                         }
                     }
@@ -86,12 +87,12 @@ public class IdsQueryParser implements QueryParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
-                            throw new QueryParsingException(parseContext, "No type specified for term filter");
+                            throw new ParsingException(parseContext, "No type specified for term filter");
                         }
                         types.add(value);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext, "[ids] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[ids] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
@@ -101,13 +102,13 @@ public class IdsQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[ids] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parseContext, "[ids] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (!idsProvided) {
-            throw new QueryParsingException(parseContext, "[ids] query, no ids values provided");
+            throw new ParsingException(parseContext, "[ids] query, no ids values provided");
         }
 
         if (ids.isEmpty()) {

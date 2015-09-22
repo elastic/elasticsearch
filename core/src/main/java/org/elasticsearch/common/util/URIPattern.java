@@ -37,7 +37,6 @@ public class URIPattern {
 
     /**
      * Constructs uri pattern
-     * @param pattern
      */
     public URIPattern(String pattern) {
         try {

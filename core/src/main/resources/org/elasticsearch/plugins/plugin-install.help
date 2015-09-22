@@ -38,16 +38,18 @@ OFFICIAL PLUGINS
     - analysis-phonetic
     - analysis-smartcn
     - analysis-stempel
-    - cloud-azure
     - cloud-gce
     - delete-by-query
+    - discovery-azure
     - discovery-ec2
     - discovery-multicast
     - lang-javascript
     - lang-python
     - mapper-murmur3
     - mapper-size
+    - repository-azure
     - repository-s3
+    - store-smb
 
 
 OPTIONS

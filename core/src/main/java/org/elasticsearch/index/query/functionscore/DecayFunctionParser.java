@@ -44,7 +44,7 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
 import org.elasticsearch.search.MultiValueMode;
@@ -60,14 +60,14 @@ import java.util.Locale;
  * This parser parses this kind of input
  *
  * <pre>
- * {@code}
+ * <code>
  * {
  *      "fieldname1" : {
  *          "origin" = "someValue",
  *          "scale" = "someValue"
  *      }
  *
- * }
+ * </code>
  * </pre>
  *
  * "origin" here refers to the reference point and "scale" to the level of
@@ -106,7 +106,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
      * Parses bodies of the kind
      *
      * <pre>
-     * {@code}
+     * <code>
      * {
      *      "fieldname1" : {
      *          "origin" = "someValue",
@@ -114,11 +114,12 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
      *      }
      *
      * }
+     * </code>
      * </pre>
      *
      * */
     @Override
-    public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
+    public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, ParsingException {
         String currentFieldName;
         XContentParser.Token token;
         AbstractDistanceScoreFunction scoreFunction;
@@ -152,7 +153,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         // the doc later
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryParsingException(parseContext, "unknown field [{}]", fieldName);
+            throw new ParsingException(parseContext, "unknown field [{}]", fieldName);
         }
 
         // dates and time need special handling
@@ -164,7 +165,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return parseNumberVariable(fieldName, parser, parseContext, (NumberFieldMapper.NumberFieldType) fieldType, mode);
         } else {
-            throw new QueryParsingException(parseContext, "field [{}] is of type [{}], but only numeric types are supported.", fieldName, fieldType);
+            throw new ParsingException(parseContext, "field [{}] is of type [{}], but only numeric types are supported.", fieldName, fieldType);
         }
     }
 

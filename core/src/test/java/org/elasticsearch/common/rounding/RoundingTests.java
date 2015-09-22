@@ -62,8 +62,8 @@ public class RoundingTests extends ESTestCase {
 
     /**
      * Simple test case to illustrate how Rounding.Offset works on readable input.
-     * offset shifts input value back before rounding (so here 6 - 7 -> -1)
-     * then shifts rounded Value back  (here -10 -> -3)
+     * offset shifts input value back before rounding (so here 6 - 7 -&gt; -1)
+     * then shifts rounded Value back  (here -10 -&gt; -3)
      */
     @Test
     public void testOffsetRounding() {

@@ -39,7 +39,7 @@ public abstract class PipelineAggregator implements Streamable {
      * Parses the pipeline aggregation request and creates the appropriate
      * pipeline aggregator factory for it.
      * 
-     * @see {@link PipelineAggregatorFactory}
+     * @see PipelineAggregatorFactory
      */
     public static interface Parser {
 

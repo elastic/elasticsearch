@@ -37,7 +37,7 @@ import java.util.Collections;
 
 /**
  * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}
- * @see FieldInfo.DocValuesType#SORTED_NUMERIC
+ * @see DocValuesType#SORTED_NUMERIC
  */
 public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
     private final NumericType numericType;
@@ -132,9 +132,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * Order of values within a document is consistent with
      * {@link Float#compareTo(Float)}, hence the following reversible
      * transformation is applied at both index and search:
-     * {code}
-     *   bits ^ (bits >> 31) & 0x7fffffff
-     * {code}
+     * {@code bits ^ (bits >> 31) & 0x7fffffff}
      * <p>
      * Although the API is multi-valued, most codecs in Lucene specialize 
      * for the case where documents have at most one value. In this case
@@ -223,9 +221,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * Order of values within a document is consistent with
      * {@link Double#compareTo(Double)}, hence the following reversible
      * transformation is applied at both index and search:
-     * {code}
-     *   bits ^ (bits >> 63) & 0x7fffffffffffffffL
-     * {code}
+     * {@code bits ^ (bits >> 63) & 0x7fffffffffffffffL}
      * <p>
      * Although the API is multi-valued, most codecs in Lucene specialize 
      * for the case where documents have at most one value. In this case

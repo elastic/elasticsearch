@@ -30,7 +30,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Delete snapshot request
- * <p/>
+ * <p>
  * Delete snapshot request removes the snapshot record from the repository and cleans up all
  * files that are associated with this particular snapshot. All files that are shared with
  * at least one other existing snapshot are left intact.

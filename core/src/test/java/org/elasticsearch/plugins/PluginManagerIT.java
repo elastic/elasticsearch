@@ -590,7 +590,6 @@ public class PluginManagerIT extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("analysis-phonetic");
         PluginManager.checkForOfficialPlugins("analysis-smartcn");
         PluginManager.checkForOfficialPlugins("analysis-stempel");
-        PluginManager.checkForOfficialPlugins("cloud-azure");
         PluginManager.checkForOfficialPlugins("cloud-gce");
         PluginManager.checkForOfficialPlugins("delete-by-query");
         PluginManager.checkForOfficialPlugins("lang-javascript");
@@ -598,8 +597,11 @@ public class PluginManagerIT extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("mapper-murmur3");
         PluginManager.checkForOfficialPlugins("mapper-size");
         PluginManager.checkForOfficialPlugins("discovery-multicast");
+        PluginManager.checkForOfficialPlugins("discovery-azure");
         PluginManager.checkForOfficialPlugins("discovery-ec2");
+        PluginManager.checkForOfficialPlugins("repository-azure");
         PluginManager.checkForOfficialPlugins("repository-s3");
+        PluginManager.checkForOfficialPlugins("store-smb");
 
         try {
             PluginManager.checkForOfficialPlugins("elasticsearch-mapper-attachment");

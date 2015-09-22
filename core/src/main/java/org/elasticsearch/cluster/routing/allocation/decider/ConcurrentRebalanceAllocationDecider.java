@@ -31,7 +31,7 @@ import org.elasticsearch.node.settings.NodeSettingsService;
  * re-balance (relocation) operations and restricts node allocations if the
  * configured threashold is reached. The default number of concurrent rebalance
  * operations is set to <tt>2</tt>
- * <p/>
+ * <p>
  * Re-balance operations can be controlled in real-time via the cluster update API using
  * <tt>cluster.routing.allocation.cluster_concurrent_rebalance</tt>. Iff this
  * setting is set to <tt>-1</tt> the number of concurrent re-balance operations

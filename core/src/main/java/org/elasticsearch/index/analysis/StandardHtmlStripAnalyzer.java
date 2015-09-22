@@ -34,8 +34,7 @@ import org.apache.lucene.util.Version;
 public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
 
     /**
-     * @deprecated use {@link StandardHtmlStripAnalyzer#StandardHtmlStripAnalyzer(org.apache.lucene.util.Version,
-     * org.apache.lucene.analysis.util.CharArraySet)} instead
+     * @deprecated use {@link StandardHtmlStripAnalyzer#StandardHtmlStripAnalyzer(CharArraySet)} instead
      */
     @Deprecated
     public StandardHtmlStripAnalyzer() {

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.util;
 
-import com.google.common.primitives.Ints;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
@@ -286,7 +285,7 @@ public class BloomFilter {
     /**
      * Computes the optimal k (number of hashes per element inserted in Bloom filter), given the
      * expected insertions and total number of bits in the Bloom filter.
-     * <p/>
+     * <p>
      * See http://en.wikipedia.org/wiki/File:Bloom_filter_fp_probability.svg for the formula.
      *
      * @param n expected insertions (must be positive)
@@ -299,11 +298,11 @@ public class BloomFilter {
     /**
      * Computes m (total bits of Bloom filter) which is expected to achieve, for the specified
      * expected insertions, the required false positive probability.
-     * <p/>
+     * <p>
      * See http://en.wikipedia.org/wiki/Bloom_filter#Probability_of_false_positives for the formula.
      *
      * @param n expected insertions (must be positive)
-     * @param p false positive rate (must be 0 < p < 1)
+     * @param p false positive rate (must be 0 &lt; p &lt; 1)
      */
     static long optimalNumOfBits(long n, double p) {
         if (p == 0) {
@@ -325,7 +324,7 @@ public class BloomFilter {
         private static int size(long bits) {
             long quotient = bits / 64;
             long remainder = bits - quotient * 64;
-            return Ints.checkedCast(remainder == 0 ? quotient : 1 + quotient);
+            return Math.toIntExact(remainder == 0 ? quotient : 1 + quotient);
         }
 
         // Used by serialization

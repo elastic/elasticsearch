@@ -60,15 +60,15 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * The tribe service holds a list of node clients connected to a list of tribe members, and uses their
  * cluster state events to update this local node cluster state with the merged view of it.
- * <p/>
+ * <p>
  * The {@link #processSettings(org.elasticsearch.common.settings.Settings)} method should be called before
  * starting the node, so it will make sure to configure this current node properly with the relevant tribe node
  * settings.
- * <p/>
+ * <p>
  * The tribe node settings make sure the discovery used is "local", but with no master elected. This means no
  * write level master node operations will work ({@link org.elasticsearch.discovery.MasterNotDiscoveredException}
  * will be thrown), and state level metadata operations with automatically use the local flag.
- * <p/>
+ * <p>
  * The state merged from different clusters include the list of nodes, metadata, and routing table. Each node merged
  * will have in its tribe which tribe member it came from. Each index merged will have in its settings which tribe
  * member it came from. In case an index has already been merged from one cluster, and the same name index is discovered
@@ -304,7 +304,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                         }
                     }
 
-                    return ClusterState.builder(currentState).blocks(blocks).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+                    return ClusterState.builder(currentState).incrementVersion().blocks(blocks).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
                 }
 
                 private void removeIndex(ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable, IndexMetaData index) {

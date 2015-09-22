@@ -53,11 +53,8 @@ public class StartRecoveryRequest extends TransportRequest {
     /**
      * Start recovery request.
      *
-     * @param shardId
      * @param sourceNode       The node to recover from
      * @param targetNode       The node to recover to
-     * @param markAsRelocated
-     * @param metadataSnapshot
      */
     public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, boolean markAsRelocated, Store.MetadataSnapshot metadataSnapshot, RecoveryState.Type recoveryType, long recoveryId) {
         this.recoveryId = recoveryId;

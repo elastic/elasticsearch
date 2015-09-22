@@ -65,7 +65,7 @@ import java.util.concurrent.*;
 
 /**
  * This is a cache for {@link BitDocIdSet} based filters and is unbounded by size or time.
- * <p/>
+ * <p>
  * Use this cache with care, only components that require that a filter is to be materialized as a {@link BitDocIdSet}
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.query.QueryCache} should be used instead.

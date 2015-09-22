@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import java.io.IOException;
 public interface SignificanceHeuristicParser {
 
     SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, SearchContext context) throws IOException,
-            QueryParsingException;
+            ParsingException;
 
     String[] getNames();
 }

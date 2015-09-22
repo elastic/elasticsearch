@@ -46,10 +46,12 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexService;
@@ -113,7 +115,10 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class IndexShard extends AbstractIndexShardComponent {
 
@@ -175,12 +180,20 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final ShardEngineFailListener failedEngineListener = new ShardEngineFailListener();
     private volatile boolean flushOnClose = true;
+    private volatile int flushThresholdOperations;
+    private volatile ByteSizeValue flushThresholdSize;
+    private volatile boolean disableFlush;
 
     /**
      * Index setting to control if a flush is executed before engine is closed
      * This setting is realtime updateable.
      */
     public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
+    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS = "index.translog.flush_threshold_ops";
+    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
+    public static final String INDEX_TRANSLOG_DISABLE_FLUSH = "index.translog.disable_flush";
+
+
     private final ShardPath path;
 
     private final IndexShardOperationCounter indexShardOperationCounter;
@@ -250,8 +263,10 @@ public class IndexShard extends AbstractIndexShardComponent {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
+        this.flushThresholdOperations = indexSettings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, indexSettings.getAsInt("index.translog.flush_threshold", Integer.MAX_VALUE));
+        this.flushThresholdSize = indexSettings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
+        this.disableFlush = indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
-
     }
 
     public Store store() {
@@ -1050,6 +1065,25 @@ public class IndexShard extends AbstractIndexShardComponent {
         storeRecoveryService.recover(this, shouldExist, recoveryListener);
     }
 
+    /**
+     * Returns <code>true</code> iff this shard needs to be flushed due to too many translog operation or a too large transaction log.
+     * Otherwise <code>false</code>.
+     */
+    boolean shouldFlush() {
+        if (disableFlush == false) {
+            Engine engine = engineUnsafe();
+            if (engine != null) {
+                try {
+                    Translog translog = engine.getTranslog();
+                    return translog.totalOperations() > flushThresholdOperations || translog.sizeInBytes() > flushThresholdSize.bytes();
+                } catch (AlreadyClosedException ex) {
+                    // that's fine we are already close - no need to flush
+                }
+            }
+        }
+        return false;
+    }
+
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
@@ -1058,6 +1092,22 @@ public class IndexShard extends AbstractIndexShardComponent {
                 if (state() == IndexShardState.CLOSED) { // no need to update anything if we are closed
                     return;
                 }
+                int flushThresholdOperations = settings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, IndexShard.this.flushThresholdOperations);
+                if (flushThresholdOperations != IndexShard.this.flushThresholdOperations) {
+                    logger.info("updating flush_threshold_ops from [{}] to [{}]", IndexShard.this.flushThresholdOperations, flushThresholdOperations);
+                    IndexShard.this.flushThresholdOperations = flushThresholdOperations;
+                }
+                ByteSizeValue flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, IndexShard.this.flushThresholdSize);
+                if (!flushThresholdSize.equals(IndexShard.this.flushThresholdSize)) {
+                    logger.info("updating flush_threshold_size from [{}] to [{}]", IndexShard.this.flushThresholdSize, flushThresholdSize);
+                    IndexShard.this.flushThresholdSize = flushThresholdSize;
+                }
+                boolean disableFlush = settings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, IndexShard.this.disableFlush);
+                if (disableFlush != IndexShard.this.disableFlush) {
+                    logger.info("updating disable_flush from [{}] to [{}]", IndexShard.this.disableFlush, disableFlush);
+                    IndexShard.this.disableFlush = disableFlush;
+                }
+
                 final EngineConfig config = engineConfig;
                 final boolean flushOnClose = settings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, IndexShard.this.flushOnClose);
                 if (flushOnClose != IndexShard.this.flushOnClose) {
@@ -1435,6 +1485,40 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", TranslogConfig.INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(Translog.Durabilty.values()));
             return defaultValue;
         }
+    }
+
+    private final AtomicBoolean asyncFlushRunning = new AtomicBoolean();
+
+    /**
+     * Schedules a flush if needed but won't schedule more than one flush concurrently. The flush will be executed on the
+     * Flush thread-pool asynchronously.
+     * @return <code>true</code> if a new flush is scheduled otherwise <code>false</code>.
+     */
+    public boolean maybeFlush() {
+        if (shouldFlush()) {
+            if (asyncFlushRunning.compareAndSet(false, true)) {
+                final AbstractRunnable abstractRunnable = new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Throwable t) {
+                        if (state != IndexShardState.CLOSED) {
+                            logger.warn("failed to flush index", t);
+                        }
+                    }
+                    @Override
+                    protected void doRun() throws Exception {
+                        flush(new FlushRequest());
+                    }
+
+                    @Override
+                    public void onAfter() {
+                        asyncFlushRunning.compareAndSet(true, false);
+                    }
+                };
+                threadPool.executor(ThreadPool.Names.FLUSH).execute(abstractRunnable);
+                return true;
+            }
+        }
+        return false;
     }
 
 }

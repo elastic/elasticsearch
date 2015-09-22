@@ -46,6 +46,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
@@ -53,6 +55,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -77,6 +80,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -683,6 +688,79 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
 
         assertTrue(postIndexWithExceptionCalled.get());
+    }
+
+
+    public void testMaybeFlush() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        IndexShard shard = test.shard(0);
+        assertFalse(shard.shouldFlush());
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, 1).build()).get();
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
+        assertFalse(shard.shouldFlush());
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
+        Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
+        shard.index(index);
+        assertTrue(shard.shouldFlush());
+        assertEquals(2, shard.engine().getTranslog().totalOperations());
+        client().prepareIndex("test", "test", "2").setSource("{}").setRefresh(randomBoolean()).get();
+        assertBusy(() -> { // this is async
+            assertFalse(shard.shouldFlush());
+        });
+        assertEquals(0, shard.engine().getTranslog().totalOperations());
+        long size = shard.engine().getTranslog().sizeInBytes();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, 1000)
+                .put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(size, ByteSizeUnit.BYTES)).build()).get();
+        client().prepareDelete("test", "test", "2").get();
+        assertBusy(() -> { // this is async
+            assertFalse(shard.shouldFlush());
+        });
+        assertEquals(0, shard.engine().getTranslog().totalOperations());
+    }
+
+    public void testStressMaybeFlush() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        final IndexShard shard = test.shard(0);
+        assertFalse(shard.shouldFlush());
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, 1).build()).get();
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
+        assertFalse(shard.shouldFlush());
+        final AtomicBoolean running = new AtomicBoolean(true);
+        final int numThreads = randomIntBetween(2, 4);
+        Thread[] threads = new Thread[numThreads];
+        CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread() {
+                public void run() {
+                    try {
+                        barrier.await();
+                    } catch (InterruptedException | BrokenBarrierException e) {
+                        throw new RuntimeException(e);
+                    }
+                    while (running.get()) {
+                        shard.maybeFlush();
+                    }
+                }
+            };
+            threads[i].start();
+        }
+        barrier.await();
+        FlushStats flushStats = shard.flushStats();
+        long total = flushStats.getTotal();
+        client().prepareIndex("test", "test", "1").setSource("{}").get();
+        assertBusy(() -> {
+            assertEquals(total + 1, shard.flushStats().getTotal());
+        });
+        running.set(false);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i].join();
+        }
     }
 
 }

@@ -74,7 +74,7 @@ $ bin/elasticsearch -Des.index.refresh_interval=5s --node.name=my-node
 == Java (JVM) version
 
 Elasticsearch is built using Java, and requires at least
-http://www.oracle.com/technetwork/java/javase/downloads/index.html[Java 7] in
+http://www.oracle.com/technetwork/java/javase/downloads/index.html[Java 8] in
 order to run. Only Oracle's Java and the OpenJDK are supported. The same JVM
 version should be used on all Elasticsearch nodes and clients.
 

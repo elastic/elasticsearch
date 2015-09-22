@@ -40,12 +40,12 @@ import java.util.List;
 
 /**
  * Read-only URL-based implementation of the BlobStoreRepository
- * <p/>
+ * <p>
  * This repository supports the following settings
  * <dl>
  * <dt>{@code url}</dt><dd>URL to the root of repository. This is mandatory parameter.</dd>
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
- * </ol>
+ * </dl>
  */
 public class URLRepository extends BlobStoreRepository {
 
@@ -75,7 +75,6 @@ public class URLRepository extends BlobStoreRepository {
      * @param name                 repository name
      * @param repositorySettings   repository settings
      * @param indexShardRepository shard repository
-     * @throws IOException
      */
     @Inject
     public URLRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, Environment environment) throws IOException {

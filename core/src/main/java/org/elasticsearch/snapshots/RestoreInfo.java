@@ -33,7 +33,7 @@ import java.util.List;
 
 /**
  * Information about successfully completed restore operation.
- * <p/>
+ * <p>
  * Returned as part of {@link org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse}
  */
 public class RestoreInfo implements ToXContent, Streamable {
@@ -176,7 +176,6 @@ public class RestoreInfo implements ToXContent, Streamable {
      *
      * @param in stream input
      * @return restore info
-     * @throws IOException
      */
     public static RestoreInfo readRestoreInfo(StreamInput in) throws IOException {
         RestoreInfo snapshotInfo = new RestoreInfo();
@@ -189,7 +188,6 @@ public class RestoreInfo implements ToXContent, Streamable {
      *
      * @param in stream input
      * @return restore info
-     * @throws IOException
      */
     public static RestoreInfo readOptionalRestoreInfo(StreamInput in) throws IOException {
         return in.readOptionalStreamable(new RestoreInfo());

@@ -30,7 +30,7 @@ import org.elasticsearch.transport.TransportService;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
- * A base class for {@link org.elasticsearch.discovery.zen.fd.MasterFaultDetection} & {@link org.elasticsearch.discovery.zen.fd.NodesFaultDetection},
+ * A base class for {@link org.elasticsearch.discovery.zen.fd.MasterFaultDetection} &amp; {@link org.elasticsearch.discovery.zen.fd.NodesFaultDetection},
  * making sure both use the same setting.
  */
 public abstract class FaultDetection extends AbstractComponent {

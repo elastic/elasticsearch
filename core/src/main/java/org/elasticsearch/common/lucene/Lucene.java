@@ -265,7 +265,7 @@ public class Lucene {
     }
 
     /**
-     * Performs an exists (count > 0) query on the <code>searcher</code> for <code>query</code>
+     * Performs an exists (count &gt; 0) query on the <code>searcher</code> for <code>query</code>
      * with <code>filter</code> using the given <code>collector</code>
      *
      * The <code>collector</code> can be instantiated using <code>Lucene.createExistsCollector()</code>
@@ -279,7 +279,7 @@ public class Lucene {
 
 
     /**
-     * Performs an exists (count > 0) query on the <code>searcher</code> for <code>query</code>
+     * Performs an exists (count &gt; 0) query on the <code>searcher</code> for <code>query</code>
      * using the given <code>collector</code>
      *
      * The <code>collector</code> can be instantiated using <code>Lucene.createExistsCollector()</code>
@@ -318,7 +318,7 @@ public class Lucene {
     }
 
     /**
-     * Performs an exists (count > 0) query on the searcher from the <code>searchContext</code> for <code>query</code>
+     * Performs an exists (count &gt; 0) query on the searcher from the <code>searchContext</code> for <code>query</code>
      * using the given <code>collector</code>
      *
      * The <code>collector</code> can be instantiated using <code>Lucene.createExistsCollector()</code>

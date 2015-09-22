@@ -61,13 +61,13 @@ import static org.elasticsearch.index.mapper.MapperBuilders.geoShapeField;
 
 /**
  * FieldMapper for indexing {@link com.spatial4j.core.shape.Shape}s.
- * <p/>
+ * <p>
  * Currently Shapes can only be indexed and can only be queried using
  * {@link org.elasticsearch.index.query.GeoShapeQueryParser}, consequently
  * a lot of behavior in this Mapper is disabled.
- * <p/>
+ * <p>
  * Format supported:
- * <p/>
+ * <p>
  * "field" : {
  * "type" : "polygon",
  * "coordinates" : [

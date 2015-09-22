@@ -452,8 +452,8 @@ public class HttpDownloadHelper {
 
         /**
          * Has the download completed successfully?
-         * <p/>
-         * <p>Re-throws any exception caught during executaion.</p>
+         * <p>
+         * Re-throws any exception caught during executaion.</p>
          */
         boolean wasSuccessful() throws IOException {
             if (ioexception != null) {

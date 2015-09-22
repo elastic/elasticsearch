@@ -75,11 +75,10 @@ import java.util.Map;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
- * <p/>
+ * <p>
  * This repository works with any {@link BlobStore} implementation. The blobStore should be initialized in the derived
  * class before {@link #doStart()} is called.
- * <p/>
- * <p/>
+ * <p>
  * BlobStoreRepository maintains the following structure in the blob store
  * <pre>
  * {@code
@@ -229,7 +228,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     /**
      * Returns initialized and ready to use BlobStore
-     * <p/>
+     * <p>
      * This method is first called in the {@link #doStart()} method.
      *
      * @return blob store
@@ -252,7 +251,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     /**
      * Returns data file chunk size.
-     * <p/>
+     * <p>
      * This method should return null if no chunking is needed.
      *
      * @return chunk size
@@ -533,7 +532,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     /**
      * In v2.0.0 we changed the matadata file format
-     * @param version
      * @return true if legacy version should be used false otherwise
      */
     public static boolean legacyMetaData(Version version) {
@@ -553,7 +551,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     /**
      * Writes snapshot index file
-     * <p/>
+     * <p>
      * This file can be used by read-only repositories that are unable to list files in the repository
      *
      * @param snapshots list of snapshot ids
@@ -583,7 +581,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     /**
      * Reads snapshot index file
-     * <p/>
+     * <p>
      * This file can be used by read-only repositories that are unable to list files in the repository
      *
      * @return list of snapshots in the repository

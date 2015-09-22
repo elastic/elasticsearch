@@ -377,7 +377,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @param index the index to delete
      * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
      * @param indexSettings settings for the index being deleted
-     * @throws Exception if any of the shards data directories can't be locked or deleted
+     * @throws IOException if any of the shards data directories can't be locked or deleted
      */
     public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, @IndexSettings Settings indexSettings) throws IOException {
         // This is to ensure someone doesn't use Settings.EMPTY

@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  * {@link SimilarityProvider} for the {@link BM25Similarity}.
- * <p/>
+ * <p>
  * Configuration options available:
  * <ul>
  *     <li>k1</li>

@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
 
 /** 
  * Initializes SecurityManager with necessary permissions.
- * <p>
+ * <br>
  * <h1>Initialization</h1>
  * The JVM is not initially started with security manager enabled,
  * instead we turn it on early in the startup process. This is a tradeoff
@@ -51,7 +51,7 @@ import java.util.regex.Pattern;
  *   <li>Allows for some contained usage of native code that would not
  *       otherwise be permitted.</li>
  * </ul>
- * <p>
+ * <br>
  * <h1>Permissions</h1>
  * Permissions use a policy file packaged as a resource, this file is
  * also used in tests. File permissions are generated dynamically and
@@ -71,13 +71,13 @@ import java.util.regex.Pattern;
  * behalf (no package protections are yet in place, this would need some
  * cleanups to the scripting apis). But still it can provide some defense for users
  * that enable dynamic scripting without being fully aware of the consequences.
- * <p>
+ * <br>
  * <h1>Disabling Security</h1>
  * SecurityManager can be disabled completely with this setting:
  * <pre>
  * es.security.manager.enabled = false
  * </pre>
- * <p>
+ * <br>
  * <h1>Debugging Security</h1>
  * A good place to start when there is a problem is to turn on security debugging:
  * <pre>

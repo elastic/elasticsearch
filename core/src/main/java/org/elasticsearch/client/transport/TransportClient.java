@@ -65,8 +65,8 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
  * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
- * <p/>
- * <p>The transport client important modules used is the {@link org.elasticsearch.transport.TransportModule} which is
+ * <p>
+ * The transport client important modules used is the {@link org.elasticsearch.transport.TransportModule} which is
  * started in client mode (only connects, no bind).
  */
 public class TransportClient extends AbstractClient {
@@ -196,8 +196,8 @@ public class TransportClient extends AbstractClient {
 
     /**
      * Returns the current connected transport nodes that this client will use.
-     * <p/>
-     * <p>The nodes include all the nodes that are currently alive based on the transport
+     * <p>
+     * The nodes include all the nodes that are currently alive based on the transport
      * addresses provided.
      */
     public List<DiscoveryNode> connectedNodes() {
@@ -221,11 +221,11 @@ public class TransportClient extends AbstractClient {
 
     /**
      * Adds a transport address that will be used to connect to.
-     * <p/>
-     * <p>The Node this transport address represents will be used if its possible to connect to it.
+     * <p>
+     * The Node this transport address represents will be used if its possible to connect to it.
      * If it is unavailable, it will be automatically connected to once it is up.
-     * <p/>
-     * <p>In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
+     * <p>
+     * In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
      */
     public TransportClient addTransportAddress(TransportAddress transportAddress) {
         nodesService.addTransportAddresses(transportAddress);
@@ -234,11 +234,11 @@ public class TransportClient extends AbstractClient {
 
     /**
      * Adds a list of transport addresses that will be used to connect to.
-     * <p/>
-     * <p>The Node this transport address represents will be used if its possible to connect to it.
+     * <p>
+     * The Node this transport address represents will be used if its possible to connect to it.
      * If it is unavailable, it will be automatically connected to once it is up.
-     * <p/>
-     * <p>In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
+     * <p>
+     * In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
      */
     public TransportClient addTransportAddresses(TransportAddress... transportAddress) {
         nodesService.addTransportAddresses(transportAddress);

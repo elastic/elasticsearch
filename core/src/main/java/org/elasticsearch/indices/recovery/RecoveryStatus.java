@@ -148,7 +148,7 @@ public class RecoveryStatus extends AbstractRefCounted {
      * cancel the recovery. calling this method will clean temporary files and release the store
      * unless this object is in use (in which case it will be cleaned once all ongoing users call
      * {@link #decRef()}
-     * <p/>
+     * <p>
      * if {@link #CancellableThreads()} was used, the threads will be interrupted.
      */
     public void cancel(String reason) {
@@ -219,7 +219,7 @@ public class RecoveryStatus extends AbstractRefCounted {
     /**
      * Creates an {@link org.apache.lucene.store.IndexOutput} for the given file name. Note that the
      * IndexOutput actually point at a temporary file.
-     * <p/>
+     * <p>
      * Note: You can use {@link #getOpenIndexOutput(String)} with the same filename to retrieve the same IndexOutput
      * at a later stage
      */

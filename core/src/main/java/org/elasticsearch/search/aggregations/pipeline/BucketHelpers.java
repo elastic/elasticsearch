@@ -102,9 +102,7 @@ public class BucketHelpers {
         /**
          * Deserialize the GapPolicy from the input stream
          *
-         * @param in
          * @return    GapPolicy Enum
-         * @throws IOException
          */
         public static GapPolicy readFrom(StreamInput in) throws IOException {
             byte id = in.readByte();

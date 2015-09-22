@@ -44,8 +44,8 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
 /**
  * A request to count the number of documents matching a specific query. Best created with
  * {@link org.elasticsearch.client.Requests#countRequest(String...)}.
- * <p/>
- * <p>The request requires the query source to be set either using {@link #source(QuerySourceBuilder)},
+ * <p>
+ * The request requires the query source to be set either using {@link #source(QuerySourceBuilder)},
  * or {@link #source(byte[])}.
  *
  * @see CountResponse

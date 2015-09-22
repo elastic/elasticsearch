@@ -43,7 +43,7 @@ import java.util.Map;
 public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Service> implements AwsS3Service {
 
     /**
-     * (acceskey, endpoint) -> client
+     * (acceskey, endpoint) -&gt; client
      */
     private Map<Tuple<String, String>, AmazonS3Client> clients = new HashMap<Tuple<String,String>, AmazonS3Client>();
 

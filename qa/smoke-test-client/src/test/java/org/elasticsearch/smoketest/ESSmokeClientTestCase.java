@@ -46,12 +46,12 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * {@link ESSmokeClientTestCase} is an abstract base class to run integration
  * tests against an external Elasticsearch Cluster.
- * <p/>
+ * <p>
  * You can define a list of transport addresses from where you can reach your cluster
  * by setting "tests.cluster" system property. It defaults to "localhost:9300".
- * <p/>
+ * <p>
  * All tests can be run from maven using mvn install as maven will start an external cluster first.
- * <p/>
+ * <p>
  * If you want to debug this module from your IDE, then start an external cluster by yourself
  * then run JUnit. If you changed the default port, set "tests.cluster=localhost:PORT" when running
  * your test.

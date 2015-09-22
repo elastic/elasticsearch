@@ -340,7 +340,6 @@ public abstract class QueryBuilders {
      *
      * @param multiTermQueryBuilder The {@link MultiTermQueryBuilder} that
      *                              backs the created builder.
-     * @return
      */
 
     public static SpanMultiTermQueryBuilder spanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {

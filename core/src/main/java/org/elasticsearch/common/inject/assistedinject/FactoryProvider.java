@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2007 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,7 +44,6 @@ import java.util.Set;
 /**
  * Provides a factory that combines the caller's arguments with injector-supplied values to
  * construct objects.
- * <p/>
  * <h3>Defining a factory</h3>
  * Create an interface whose methods return the constructed type, or any of its supertypes. The
  * method's parameters are the arguments required to build the constructed type.
@@ -53,7 +52,6 @@ import java.util.Set;
  * }</pre>
  * You can name your factory methods whatever you like, such as <i>create</i>, <i>createPayment</i>
  * or <i>newPayment</i>.
- * <p/>
  * <h3>Creating a type that accepts factory parameters</h3>
  * {@code constructedType} is a concrete class with an {@literal @}{@link Inject}-annotated
  * constructor. In addition to injector-supplied parameters, the constructor should have
@@ -71,7 +69,6 @@ import java.util.Set;
  *   }
  * }</pre>
  * Any parameter that permits a null value should also be annotated {@code @Nullable}.
- * <p/>
  * <h3>Configuring factories</h3>
  * In your {@link org.elasticsearch.common.inject.Module module}, bind the factory interface to the returned
  * factory:
@@ -79,24 +76,20 @@ import java.util.Set;
  *     FactoryProvider.newFactory(PaymentFactory.class, RealPayment.class));</pre>
  * As a side-effect of this binding, Guice will inject the factory to initialize it for use. The
  * factory cannot be used until the injector has been initialized.
- * <p/>
  * <h3>Using the factory</h3>
  * Inject your factory into your application classes. When you use the factory, your arguments
  * will be combined with values from the injector to construct an instance.
  * <pre>public class PaymentAction {
  *   {@literal @}Inject private PaymentFactory paymentFactory;
- * <p/>
  *   public void doPayment(Money amount) {
  *     Payment payment = paymentFactory.create(new Date(), amount);
  *     payment.apply();
  *   }
  * }</pre>
- * <p/>
  * <h3>Making parameter types distinct</h3>
  * The types of the factory method's parameters must be distinct. To use multiple parameters of
  * the same type, use a named {@literal @}{@link Assisted} annotation to disambiguate the
  * parameters. The names must be applied to the factory method's parameters:
- * <p/>
  * <pre>public interface PaymentFactory {
  *   Payment create(
  *       <strong>{@literal @}Assisted("startDate")</strong> Date startDate,
@@ -115,21 +108,17 @@ import java.util.Set;
  *     ...
  *   }
  * }</pre>
- * <p/>
  * <h3>Values are created by Guice</h3>
  * Returned factories use child injectors to create values. The values are eligible for method
  * interception. In addition, {@literal @}{@literal Inject} members will be injected before they are
  * returned.
- * <p/>
  * <h3>Backwards compatibility using {@literal @}AssistedInject</h3>
  * Instead of the {@literal @}Inject annotation, you may annotate the constructed classes with
  * {@literal @}{@link AssistedInject}. This triggers a limited backwards-compatibility mode.
- * <p/>
  * <p>Instead of matching factory method arguments to constructor parameters using their names, the
  * <strong>parameters are matched by their order</strong>. The first factory method argument is
  * used for the first {@literal @}Assisted constructor parameter, etc.. Annotation names have no
  * effect.
- * <p/>
  * <p>Returned values are <strong>not created by Guice</strong>. These types are not eligible for
  * method interception. They do receive post-construction member injection.
  *

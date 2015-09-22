@@ -47,7 +47,7 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
             return "plugs in a mock storage service for testing";
         }
         public void onModule(AzureRepositoryModule azureRepositoryModule) {
-            azureRepositoryModule.storageServiceImpl = AzureStorageServiceMock.class;
+            AzureRepositoryModule.storageServiceImpl = AzureStorageServiceMock.class;
         }
     }
 

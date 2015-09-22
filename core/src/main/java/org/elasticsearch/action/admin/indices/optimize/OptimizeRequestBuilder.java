@@ -25,7 +25,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * A request to optimize one or more indices. In order to optimize on all the indices, pass an empty array or
  * <tt>null</tt> for the indices.
- * <p/>
  * <p>{@link #setMaxNumSegments(int)} allows to control the number of segments to optimize down to. By default, will
  * cause the optimize process to optimize down to half the configured number of segments.
  */
@@ -36,7 +35,7 @@ public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<Opt
     }
 
     /**
-     * Will optimize the index down to <= maxNumSegments. By default, will cause the optimize
+     * Will optimize the index down to &lt;= maxNumSegments. By default, will cause the optimize
      * process to optimize down to half the configured number of segments.
      */
     public OptimizeRequestBuilder setMaxNumSegments(int maxNumSegments) {

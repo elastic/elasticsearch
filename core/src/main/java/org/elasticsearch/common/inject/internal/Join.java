@@ -29,8 +29,8 @@ import java.util.Objects;
  * iterators, collections, arrays, and varargs, and can append to any
  * {@link Appendable} or just return a {@link String}. For example,
  * {@code join(":", "a", "b", "c")} returns {@code "a:b:c"}.
- * <p/>
- * <p>All methods of this class throw {@link NullPointerException} when a value
+ * <p>
+ * All methods of this class throw {@link NullPointerException} when a value
  * of {@code null} is supplied for any parameter. The elements within the
  * collection, iterator, array, or varargs parameter list <i>may</i> be null --
  * these will be represented in the output by the string {@code "null"}.
@@ -45,8 +45,8 @@ public final class Join {
      * Returns a string containing the {@code tokens}, converted to strings if
      * necessary, separated by {@code delimiter}. If {@code tokens} is empty, it
      * returns an empty string.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -64,8 +64,8 @@ public final class Join {
      * Returns a string containing the {@code tokens}, converted to strings if
      * necessary, separated by {@code delimiter}. If {@code tokens} is empty, it
      * returns an empty string.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -82,8 +82,8 @@ public final class Join {
     /**
      * Returns a string containing the {@code tokens}, converted to strings if
      * necessary, separated by {@code delimiter}.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -104,8 +104,8 @@ public final class Join {
      * Returns a string containing the {@code tokens}, converted to strings if
      * necessary, separated by {@code delimiter}. If {@code tokens} is empty, it
      * returns an empty string.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -125,8 +125,8 @@ public final class Join {
      * Returns a string containing the contents of {@code map}, with entries
      * separated by {@code entryDelimiter}, and keys and values separated with
      * {@code keyValueSeparator}.
-     * <p/>
-     * <p>Each key and value will be converted to a {@link CharSequence} using
+     * <p>
+     * Each key and value will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -148,8 +148,8 @@ public final class Join {
     /**
      * Appends each of the {@code tokens} to {@code appendable}, separated by
      * {@code delimiter}.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -169,8 +169,8 @@ public final class Join {
     /**
      * Appends each of the {@code tokens} to {@code appendable}, separated by
      * {@code delimiter}.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -190,8 +190,8 @@ public final class Join {
     /**
      * Appends each of the {@code tokens} to {@code appendable}, separated by
      * {@code delimiter}.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -213,8 +213,8 @@ public final class Join {
     /**
      * Appends each of the {@code tokens} to {@code appendable}, separated by
      * {@code delimiter}.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -251,8 +251,8 @@ public final class Join {
      * Appends the contents of {@code map} to {@code appendable}, with entries
      * separated by {@code entryDelimiter}, and keys and values separated with
      * {@code keyValueSeparator}.
-     * <p/>
-     * <p>Each key and value will be converted to a {@link CharSequence} using
+     * <p>
+     * Each key and value will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.

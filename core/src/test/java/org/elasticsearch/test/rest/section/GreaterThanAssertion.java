@@ -28,7 +28,7 @@ import static org.junit.Assert.fail;
 
 /**
  * Represents a gt assert section:
- * <p/>
+ * <p>
  * - gt:    { fields._ttl: 0}
  */
 public class GreaterThanAssertion extends Assertion {

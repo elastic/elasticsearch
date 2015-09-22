@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +26,6 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * Annotates annotations which are used for binding. Only one such annotation
  * may apply to a single injection point. You must also annotate binder
  * annotations with {@code @Retention(RUNTIME)}. For example:
- * <p/>
  * <pre>
  *   {@code @}Retention(RUNTIME)
  *   {@code @}Target({ FIELD, PARAMETER, METHOD })

@@ -179,8 +179,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
     /**
      * Test that no split brain occurs under partial network partition. See https://github.com/elasticsearch/elasticsearch/issues/2488
-     *
-     * @throws Exception
      */
     @Test
     public void failWithMinimumMasterNodesConfigured() throws Exception {
@@ -402,8 +400,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
     /**
      * Test that we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
-     * We also collect & report the type of indexing failures that occur.
-     * <p/>
+     * We also collect &amp; report the type of indexing failures that occur.
+     * <p>
      * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
      */
     @Test
@@ -693,8 +691,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     /**
      * Test that a document which is indexed on the majority side of a partition, is available from the minority side,
      * once the partition is healed
-     *
-     * @throws Exception
      */
     @Test
     @TestLogging(value = "cluster.service:TRACE")

@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * A bulk processor is a thread safe bulk processing class, allowing to easily set when to "flush" a new bulk request
  * (either based on number of actions, based on the size, or time), and to easily control the number of concurrent bulk
  * requests allowed to be executed in parallel.
- * <p/>
+ * <p>
  * In order to create a new bulk processor, use the {@link Builder}.
  */
 public class BulkProcessor implements Closeable {
@@ -127,7 +127,7 @@ public class BulkProcessor implements Closeable {
 
         /**
          * Sets a flush interval flushing *any* bulk actions pending if the interval passes. Defaults to not set.
-         * <p/>
+         * <p>
          * Note, both {@link #setBulkActions(int)} and {@link #setBulkSize(org.elasticsearch.common.unit.ByteSizeValue)}
          * can be set to <tt>-1</tt> with the flush interval set allowing for complete async processing of bulk actions.
          */

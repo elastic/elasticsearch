@@ -31,7 +31,7 @@ import java.io.IOException;
 
 /**
  * Creates an aggregation that finds interesting or unusual occurrences of terms in a result set.
- * <p/>
+ * <p>
  * This feature is marked as experimental, and may be subject to change in the future.  If you
  * use this feature, please let us know your experience with it!
  */

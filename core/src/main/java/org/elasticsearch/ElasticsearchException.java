@@ -55,7 +55,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Construct a <code>ElasticsearchException</code> with the specified detail message.
      *
-     * The message can be parameterized using {@code {}} as placeholders for the given
+     * The message can be parameterized using <code>{}</code> as placeholders for the given
      * arguments
      *
      * @param msg the detail message
@@ -69,7 +69,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Construct a <code>ElasticsearchException</code> with the specified detail message
      * and nested exception.
      *
-     * The message can be parameterized using {@code {}} as placeholders for the given
+     * The message can be parameterized using <code>{}</code> as placeholders for the given
      * arguments
      *
      * @param msg   the detail message

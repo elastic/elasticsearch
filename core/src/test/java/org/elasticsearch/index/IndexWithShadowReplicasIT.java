@@ -556,7 +556,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
     /**
      * Tests that shadow replicas can be "naturally" rebalanced and relocated
      * around the cluster. By "naturally" I mean without using the reroute API
-     * @throws Exception
      */
     @Test
     public void testShadowReplicaNaturalRelocation() throws Exception {

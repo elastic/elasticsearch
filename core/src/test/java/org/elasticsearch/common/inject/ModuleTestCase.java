@@ -80,7 +80,7 @@ public abstract class ModuleTestCase extends ESTestCase {
     }
 
     /**
-     * Configures the module and checks a Map<String, Class> of the "to" class
+     * Configures the module and checks a Map&lt;String, Class&gt; of the "to" class
      * is bound to "theClass".
      */
     public void assertMapMultiBinding(Module module, Class to, Class theClass) {

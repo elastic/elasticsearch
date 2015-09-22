@@ -39,7 +39,7 @@ import org.elasticsearch.index.settings.IndexSettings;
  * Stemmer, use them directly with the SnowballFilter and a CustomAnalyzer.
  * Configuration of language is done with the "language" attribute or the analyzer.
  * Also supports additional stopwords via "stopwords" attribute
- * <p/>
+ * <p>
  * The SnowballAnalyzer comes with a StandardFilter, LowerCaseFilter, StopFilter
  * and the SnowballFilter.
  *

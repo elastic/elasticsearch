@@ -110,7 +110,7 @@ public class CategoryContextMapping extends ContextMapping {
     /**
      * Load the specification of a {@link CategoryContextMapping}
      * 
-     * @param field
+     * @param name
      *            name of the field to use. If <code>null</code> default field
      *            will be used
      * @return new {@link CategoryContextMapping}

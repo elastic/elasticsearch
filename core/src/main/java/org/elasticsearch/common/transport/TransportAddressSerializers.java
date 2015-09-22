@@ -33,8 +33,8 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 /**
  * A global registry of all different types of {@link org.elasticsearch.common.transport.TransportAddress} allowing
  * to perform serialization of them.
- * <p/>
- * <p>By default, adds {@link org.elasticsearch.common.transport.InetSocketTransportAddress}.
+ * <p>
+ * By default, adds {@link org.elasticsearch.common.transport.InetSocketTransportAddress}.
  *
  *
  */

@@ -42,6 +42,7 @@
         <!-- Path warnings must be ignored because maven doesnt create the classes output
              dir when no source files exist (eg for distribution or qa modules) -->
         <xlint.options>-Xlint:-path</xlint.options>
+        <doclint.options>-Xdoclint:-missing</doclint.options>
 
         <!-- libraries -->
         <lucene.version>5.4.0</lucene.version>
@@ -613,7 +614,9 @@
                             <arg>-XDignore.symbol.file</arg>
                             <arg>-Xlint:all</arg>
                             <arg>${xlint.options}</arg>
-                            <!-- DISABLED: incompatible with java 9 <arg>-Werror</arg> -->
+                            <arg>-Xdoclint:all/private</arg>
+                            <arg>${doclint.options}</arg>
+                            <arg>${javac.werror}</arg>
                         </compilerArgs>
                     </configuration>
                 </plugin>
@@ -1144,6 +1147,23 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <artifactId>maven-antrun-plugin</artifactId>
                     <version>1.8</version>
                     <executions>
+                        <!-- remove this hack when maven works with java 9 properly -->
+                        <execution>
+                            <id>set-werror</id>
+                            <phase>validate</phase>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                            <configuration>
+                                <target>
+                                    <!-- if we are on java 1.9.* we turn off Werror or maven crushes! -->
+                                    <condition property="javac.werror" value="-Aboguskey=bogusvalue" else="-Werror" >
+                                        <matches pattern="1\.9\..+$" string="${java.runtime.version}" />
+                                    </condition>
+                                </target>
+                                <exportAntProperties>true</exportAntProperties>
+                            </configuration>
+                        </execution>
                         <execution>
                             <id>check-invalid-patterns</id>
                             <phase>validate</phase>

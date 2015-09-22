@@ -65,8 +65,8 @@ public class AllocationService extends AbstractComponent {
 
     /**
      * Applies the started shards. Note, shards can be called several times within this method.
-     * <p/>
-     * <p>If the same instance of the routing table is returned, then no change has been made.</p>
+     * <p>
+     * If the same instance of the routing table is returned, then no change has been made.</p>
      */
     public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards) {
         return applyStartedShards(clusterState, startedShards, true);
@@ -94,8 +94,8 @@ public class AllocationService extends AbstractComponent {
 
     /**
      * Applies the failed shards. Note, shards can be called several times within this method.
-     * <p/>
-     * <p>If the same instance of the routing table is returned, then no change has been made.</p>
+     * <p>
+     * If the same instance of the routing table is returned, then no change has been made.</p>
      */
     public RoutingAllocation.Result applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
@@ -139,8 +139,8 @@ public class AllocationService extends AbstractComponent {
 
     /**
      * Reroutes the routing table based on the live nodes.
-     * <p/>
-     * <p>If the same instance of the routing table is returned, then no change has been made.
+     * <p>
+     * If the same instance of the routing table is returned, then no change has been made.
      */
     public RoutingAllocation.Result reroute(ClusterState clusterState) {
         return reroute(clusterState, false);
@@ -148,8 +148,8 @@ public class AllocationService extends AbstractComponent {
 
     /**
      * Reroutes the routing table based on the live nodes.
-     * <p/>
-     * <p>If the same instance of the routing table is returned, then no change has been made.
+     * <p>
+     * If the same instance of the routing table is returned, then no change has been made.
      */
     public RoutingAllocation.Result reroute(ClusterState clusterState, boolean debug) {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);

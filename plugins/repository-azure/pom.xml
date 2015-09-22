@@ -30,6 +30,7 @@ governing permissions and limitations under the License. -->
         <tests.jvms>1</tests.jvms>
         <tests.rest.suite>repository_azure</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <xlint.options>-Xlint:-deprecation,-serial</xlint.options>
     </properties>
 
     <dependencies>

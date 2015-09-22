@@ -36,20 +36,16 @@ import org.elasticsearch.index.settings.IndexSettings;
  * keep tokens that are contained in the term set configured via
  * {@value #KEEP_WORDS_KEY} setting. This filter acts like an inverse stop
  * filter.
- * <p/>
+ * <p>
  * Configuration options:
- * <p/>
  * <ul>
  * <li>{@value #KEEP_WORDS_KEY} the array of words / tokens to keep.</li>
- * <p/>
  * <li>{@value #KEEP_WORDS_PATH_KEY} an reference to a file containing the words
  * / tokens to keep. Note: this is an alternative to {@value #KEEP_WORDS_KEY} if
  * both are set an exception will be thrown.</li>
- * <p/>
  * <li>{@value #ENABLE_POS_INC_KEY} <code>true</code> iff the filter should
  * maintain position increments for dropped tokens. The default is
  * <code>true</code>.</li>
- * <p/>
  * <li>{@value #KEEP_WORDS_CASE_KEY} to use case sensitive keep words. The
  * default is <code>false</code> which corresponds to case-sensitive.</li>
  * </ul>

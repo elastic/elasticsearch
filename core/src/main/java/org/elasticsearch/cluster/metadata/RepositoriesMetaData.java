@@ -195,7 +195,6 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
      * @param repository repository metadata
      * @param builder    XContent builder
      * @param params     serialization parameters
-     * @throws IOException
      */
     public static void toXContent(RepositoryMetaData repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(repository.name(), XContentBuilder.FieldCaseConversion.NONE);

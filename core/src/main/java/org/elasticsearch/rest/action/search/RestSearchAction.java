@@ -95,7 +95,8 @@ public class RestSearchAction extends BaseRestHandler {
             if (isTemplateRequest) {
                 searchRequest.templateSource(RestActions.getRestContent(request));
             } else {
-                searchRequest.source(RestActions.getRestContent(request));
+                // searchRequest.source(RestActions.getRestContent(request));
+                // NOCOMMIT fix this
             }
         }
 

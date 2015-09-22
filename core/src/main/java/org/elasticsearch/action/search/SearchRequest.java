@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -33,8 +32,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
@@ -74,7 +71,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     private BytesReference templateSource;
     private Template template;
 
-    private BytesReference source;
+    private SearchSourceBuilder source;
 
     private BytesReference extraSource;
     private Boolean requestCache;
@@ -129,9 +126,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Constructs a new search request against the provided indices with the given search source.
      */
-    public SearchRequest(String[] indices, byte[] source) {
+    public SearchRequest(String[] indices, SearchSourceBuilder source) {
         indices(indices);
-        this.source = new BytesArray(source);
+        this.source = source;
     }
 
     @Override
@@ -247,15 +244,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * The source of the search request.
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
-        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        return this;
-    }
-
-    /**
-     * The search source to execute.
-     */
-    public SearchRequest source(BytesReference source) {
-        this.source = source;
+        this.source = sourceBuilder;
         return this;
     }
 
@@ -263,7 +252,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * The search source to execute.
      */
-    public BytesReference source() {
+    public SearchSourceBuilder source() {
         return source;
     }
 
@@ -473,7 +462,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             scroll = readScroll(in);
         }
 
-        source = in.readBytesReference();
+        source = SearchSourceBuilder.PROTOTYPE.readFrom(in);
         extraSource = in.readBytesReference();
 
         types = in.readStringArray();
@@ -505,7 +494,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        out.writeBytesReference(source);
+        source.writeTo(out);
         out.writeBytesReference(extraSource);
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);

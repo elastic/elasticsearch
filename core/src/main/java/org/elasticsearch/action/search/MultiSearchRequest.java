@@ -39,7 +39,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 /**
  * A multi search API request.
@@ -149,7 +151,8 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
             if (isTemplateRequest) {
                 searchRequest.templateSource(data.slice(from,  nextMarker - from));
             } else {
-                searchRequest.source(data.slice(from, nextMarker - from));
+                // searchRequest.source(data.slice(from, nextMarker - from));
+                // NOCOMMIT fix this
             }
             // move pointers
             from = nextMarker + 1;

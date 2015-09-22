@@ -245,7 +245,7 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
         searchRequest.types(types());
         searchRequest.routing(routing());
         searchRequest.preference(preference());
-        searchRequest.source(source());
+        // searchRequest.source(source()); NOCOMMIT fix this
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.size(0);
         if (minScore() != DEFAULT_MIN_SCORE) {

@@ -115,8 +115,8 @@ public class TransportPutWarmerAction extends TransportMasterNodeAction<PutWarme
                         String[] concreteIndices = indexNameExpressionResolver.concreteIndices(currentState, request.searchRequest().indicesOptions(), request.searchRequest().indices());
 
                         BytesReference source = null;
-                        if (request.searchRequest().source() != null && request.searchRequest().source().length() > 0) {
-                            source = request.searchRequest().source();
+                        if (request.searchRequest().source() != null) {
+//                            source = request.searchRequest().source(); // NOCOMMIT fix this
                         } else if (request.searchRequest().extraSource() != null && request.searchRequest().extraSource().length() > 0) {
                             source = request.searchRequest().extraSource();
                         }

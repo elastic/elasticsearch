@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 
@@ -65,7 +66,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     private Scroll scroll;
     private String[] types = Strings.EMPTY_ARRAY;
     private String[] filteringAliases;
-    private BytesReference source;
+    private SearchSourceBuilder source;
     private BytesReference extraSource;
     private BytesReference templateSource;
     private Template template;
@@ -98,8 +99,8 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         this.filteringAliases = filteringAliases;
     }
 
-    public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType,
-                                   BytesReference source, String[] types, Boolean requestCache) {
+    public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
+            Boolean requestCache) {
         this.index = shardId.getIndex();
         this.shardId = shardId.id();
         this.numberOfShards = numberOfShards;
@@ -125,12 +126,12 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     }
 
     @Override
-    public BytesReference source() {
+    public SearchSourceBuilder source() {
         return source;
     }
 
     @Override
-    public void source(BytesReference source) {
+    public void source(SearchSourceBuilder source) {
         this.source = source;
     }
 
@@ -189,7 +190,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
             scroll = readScroll(in);
         }
 
-        source = in.readBytesReference();
+        source = SearchSourceBuilder.PROTOTYPE.readFrom(in);
         extraSource = in.readBytesReference();
 
         types = in.readStringArray();
@@ -216,7 +217,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        out.writeBytesReference(source);
+        source.writeTo(out);
         out.writeBytesReference(extraSource);
         out.writeStringArray(types);
         out.writeStringArrayNullable(filteringAliases);

@@ -465,16 +465,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the source of the request as a json string. Note, settings anything other
-     * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(SearchSourceBuilder)} instead.
-     */
-    public SearchRequestBuilder setSource(BytesReference source) {
-        request.source(source);
-        return this;
-    }
-
-    /**
      * Sets the an addtional source of the request as a SearchSourceBuilder. All values and
      * settings set on the extra source will override the corresponding settings on the specified
      * source.
@@ -536,7 +526,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         }
         if (request.source() != null) {
             try {
-                return XContentHelper.convertToJson(request.source().toBytesArray(), false, true);
+                return XContentHelper.toString(request.source());
             } catch (Exception e) {
                 return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
             }

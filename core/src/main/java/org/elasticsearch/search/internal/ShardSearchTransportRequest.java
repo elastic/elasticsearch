@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -87,12 +88,12 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public BytesReference source() {
+    public SearchSourceBuilder source() {
         return shardSearchLocalRequest.source();
     }
 
     @Override
-    public void source(BytesReference source) {
+    public void source(SearchSourceBuilder source) {
         shardSearchLocalRequest.source(source);
     }
 

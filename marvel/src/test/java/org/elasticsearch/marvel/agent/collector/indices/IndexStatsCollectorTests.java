@@ -216,6 +216,6 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(LicenseService.class, nodeId),
-                client(nodeId));
+                securedClient(nodeId));
     }
 }

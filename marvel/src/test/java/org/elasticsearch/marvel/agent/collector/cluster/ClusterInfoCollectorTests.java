@@ -98,6 +98,6 @@ public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(LicenseService.class, nodeId),
                 internalCluster().getInstance(ClusterName.class, nodeId),
-                client(nodeId));
+                securedClient(nodeId));
     }
 }

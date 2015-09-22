@@ -23,6 +23,8 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
+import org.elasticsearch.marvel.shield.MarvelShieldIntegration;
+import org.elasticsearch.marvel.shield.SecuredClient;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -58,6 +60,16 @@ public class AbstractCollectorTestCase extends ESIntegTestCase {
     @Before
     public void ensureLicenseIsEnabled() {
         enableLicense();
+    }
+
+    public SecuredClient securedClient() {
+        MarvelShieldIntegration integration = internalCluster().getInstance(MarvelShieldIntegration.class);
+        return new SecuredClient(client(), integration);
+    }
+
+    public SecuredClient securedClient(String nodeId) {
+        MarvelShieldIntegration integration = internalCluster().getInstance(MarvelShieldIntegration.class);
+        return new SecuredClient(client(nodeId), integration);
     }
 
     protected void assertCanCollect(AbstractCollector collector) {

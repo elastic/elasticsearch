@@ -17,6 +17,7 @@ import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
+import org.elasticsearch.marvel.shield.SecuredClient;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,7 +42,7 @@ public class ClusterInfoCollector extends AbstractCollector<ClusterInfoMarvelDoc
 
     @Inject
     public ClusterInfoCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, LicenseService licenseService,
-                                ClusterName clusterName, Client client) {
+                                ClusterName clusterName, SecuredClient client) {
         super(settings, NAME, clusterService, marvelSettings, licenseService);
         this.clusterName = clusterName;
         this.licenseService = licenseService;

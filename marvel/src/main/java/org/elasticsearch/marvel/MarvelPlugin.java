@@ -23,6 +23,7 @@ import org.elasticsearch.marvel.agent.settings.MarvelSetting;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.license.LicenseService;
+import org.elasticsearch.marvel.shield.MarvelShieldModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tribe.TribeService;
 
@@ -37,9 +38,11 @@ public class MarvelPlugin extends Plugin {
     public static final String NAME = "marvel";
     public static final String ENABLED = NAME + ".enabled";
 
+    private final Settings settings;
     private final boolean enabled;
 
     public MarvelPlugin(Settings settings) {
+        this.settings = settings;
         this.enabled = marvelEnabled(settings);
     }
 
@@ -66,7 +69,8 @@ public class MarvelPlugin extends Plugin {
             new MarvelModule(),
             new LicenseModule(),
             new CollectorModule(),
-            new ExporterModule(),
+            new ExporterModule(settings),
+            new MarvelShieldModule(settings),
             new RendererModule());
     }
 

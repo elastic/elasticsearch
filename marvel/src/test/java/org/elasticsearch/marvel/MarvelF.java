@@ -23,14 +23,14 @@ import java.util.concurrent.CountDownLatch;
  *
  * It accepts collectors names as program arguments.
  */
-public class MarvelLauncher {
+public class MarvelF {
 
     public static void main(String[] args) throws Throwable {
         Settings.Builder settings = Settings.builder();
         settings.put("script.inline", "on");
         settings.put("security.manager.enabled", "false");
         settings.put("plugins.load_classpath_plugins", "false");
-        settings.put("cluster.name", MarvelLauncher.class.getSimpleName());
+        settings.put("cluster.name", MarvelF.class.getSimpleName());
         settings.put("marvel.agent.interval", "5s");
         if (!CollectionUtils.isEmpty(args)) {
             settings.putArray("marvel.agent.collectors", args);

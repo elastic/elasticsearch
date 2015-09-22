@@ -14,6 +14,7 @@ import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -30,18 +31,22 @@ public abstract class AbstractRendererTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(Node.HTTP_ENABLED, true)
                 .put(MarvelSettings.STARTUP_DELAY, "3s")
                 .put(MarvelSettings.INTERVAL, "1s")
-                .put(MarvelSettings.COLLECTORS, Strings.collectionToCommaDelimitedString(collectors()))
-                .build();
+                .put(MarvelSettings.COLLECTORS, Strings.collectionToCommaDelimitedString(collectors()));
+
+        // we need to remove this potential setting for shield
+        builder.remove("index.queries.cache.type");
+
+        return builder.build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LicensePlugin.class, MarvelPlugin.class);
+        return Arrays.asList(LicensePlugin.class, MarvelPlugin.class, ShieldPlugin.class);
     }
 
     @Override

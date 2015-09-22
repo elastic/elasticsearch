@@ -7,6 +7,7 @@ package org.elasticsearch.marvel.agent.exporter;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -15,7 +16,13 @@ public class ExporterModule extends AbstractModule {
 
     private final Set<Class<? extends Exporter>> exporters = new HashSet<>();
 
-    public ExporterModule() {
+    private final Settings settings;
+
+    public ExporterModule(Settings settings) {
+        this.settings = settings;
+
+        // TODO do we need to choose what exporters to bind based on settings?
+
         // Registers default exporter
         registerExporter(HttpESExporter.class);
     }

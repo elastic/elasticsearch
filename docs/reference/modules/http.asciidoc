@@ -18,7 +18,9 @@ http://en.wikipedia.org/wiki/Chunked_transfer_encoding[HTTP chunking].
 [float]
 === Settings
 
-The following are the settings that can be configured for HTTP:
+The settings in the table below can be configured for HTTP. Note that none of
+them are dynamically updatable so for them to take effect they should be set in
+`elasticsearch.yml`.
 
 [cols="<,<",options="header",]
 |=======================================================================

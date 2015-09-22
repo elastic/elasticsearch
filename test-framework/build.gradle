@@ -64,6 +64,7 @@ sourceSets.main.java.srcDir(srcDir)
 task copySourceFiles(type: ExecHack) {
   copy 'org/elasticsearch/test'
   copy 'org/elasticsearch/bootstrap/BootstrapForTesting.java'
+  copy 'org/elasticsearch/bootstrap/MockPluginPolicy.java'
   copy 'org/elasticsearch/common/io/PathUtilsForTesting.java'
   copy 'org/elasticsearch/common/cli/CliToolTestCase.java'
   copy 'org/elasticsearch/cluster/MockInternalClusterInfoService.java'

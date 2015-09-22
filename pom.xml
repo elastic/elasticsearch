@@ -546,6 +546,17 @@
                     <artifactId>maven-enforcer-plugin</artifactId>
                     <executions>
                         <execution>
+                            <id>enforce-dependencies</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <dependencyConvergence/>
+                                </rules>
+                            </configuration>
+                        </execution>
+                        <execution>
                             <id>enforce-versions</id>
                             <goals>
                                 <goal>enforce</goal>

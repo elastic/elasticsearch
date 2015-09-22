@@ -21,7 +21,7 @@
       <testCommand>sudo bats $BATS/${testScripts}</testCommand>
 
       <allDebBoxes>precise, trusty, vivid, jessie</allDebBoxes>
-      <allRpmBoxes>centos-6, centos-7, oel-7, fedora-22, opensuse-13</allRpmBoxes>
+      <allRpmBoxes>centos-6, centos-7, oel-7, fedora-22, opensuse-13, sles-12</allRpmBoxes>
 
       <defaultDebBoxes>trusty</defaultDebBoxes>
       <defaultRpmBoxes>centos-7</defaultRpmBoxes>

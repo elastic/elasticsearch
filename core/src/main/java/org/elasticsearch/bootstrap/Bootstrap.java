@@ -218,6 +218,9 @@ final class Bootstrap {
      * to startup elasticsearch.
      */
     static void init(String[] args) throws Throwable {
+        // Set the system property before anything has a chance to trigger its use
+        System.setProperty("es.logger.prefix", "");
+
         BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
         CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
 
@@ -225,7 +228,6 @@ final class Bootstrap {
             System.exit(status.status());
         }
 
-        System.setProperty("es.logger.prefix", "");
         INSTANCE = new Bootstrap();
 
         boolean foreground = !"false".equals(System.getProperty("es.foreground", System.getProperty("es-foreground")));

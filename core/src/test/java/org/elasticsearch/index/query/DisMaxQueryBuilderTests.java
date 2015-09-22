@@ -83,7 +83,6 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
 
     /**
      * test `null`return value for missing inner queries
-     * @throws IOException
      */
     @Test
     public void testNoInnerQueries() throws IOException {

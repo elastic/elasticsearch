@@ -54,7 +54,7 @@ public class QueryFilterBuilderTests extends AbstractQueryTestCase<QueryFilterBu
     }
 
     /**
-     * test wrapping an inner filter that returns null also returns <tt>null</null> to pass on upwards
+     * test that wrapping an inner filter that returns <tt>null</tt> also returns <tt>null</tt> to pass on upwards
      */
     @Test
     public void testInnerQueryReturnsNull() throws IOException {

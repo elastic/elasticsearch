@@ -37,8 +37,6 @@ public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB
      *
      * @param context additional information needed to construct the queries
      * @return the {@link Query} or <tt>null</tt> if this query should be ignored upstream
-     * @throws QueryShardException
-     * @throws IOException
      */
     Query toQuery(QueryShardContext context) throws IOException;
 
@@ -49,8 +47,6 @@ public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB
      *
      * @param context additional information needed to construct the queries
      * @return the {@link Query} or <tt>null</tt> if this query should be ignored upstream
-     * @throws QueryShardException
-     * @throws IOException
      */
     Query toFilter(QueryShardContext context) throws IOException;
 

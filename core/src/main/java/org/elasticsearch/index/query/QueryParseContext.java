@@ -122,7 +122,6 @@ public class QueryParseContext {
 
     /**
      * @return a new QueryBuilder based on the current state of the parser
-     * @throws IOException
      */
     public QueryBuilder parseInnerQueryBuilder() throws IOException {
         // move to START object
@@ -163,7 +162,6 @@ public class QueryParseContext {
     /**
      * @return a new QueryBuilder based on the current state of the parser, but does so that the inner query
      * is parsed to a filter
-     * @throws IOException
      */
     //norelease setting and checking the isFilter Flag should completely be moved to toQuery/toFilter after query refactoring
     public QueryBuilder parseInnerFilterToQueryBuilder() throws IOException {

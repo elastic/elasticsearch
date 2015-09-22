@@ -38,7 +38,6 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     /**
      * check that parser throws exception on missing values field
-     * @throws IOException
      */
     @Test(expected=ParsingException.class)
     public void testIdsNotProvided() throws IOException {

@@ -244,9 +244,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
      * {@link Query} instances. {@link QueryBuilder} that return <tt>null</tt> calling
      * their {@link QueryBuilder#toQuery(QueryShardContext)} method are not added to the
      * resulting collection.
-     *
-     * @throws IOException
-     * @throws QueryShardException
      */
     protected static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, QueryShardContext context) throws QueryShardException,
             IOException {

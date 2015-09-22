@@ -59,9 +59,6 @@ public class NotQueryBuilderTests extends AbstractQueryTestCase<NotQueryBuilder>
         }
     }
 
-    /**
-     * @throws IOException
-     */
     @Test(expected=ParsingException.class)
     public void testMissingFilterSection() throws IOException {
         String queryString = "{ \"not\" : {}";

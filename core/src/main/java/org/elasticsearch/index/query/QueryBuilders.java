@@ -617,7 +617,7 @@ public abstract class QueryBuilders {
      * A filter to filter based on a specific range from a specific geo location / point.
      *
      * @param name The location field name.
-     * @param point The point as geohash
+     * @param geohash The point as geohash
      */
     public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, String geohash) {
         return new GeoDistanceRangeQueryBuilder(name, geohash);
@@ -694,7 +694,6 @@ public abstract class QueryBuilders {
      *
      * @param name  The shape field name
      * @param shape Shape to use in the filter
-     * @param relation relation of the shapes
      */
     public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) throws IOException {
         return new GeoShapeQueryBuilder(name, shape);
@@ -769,7 +768,7 @@ public abstract class QueryBuilders {
 
     /**
      * A filter to filter only documents where a field does not exists in them.
-     * @param fieldPattern the field to query
+     * @param name the field to query
      */
     public static MissingQueryBuilder missingQuery(String name) {
         return missingQuery(name, MissingQueryBuilder.DEFAULT_NULL_VALUE, MissingQueryBuilder.DEFAULT_EXISTENCE_VALUE);
@@ -777,7 +776,7 @@ public abstract class QueryBuilders {
 
     /**
      * A filter to filter only documents where a field does not exists in them.
-     * @param fieldPattern the field to query
+     * @param name the field to query
      * @param nullValue should the missing filter automatically include fields with null value configured in the
      * mappings. Defaults to <tt>false</tt>.
      * @param existence should the missing filter include documents where the field doesn't exist in the docs.

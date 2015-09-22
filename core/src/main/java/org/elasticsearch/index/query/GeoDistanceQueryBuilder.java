@@ -292,10 +292,6 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         geoDistance.writeTo(out);
     }
 
-    /**
-     * @param indexCreatedBeforeV2_0
-     * @return
-     */
     private QueryValidationException checkLatLon(boolean indexCreatedBeforeV2_0) {
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
         if (ignoreMalformed || indexCreatedBeforeV2_0) {

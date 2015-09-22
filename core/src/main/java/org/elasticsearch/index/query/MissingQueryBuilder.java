@@ -61,7 +61,7 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
      * @param fieldPattern the field to query
      * @param nullValue should the missing filter automatically include fields with null value configured in the
      * mappings. Defaults to <tt>false</tt>.
-     * @param existance should the missing filter include documents where the field doesn't exist in the docs.
+     * @param existence should the missing filter include documents where the field doesn't exist in the docs.
      * Defaults to <tt>true</tt>.
      * @throws IllegalArgumentException when both <tt>existence</tt> and <tt>nullValue</tt> are set to false
      */

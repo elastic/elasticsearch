@@ -84,7 +84,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      * Creates a new GeoShapeQueryBuilder whose Query will be against the given
      * field name using the given Shape
      *
-     * @param name
+     * @param fieldName
      *            Name of the field that will be queried
      * @param shape
      *            Shape used in the Query

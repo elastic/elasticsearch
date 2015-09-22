@@ -101,7 +101,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     /**
-     * @see SpanNearQueryBuilder#inOrder(boolean))
+     * @see SpanNearQueryBuilder#inOrder(boolean)
      */
     public boolean inOrder() {
         return this.inOrder;
@@ -116,7 +116,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     /**
-     * @see SpanNearQueryBuilder#collectPayloads(boolean))
+     * @see SpanNearQueryBuilder#collectPayloads(boolean)
      */
     public boolean collectPayloads() {
         return this.collectPayloads;

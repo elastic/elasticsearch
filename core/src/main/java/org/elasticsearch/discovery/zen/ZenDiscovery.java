@@ -76,7 +76,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, PingContextProvider {
 
     public final static String SETTING_REJOIN_ON_MASTER_GONE = "discovery.zen.rejoin_on_master_gone";
-    public final static String SETTING_PING_TIMEOUT = "discovery.zen.ping.timeout";
+    public final static String SETTING_PING_TIMEOUT = "discovery.zen.ping_timeout";
     public final static String SETTING_JOIN_TIMEOUT = "discovery.zen.join_timeout";
     public final static String SETTING_JOIN_RETRY_ATTEMPTS = "discovery.zen.join_retry_attempts";
     public final static String SETTING_JOIN_RETRY_DELAY = "discovery.zen.join_retry_delay";
@@ -150,10 +150,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.discoverySettings = discoverySettings;
         this.pingService = pingService;
         this.electMaster = electMasterService;
-        TimeValue pingTimeout = this.settings.getAsTime("discovery.zen.initial_ping_timeout", timeValueSeconds(3));
-        pingTimeout = this.settings.getAsTime("discovery.zen.ping_timeout", pingTimeout);
-        pingTimeout = settings.getAsTime("discovery.zen.ping_timeout", pingTimeout);
-        this.pingTimeout = settings.getAsTime(SETTING_PING_TIMEOUT, pingTimeout);
+        this.pingTimeout = settings.getAsTime(SETTING_PING_TIMEOUT, timeValueSeconds(3));
 
         this.joinTimeout = settings.getAsTime(SETTING_JOIN_TIMEOUT, TimeValue.timeValueMillis(this.pingTimeout.millis() * 20));
         this.joinRetryAttempts = settings.getAsInt(SETTING_JOIN_RETRY_ATTEMPTS, 3);
@@ -173,7 +170,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             throw new IllegalArgumentException("'" + SETTING_MAX_PINGS_FROM_ANOTHER_MASTER + "' must be a positive number. got [" + this.maxPingsFromAnotherMaster + "]");
         }
 
-        logger.debug("using ping.timeout [{}], join.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", pingTimeout, joinTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
+        logger.debug("using ping_timeout [{}], join.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", this.pingTimeout, joinTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 
         nodeSettingsService.addListener(new ApplySettings());
 

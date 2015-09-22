@@ -122,7 +122,7 @@ can contain misspellings (See parameter descriptions below).
     the maximum percentage of the terms that at most
     considered to be misspellings in order to form a correction. This method
     accepts a float value in the range `[0..1)` as a fraction of the actual
-    query terms a number `>=1` as an absolute number of query terms. The
+    query terms or a number `>=1` as an absolute number of query terms. The
     default is set to `1.0` which corresponds to that only corrections with
     at most 1 misspelled term are returned.  Note that setting this too high
     can negatively impact performance. Low values like `1` or `2` are recommended

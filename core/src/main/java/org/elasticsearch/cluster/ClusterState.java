@@ -404,11 +404,11 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         // nodes
         if (metrics.contains(Metric.NODES)) {
-            builder.startObject("nodes");
+            builder.startKeyedObjects("nodes", params);
             for (DiscoveryNode node : nodes) {
                 node.toXContent(builder, params);
             }
-            builder.endObject();
+            builder.endKeyedObjects(params);
         }
 
         // meta data
@@ -447,9 +447,9 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             }
             builder.endObject();
 
-            builder.startObject("indices");
+            builder.startKeyedObjects("indices", params);
             for (IndexMetaData indexMetaData : metaData()) {
-                builder.startObject(indexMetaData.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startKeyedObject("index", indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE, params);
 
                 builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
@@ -478,9 +478,9 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 }
                 builder.endArray();
 
-                builder.endObject();
+                builder.endKeyedObject(params);
             }
-            builder.endObject();
+            builder.endKeyedObjects(params);
 
             for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
                 builder.startObject(cursor.key);
@@ -494,7 +494,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         // routing table
         if (metrics.contains(Metric.ROUTING_TABLE)) {
             builder.startObject("routing_table");
-            builder.startObject("indices");
+            builder.startKeyedObjects("indices", params);
             for (IndexRoutingTable indexRoutingTable : routingTable()) {
                 builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
                 builder.startObject("shards");
@@ -506,9 +506,9 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                     builder.endArray();
                 }
                 builder.endObject();
-                builder.endObject();
+                builder.endKeyedObject(params);
             }
-            builder.endObject();
+            builder.endKeyedObjects(params);
             builder.endObject();
         }
 
@@ -521,15 +521,15 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             }
             builder.endArray();
 
-            builder.startObject("nodes");
+            builder.startKeyedObjects("nodes", params);
             for (RoutingNode routingNode : getRoutingNodes()) {
-                builder.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startKeyedArray("id", routingNode.nodeId() == null ? "null" : routingNode.nodeId(), "shards", XContentBuilder.FieldCaseConversion.NONE, params);
                 for (ShardRouting shardRouting : routingNode) {
                     shardRouting.toXContent(builder, params);
                 }
-                builder.endArray();
+                builder.endKeyedArray(params);
             }
-            builder.endObject();
+            builder.endKeyedObjects(params);
 
             builder.endObject();
         }

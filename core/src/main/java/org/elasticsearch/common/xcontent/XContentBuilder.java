@@ -250,6 +250,61 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    private boolean isKeyed(ToXContent.Params params) {
+        return params.paramAsBoolean("keyed", true);
+    }
+
+    public XContentBuilder startKeyedObjects(String name, ToXContent.Params params) throws IOException {
+        if (isKeyed(params)) {
+            startObject(name);
+        } else {
+            startArray(name);
+        }
+        return this;
+    }
+
+    public XContentBuilder endKeyedObjects(ToXContent.Params params) throws IOException {
+        if (isKeyed(params)) {
+            endObject();
+        } else {
+            endArray();
+        }
+        return this;
+    }
+
+    public XContentBuilder startKeyedObject(String key, String value, FieldCaseConversion conversion, ToXContent.Params params) throws IOException {
+        if (isKeyed(params)) {
+            startObject(value, conversion);
+        } else {
+            startObject();
+            field(key, value, conversion);
+        }
+        return this;
+    }
+
+    public XContentBuilder endKeyedObject(ToXContent.Params params) throws IOException {
+        endObject();
+        return this;
+    }
+
+    public XContentBuilder startKeyedArray(String key, String value, String array, FieldCaseConversion conversion, ToXContent.Params params) throws IOException {
+        if (isKeyed(params)) {
+            startArray(value, conversion);
+        } else {
+            startKeyedObject(key, value, conversion, params);
+            startArray(array);
+        }
+        return this;
+    }
+
+    public XContentBuilder endKeyedArray(ToXContent.Params params) throws IOException {
+        endArray();
+        if (isKeyed(params) == false) {
+            endKeyedObject(params);
+        }
+        return this;
+    }
+
     public XContentBuilder field(XContentBuilderString name) throws IOException {
         if (fieldCaseConversion == FieldCaseConversion.UNDERSCORE) {
             generator.writeFieldName(name.underscore());

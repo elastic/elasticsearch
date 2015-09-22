@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent.builder;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -53,6 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class XContentBuilderTests extends ESTestCase {
+    
     public void testPrettyWithLfAtEnd() throws Exception {
         FastCharArrayWriter writer = new FastCharArrayWriter();
         XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(writer);
@@ -347,4 +348,53 @@ public class XContentBuilderTests extends ESTestCase {
                 "}", string.trim());
     }
 
+    private String buildSampleKeyedObject(ToXContent.Params params) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject()
+                    .startKeyedObjects("ids", params)
+                        .startKeyedObject("id", "A9rCgJ0nQnGS5cPCQ5VOKA", XContentBuilder.FieldCaseConversion.NONE, params)
+                            .field("test", "value")
+                        .endKeyedObject(params)
+                    .endKeyedObjects(params)
+                .endObject();
+        return builder.string();
+    }
+
+    private String buildSampleKeyedArray(ToXContent.Params params) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject()
+                    .startKeyedObjects("names", params)
+                        .startKeyedArray("name", "4uT7lJ2GRBuQI7Nq6odX5A", "numbers", XContentBuilder.FieldCaseConversion.NONE, params)
+                            .value(0)
+                            .value(1)
+                        .endKeyedArray(params)
+                        .startKeyedArray("name", "jvJMRG0_TKCShW_keZw1Dw", "numbers", XContentBuilder.FieldCaseConversion.NONE, params)
+                            .value(2)
+                            .value(3)
+                        .endKeyedArray(params)
+                    .endKeyedObjects(params)
+                .endObject();
+        return builder.string();
+    }
+
+    @Test
+    public void testKeyedParameter() throws IOException {
+        // Test with default value for keyed parameter
+        assertThat(buildSampleKeyedObject(ToXContent.EMPTY_PARAMS), equalTo("{\"ids\":{\"A9rCgJ0nQnGS5cPCQ5VOKA\":{\"test\":\"value\"}}}"));
+        assertThat(buildSampleKeyedArray(ToXContent.EMPTY_PARAMS), equalTo("{\"names\":{\"4uT7lJ2GRBuQI7Nq6odX5A\":[0,1],\"jvJMRG0_TKCShW_keZw1Dw\":[2,3]}}"));
+
+        // Test with keyed=true
+        Map<String, String> keyed = new HashMap<>();
+        keyed.put("keyed", Boolean.TRUE.toString());
+        ToXContent.Params params = new ToXContent.MapParams(keyed);
+        assertThat(buildSampleKeyedObject(params), equalTo("{\"ids\":{\"A9rCgJ0nQnGS5cPCQ5VOKA\":{\"test\":\"value\"}}}"));
+        assertThat(buildSampleKeyedArray(params), equalTo("{\"names\":{\"4uT7lJ2GRBuQI7Nq6odX5A\":[0,1],\"jvJMRG0_TKCShW_keZw1Dw\":[2,3]}}"));
+
+        // Test with keyed=false
+        keyed = new HashMap<>();
+        keyed.put("keyed", Boolean.FALSE.toString());
+        params = new ToXContent.MapParams(keyed);
+        assertThat(buildSampleKeyedObject(params), equalTo("{\"ids\":[{\"id\":\"A9rCgJ0nQnGS5cPCQ5VOKA\",\"test\":\"value\"}]}"));
+        assertThat(buildSampleKeyedArray(params), equalTo("{\"names\":[{\"name\":\"4uT7lJ2GRBuQI7Nq6odX5A\",\"numbers\":[0,1]},{\"name\":\"jvJMRG0_TKCShW_keZw1Dw\",\"numbers\":[2,3]}]}"));
+    }
 }

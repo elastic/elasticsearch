@@ -1,0 +1,34 @@
+setup:
+  - do:
+      index:
+        index: testidx
+        type:  testtype
+        id:    testing_document
+        body:
+            "text" : "The quick brown fox is brown."
+  - do:
+      indices.refresh: {}
+
+---
+"Cluster state with keyed parameter set to true":
+  - do:
+      cluster.state:
+        keyed: true
+
+  - set: {master_node: node_id}
+
+  - is_true: nodes.$node_id
+  - is_true: metadata.indices.testidx
+  - is_true: routing_table.indices.testidx
+
+---
+"Cluster state with keyed parameter set to false":
+  - do:
+      cluster.state:
+        keyed: false
+
+  - set: {master_node: node_id}
+
+  - is_true: nodes.0.id
+  - match: {metadata.indices.0.index: "testidx"}
+  - match: {routing_table.indices.0.index: "testidx"}

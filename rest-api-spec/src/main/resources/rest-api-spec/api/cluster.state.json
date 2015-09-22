@@ -46,6 +46,10 @@
           "options" : ["open","closed","none","all"],
           "default" : "open",
           "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        },
+        "keyed": {
+          "type" : "boolean",
+          "description" : "Whether nodes and indices information are keyed by id (default: true) or denormalized in a sub field"
         }
       }
     },

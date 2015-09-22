@@ -38,47 +38,12 @@
 
     <!-- typical layout -->
     <build>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-                <includes>
-                    <include>**/*.properties</include>
-                </includes>
-            </resource>
-        </resources>
-
         <testResources>
             <testResource>
-                <directory>src/test/java</directory>
-                <includes>
-                    <include>**/*.json</include>
-                    <include>**/*.txt</include>
-                </includes>
-            </testResource>
-            <testResource>
-                <directory>src/test/resources</directory>
-                <excludes>
-                    <exclude>elasticsearch.yml</exclude>
-                    <exclude>**/*.properties</exclude>
-                </excludes>
-            </testResource>
-            <testResource>
                 <directory>src/test/resources</directory>
                 <filtering>true</filtering>
                 <includes>
-                    <include>elasticsearch.yml</include>
-                    <include>**/*.properties</include>
-                </includes>
-            </testResource>
-            <!-- REST API specification and test suites -->
-            <testResource>
-                <directory>${project.basedir}/rest-api-spec</directory>
-                <filtering>true</filtering>
-                <targetPath>rest-api-spec</targetPath>
-                <includes>
-                    <include>api/*.json</include>
-                    <include>test/**/*.yaml</include>
+                    <include>rest-api-spec/**</include>
                 </includes>
             </testResource>
             <!-- REST API specifications copied from main Elasticsearch specs

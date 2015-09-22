@@ -10,7 +10,6 @@ import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.net.InetAddress;
 
@@ -69,7 +68,11 @@ public interface AuditTrail {
         }
 
         @Override
-        public void tamperedRequest(User user, String action, TransportRequest request) {
+        public void tamperedRequest(String action, TransportMessage<?> message) {
+        }
+
+        @Override
+        public void tamperedRequest(User user, String action, TransportMessage<?> request) {
         }
 
         @Override
@@ -111,7 +114,9 @@ public interface AuditTrail {
 
     void accessDenied(User user, String action, TransportMessage<?> message);
 
-    void tamperedRequest(User user, String action, TransportRequest request);
+    void tamperedRequest(String action, TransportMessage<?> message);
+
+    void tamperedRequest(User user, String action, TransportMessage<?> request);
 
     void connectionGranted(InetAddress inetAddress, String profile, ShieldIpFilterRule rule);
 

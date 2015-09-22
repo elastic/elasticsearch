@@ -56,7 +56,6 @@ import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.transport.TransportRequest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -438,7 +437,18 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void tamperedRequest(User user, String action, TransportRequest request) {
+    public void tamperedRequest(String action, TransportMessage<?> message) {
+        if (events.contains(TAMPERED_REQUEST)) {
+            try {
+                enqueue(message("tampered_request", action, null, indices(message), message), "tampered_request");
+            } catch (Exception e) {
+                logger.warn("failed to index audit event: [tampered_request]", e);
+            }
+        }
+    }
+
+    @Override
+    public void tamperedRequest(User user, String action, TransportMessage<?> request) {
         if (events.contains(TAMPERED_REQUEST)) {
             if (!principalIsAuditor(user.principal())) {
                 try {

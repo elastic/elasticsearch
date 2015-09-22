@@ -371,7 +371,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, transport, logger);
             TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
-            String origins = LoggingAuditTrail.originAttributes(message, transport);;
+            String origins = LoggingAuditTrail.originAttributes(message, transport);
             auditTrail.accessGranted(User.SYSTEM, "internal:_action", message);
             switch (level) {
                 case ERROR:
@@ -461,6 +461,74 @@ public class LoggingAuditTrailTests extends ESTestCase {
                         assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_denied]\t" + origins + ", " + userInfo + ", action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
                         assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_denied]\t" + origins + ", " + userInfo + ", action=[_action], request=[MockMessage]");
+                    }
+            }
+        }
+    }
+
+    @Test
+    public void testTamperedRequest() throws Exception {
+        String action = "_action";
+        TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
+        String origins = LoggingAuditTrail.originAttributes(message, transport);
+        for (Level level : Level.values()) {
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, transport, logger);
+            auditTrail.tamperedRequest(action, message);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                case INFO:
+                    if (message instanceof IndicesRequest) {
+                        assertMsg(logger, Level.ERROR, prefix + "[transport] [tampered_request]\t" + origins + ", action=[_action], indices=[idx1,idx2]");
+                    } else {
+                        assertMsg(logger, Level.ERROR, prefix + "[transport] [tampered_request]\t"  + origins + ", action=[_action]");
+                    }
+                    break;
+                case DEBUG:
+                case TRACE:
+                    if (message instanceof IndicesRequest) {
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [tampered_request]\t" + origins + ", action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                    } else {
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [tampered_request]\t" + origins + ", action=[_action], request=[MockMessage]");
+                    }
+            }
+        }
+    }
+
+    @Test
+    public void testTamperedRequestWithUser() throws Exception {
+        String action = "_action";
+        TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
+        String origins = LoggingAuditTrail.originAttributes(message, transport);
+        final boolean runAs = randomBoolean();
+        User user;
+        if (runAs) {
+            user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+        } else {
+            user = new User.Simple("_username", new String[]{"r1"});
+        }
+        String userInfo = runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]";
+        for (Level level : Level.values()) {
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, transport, logger);
+            auditTrail.tamperedRequest(user, action, message);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                case INFO:
+                    if (message instanceof IndicesRequest) {
+                        assertMsg(logger, Level.ERROR, prefix + "[transport] [tampered_request]\t" + origins + ", " + userInfo + ", action=[_action], indices=[idx1,idx2]");
+                    } else {
+                        assertMsg(logger, Level.ERROR, prefix + "[transport] [tampered_request]\t"  + origins + ", " + userInfo + ", action=[_action]");
+                    }
+                    break;
+                case DEBUG:
+                case TRACE:
+                    if (message instanceof IndicesRequest) {
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [tampered_request]\t" + origins + ", " + userInfo + ", action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                    } else {
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [tampered_request]\t" + origins + ", " + userInfo + ", action=[_action], request=[MockMessage]");
                     }
             }
         }

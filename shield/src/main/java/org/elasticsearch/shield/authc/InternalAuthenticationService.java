@@ -151,7 +151,12 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         String header = message.getHeader(USER_KEY);
         if (header != null) {
             if (signUserHeader) {
-                header = cryptoService.unsignAndVerify(header);
+                try {
+                    header = cryptoService.unsignAndVerify(header);
+                } catch (Exception e) {
+                    auditTrail.tamperedRequest(action, message);
+                    throw e;
+                }
             }
             user = decodeUser(header);
         }

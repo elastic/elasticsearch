@@ -379,6 +379,21 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
     }
 
     @Test
+    public void testAuthenticateTamperedUser() throws Exception {
+        InternalMessage message = new InternalMessage();
+        message.putHeader(InternalAuthenticationService.USER_KEY, "_signed_user");
+        when(cryptoService.unsignAndVerify("_signed_user")).thenThrow(randomFrom(new RuntimeException(), new IllegalArgumentException(), new IllegalStateException()));
+
+        try {
+            service.authenticate("_action", message, randomBoolean() ? User.SYSTEM : null);
+        } catch (Exception e) {
+            //expected
+            verify(auditTrail).tamperedRequest("_action", message);
+            verifyNoMoreInteractions(auditTrail);
+        }
+    }
+
+    @Test
     public void testAttachIfMissing_Missing() throws Exception {
         User user = new User.Simple("username", new String[] { "r1", "r2" });
         assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), nullValue());

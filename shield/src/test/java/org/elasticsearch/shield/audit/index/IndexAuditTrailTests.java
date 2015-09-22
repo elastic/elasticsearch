@@ -568,6 +568,22 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
     @Test
     public void testTamperedRequest() throws Exception {
+        initialize();
+        TransportRequest message = new RemoteHostMockTransportRequest();
+        auditor.tamperedRequest("_action", message);
+        awaitIndexCreation(resolveIndexName());
+
+        SearchHit hit = getIndexedAuditMessage();
+
+        assertAuditMessage(hit, "transport", "tampered_request");
+        assertEquals("transport", hit.field("origin_type").getValue());
+        assertThat(hit.field("principal"), is(nullValue()));
+        assertEquals("_action", hit.field("action").getValue());
+        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+    }
+
+    @Test
+    public void testTamperedRequestWithUser() throws Exception {
 
         initialize();
         TransportRequest message = new RemoteHostMockTransportRequest();
@@ -599,7 +615,11 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     public void testTamperedRequest_Muted() throws Exception {
         initialize("tampered_request");
         TransportRequest message = new RemoteHostMockTransportRequest();
-        auditor.tamperedRequest(new User.Simple("_username", new String[]{"r1"}), "_action", message);
+        if (randomBoolean()) {
+            auditor.tamperedRequest(new User.Simple("_username", new String[]{"r1"}), "_action", message);
+        } else {
+            auditor.tamperedRequest("_action", message);
+        }
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
 

@@ -21,7 +21,6 @@ import org.elasticsearch.shield.rest.RemoteHostHeader;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -212,19 +211,37 @@ public class LoggingAuditTrail implements AuditTrail {
     }
 
     @Override
-    public void tamperedRequest(User user, String action, TransportRequest request) {
-        String indices = indicesString(request);
+    public void tamperedRequest(String action, TransportMessage<?> message) {
+        String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix, request.remoteAddress(), principal(user), action, indices, request.getClass().getSimpleName());
+                logger.debug("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport), action, indices, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}]", prefix, request.remoteAddress(), principal(user), action, indices);
+                logger.error("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}]", prefix, originAttributes(message, transport), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], request=[{}]", prefix, request.remoteAddress(), principal(user), action, request.getClass().getSimpleName());
+                logger.debug("{}[transport] [tampered_request]\t{}, action=[{}], request=[{}]", prefix, originAttributes(message, transport), action, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}]", prefix, request.remoteAddress(), principal(user), action);
+                logger.error("{}[transport] [tampered_request]\t{}, action=[{}]", prefix, originAttributes(message, transport), action);
+            }
+        }
+    }
+
+    @Override
+    public void tamperedRequest(User user, String action, TransportMessage<?> request) {
+        String indices = indicesString(request);
+        if (indices != null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(request, transport), principal(user), action, indices, request.getClass().getSimpleName());
+            } else {
+                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}]", prefix, originAttributes(request, transport), principal(user), action, indices);
+            }
+        } else {
+            if (logger.isDebugEnabled()) {
+                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], request=[{}]", prefix, originAttributes(request, transport), principal(user), action, request.getClass().getSimpleName());
+            } else {
+                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}]", prefix, originAttributes(request, transport), principal(user), action);
             }
         }
     }

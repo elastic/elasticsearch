@@ -96,6 +96,7 @@ com.google.common.base.Predicates
 com.google.common.base.Strings
 com.google.common.base.Throwables
 com.google.common.collect.Maps
+com.google.common.collect.ForwardingSet
 com.google.common.collect.Sets
 com.google.common.base.Preconditions
 com.google.common.collect.ImmutableSortedSet

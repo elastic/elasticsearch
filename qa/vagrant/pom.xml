@@ -143,18 +143,6 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>discovery-azure</artifactId>
-                                    <version>${elasticsearch.version}</version>
-                                    <type>zip</type>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>discovery-ec2</artifactId>
-                                    <version>${elasticsearch.version}</version>
-                                    <type>zip</type>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>cloud-gce</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
@@ -162,6 +150,12 @@
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>delete-by-query</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>discovery-azure</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
                                 </artifactItem>
@@ -198,12 +192,6 @@
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>mapper-size</artifactId>
-                                    <version>${elasticsearch.version}</version>
-                                    <type>zip</type>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>repository-s3</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
                                 </artifactItem>

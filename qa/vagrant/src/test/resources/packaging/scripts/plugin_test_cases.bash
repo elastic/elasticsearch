@@ -94,7 +94,7 @@ fi
 
     install_jvm_example
     start_elasticsearch_service
-    # check that configuration was actually picked up    
+    # check that configuration was actually picked up
     curl -s localhost:9200/_cat/configured_example | sed 's/ *$//' > /tmp/installed
     echo "foo" > /tmp/expected
     diff /tmp/installed /tmp/expected
@@ -169,10 +169,6 @@ fi
     install_and_check_plugin analysis stempel
 }
 
-@test "[$GROUP] install azure plugin" {
-    install_and_check_plugin cloud azure azure-core-*.jar
-}
-
 @test "[$GROUP] install gce plugin" {
     install_and_check_plugin cloud gce google-api-client-*.jar
 }
@@ -181,7 +177,11 @@ fi
     install_and_check_plugin - delete-by-query
 }
 
-@test "[$GROUP] install ec2 discovery plugin" {
+@test "[$GROUP] install discovery-azure plugin" {
+    install_and_check_plugin discovery azure azure-core-*.jar
+}
+
+@test "[$GROUP] install discovery-ec2 plugin" {
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
@@ -205,7 +205,11 @@ fi
     install_and_check_plugin mapper size
 }
 
-@test "[$GROUP] install s3 repository plugin" {
+@test "[$GROUP] install repository-azure plugin" {
+    install_and_check_plugin repository azure azure-storage-*.jar
+}
+
+@test "[$GROUP] install repository-s3 plugin" {
     install_and_check_plugin repository s3 aws-java-sdk-core-*.jar
 }
 
@@ -213,6 +217,10 @@ fi
     # Doesn't use install_and_check_plugin because this is a site plugin
     install_plugin site-example $(readlink -m site-example-*.zip)
     assert_file_exist "$ESHOME/plugins/site-example/_site/index.html"
+}
+
+@test "[$GROUP] install store-smb plugin" {
+    install_and_check_plugin store smb
 }
 
 @test "[$GROUP] check the installed plugins can be listed with 'plugins list' and result matches the list of plugins in plugins pom" {
@@ -257,14 +265,6 @@ fi
     remove_plugin analysis-stempel
 }
 
-@test "[$GROUP] remove aws plugin" {
-    remove_plugin cloud-aws
-}
-
-@test "[$GROUP] remove azure plugin" {
-    remove_plugin cloud-azure
-}
-
 @test "[$GROUP] remove gce plugin" {
     remove_plugin cloud-gce
 }
@@ -273,7 +273,11 @@ fi
     remove_plugin delete-by-query
 }
 
-@test "[$GROUP] remove ec2 discovery plugin" {
+@test "[$GROUP] remove discovery-azure plugin" {
+    remove_plugin discovery-azure
+}
+
+@test "[$GROUP] remove discovery-ec2 plugin" {
     remove_plugin discovery-ec2
 }
 
@@ -297,12 +301,20 @@ fi
     remove_plugin mapper-size
 }
 
-@test "[$GROUP] remove s3 repository plugin" {
+@test "[$GROUP] remove repository-azure plugin" {
+    remove_plugin repository-azure
+}
+
+@test "[$GROUP] remove repository-s3 plugin" {
     remove_plugin repository-s3
 }
 
 @test "[$GROUP] remove site example plugin" {
     remove_plugin site-example
+}
+
+@test "[$GROUP] remove store-smb plugin" {
+    remove_plugin store-smb
 }
 
 @test "[$GROUP] start elasticsearch with all plugins removed" {

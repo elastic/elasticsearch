@@ -203,11 +203,19 @@ public class GeoDistanceRangeQueryParser extends BaseQueryParser<GeoDistanceRang
         }
 
         if (vFrom != null) {
-            queryBuilder.from(vFrom.toString());
+            if (vFrom instanceof Number) {
+                queryBuilder.from((Number) vFrom);
+            } else {
+                queryBuilder.from((String) vFrom);
+            }
         }
 
         if (vTo != null) {
-            queryBuilder.to(vTo.toString());
+            if (vTo instanceof Number) {
+                queryBuilder.to((Number) vTo);
+            } else {
+                queryBuilder.to((String) vTo);
+            }
         }
 
         if (includeUpper != null) {

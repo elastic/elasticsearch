@@ -445,12 +445,12 @@ These are the linux flavors the Vagrantfile currently supports:
 * centos-7
 * fedora-22
 * oel-7 aka Oracle Enterprise Linux 7
+* sles-12
 
 We're missing the following from the support matrix because there aren't high
 quality boxes available in vagrant atlas:
 
 * sles-11
-* sles-12
 * opensuse-13
 * oel-6
 

@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  * {@link SimilarityProvider} for {@link DefaultSimilarity}.
- * <p/>
+ * <p>
  * Configuration options available:
  * <ul>
  *     <li>discount_overlaps</li>

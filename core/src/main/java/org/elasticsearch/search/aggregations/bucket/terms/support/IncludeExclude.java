@@ -94,7 +94,7 @@ public class IncludeExclude {
         }
 
         /**
-         * Returns whether the given value is accepted based on the {@code include} & {@code exclude} patterns.
+         * Returns whether the given value is accepted based on the {@code include} &amp; {@code exclude} patterns.
          */
         @Override
         public boolean accept(BytesRef value) {
@@ -114,7 +114,7 @@ public class IncludeExclude {
 
         /**
          * Returns whether the given value is accepted based on the
-         * {@code include} & {@code exclude} sets.
+         * {@code include} &amp; {@code exclude} sets.
          */
         @Override
         public boolean accept(BytesRef value) {

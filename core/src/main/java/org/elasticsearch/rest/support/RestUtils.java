@@ -104,7 +104,7 @@ public class RestUtils {
 
     /**
      * Decodes a bit of an URL encoded by a browser.
-     * <p/>
+     * <p>
      * This is equivalent to calling {@link #decodeComponent(String, Charset)}
      * with the UTF-8 charset (recommended to comply with RFC 3986, Section 2).
      *
@@ -120,13 +120,13 @@ public class RestUtils {
 
     /**
      * Decodes a bit of an URL encoded by a browser.
-     * <p/>
+     * <p>
      * The string is expected to be encoded as per RFC 3986, Section 2.
      * This is the encoding used by JavaScript functions {@code encodeURI}
      * and {@code encodeURIComponent}, but not {@code escape}.  For example
      * in this encoding, &eacute; (in Unicode {@code U+00E9} or in UTF-8
      * {@code 0xC3 0xA9}) is encoded as {@code %C3%A9} or {@code %c3%a9}.
-     * <p/>
+     * <p>
      * This is essentially equivalent to calling
      * <code>{@link java.net.URLDecoder URLDecoder}.{@link
      * java.net.URLDecoder#decode(String, String)}</code>

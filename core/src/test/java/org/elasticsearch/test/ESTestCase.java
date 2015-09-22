@@ -241,7 +241,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Returns a "scaled" random number between min and max (inclusive).
      *
-     * @see RandomizedTest#scaledRandomIntBetween(int, int);
+     * @see RandomizedTest#scaledRandomIntBetween(int, int)
      */
     public static int scaledRandomIntBetween(int min, int max) {
         return RandomizedTest.scaledRandomIntBetween(min, max);

@@ -160,9 +160,9 @@ import static org.hamcrest.Matchers.*;
  * <li>{@link Scope#TEST} - uses a new cluster for each individual test method.</li>
  * <li>{@link Scope#SUITE} - uses a cluster shared across all test methods in the same suite</li>
  * </ul>
- * <p/>
+ * <p>
  * The most common test scope is {@link Scope#SUITE} which shares a cluster per test suite.
- * <p/>
+ * <p>
  * If the test methods need specific node settings or change persistent and/or transient cluster settings {@link Scope#TEST}
  * should be used. To configure a scope for the test cluster the {@link ClusterScope} annotation
  * should be used, here is an example:
@@ -172,25 +172,23 @@ import static org.hamcrest.Matchers.*;
  * @Test public void testMethod() {}
  * }
  * </pre>
- * <p/>
+ * <p>
  * If no {@link ClusterScope} annotation is present on an integration test the default scope is {@link Scope#SUITE}
- * <p/>
+ * <p>
  * A test cluster creates a set of nodes in the background before the test starts. The number of nodes in the cluster is
  * determined at random and can change across tests. The {@link ClusterScope} allows configuring the initial number of nodes
  * that are created before the tests start.
- * <p/>
  *  <pre>
  * @ClusterScope(scope=Scope.SUITE, numDataNodes=3)
  * public class SomeIT extends ESIntegTestCase {
  * @Test public void testMethod() {}
  * }
  * </pre>
- * <p/>
+ * <p>
  * Note, the {@link ESIntegTestCase} uses randomized settings on a cluster and index level. For instance
  * each test might use different directory implementation for each test or will return a random client to one of the
  * nodes in the cluster for each call to {@link #client()}. Test failures might only be reproducible if the correct
  * system properties are passed to the test execution environment.
- * <p/>
  * <p>
  * This class supports the following system properties (passed with -Dkey=value to the application)
  * <ul>
@@ -199,7 +197,6 @@ import static org.hamcrest.Matchers.*;
  * useful to test the system without asserting modules that to make sure they don't hide any bugs in production.</li>
  * <li> - a random seed used to initialize the index random context.
  * </ul>
- * </p>
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public abstract class ESIntegTestCase extends ESTestCase {
@@ -211,7 +208,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /**
      * Annotation for third-party integration tests.
-     * <p/>
+     * <p>
      * These are tests the require a third-party service in order to run. They
      * may require the user to manually configure an external process (such as rabbitmq),
      * or may additionally require some external configuration (e.g. AWS credentials)
@@ -964,7 +961,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *
      * @param numDocs number of documents to wait for.
      * @return the actual number of docs seen.
-     * @throws InterruptedException
      */
     public long waitForDocs(final long numDocs) throws InterruptedException {
         return waitForDocs(numDocs, null);
@@ -977,7 +973,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param indexer a {@link org.elasticsearch.test.BackgroundIndexer}. If supplied it will be first checked for documents indexed.
      *                This saves on unneeded searches.
      * @return the actual number of docs seen.
-     * @throws InterruptedException
      */
     public long waitForDocs(final long numDocs, final @Nullable BackgroundIndexer indexer) throws InterruptedException {
         // indexing threads can wait for up to ~1m before retrying when they first try to index into a shard which is not STARTED.
@@ -993,7 +988,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param indexer         a {@link org.elasticsearch.test.BackgroundIndexer}. If supplied it will be first checked for documents indexed.
      *                        This saves on unneeded searches.
      * @return the actual number of docs seen.
-     * @throws InterruptedException
      */
     public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, final @Nullable BackgroundIndexer indexer)
             throws InterruptedException {
@@ -1219,11 +1213,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /**
      * Syntactic sugar for:
-     * <p/>
      * <pre>
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
-     * <p/>
+     * <p>
      * where source is a String.
      */
     protected final IndexResponse index(String index, String type, String id, String source) {

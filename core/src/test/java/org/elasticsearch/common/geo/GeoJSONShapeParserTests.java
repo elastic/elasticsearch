@@ -44,7 +44,7 @@ import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT
 
 
 /**
- * Tests for {@link GeoJSONShapeParser}
+ * Tests for {@code GeoJSONShapeParser}
  */
 public class GeoJSONShapeParserTests extends ESTestCase {
 

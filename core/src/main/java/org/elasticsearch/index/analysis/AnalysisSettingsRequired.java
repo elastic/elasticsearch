@@ -22,7 +22,7 @@ import java.lang.annotation.*;
 
 /**
  * A marker annotation on {@link CharFilterFactory}, {@link AnalyzerProvider}, {@link TokenFilterFactory},
- * or {@link @TokenizerFactory} which will cause the provider/factory to only be created when explicit settings
+ * or {@link TokenizerFactory} which will cause the provider/factory to only be created when explicit settings
  * are provided.
  */
 @Target({ElementType.TYPE})

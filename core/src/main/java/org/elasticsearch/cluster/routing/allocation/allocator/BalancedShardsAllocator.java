@@ -49,7 +49,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
  * The {@link BalancedShardsAllocator} re-balances the nodes allocations
  * within an cluster based on a {@link WeightFunction}. The clusters balance is defined by four parameters which can be set
  * in the cluster update API that allows changes in real-time:
- * <p/>
  * <ul><li><code>cluster.routing.allocation.balance.shard</code> - The <b>shard balance</b> defines the weight factor
  * for shards allocated on a {@link RoutingNode}</li>
  * <li><code>cluster.routing.allocation.balance.index</code> - The <b>index balance</b> defines a factor to the number
@@ -57,7 +56,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
  * <li><code>cluster.routing.allocation.balance.threshold</code> - A <b>threshold</b> to set the minimal optimization
  * value of operations that should be performed</li>
  * </ul>
- * <p/>
+ * <p>
  * These parameters are combined in a {@link WeightFunction} that allows calculation of node weights which
  * are used to re-balance shards based on global as well as per-index factors.
  */

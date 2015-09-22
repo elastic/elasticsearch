@@ -28,7 +28,7 @@ import org.joda.time.DateTime;
 import java.io.IOException;
 
 /**
- * Builder for the {@link DateHistogram} aggregation.
+ * Builder for the {@code DateHistogram} aggregation.
  */
 public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHistogramBuilder> {
 

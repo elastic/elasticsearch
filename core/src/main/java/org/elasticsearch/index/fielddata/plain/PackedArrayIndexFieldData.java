@@ -418,7 +418,6 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
         /**
          * @return A TermsEnum wrapped in a RamAccountingTermsEnum
-         * @throws IOException
          */
         @Override
         public TermsEnum beforeLoad(Terms terms) throws IOException {

@@ -154,7 +154,7 @@ public class RecoverySourceHandler {
      * Perform phase1 of the recovery operations. Once this {@link SnapshotIndexCommit}
      * snapshot has been performed no commit operations (files being fsync'd)
      * are effectively allowed on this index until all recovery phases are done
-     * <p/>
+     * <p>
      * Phase1 examines the segment files on the target node and copies over the
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
@@ -482,7 +482,7 @@ public class RecoverySourceHandler {
 
     /**
      * Perform phase2 of the recovery process
-     * <p/>
+     * <p>
      * Phase2 takes a snapshot of the current translog *without* acquiring the
      * write lock (however, the translog snapshot is a point-in-time view of
      * the translog). It then sends each translog operation to the target node
@@ -550,7 +550,7 @@ public class RecoverySourceHandler {
 
     /**
      * Send the given snapshot's operations to this handler's target node.
-     * <p/>
+     * <p>
      * Operations are bulked into a single request depending on an operation
      * count limit or size-in-bytes limit
      *

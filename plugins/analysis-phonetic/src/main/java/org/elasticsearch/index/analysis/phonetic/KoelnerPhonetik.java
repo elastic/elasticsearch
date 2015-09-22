@@ -60,10 +60,6 @@ public class KoelnerPhonetik implements StringEncoder {
         init();
     }
     
-    /**
-     *
-     * @param useOnlyPrimaryCode
-     */
     public KoelnerPhonetik(boolean useOnlyPrimaryCode) {
         this();
         this.primary = useOnlyPrimaryCode;
@@ -78,28 +74,14 @@ public class KoelnerPhonetik implements StringEncoder {
         return POSTEL_VARIATIONS_PATTERNS;
     }
 
-    /**
-     *
-     * @return
-     */
     protected String[] getReplacements() {
         return POSTEL_VARIATIONS_REPLACEMENTS;
     }
 
-    /**
-     *
-     * @return
-     */
     protected char getCode() {
         return '0';
     }
 
-    /**
-     *
-     * @param o1
-     * @param o2
-     * @return
-     */
     public double getRelativeValue(Object o1, Object o2) {
         String[] kopho1 = code(expandUmlauts(o1.toString().toUpperCase(Locale.GERMANY)));
         String[] kopho2 = code(expandUmlauts(o2.toString().toUpperCase(Locale.GERMANY)));
@@ -290,20 +272,10 @@ public class KoelnerPhonetik implements StringEncoder {
         return s;
     }
 
-    /**
-     *
-     * @param str
-     * @return
-     */
     private String expandUmlauts(String str) {
         return str.replaceAll("\u00C4", "AE").replaceAll("\u00D6", "OE").replaceAll("\u00DC", "UE");
     }
 
-    /**
-     *
-     * @param str
-     * @return
-     */
     private String removeSequences(String str) {
         if (str == null || str.length() == 0) {
             return "";

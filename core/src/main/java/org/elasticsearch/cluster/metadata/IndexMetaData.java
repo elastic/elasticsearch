@@ -430,7 +430,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     /**
      * Sometimes, the default mapping exists and an actual mapping is not created yet (introduced),
      * in this case, we want to return the default mapping in case it has some default mapping definitions.
-     * <p/>
+     * <p>
      * Note, once the mapping type is introduced, the default mapping is applied on the actual typed MappingMetaData,
      * setting its routing, timestamp, and so on if needed.
      */

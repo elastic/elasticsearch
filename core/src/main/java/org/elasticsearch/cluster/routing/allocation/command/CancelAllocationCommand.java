@@ -126,7 +126,6 @@ public class CancelAllocationCommand implements AllocationCommand {
      * 
      * @param shardId id of the shard which allocation should be canceled
      * @param node id of the node that manages the shard which allocation should be canceled
-     * @param allowPrimary 
      */
     public CancelAllocationCommand(ShardId shardId, String node, boolean allowPrimary) {
         this.shardId = shardId;

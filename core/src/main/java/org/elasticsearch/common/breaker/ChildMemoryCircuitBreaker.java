@@ -102,10 +102,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * Add a number of bytes, tripping the circuit breaker if the aggregated
      * estimates are above the limit. Automatically trips the breaker if the
      * memory limit is set to 0. Will never trip the breaker if the limit is
-     * set < 0, but can still be used to aggregate estimations.
+     * set &lt; 0, but can still be used to aggregate estimations.
      * @param bytes number of bytes to add to the breaker
      * @return number of "used" bytes so far
-     * @throws CircuitBreakingException
      */
     @Override
     public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {

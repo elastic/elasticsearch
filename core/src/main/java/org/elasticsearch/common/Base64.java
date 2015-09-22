@@ -24,37 +24,33 @@ import java.util.Locale;
 /**
  * <p>Encodes and decodes to and from Base64 notation.</p>
  * <p>Homepage: <a href="http://iharder.net/base64">http://iharder.net/base64</a>.</p>
- * <p/>
- * <p>Example:</p>
- * <p/>
+ * <p>
+ * Example:
+ * <p>
  * <code>String encoded = Base64.encode( myByteArray );</code>
- * <br />
+ * <br>
  * <code>byte[] myByteArray = Base64.decode( encoded );</code>
- * <p/>
- * <p>The <tt>options</tt> parameter, which appears in a few places, is used to pass
+ * <p>
+ * The <tt>options</tt> parameter, which appears in a few places, is used to pass
  * several pieces of information to the encoder. In the "higher level" methods such as
  * encodeBytes( bytes, options ) the options parameter can be used to indicate such
  * things as first gzipping the bytes before encoding them, not inserting linefeeds,
- * and encoding using the URL-safe and Ordered dialects.</p>
- * <p/>
- * <p>Note, according to <a href="http://www.faqs.org/rfcs/rfc3548.html">RFC3548</a>,
+ * and encoding using the URL-safe and Ordered dialects.
+ * <p>
+ * Note, according to <a href="http://www.faqs.org/rfcs/rfc3548.html">RFC3548</a>,
  * Section 2.1, implementations should not add line feeds unless explicitly told
  * to do so. I've got Base64 set to this behavior now, although earlier versions
- * broke lines by default.</p>
- * <p/>
- * <p>The constants defined in Base64 can be OR-ed together to combine options, so you
- * might make a call like this:</p>
- * <p/>
+ * broke lines by default.
+ * <p>
+ * The constants defined in Base64 can be OR-ed together to combine options, so you
+ * might make a call like this:
+ * <p>
  * <code>String encoded = Base64.encodeBytes( mybytes, Base64.GZIP | Base64.DO_BREAK_LINES );</code>
- * <p>to compress the data before encoding it and then making the output have newline characters.</p>
- * <p>Also...</p>
+ * <p>to compress the data before encoding it and then making the output have newline characters.
+ * <p>Also...
  * <code>String encoded = Base64.encodeBytes( crazyString.getBytes() );</code>
- * <p/>
- * <p/>
- * <p/>
  * <p>
  * Change Log:
- * </p>
  * <ul>
  * <li>v2.3.7 - Fixed subtle bug when base 64 input stream contained the
  * value 01111111, which is an invalid base 64 character but should not
@@ -65,14 +61,14 @@ import java.util.Locale;
  * <li>v2.3.6 - Fixed bug when breaking lines and the final byte of the encoded
  * string ended in the last column; the buffer was not properly shrunk and
  * contained an extra (null) byte that made it into the string.</li>
- * <li>v2.3.5 - Fixed bug in {@link #encodeFromFile} where estimated buffer size
+ * <li>v2.3.5 - Fixed bug in {@code #encodeFromFile} where estimated buffer size
  * was wrong for files of size 31, 34, and 37 bytes.</li>
  * <li>v2.3.4 - Fixed bug when working with gzipped streams whereby flushing
  * the Base64.OutputStream closed the Base64 encoding (by padding with equals
  * signs) too soon. Also added an option to suppress the automatic decoding
  * of gzipped streams. Also added experimental support for specifying a
  * class loader when using the
- * {@link #decodeToObject(java.lang.String, int, java.lang.ClassLoader)}
+ * {@code #decodeToObject(java.lang.String, int, java.lang.ClassLoader)}
  * method.</li>
  * <li>v2.3.3 - Changed default char encoding to US-ASCII which reduces the internal Java
  * footprint with its CharEncoders and so forth. Fixed some javadocs that were
@@ -127,7 +123,6 @@ import java.util.Locale;
  * Special thanks to Jim Kellerman at <a href="http://www.powerset.com/">http://www.powerset.com/</a>
  * for contributing the new Base64 dialects.
  * </li>
- * <p/>
  * <li>v2.1 - Cleaned up javadoc comments and unused variables and methods. Added
  * some convenience methods for reading and writing to and from files.</li>
  * <li>v2.0.2 - Now specifies UTF-8 encoding in places where the code fails on systems
@@ -155,14 +150,12 @@ import java.util.Locale;
  * <li>v1.3.4 - Fixed when "improperly padded stream" error was thrown at the wrong time.</li>
  * <li>v1.3.3 - Fixed I/O streams which were totally messed up.</li>
  * </ul>
- * <p/>
  * <p>
  * I am placing this code in the Public Domain. Do with it as you will.
  * This software comes with no guarantees or warranties but with
  * plenty of well-wishing instead!
  * Please visit <a href="http://iharder.net/base64">http://iharder.net/base64</a>
  * periodically to check for updates or to contribute improvements.
- * </p>
  *
  * @author Robert Harder
  * @author rob@iharder.net
@@ -669,8 +662,6 @@ public class Base64 {
      * Example: <code>encodeBytes( myData, Base64.GZIP )</code> or
      * <p>
      * Example: <code>encodeBytes( myData, Base64.GZIP | Base64.DO_BREAK_LINES )</code>
-     * <p/>
-     * <p/>
      * <p>As of v 2.3, if there is an error with the GZIP stream,
      * the method will throw an java.io.IOException. <b>This is new to v2.3!</b>
      * In earlier versions, it just returned a null value, but
@@ -692,8 +683,8 @@ public class Base64 {
     /**
      * Encodes a byte array into Base64 notation.
      * Does not GZip-compress data.
-     * <p/>
-     * <p>As of v 2.3, if there is an error,
+     * <p>
+     * As of v 2.3, if there is an error,
      * the method will throw an java.io.IOException. <b>This is new to v2.3!</b>
      * In earlier versions, it just returned a null value, but
      * in retrospect that's a pretty poor way to handle it.</p>
@@ -733,12 +724,11 @@ public class Base64 {
      * Example: <code>encodeBytes( myData, Base64.GZIP )</code> or
      * <p>
      * Example: <code>encodeBytes( myData, Base64.GZIP | Base64.DO_BREAK_LINES )</code>
-     * <p/>
-     * <p/>
-     * <p>As of v 2.3, if there is an error with the GZIP stream,
+     * <p>
+     * As of v 2.3, if there is an error with the GZIP stream,
      * the method will throw an java.io.IOException. <b>This is new to v2.3!</b>
      * In earlier versions, it just returned a null value, but
-     * in retrospect that's a pretty poor way to handle it.</p>
+     * in retrospect that's a pretty poor way to handle it.
      *
      * @param source  The data to convert
      * @param off     Offset in array where conversion should begin
@@ -1263,13 +1253,13 @@ public class Base64 {
         /**
          * Constructs a {@link Base64.InputStream} in
          * either ENCODE or DECODE mode.
-         * <p/>
+         * <p>
          * Valid options:<pre>
          *   ENCODE or DECODE: Encode or Decode as data is read.
          *   DO_BREAK_LINES: break lines at 76 characters
-         *     (only meaningful when encoding)</i>
+         *     (only meaningful when encoding)
          * </pre>
-         * <p/>
+         * <p>
          * Example: <code>new Base64.InputStream( in, Base64.DECODE )</code>
          *
          * @param in      the <tt>java.io.InputStream</tt> from which to read data.
@@ -1470,13 +1460,13 @@ public class Base64 {
         /**
          * Constructs a {@link Base64.OutputStream} in
          * either ENCODE or DECODE mode.
-         * <p/>
+         * <p>
          * Valid options:<pre>
          *   ENCODE or DECODE: Encode or Decode as data is read.
          *   DO_BREAK_LINES: don't break lines at 76 characters
-         *     (only meaningful when encoding)</i>
+         *     (only meaningful when encoding)
          * </pre>
-         * <p/>
+         * <p>
          * Example: <code>new Base64.OutputStream( out, Base64.ENCODE )</code>
          *
          * @param out     the <tt>java.io.OutputStream</tt> to which data will be written.

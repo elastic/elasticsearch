@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  * {@link SimilarityProvider} for {@link DFRSimilarity}.
- * <p/>
+ * <p>
  * Configuration options available:
  * <ul>
  *     <li>basic_model</li>

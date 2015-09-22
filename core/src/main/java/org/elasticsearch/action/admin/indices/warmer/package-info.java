@@ -25,6 +25,6 @@
  *     search. This includes things such as the query cache, filesystem cache, and loading field data for fields.
  * </p>
  *
- * @see the reference guide for more detailed information about the Indices / Search Warmer
+ * See the reference guide for more detailed information about the Indices / Search Warmer
  */
 package org.elasticsearch.action.admin.indices.warmer;

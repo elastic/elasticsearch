@@ -32,7 +32,7 @@ import java.util.Map;
 
 /**
  * An immutable map implementation based on open hash map.
- * <p/>
+ * <p>
  * Can be constructed using a {@link #builder()}, or using {@link #builder(org.elasticsearch.common.collect.ImmutableOpenIntMap)} (which is an optimized
  * option to copy over existing content and modify it).
  */
@@ -47,7 +47,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
     /**
      * @return Returns the value associated with the given key or the default value
      * for the key type, if the key is not associated with any value.
-     * <p/>
+     * <p>
      * <b>Important note:</b> For primitive type values, the value returned for a non-existing
      * key may not be the default value of the primitive type (it may be any value previously
      * assigned to that slot).
@@ -91,8 +91,8 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
      *       + &quot; value=&quot; + c.value);
      * }
      * </pre>
-     * <p/>
-     * <p>The <code>index</code> field inside the cursor gives the internal index inside
+     * <p>
+     * The <code>index</code> field inside the cursor gives the internal index inside
      * the container's implementation. The interpretation of this index depends on
      * to the container.
      */

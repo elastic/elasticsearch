@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +32,6 @@ import java.util.Objects;
  * a more readable configuration. Simply extend this class, implement {@link
  * #configure()}, and call the inherited methods which mirror those found in
  * {@link Binder}. For example:
- * <p/>
  * <pre>
  * public class MyModule extends AbstractModule {
  *   protected void configure() {

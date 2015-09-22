@@ -49,7 +49,6 @@ public class GeoPolygonQueryBuilder extends QueryBuilder {
      *
      * @param lat The latitude
      * @param lon The longitude
-     * @return
      */
     public GeoPolygonQueryBuilder addPoint(double lat, double lon) {
         return addPoint(new GeoPoint(lat, lon));

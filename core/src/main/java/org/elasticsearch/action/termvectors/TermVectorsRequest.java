@@ -52,7 +52,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 /**
  * Request returning the term vector (doc frequency, positions, offsets) for a
  * document.
- * <p/>
+ * <p>
  * Note, the {@link #index()}, {@link #type(String)} and {@link #id(String)} are
  * required.
  */

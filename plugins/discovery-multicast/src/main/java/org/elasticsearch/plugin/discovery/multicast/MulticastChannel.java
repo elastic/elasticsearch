@@ -163,7 +163,7 @@ public abstract class MulticastChannel implements Closeable {
 
     public static final String SHARED_CHANNEL_NAME = "#shared#";
     /**
-     * A shared channel that keeps a static map of Config -> Shared channels, and closes shared
+     * A shared channel that keeps a static map of Config -&gt; Shared channels, and closes shared
      * channel once their reference count has reached 0. It also handles de-registering relevant
      * listener from the shared list of listeners.
      */

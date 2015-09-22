@@ -49,7 +49,6 @@ public class LegacyBlobStoreFormat<T extends ToXContent> extends BlobStoreFormat
      * @param blobContainer blob container
      * @param blobName blob name
      * @return parsed blob object
-     * @throws IOException
      */
     public T readBlob(BlobContainer blobContainer, String blobName) throws IOException {
         try (InputStream inputStream = blobContainer.readBlob(blobName)) {

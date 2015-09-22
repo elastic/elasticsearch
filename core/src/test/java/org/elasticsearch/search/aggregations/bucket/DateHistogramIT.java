@@ -645,7 +645,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     /**
      * The script will change to document date values to the following:
-     * <p/>
+     * <p>
      * doc 1: [ Feb 2, Mar 3]
      * doc 2: [ Mar 2, Apr 3]
      * doc 3: [ Mar 15, Apr 16]
@@ -700,7 +700,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     /**
      * The script will change to document date values to the following:
-     * <p/>
+     * <p>
      * doc 1: [ Feb 2, Mar 3]
      * doc 2: [ Mar 2, Apr 3]
      * doc 3: [ Mar 15, Apr 16]

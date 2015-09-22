@@ -24,7 +24,7 @@ import java.io.Reader;
 
 /**
  * A character stream whose source is a string that is <b>not thread safe</b>
- * <p/>
+ * <p>
  * (shay.banon
  * )
  */
@@ -110,15 +110,15 @@ public class FastStringReader extends CharSequenceReader {
     /**
      * Skips the specified number of characters in the stream. Returns
      * the number of characters that were skipped.
-     * <p/>
-     * <p>The <code>ns</code> parameter may be negative, even though the
+     * <p>
+     * The <code>ns</code> parameter may be negative, even though the
      * <code>skip</code> method of the {@link Reader} superclass throws
      * an exception in this case. Negative values of <code>ns</code> cause the
      * stream to skip backwards. Negative return values indicate a skip
      * backwards. It is not possible to skip backwards past the beginning of
      * the string.
-     * <p/>
-     * <p>If the entire string has been read or skipped, then this method has
+     * <p>
+     * If the entire string has been read or skipped, then this method has
      * no effect and always returns 0.
      *
      * @throws IOException If an I/O error occurs
@@ -164,7 +164,7 @@ public class FastStringReader extends CharSequenceReader {
      *                       the stream's input comes from a string, there
      *                       is no actual limit, so this argument must not
      *                       be negative, but is otherwise ignored.
-     * @throws IllegalArgumentException If readAheadLimit is < 0
+     * @throws IllegalArgumentException If readAheadLimit is &lt; 0
      * @throws IOException              If an I/O error occurs
      */
     @Override

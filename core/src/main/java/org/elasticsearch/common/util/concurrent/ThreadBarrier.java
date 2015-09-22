@@ -32,12 +32,12 @@ import java.util.concurrent.TimeoutException;
  * <code>ThreadBarrier</code> adds a <i>cause</i> to
  * {@link BrokenBarrierException} thrown by a {@link #reset()} operation defined
  * by {@link CyclicBarrier}.
- * <p/>
- * <p/>
+ * <p>
  * <b>Sample usage:</b> <br>
- * <li>Barrier as a synchronization and Exception handling aid </li>
- * <li>Barrier as a trigger for elapsed notification events </li>
- * <p/>
+ * <ul>
+ *  <li>Barrier as a synchronization and Exception handling aid </li>
+ *  <li>Barrier as a trigger for elapsed notification events </li>
+ * </ul>
  * <pre>
  *    class MyTestClass implements RemoteEventListener
  *    {
@@ -86,7 +86,7 @@ import java.util.concurrent.TimeoutException;
  *
  *               // too many notifications?
  *               Assert.assertFalse(&quot;Exceeded notification count&quot;,
- *                                          actualNotificationCount > EXPECTED_COUNT);
+ *                                          actualNotificationCount &gt; EXPECTED_COUNT);
  *            }
  *          catch(Throwable t) {
  *              log(&quot;Worker thread caught exception&quot;, t);
@@ -211,7 +211,7 @@ public class ThreadBarrier extends CyclicBarrier {
 
     /**
      * breaks this barrier if it has been reset or broken for any other reason.
-     * <p/>
+     * <p>
      * Note: This call is not atomic in respect to await/reset calls. A
      * breakIfBroken() may be context switched to invoke a reset() prior to
      * await(). This resets the barrier to its initial state - parties not
@@ -244,7 +244,7 @@ public class ThreadBarrier extends CyclicBarrier {
      * Measurement.
      *
      * @see ThreadBarrier#ThreadBarrier(int, Runnable)
-     *      <p/>
+     *      <p>
      *      <B>Usage example:</B><br>
      *      <pre><code>
      *                                                                                             BarrierTimer timer = new BarrierTimer();

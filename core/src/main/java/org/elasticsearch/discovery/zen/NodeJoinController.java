@@ -68,9 +68,9 @@ public class NodeJoinController extends AbstractComponent {
 
     /**
      * waits for enough incoming joins from master eligible nodes to complete the master election
-     * <p/>
+     * <p>
      * You must start accumulating joins before calling this method. See {@link #startAccumulatingJoins()}
-     * <p/>
+     * <p>
      * The method will return once the local node has been elected as master or some failure/timeout has happened.
      * The exact outcome is communicated via the callback parameter, which is guaranteed to be called.
      *
@@ -175,7 +175,7 @@ public class NodeJoinController extends AbstractComponent {
 
     /**
      * processes or queues an incoming join request.
-     * <p/>
+     * <p>
      * Note: doesn't do any validation. This should have been done before.
      */
     public void handleJoinRequest(final DiscoveryNode node, final MembershipAction.JoinCallback callback) {

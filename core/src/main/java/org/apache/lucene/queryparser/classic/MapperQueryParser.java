@@ -55,8 +55,8 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
 /**
  * A query parser that uses the {@link MapperService} in order to build smarter
  * queries based on the mapping information.
- * <p/>
- * <p>Also breaks fields with [type].[name] into a boolean query that must include the type
+ * <p>
+ * Also breaks fields with [type].[name] into a boolean query that must include the type
  * as well as the query on the name.
  */
 public class MapperQueryParser extends QueryParser {

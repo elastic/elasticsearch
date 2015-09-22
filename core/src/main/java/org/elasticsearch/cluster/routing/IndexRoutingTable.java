@@ -286,8 +286,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
     /**
      * A groups shards iterator where each groups is a single {@link ShardRouting} and a group
      * is created for each shard routing.
-     * <p/>
-     * <p>This basically means that components that use the {@link GroupShardsIterator} will iterate
+     * <p>
+     * This basically means that components that use the {@link GroupShardsIterator} will iterate
      * over *all* the shards (all the replicas) within the index.</p>
      */
     public GroupShardsIterator groupByAllIt() {

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2007 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -101,7 +101,7 @@ class Parameter {
     /**
      * Replace annotation instances with annotation types, this is only
      * appropriate for testing if a key is bound and not for injecting.
-     * <p/>
+     * <p>
      * See Guice bug 125,
      * http://code.google.com/p/google-guice/issues/detail?id=125
      */

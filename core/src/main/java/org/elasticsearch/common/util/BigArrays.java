@@ -494,7 +494,7 @@ public class BigArrays {
         return resize(array, newSize);
     }
 
-    /** @see Arrays.hashCode(byte[]) */
+    /** @see Arrays#hashCode(byte[]) */
     public int hashCode(ByteArray array) {
         if (array == null) {
             return 0;
@@ -508,7 +508,7 @@ public class BigArrays {
         return hash;
     }
 
-    /** @see Arrays.equals(byte[], byte[]) */
+    /** @see Arrays#equals(byte[], byte[]) */
     public boolean equals(ByteArray array, ByteArray other) {
         if (array == other) {
             return true;

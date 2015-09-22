@@ -42,10 +42,10 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * offsets and payloads even if positions are not present. You must call
  * nextPosition() anyway to move the counter although this method only returns
  * <tt>-1,</tt>, if no positions were returned by the {@link TermVectorsRequest}.
- * <p/>
+ * <p>
  * The data is stored in two byte arrays ({@code headerRef} and
  * {@code termVectors}, both {@link BytesRef}) that have the following format:
- * <p/>
+ * <p>
  * {@code headerRef}: Stores offsets per field in the {@code termVectors} array
  * and some header information as {@link BytesRef}. Format is
  * <ul>
@@ -54,6 +54,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * <li>boolean: hasTermStatistics (are the term statistics stored?)</li>
  * <li>boolean: hasFieldStatitsics (are the field statistics stored?)</li>
  * <li>vint: number of fields</li>
+ * <li>
  * <ul>
  * <li>String: field name 1</li>
  * <li>vint: offset in {@code termVectors} for field 1</li>
@@ -61,10 +62,11 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * <li>String: field name last field</li>
  * <li>vint: offset in {@code termVectors} for last field</li>
  * </ul>
+ * </li>
  * </ul>
- * <p/>
+ * <p>
  * termVectors: Stores the actual term vectors as a {@link BytesRef}.
- * <p/>
+ * <p>
  * Term vectors for each fields are stored in blocks, one for each field. The
  * offsets in {@code headerRef} are used to find where the block for a field
  * starts. Each block begins with a
@@ -82,14 +84,13 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * <li>vint: number of documents in the shard that has an entry for this field
  * (docCount)</li>
  * </ul>
- * <p/>
+ * <p>
  * After that, for each term it stores
- * <ul>
  * <ul>
  * <li>vint: term lengths</li>
  * <li>BytesRef: term name</li>
  * </ul>
- * <p/>
+ * <p>
  * If term statistics are requested ({@code hasTermStatistics} is true, see
  * {@code headerRef}):
  * <ul>
@@ -99,6 +100,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * After that
  * <ul>
  * <li>vint: frequency (always returned)</li>
+ * <li>
  * <ul>
  * <li>vint: position_1 (if positions == true)</li>
  * <li>vint: startOffset_1 (if offset == true)</li>
@@ -107,8 +109,8 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * <li>...</li>
  * <li>vint: endOffset_freqency (if offset == true)</li>
  * <li>BytesRef: payload_freqency (if payloads == true)</li>
- * <ul>
- * </ul> </ul>
+ * </ul></li>
+ * </ul>
  */
 
 public final class TermVectorsFields extends Fields {

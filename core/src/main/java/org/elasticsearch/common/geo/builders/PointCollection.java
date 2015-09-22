@@ -110,7 +110,6 @@ public abstract class PointCollection<E extends PointCollection<E>> extends Shap
      * @param builder builder to use 
      * @param closed repeat the first point at the end of the array if it's not already defines as last element of the array  
      * @return the builder
-     * @throws IOException
      */
     protected XContentBuilder coordinatesToXcontent(XContentBuilder builder, boolean closed) throws IOException {
         builder.startArray();

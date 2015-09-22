@@ -102,10 +102,10 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     /**
-     * Returns {@link GetResult} based on the specified {@link Engine.GetResult} argument.
+     * Returns {@link GetResult} based on the specified {@link org.elasticsearch.index.engine.Engine.GetResult} argument.
      * This method basically loads specified fields for the associated document in the engineGetResult.
      * This method load the fields from the Lucene index and not from transaction log and therefore isn't realtime.
-     * <p/>
+     * <p>
      * Note: Call <b>must</b> release engine searcher associated with engineGetResult!
      */
     public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) {

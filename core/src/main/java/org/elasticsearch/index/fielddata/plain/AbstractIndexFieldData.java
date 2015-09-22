@@ -99,7 +99,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
      * the memory overhead for loading the data. Each field data
      * implementation should implement its own {@code PerValueEstimator} if it
      * intends to take advantage of the MemoryCircuitBreaker.
-     * <p/>
+     * <p>
      * Note that the .beforeLoad(...) and .afterLoad(...) methods must be
      * manually called.
      */
@@ -118,7 +118,6 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
          *
          * @param terms terms to be estimated
          * @return A TermsEnum for the given terms
-         * @throws IOException
          */
         public TermsEnum beforeLoad(Terms terms) throws IOException;
 

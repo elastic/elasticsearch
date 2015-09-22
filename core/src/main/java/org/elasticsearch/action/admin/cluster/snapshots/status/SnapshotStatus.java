@@ -149,7 +149,6 @@ public class SnapshotStatus implements ToXContent, Streamable {
      *
      * @param in stream input
      * @return deserialized snapshot status
-     * @throws IOException
      */
     public static SnapshotStatus readSnapshotStatus(StreamInput in) throws IOException {
         SnapshotStatus snapshotInfo = new SnapshotStatus();

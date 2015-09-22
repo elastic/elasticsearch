@@ -1764,8 +1764,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /**
      * Returns <code>true</code> iff the given generation is the current gbeneration of this translog
-     * @param generation
-     * @return
      */
     public boolean isCurrent(TranslogGeneration generation) {
         try (ReleasableLock lock = writeLock.acquire()) {

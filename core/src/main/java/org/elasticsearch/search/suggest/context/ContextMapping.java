@@ -107,9 +107,6 @@ public abstract class ContextMapping implements ToXContent {
      * @param parseContext context of parsing phase 
      * @param parser {@link XContentParser} used to read and setup the configuration
      * @return A {@link ContextConfig} related to <b>this</b> mapping
-     * 
-     * @throws IOException
-     * @throws ElasticsearchParseException
      */
     public abstract ContextConfig parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException;
 
@@ -122,9 +119,6 @@ public abstract class ContextMapping implements ToXContent {
      * @param parser {@link XContentParser} providing the data of the query
      * 
      * @return {@link ContextQuery} according to this mapping
-     * 
-     * @throws IOException
-     * @throws ElasticsearchParseException
      */
     public abstract ContextQuery parseQuery(String name, XContentParser parser) throws IOException, ElasticsearchParseException;
 
@@ -136,8 +130,6 @@ public abstract class ContextMapping implements ToXContent {
      * @param params parameters passed to the builder
      * 
      * @return the builder used
-     * 
-     * @throws IOException
      */
     protected abstract XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException;
 

@@ -214,7 +214,6 @@ public enum DistanceUnit {
      * 
      * @param out {@link StreamOutput} to write to
      * @param unit {@link DistanceUnit} to write 
-     * @throws IOException
      */
     public static void writeDistanceUnit(StreamOutput out, DistanceUnit unit) throws IOException {
         out.writeByte((byte) unit.ordinal());

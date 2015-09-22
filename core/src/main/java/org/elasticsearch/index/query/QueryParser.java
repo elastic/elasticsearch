@@ -38,7 +38,7 @@ public interface QueryParser {
     /**
      * Parses the into a query from the current parser location. Will be at "START_OBJECT" location,
      * and should end when the token is at the matching "END_OBJECT".
-     * <p/>
+     * <p>
      * Returns <tt>null</tt> if this query should be ignored in the context of the DSL.
      */
     @Nullable

@@ -33,12 +33,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * A {@link TokenFilterFactory} for {@link TypeFilter}. This filter only
+ * A {@link TokenFilterFactory} for {@link TypeTokenFilter}. This filter only
  * keep tokens that are contained in the set configured via
  * {@value #KEEP_TYPES_KEY} setting. 
- * <p/>
+ * <p>
  * Configuration options:
- * <p/>
  * <ul>
  * <li>{@value #KEEP_TYPES_KEY} the array of words / tokens to keep.</li>
  * </ul>

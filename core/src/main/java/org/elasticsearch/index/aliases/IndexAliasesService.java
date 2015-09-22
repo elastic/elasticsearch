@@ -56,8 +56,8 @@ public class IndexAliasesService extends AbstractIndexComponent {
 
     /**
      * Returns the filter associated with listed filtering aliases.
-     * <p/>
-     * <p>The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
+     * <p>
+     * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
      * Returns <tt>null</tt> if no filtering is required.</p>
      */
     public Query aliasFilter(String... aliasNames) {

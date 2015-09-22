@@ -32,10 +32,18 @@ install_plugin() {
 
     assert_file_exist "$path"
 
-    "$ESHOME/bin/plugin" install "file://$path"
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" install "file://$path"
 
     assert_file_exist "$ESPLUGINS/$name"
     assert_file_exist "$ESPLUGINS/$name/plugin-descriptor.properties"
+
+    # At some point installing or removing plugins caused elasticsearch's logs
+    # to be owned by root. This is bad so we want to make sure it doesn't
+    # happen.
+    if [ -e "$ESLOG" ] && [ $(stat "$ESLOG" --format "%U") == "root" ]; then
+        echo "$ESLOG is now owned by root! That'll break logging when elasticsearch tries to start."
+        false
+    fi
 }
 
 install_jvm_plugin() {
@@ -50,9 +58,17 @@ remove_plugin() {
     local name=$1
 
     echo "Removing $name...."
-    "$ESHOME/bin/plugin" remove $name
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" remove $name
 
     assert_file_not_exist "$ESPLUGINS/$name"
+
+    # At some point installing or removing plugins caused elasticsearch's logs
+    # to be owned by root. This is bad so we want to make sure it doesn't
+    # happen.
+    if [ -e "$ESLOG" ] && [ $(stat "$ESLOG" --format "%U") == "root" ]; then
+        echo "$ESLOG is now owned by root! That'll break logging when elasticsearch tries to start."
+        false
+    fi
 }
 
 # Install the jvm-example plugin which fully excercises the special case file

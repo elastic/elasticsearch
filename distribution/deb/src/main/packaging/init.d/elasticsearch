@@ -43,17 +43,6 @@ fi
 ES_USER=elasticsearch
 ES_GROUP=elasticsearch
 
-# The first existing directory is used for JAVA_HOME (if JAVA_HOME is not defined in $DEFAULT)
-JDK_DIRS="/usr/lib/jvm/java-8-oracle/ /usr/lib/jvm/j2sdk1.8-oracle/ /usr/lib/jvm/jdk-7-oracle-x64 /usr/lib/jvm/java-7-oracle /usr/lib/jvm/j2sdk1.7-oracle/ /usr/lib/jvm/java-7-openjdk /usr/lib/jvm/java-7-openjdk-amd64/ /usr/lib/jvm/java-7-openjdk-armhf /usr/lib/jvm/java-7-openjdk-i386/ /usr/lib/jvm/default-java"
-
-# Look for the right JVM to use
-for jdir in $JDK_DIRS; do
-	if [ -r "$jdir/bin/java" -a -z "${JAVA_HOME}" ]; then
-		JAVA_HOME="$jdir"
-	fi
-done
-export JAVA_HOME
-
 # Directory where the Elasticsearch binary distribution resides
 ES_HOME=/usr/share/$NAME
 
@@ -114,6 +103,7 @@ export ES_HEAP_NEWSIZE
 export ES_DIRECT_SIZE
 export ES_JAVA_OPTS
 export ES_GC_LOG_FILE
+export JAVA_HOME
 
 # Check DAEMON exists
 test -x $DAEMON || exit 0

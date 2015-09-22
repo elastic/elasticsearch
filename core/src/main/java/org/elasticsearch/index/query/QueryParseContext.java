@@ -127,7 +127,9 @@ public class QueryParseContext {
         this.parseFieldMatcher = ParseFieldMatcher.EMPTY;
         this.lookup = null;
         this.parser = jp;
-        this.parser.setParseFieldMatcher(parseFieldMatcher);
+        if (parser != null) {
+            this.parser.setParseFieldMatcher(parseFieldMatcher);
+        }
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
         this.isFilter = false;

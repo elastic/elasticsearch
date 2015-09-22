@@ -29,7 +29,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class QueryParseContext {
 
@@ -39,7 +38,7 @@ public class QueryParseContext {
     private XContentParser parser;
     private final Index index;
     //norelease this flag is also used in the QueryShardContext, we need to make sure we set it there correctly in doToQuery()
-    private ParseFieldMatcher parseFieldMatcher;
+    private ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
 
     //norelease this can eventually be deleted when context() method goes away
     private final QueryShardContext shardContext;
@@ -60,6 +59,9 @@ public class QueryParseContext {
     public void reset(XContentParser jp) {
         this.parseFieldMatcher = ParseFieldMatcher.EMPTY;
         this.parser = jp;
+        if (parser != null) {
+            this.parser.setParseFieldMatcher(parseFieldMatcher);
+        }
     }
 
     //norelease this is still used in BaseQueryParserTemp and FunctionScoreQueryParser, remove if not needed there anymore
@@ -73,6 +75,9 @@ public class QueryParseContext {
     }
 
     public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
+        if (parseFieldMatcher == null) {
+            throw new IllegalArgumentException("parseFieldMatcher must not be null");
+        }
         this.parseFieldMatcher = parseFieldMatcher;
     }
 

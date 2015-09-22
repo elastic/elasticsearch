@@ -38,8 +38,8 @@ import java.util.Objects;
  * Simple utility methods for file and stream copying.
  * All copy methods use a block size of 4096 bytes,
  * and close all affected streams when done.
- * <p/>
- * <p>Mainly for use within the framework,
+ * <p>
+ * Mainly for use within the framework,
  * but also useful for application code.
  */
 public abstract class Streams {

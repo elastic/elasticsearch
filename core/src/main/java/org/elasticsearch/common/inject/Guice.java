@@ -21,8 +21,8 @@ import java.util.Arrays;
 /**
  * The entry point to the Guice framework. Creates {@link Injector}s from
  * {@link Module}s.
- * <p/>
- * <p>Guice supports a model of development that draws clear boundaries between
+ * <p>
+ * Guice supports a model of development that draws clear boundaries between
  * APIs, Implementations of these APIs, Modules which configure these
  * implementations, and finally Applications which consist of a collection of
  * Modules. It is the Application, which typically defines your {@code main()}

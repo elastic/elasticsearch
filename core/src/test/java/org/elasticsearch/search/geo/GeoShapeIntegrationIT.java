@@ -435,7 +435,6 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
     /**
      * Test that orientation parameter correctly persists across cluster restart
-     * @throws IOException
      */
     public void testOrientationPersistence() throws Exception {
         String idxName = "orientation";

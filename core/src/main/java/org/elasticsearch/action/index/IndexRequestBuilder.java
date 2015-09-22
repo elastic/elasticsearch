@@ -107,8 +107,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
 
     /**
      * Sets the document source to index.
-     * <p/>
-     * <p>Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * <p>
+     * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
      * or using the {@link #setSource(byte[])}.
      */
     public IndexRequestBuilder setSource(String source) {

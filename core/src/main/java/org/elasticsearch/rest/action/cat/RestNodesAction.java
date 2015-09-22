@@ -362,7 +362,7 @@ public class RestNodesAction extends AbstractCatAction {
      * Calculate the percentage of {@code used} from the {@code max} number.
      * @param used The currently used number.
      * @param max The maximum number.
-     * @return 0 if {@code max} is <= 0. Otherwise 100 * {@code used} / {@code max}.
+     * @return 0 if {@code max} is &lt;= 0. Otherwise 100 * {@code used} / {@code max}.
      */
     private short calculatePercentage(long used, long max) {
         return max <= 0 ? 0 : (short)((100d * used) / max);

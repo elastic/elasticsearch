@@ -35,8 +35,6 @@ public interface Diff<T> {
 
     /**
      * Writes the differences into the output stream
-     * @param out
-     * @throws IOException
      */
     void writeTo(StreamOutput out) throws IOException;
 }

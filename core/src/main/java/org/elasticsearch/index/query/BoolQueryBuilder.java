@@ -162,12 +162,12 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     /**
      * Specifies a minimum number of the optional (should) boolean clauses which must be satisfied.
-     * <p/>
-     * <p>By default no optional clauses are necessary for a match
+     * <p>
+     * By default no optional clauses are necessary for a match
      * (unless there are no required clauses).  If this method is used,
      * then the specified number of clauses is required.
-     * <p/>
-     * <p>Use of this method is totally independent of specifying that
+     * <p>
+     * Use of this method is totally independent of specifying that
      * any specific clauses are required (or prohibited).  This number will
      * only be compared against the number of matching optional clauses.
      *

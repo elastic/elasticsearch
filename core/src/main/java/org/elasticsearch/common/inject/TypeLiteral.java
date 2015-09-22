@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,28 +31,27 @@ import static org.elasticsearch.common.inject.internal.MoreTypes.canonicalize;
  * represent generic types, so this class does. Forces clients to create a
  * subclass of this class which enables retrieval the type information even at
  * runtime.
- * <p/>
- * <p>For example, to create a type literal for {@code List<String>}, you can
+ * <p>
+ * For example, to create a type literal for {@code List<String>}, you can
  * create an empty anonymous inner class:
- * <p/>
- * <p/>
+ * <p>
  * {@code TypeLiteral<List<String>> list = new TypeLiteral<List<String>>() {};}
- * <p/>
- * <p>This syntax cannot be used to create type literals that have wildcard
+ * <p>
+ * This syntax cannot be used to create type literals that have wildcard
  * parameters, such as {@code Class<?>} or {@code List<? extends CharSequence>}.
  * Such type literals must be constructed programatically, either by {@link
  * Method#getGenericReturnType extracting types from members} or by using the
  * {@link Types} factory class.
- * <p/>
- * <p>Along with modeling generic types, this class can resolve type parameters.
+ * <p>
+ * Along with modeling generic types, this class can resolve type parameters.
  * For example, to figure out what type {@code keySet()} returns on a {@code
- * Map<Integer, String>}, use this code:<pre>   {@code
- * <p/>
+ * Map<Integer, String>}, use this code:{@code
+ * <p>
  *   TypeLiteral<Map<Integer, String>> mapType
  *       = new TypeLiteral<Map<Integer, String>>() {};
  *   TypeLiteral<?> keySetType
  *       = mapType.getReturnType(Map.class.getMethod("keySet"));
- *   System.out.println(keySetType); // prints "Set<Integer>"}</pre>
+ *   System.out.println(keySetType); // prints "Set<Integer>"}
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
@@ -66,8 +65,8 @@ public class TypeLiteral<T> {
     /**
      * Constructs a new type literal. Derives represented class from type
      * parameter.
-     * <p/>
-     * <p>Clients create an empty anonymous subclass. Doing so embeds the type
+     * <p>
+     * Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
      */

@@ -113,7 +113,6 @@ public class IndexingStats implements Streamable, ToXContent {
 
         /**
          * Returns if the index is under merge throttling control
-         * @return
          */
         public boolean isThrottled() {
             return isThrottled;
@@ -121,7 +120,6 @@ public class IndexingStats implements Streamable, ToXContent {
 
         /**
          * Gets the amount of time in milliseconds that the index has been under merge throttling control
-         * @return
          */
         public long getThrottleTimeInMillis() {
             return throttleTimeInMillis;
@@ -129,7 +127,6 @@ public class IndexingStats implements Streamable, ToXContent {
 
         /**
          * Gets the amount of time in a TimeValue that the index has been under merge throttling control
-         * @return
          */
         public TimeValue getThrottleTime() {
             return new TimeValue(throttleTimeInMillis);

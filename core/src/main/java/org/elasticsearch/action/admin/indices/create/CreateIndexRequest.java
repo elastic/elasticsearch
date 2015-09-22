@@ -55,8 +55,8 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
- * <p/>
- * <p>The index created can optionally be created with {@link #settings(org.elasticsearch.common.settings.Settings)}.
+ * <p>
+ * The index created can optionally be created with {@link #settings(org.elasticsearch.common.settings.Settings)}.
  *
  * @see org.elasticsearch.client.IndicesAdminClient#create(CreateIndexRequest)
  * @see org.elasticsearch.client.Requests#createIndexRequest(String)

@@ -47,7 +47,6 @@ import java.util.TreeMap;
  * will use the {@link #defaultField(String)} set. The second, when one or more fields are added
  * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
  * them either using DisMax or a plain boolean query (see {@link #useDisMax(boolean)}).
- * <p/>
  */
 public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
 
@@ -210,12 +209,12 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     /**
      * Sets the boolean operator of the query parser used to parse the query string.
-     * <p/>
-     * <p>In default mode ({@link Operator#OR}) terms without any modifiers
+     * <p>
+     * In default mode ({@link Operator#OR}) terms without any modifiers
      * are considered optional: for example <code>capital of Hungary</code> is equal to
      * <code>capital OR of OR Hungary</code>.
-     * <p/>
-     * <p>In {@link Operator#AND} mode terms are considered to be in conjunction: the
+     * <p>
+     * In {@link Operator#AND} mode terms are considered to be in conjunction: the
      * above mentioned query is parsed as <code>capital AND of AND Hungary</code>
      */
     public QueryStringQueryBuilder defaultOperator(Operator defaultOperator) {
@@ -250,7 +249,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * when the analyzer returns more than one term from whitespace
      * delimited text.
      * NOTE: this behavior may not be suitable for all languages.
-     * <p/>
+     * <p>
      * Set to false if phrase queries should only be generated when
      * surrounded by double quotes.
      */
@@ -303,8 +302,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     /**
      * Set to <tt>true</tt> to enable position increments in result query. Defaults to
      * <tt>true</tt>.
-     * <p/>
-     * <p>When set, result phrase and multi-phrase queries will be aware of position increments.
+     * <p>
+     * When set, result phrase and multi-phrase queries will be aware of position increments.
      * Useful when e.g. a StopFilter increases the position increment of the token that follows an omitted token.
      */
     public QueryStringQueryBuilder enablePositionIncrements(boolean enablePositionIncrements) {

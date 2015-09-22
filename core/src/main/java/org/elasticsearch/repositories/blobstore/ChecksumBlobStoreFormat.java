@@ -88,8 +88,6 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      *
      * @param blobContainer blob container
      * @param blobName blob name
-     * @return
-     * @throws IOException
      */
     public T readBlob(BlobContainer blobContainer, String blobName) throws IOException {
         try (InputStream inputStream = blobContainer.readBlob(blobName)) {
@@ -113,7 +111,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
 
     /**
      * Writes blob in atomic manner with resolving the blob name using {@link #blobName} and {@link #tempBlobName} methods.
-     * <p/>
+     * <p>
      * The blob will be compressed and checksum will be written if required.
      *
      * Atomic move might be very inefficient on some repositories. It also cannot override existing files.
@@ -121,7 +119,6 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      * @param obj           object to be serialized
      * @param blobContainer blob container
      * @param name          blob name
-     * @throws IOException
      */
     public void writeAtomic(T obj, BlobContainer blobContainer, String name) throws IOException {
         String blobName = blobName(name);
@@ -138,13 +135,12 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
 
     /**
      * Writes blob with resolving the blob name using {@link #blobName} method.
-     * <p/>
+     * <p>
      * The blob will be compressed and checksum will be written if required.
      *
      * @param obj           object to be serialized
      * @param blobContainer blob container
      * @param name          blob name
-     * @throws IOException
      */
     public void write(T obj, BlobContainer blobContainer, String name) throws IOException {
         String blobName = blobName(name);
@@ -153,13 +149,12 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
 
     /**
      * Writes blob in atomic manner without resolving the blobName using using {@link #blobName} method.
-     * <p/>
+     * <p>
      * The blob will be compressed and checksum will be written if required.
      *
      * @param obj           object to be serialized
      * @param blobContainer blob container
      * @param blobName          blob name
-     * @throws IOException
      */
     protected void writeBlob(T obj, BlobContainer blobContainer, String blobName) throws IOException {
         BytesReference bytes = write(obj);

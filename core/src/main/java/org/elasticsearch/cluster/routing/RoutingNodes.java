@@ -424,7 +424,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /**
      * Cancels the give shard from the Routing nodes internal statistics and cancels
      * the relocation if the shard is relocating.
-     * @param shard
      */
     private void remove(ShardRouting shard) {
         ensureMutable();

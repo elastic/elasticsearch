@@ -53,7 +53,6 @@ public interface DocumentRequest<T> extends IndicesRequest {
 
     /**
      * Set the routing for this request
-     * @param routing
      * @return the Request
      */
     T routing(String routing);

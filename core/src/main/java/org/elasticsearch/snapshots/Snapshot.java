@@ -164,7 +164,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
 
     /**
      * Returns time when snapshot ended
-     * <p/>
+     * <p>
      * Can be 0L if snapshot is still running
      *
      * @return snapshot end time

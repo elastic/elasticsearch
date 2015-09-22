@@ -869,7 +869,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     }
 
     /**
-     * Searching for a rare phrase shouldn't provide any suggestions if confidence > 1.  This was possible before we rechecked the cutoff
+     * Searching for a rare phrase shouldn't provide any suggestions if confidence &gt; 1.  This was possible before we rechecked the cutoff
      * score during the reduce phase.  Failures don't occur every time - maybe two out of five tries but we don't repeat it to save time.
      */
     @Test
@@ -937,7 +937,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     }
 
     /**
-     * If the suggester finds tons of options then picking the right one is slow without <<<INSERT SOLUTION HERE>>>.
+     * If the suggester finds tons of options then picking the right one is slow without &lt;&lt;&lt;INSERT SOLUTION HERE&gt;&gt;&gt;.
      */
     @Test
     @Nightly

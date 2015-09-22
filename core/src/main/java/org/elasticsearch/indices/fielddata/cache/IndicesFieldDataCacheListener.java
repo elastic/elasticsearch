@@ -31,7 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 /**
- * A {@link IndexFieldDataCache.Listener} implementation that updates indices (node) level statistics / service about
+ * A {@link org.elasticsearch.index.fielddata.IndexFieldDataCache.Listener} implementation that updates indices (node) level statistics / service about
  * field data entries being loaded and unloaded.
  *
  * Currently it only decrements the memory used in the  {@link CircuitBreakerService}.

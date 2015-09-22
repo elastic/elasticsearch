@@ -65,6 +65,11 @@ else
     JAVA=`which java`
 fi
 
+if [ ! -x "$JAVA" ]; then
+    echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+    exit 1
+fi
+
 # real getopt cannot be used because we need to hand options over to the PluginManager
 while [ $# -gt 0 ]; do
   case $1 in

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,8 +30,8 @@ import java.util.Set;
  * Builds a tree of injectors. This is a primary injector, plus child injectors needed for each
  * {@link Binder#newPrivateBinder() private environment}. The primary injector is not necessarily a
  * top-level injector.
- * <p/>
- * <p>Injector construction happens in two phases.
+ * <p>
+ * Injector construction happens in two phases.
  * <ol>
  * <li>Static building. In this phase, we interpret commands, create bindings, and inspect
  * dependencies. During this phase, we hold a lock to ensure consistency with parent injectors.

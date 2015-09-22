@@ -341,7 +341,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     /**
      * Responsible for performing all operations up to the point we start starting sending requests to replica shards.
      * Including forwarding the request to another node if the primary is not assigned locally.
-     * <p/>
+     * <p>
      * Note that as soon as we start sending request to replicas, state responsibility is transferred to {@link ReplicationPhase}
      */
     final class PrimaryPhase extends AbstractRunnable {

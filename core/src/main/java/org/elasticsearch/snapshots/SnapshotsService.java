@@ -75,7 +75,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
  * Service responsible for creating snapshots
- * <p/>
+ * <p>
  * A typical snapshot creating process looks like this:
  * <ul>
  * <li>On the master node the {@link #createSnapshot(SnapshotRequest, CreateSnapshotListener)} is called and makes sure that no snapshots is currently running
@@ -172,7 +172,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
     /**
      * Initializes the snapshotting process.
-     * <p/>
+     * <p>
      * This method is used by clients to start snapshot. It makes sure that there is no snapshots are currently running and
      * creates a snapshot record in cluster state metadata.
      *
@@ -236,7 +236,6 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      *
      * @param request snapshot request
      * @param state   current cluster state
-     * @throws org.elasticsearch.ElasticsearchException
      */
     private void validate(SnapshotRequest request, ClusterState state) {
         RepositoriesMetaData repositoriesMetaData = state.getMetaData().custom(RepositoriesMetaData.TYPE);
@@ -273,7 +272,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
     /**
      * Starts snapshot.
-     * <p/>
+     * <p>
      * Creates snapshot in repository and updates snapshot metadata record with list of shards that needs to be processed.
      *
      * @param clusterState               cluster state
@@ -752,7 +751,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
     /**
      * Finalizes the shard in repository and then removes it from cluster state
-     * <p/>
+     * <p>
      * This is non-blocking method that runs on a thread from SNAPSHOT thread pool
      *
      * @param entry snapshot
@@ -764,7 +763,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
     /**
      * Finalizes the shard in repository and then removes it from cluster state
-     * <p/>
+     * <p>
      * This is non-blocking method that runs on a thread from SNAPSHOT thread pool
      *
      * @param entry   snapshot
@@ -853,7 +852,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
     /**
      * Deletes snapshot from repository.
-     * <p/>
+     * <p>
      * If the snapshot is still running cancels the snapshot first and then deletes it from the repository.
      *
      * @param snapshotId snapshot id

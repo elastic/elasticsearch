@@ -126,7 +126,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     }
 
     /**
-     * Waits for N number of nodes. Use "12" for exact mapping, ">12" and "<12" for range.
+     * Waits for N number of nodes. Use "12" for exact mapping, "&gt;12" and "&lt;12" for range.
      */
     public ClusterHealthRequest waitForNodes(String waitForNodes) {
         this.waitForNodes = waitForNodes;

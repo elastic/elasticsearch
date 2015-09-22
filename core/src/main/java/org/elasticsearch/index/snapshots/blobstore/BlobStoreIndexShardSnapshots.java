@@ -40,7 +40,7 @@ import java.util.Map;
 
 /**
  * Contains information about all snapshot for the given shard in repository
- * <p/>
+ * <p>
  * This class is used to find files that were already snapshoted and clear out files that no longer referenced by any
  * snapshots
  */
@@ -160,7 +160,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
     /**
      * Writes index file for the shard in the following format.
      * <pre>
-     * {@code
+     * <code>
      * {
      *     "files": [{
      *         "name": "__3",
@@ -206,6 +206,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
      *     }
      * }
      * }
+     * </code>
      * </pre>
      */
     @Override

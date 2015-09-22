@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,8 +24,8 @@ package org.elasticsearch.common.inject;
  * and then immediately forgets it. Associating a scope with a particular
  * binding allows the created instance to be "remembered" and possibly used
  * again for other injections.
- * <p/>
- * <p>An example of a scope is {@link Scopes#SINGLETON}.
+ * <p>
+ * An example of a scope is {@link Scopes#SINGLETON}.
  *
  * @author crazybob@google.com (Bob Lee)
  */
@@ -35,8 +35,8 @@ public interface Scope {
      * Scopes a provider. The returned provider returns objects from this scope.
      * If an object does not exist in this scope, the provider can use the given
      * unscoped provider to retrieve one.
-     * <p/>
-     * <p>Scope implementations are strongly encouraged to override
+     * <p>
+     * Scope implementations are strongly encouraged to override
      * {@link Object#toString} in the returned provider and include the backing
      * provider's {@code toString()} output.
      *

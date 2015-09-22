@@ -53,7 +53,7 @@ public class CancellableThreads {
      * the default implementation always throws an {@link ExecutionCancelledException}, suppressing
      * any other exception that occurred before cancellation
      *
-     * @param reason              reason for failure supplied by the caller of {@link @cancel}
+     * @param reason              reason for failure supplied by the caller of {@link #cancel}
      * @param suppressedException any error that was encountered during the execution before the operation was cancelled.
      */
     protected void onCancel(String reason, @Nullable Throwable suppressedException) {

@@ -419,7 +419,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     }
 
     /**
-     * Set a cutoff value in [0..1] (or absolute number >=1) representing the
+     * Set a cutoff value in [0..1] (or absolute number &gt;=1) representing the
      * maximum threshold of a terms document frequency to be considered a low
      * frequency term.
      */

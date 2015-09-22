@@ -61,7 +61,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Each shard will have a percolator registry even if there isn't a {@link PercolatorService#TYPE_NAME} document type in the index.
  * For shards with indices that have no {@link PercolatorService#TYPE_NAME} document type, this will hold no percolate queries.
- * <p/>
+ * <p>
  * Once a document type has been created, the real-time percolator will start to listen to write events and update the
  * this registry with queries in real time.
  */

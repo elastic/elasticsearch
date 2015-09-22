@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.*;
 public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     /**
-     * Basic test using Index & Realtime Get with external versioning. This test ensures routing works correctly across versions.
+     * Basic test using Index &amp; Realtime Get with external versioning. This test ensures routing works correctly across versions.
      */
     @Test
     public void testExternalVersion() throws Exception {
@@ -101,7 +101,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
     }
 
     /**
-     * Basic test using Index & Realtime Get with internal versioning. This test ensures routing works correctly across versions.
+     * Basic test using Index &amp; Realtime Get with internal versioning. This test ensures routing works correctly across versions.
      */
     @Test
     public void testInternalVersion() throws Exception {

@@ -189,7 +189,6 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
          *
          * @param terms terms to be estimated
          * @return A possibly wrapped TermsEnum for the terms
-         * @throws IOException
          */
         @Override
         public TermsEnum beforeLoad(Terms terms) throws IOException {

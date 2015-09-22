@@ -71,7 +71,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
      * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards,
-     * _shards:x,y to operate on shards x & y, or a custom value, which guarantees that the same order
+     * _shards:x,y to operate on shards x &amp; y, or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public CountRequestBuilder setPreference(String preference) {

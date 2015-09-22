@@ -27,6 +27,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
+import org.apache.lucene.search.DocIdSet;
+
 import java.io.IOException;
 
 /**

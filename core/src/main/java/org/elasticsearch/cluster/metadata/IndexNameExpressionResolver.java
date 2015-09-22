@@ -222,9 +222,8 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     /**
      * Iterates through the list of indices and selects the effective list of filtering aliases for the
      * given index.
-     * <p/>
      * <p>Only aliases with filters are returned. If the indices list contains a non-filtering reference to
-     * the index itself - null is returned. Returns <tt>null</tt> if no filtering is required.</p>
+     * the index itself - null is returned. Returns <tt>null</tt> if no filtering is required.
      */
     public String[] filteringAliases(ClusterState state, String index, String... expressions) {
         // expand the aliases wildcard

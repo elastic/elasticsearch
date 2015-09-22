@@ -25,7 +25,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import java.util.regex.Pattern;
 
 /**
- * Builder for the {@link IPv4Range} aggregation.
+ * Builder for the {@code IPv4Range} aggregation.
  */
 public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
 
@@ -110,7 +110,7 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
     }
 
     /**
-     * Computes the min & max ip addresses (represented as long values - same way as stored in index) represented by the given CIDR mask
+     * Computes the min &amp; max ip addresses (represented as long values - same way as stored in index) represented by the given CIDR mask
      * expression. The returned array has the length of 2, where the first entry represents the {@code min} address and the second the {@code max}.
      * A {@code -1} value for either the {@code min} or the {@code max}, represents an unbounded end. In other words:
      *
@@ -123,9 +123,6 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
      * <p>
      * {@code max == -1 == "255.255.255.255" }
      * </p>
-     *
-     * @param cidr
-     * @return
      */
     static long[] cidrMaskToMinMax(String cidr) {
         String[] parts = MASK_PATTERN.split(cidr);

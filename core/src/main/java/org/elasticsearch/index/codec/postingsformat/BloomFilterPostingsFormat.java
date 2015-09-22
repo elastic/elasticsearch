@@ -39,8 +39,7 @@ import java.util.Map.Entry;
  * </p>
  * <p>
  * This is a special bloom filter version, based on {@link org.elasticsearch.common.util.BloomFilter} and inspired
- * by Lucene {@link org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat}.
- * </p>
+ * by Lucene {@code org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat}.
  * @deprecated only for reading old segments
  */
 @Deprecated
@@ -67,7 +66,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
      *
      * @param delegatePostingsFormat The PostingsFormat that records all the non-bloom filter data i.e.
      *                               postings info.
-     * @param bloomFilterFactory     The {@link BloomFilter.Factory} responsible for sizing BloomFilters
+     * @param bloomFilterFactory     The {@link org.elasticsearch.common.util.BloomFilter.Factory} responsible for sizing BloomFilters
      *                               appropriately
      */
     public BloomFilterPostingsFormat(PostingsFormat delegatePostingsFormat,

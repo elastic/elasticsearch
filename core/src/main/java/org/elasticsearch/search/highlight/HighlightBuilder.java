@@ -603,7 +603,7 @@ public class HighlightBuilder implements ToXContent {
 
         /**
          * Allows to set custom options for custom highlighters.
-         * This overrides global settings set by {@link HighlightBuilder#options(Map<String, Object>)}.
+         * This overrides global settings set by {@link HighlightBuilder#options(Map)}.
          */
         public Field options(Map<String, Object> options) {
             this.options = options;

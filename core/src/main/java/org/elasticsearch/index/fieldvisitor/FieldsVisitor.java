@@ -46,8 +46,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.lucene.index.StoredFieldVisitor;
+
 /**
- * Base {@link StoredFieldsVisitor} that retrieves all non-redundant metadata.
+ * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends StoredFieldVisitor {
 

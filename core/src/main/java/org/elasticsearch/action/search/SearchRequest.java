@@ -50,11 +50,11 @@ import static org.elasticsearch.search.Scroll.readScroll;
 /**
  * A request to execute search against one or more indices (or all). Best created using
  * {@link org.elasticsearch.client.Requests#searchRequest(String...)}.
- * <p/>
- * <p>Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
+ * <p>
+ * Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
- * <p/>
- * <p>There is an option to specify an addition search source using the {@link #extraSource(org.elasticsearch.search.builder.SearchSourceBuilder)}.
+ * <p>
+ * There is an option to specify an addition search source using the {@link #extraSource(org.elasticsearch.search.builder.SearchSourceBuilder)}.
  *
  * @see org.elasticsearch.client.Requests#searchRequest(String...)
  * @see org.elasticsearch.client.Client#search(SearchRequest)
@@ -319,7 +319,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * The name of the stored template
      * 
-     * @deprecated use {@link #template(Template))} instead.
+     * @deprecated use {@link #template(Template)} instead.
      */
     @Deprecated
     public void templateName(String templateName) {
@@ -329,7 +329,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * The type of the stored template
      * 
-     * @deprecated use {@link #template(Template))} instead.
+     * @deprecated use {@link #template(Template)} instead.
      */
     @Deprecated
     public void templateType(ScriptService.ScriptType templateType) {
@@ -339,7 +339,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Template parameters used for rendering
      * 
-     * @deprecated use {@link #template(Template))} instead.
+     * @deprecated use {@link #template(Template)} instead.
      */
     @Deprecated
     public void templateParams(Map<String, Object> params) {

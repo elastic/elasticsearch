@@ -596,8 +596,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Set the set of stopwords.
-     * <p/>
-     * <p>Any word in this set is considered "uninteresting" and ignored. Even if your Analyzer allows stopwords, you
+     * <p>
+     * Any word in this set is considered "uninteresting" and ignored. Even if your Analyzer allows stopwords, you
      * might want to tell the MoreLikeThis code to ignore them, as for the purposes of document similarity it seems
      * reasonable to assume that "a stop word is never interesting".
      */

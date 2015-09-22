@@ -62,15 +62,18 @@ DEFAULT_PLUGINS = ["analysis-icu",
                    "analysis-phonetic",
                    "analysis-smartcn",
                    "analysis-stempel",
-                   "cloud-aws",
-                   "cloud-azure",
                    "cloud-gce",
                    "delete-by-query",
+                   "discovery-azure",
+                   "discovery-ec2",
                    "discovery-multicast",
                    "lang-javascript",
                    "lang-python",
                    "mapper-murmur3",
-                   "mapper-size"]
+                   "mapper-size",
+                   "repository-azure",
+                   "repository-s3",
+                   "store-smb"]
 
 try:
   JAVA_HOME = os.environ['JAVA_HOME']

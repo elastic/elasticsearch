@@ -218,7 +218,7 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link DateHistogram} aggregation with the given name.
+     * Create a new {@link DateHistogramBuilder} aggregation with the given name.
      */
     public static DateHistogramBuilder dateHistogram(String name) {
         return new DateHistogramBuilder(name);
@@ -232,14 +232,14 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link DateRange} aggregation with the given name.
+     * Create a new {@link DateRangeBuilder} aggregation with the given name.
      */
     public static DateRangeBuilder dateRange(String name) {
         return new DateRangeBuilder(name);
     }
 
     /**
-     * Create a new {@link IPv4Range} aggregation with the given name.
+     * Create a new {@link IPv4RangeBuilder} aggregation with the given name.
      */
     public static IPv4RangeBuilder ipRange(String name) {
         return new IPv4RangeBuilder(name);

@@ -185,18 +185,21 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                                 case 0:
                                     response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)
                                             .setSource(onlyField1)
+                                            .setRefresh(true)
                                             .execute().actionGet();
                                     type1.incrementAndGet();
                                     break;
                                 case 1:
                                     response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)
                                             .setSource(onlyField2)
+                                            .setRefresh(true)
                                             .execute().actionGet();
                                     type2.incrementAndGet();
                                     break;
                                 case 2:
                                     response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)
                                             .setSource(field1And2)
+                                            .setRefresh(true)
                                             .execute().actionGet();
                                     type3.incrementAndGet();
                                     break;
@@ -326,6 +329,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                                     } while (!liveIds.remove(id));
 
                                     DeleteResponse response = client().prepareDelete("index", PercolatorService.TYPE_NAME, id)
+                                            .setRefresh(true)
                                             .execute().actionGet();
                                     assertThat(response.getId(), equalTo(id));
                                     assertThat("doc[" + id + "] should have been deleted, but isn't", response.isFound(), equalTo(true));
@@ -333,6 +337,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                                     String id = Integer.toString(idGen.getAndIncrement());
                                     IndexResponse response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)
                                             .setSource(doc)
+                                            .setRefresh(true)
                                             .execute().actionGet();
                                     liveIds.add(id);
                                     assertThat(response.isCreated(), equalTo(true)); // We only add new docs

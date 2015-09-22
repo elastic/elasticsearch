@@ -57,13 +57,17 @@ public class PercolatorBackwardsCompatibilityIT extends ESIntegTestCase {
 
         // After upgrade indices, indices created before the upgrade allow that queries refer to fields not available in mapping
         client().prepareIndex("test", PercolatorService.TYPE_NAME)
-                .setSource(jsonBuilder().startObject().field("query", termQuery("field2", "value")).endObject()).get();
+                .setSource(jsonBuilder().startObject().field("query", termQuery("field2", "value")).endObject())
+                .setRefresh(true)
+                .get();
 
         // However on new indices, the field resolution is strict, no queries with unmapped fields are allowed
         createIndex("test2");
         try {
             client().prepareIndex("test2", PercolatorService.TYPE_NAME)
-                    .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "value")).endObject()).get();
+                    .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "value")).endObject())
+                    .setRefresh(true)
+                    .get();
             fail();
         } catch (PercolatorException e) {
             e.printStackTrace();

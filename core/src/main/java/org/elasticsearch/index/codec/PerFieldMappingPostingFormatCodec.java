@@ -59,7 +59,7 @@ public class PerFieldMappingPostingFormatCodec extends Lucene53Codec {
         if (indexName == null) {
             // the query terms are an percolator implementation detail and are added as Lucene indexed fields which are hidden
             // We shouldn't expose these fields in the mapping, because they don't appear in the document source.
-            if (indexName.names().indexName().startsWith(QueryMetadataService.QUERY_METADATA) == false) {
+            if (field.startsWith(QueryMetadataService.QUERY_METADATA) == false) {
                 logger.warn("no index mapper found for field: [{}] returning default postings format", field);
             }
         } else if (indexName instanceof CompletionFieldMapper.CompletionFieldType) {

@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class PercolatorFacetsAndAggregationsIT extends ESIntegTestCase {
+public class PercolatorAggregationsIT extends ESIntegTestCase {
 
     @Test
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
@@ -75,7 +75,7 @@ public class PercolatorFacetsAndAggregationsIT extends ESIntegTestCase {
                     .setSource(jsonBuilder().startObject().field("query", queryBuilder).field("field2", "b").endObject()).execute()
                     .actionGet();
         }
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         for (int i = 0; i < numQueries; i++) {
             String value = values[i % numUniqueQueries];
@@ -138,7 +138,7 @@ public class PercolatorFacetsAndAggregationsIT extends ESIntegTestCase {
                     .setSource(jsonBuilder().startObject().field("query", queryBuilder).field("field2", "b").endObject()).execute()
                     .actionGet();
         }
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         for (int i = 0; i < numQueries; i++) {
             String value = values[i % numUniqueQueries];
@@ -216,7 +216,7 @@ public class PercolatorFacetsAndAggregationsIT extends ESIntegTestCase {
                     .execute()
                     .actionGet();
         }
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         for (int i = 0; i < numQueries; i++) {
             String value = "value0";

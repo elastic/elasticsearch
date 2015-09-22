@@ -19,10 +19,7 @@
 package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LongField;
-import org.apache.lucene.document.TextField;
+import org.apache.lucene.document.*;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
@@ -141,13 +138,13 @@ public class QueryMetadataServiceTests extends ESTestCase {
         document.add(new TextField("field1", "the quick brown fox jumps over the lazy dog", Field.Store.NO));
         document.add(new TextField("field2", "some more text", Field.Store.NO));
         document.add(new TextField("_field3", "hide me", Field.Store.NO));
-        document.add(new LongField("field4", 123, Field.Store.NO));
+        document.add(new TextField("field4", "123", Field.Store.NO));
 
         Query query = queryMetadataService.createQueryMetadataQuery(document, new WhitespaceAnalyzer());
         assertThat(query, instanceOf(BooleanQuery.class));
 
         BooleanQuery booleanQuery = (BooleanQuery) query;
-        assertThat(booleanQuery.clauses().size(), equalTo(13));
+        assertThat(booleanQuery.clauses().size(), equalTo(14));
         assertClause(booleanQuery, 0, QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN, "");
         assertClause(booleanQuery, 1, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "the");
         assertClause(booleanQuery, 2, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "quick");
@@ -161,6 +158,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
         assertClause(booleanQuery, 10, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "some");
         assertClause(booleanQuery, 11, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "more");
         assertClause(booleanQuery, 12, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "text");
+        assertClause(booleanQuery, 13, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field4", "123");
     }
 
     private void assertClause(BooleanQuery booleanQuery, int i, String expectedField, String expectedValue) {

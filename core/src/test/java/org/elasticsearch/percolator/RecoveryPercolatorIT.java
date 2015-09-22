@@ -198,6 +198,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                             .endObject())
                     .get();
         }
+        refresh();
 
         logger.info("--> Percolate doc with field1=95");
         PercolateResponse response = client().preparePercolate()
@@ -256,6 +257,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .get();
         }
+        refresh();
 
         final String document = "{\"field\" : \"a\"}";
         client.prepareIndex("test", "type", "1")

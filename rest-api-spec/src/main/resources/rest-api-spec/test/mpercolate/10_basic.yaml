@@ -17,6 +17,9 @@
             match_all: {}
 
   - do:
+        indices.refresh: {}
+
+  - do:
       mpercolate:
         body:
           - percolate:

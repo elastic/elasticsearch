@@ -67,6 +67,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
+        refresh();
 
         MultiPercolateResponse response = client().prepareMultiPercolate()
                 .add(client().preparePercolate()
@@ -141,6 +142,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
                 .setRouting("a")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
+        refresh();
 
         MultiPercolateResponse response = client().prepareMultiPercolate()
                 .add(client().preparePercolate()
@@ -210,6 +212,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("field", "a"))
                 .execute().actionGet();
+        refresh();
 
         MultiPercolateRequestBuilder builder = client().prepareMultiPercolate();
         int numPercolateRequest = randomIntBetween(50, 100);
@@ -279,6 +282,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .execute().actionGet();
         }
+        refresh();
 
         MultiPercolateRequestBuilder builder = client().prepareMultiPercolate();
         int numPercolateRequest = randomIntBetween(50, 100);

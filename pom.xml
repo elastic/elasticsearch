@@ -62,6 +62,26 @@
                 </exclusion>
                 <!-- Not Apache2 License compatible -->
                 <exclusion>
+                    <groupId>edu.ucar</groupId>
+                    <artifactId>cdm</artifactId>
+                </exclusion>
+                <!-- Not Apache2 License compatible -->
+                <exclusion>
+                    <groupId>edu.ucar</groupId>
+                    <artifactId>httpservices</artifactId>
+                </exclusion>
+                <!-- Not Apache2 License compatible -->
+                <exclusion>
+                    <groupId>edu.ucar</groupId>
+                    <artifactId>grib</artifactId>
+                </exclusion>
+                <!-- Not Apache2 License compatible -->
+                <exclusion>
+                    <groupId>edu.ucar</groupId>
+                    <artifactId>netcdf4</artifactId>
+                </exclusion>
+                <!-- Not Apache2 License compatible -->
+                <exclusion>
                     <groupId>com.uwyn</groupId>
                     <artifactId>jhighlight</artifactId>
                 </exclusion>

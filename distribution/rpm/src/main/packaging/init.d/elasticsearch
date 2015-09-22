@@ -50,8 +50,10 @@ if [ -f "$ES_ENV_FILE" ]; then
 fi
 
 # Elasticsearch configuration file (elasticsearch.yml)
+# We need to set this after defaults have been applied because if CONF_FILE was not set
+# then its value depends on what CONF_DIR is set to.
 if [ -z "$CONF_FILE" ]; then
-    # file was not set by the user, use the configured conf path
+    # file was not set by the user, use the configured conf path and assume the file name is elasticsearch.yml.
     CONF_FILE=$CONF_DIR/elasticsearch.yml
 fi
 

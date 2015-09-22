@@ -67,7 +67,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     protected final Transport transport;
     protected final ThreadPool threadPool;
 
-    volatile ImmutableMap<String, RequestHandlerRegistry> requestHandlers = ImmutableMap.of();
+    volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     final Object requestHandlerMutex = new Object();
 
     final ConcurrentMapLong<RequestHolder> clientHandlers = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();

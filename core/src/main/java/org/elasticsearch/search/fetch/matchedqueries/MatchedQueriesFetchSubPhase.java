@@ -79,7 +79,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
         hitContext.hit().matchedQueries(matchedQueries.toArray(new String[matchedQueries.size()]));
     }
 
-    private void addMatchedQueries(HitContext hitContext, ImmutableMap<String, Query> namedQueries, List<String> matchedQueries) throws IOException {
+    private void addMatchedQueries(HitContext hitContext, Map<String, Query> namedQueries, List<String> matchedQueries) throws IOException {
         for (Map.Entry<String, Query> entry : namedQueries.entrySet()) {
             String name = entry.getKey();
             Query filter = entry.getValue();

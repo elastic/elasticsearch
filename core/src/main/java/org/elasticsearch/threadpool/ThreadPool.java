@@ -91,7 +91,7 @@ public class ThreadPool extends AbstractComponent {
 
     private volatile ImmutableMap<String, ExecutorHolder> executors;
 
-    private final ImmutableMap<String, Settings> defaultExecutorTypeSettings;
+    private final Map<String, Settings> defaultExecutorTypeSettings;
 
     private final Queue<ExecutorHolder> retiredExecutors = new ConcurrentLinkedQueue<>();
 

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntSet;
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -32,8 +33,15 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexNotFoundException;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Represents a global cluster-wide routing table for all indices including the
@@ -50,11 +58,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     private final long version;
 
     // index to IndexRoutingTable map
-    private final ImmutableMap<String, IndexRoutingTable> indicesRouting;
+    private final Map<String, IndexRoutingTable> indicesRouting;
 
     RoutingTable(long version, Map<String, IndexRoutingTable> indicesRouting) {
         this.version = version;
-        this.indicesRouting = ImmutableMap.copyOf(indicesRouting);
+        this.indicesRouting = unmodifiableMap(indicesRouting);
     }
 
     /**
@@ -304,7 +312,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         private final long version;
 
-        private final Diff<ImmutableMap<String, IndexRoutingTable>> indicesRouting;
+        private final Diff<Map<String, IndexRoutingTable>> indicesRouting;
 
         public RoutingTableDiff(RoutingTable before, RoutingTable after) {
             version = after.version;
@@ -313,7 +321,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         public RoutingTableDiff(StreamInput in) throws IOException {
             version = in.readLong();
-            indicesRouting = DiffableUtils.readImmutableMapDiff(in, IndexRoutingTable.PROTO);
+            indicesRouting = DiffableUtils.readJdkMapDiff(in, IndexRoutingTable.PROTO);
         }
 
         @Override

@@ -58,7 +58,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     private final VerifyNodeRepositoryAction verifyAction;
 
-    private volatile ImmutableMap<String, RepositoryHolder> repositories = ImmutableMap.of();
+    private volatile Map<String, RepositoryHolder> repositories = ImmutableMap.of();
 
     @Inject
     public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService, RepositoryTypesRegistry typesRegistry, Injector injector) {

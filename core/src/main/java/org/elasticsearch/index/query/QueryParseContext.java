@@ -95,7 +95,7 @@ public class QueryParseContext {
 
     private XContentParser parser;
 
-    private ParseFieldMatcher parseFieldMatcher;
+    private ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
 
     private boolean allowUnmappedFields;
 
@@ -112,6 +112,9 @@ public class QueryParseContext {
     }
 
     public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
+        if (parseFieldMatcher == null) {
+            throw new IllegalArgumentException("parseFieldMatcher must not be null");
+        }
         this.parseFieldMatcher = parseFieldMatcher;
     }
 
@@ -124,6 +127,9 @@ public class QueryParseContext {
         this.parseFieldMatcher = ParseFieldMatcher.EMPTY;
         this.lookup = null;
         this.parser = jp;
+        if (parser != null) {
+            this.parser.setParseFieldMatcher(parseFieldMatcher);
+        }
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
         this.isFilter = false;

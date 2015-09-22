@@ -104,4 +104,16 @@ public class ParseField {
     public String toString() {
         return getPreferredName();
     }
+
+    public String getAllReplacedWith() {
+        return allReplacedWith;
+    }
+
+    public String getCamelCaseName() {
+        return camelCaseName;
+    }
+
+    public String[] getDeprecatedNames() {
+        return deprecatedNames;
+    }
 }

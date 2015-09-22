@@ -182,6 +182,10 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      * @return this
      */
     public GeoShapeQueryBuilder strategy(SpatialStrategy strategy) {
+        if (strategy != null && strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
+            throw new IllegalArgumentException("strategy [" + strategy.getStrategyName() + "] only supports relation ["
+                    + ShapeRelation.INTERSECTS.getRelationName() + "] found relation [" + relation.getRelationName() + "]");
+        }
         this.strategy = strategy;
         return this;
     }
@@ -240,6 +244,10 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         if (relation == null) {
             throw new IllegalArgumentException("No Shape Relation defined");
         }
+        if (strategy != null && strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
+            throw new IllegalArgumentException("current strategy [" + strategy.getStrategyName() + "] only supports relation ["
+                    + ShapeRelation.INTERSECTS.getRelationName() + "] found relation [" + relation.getRelationName() + "]");
+        }
         this.relation = relation;
         return this;
     }
@@ -249,17 +257,6 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      */
     public ShapeRelation relation() {
         return relation;
-    }
-
-    public QueryValidationException validate() {
-        QueryValidationException errors = null;
-        // TODO did we validate this before the refactoring and can we do this in setters at all?
-        if (strategy != null && strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
-            errors = QueryValidationException.addValidationError(NAME,
-                    "strategy [" + strategy.getStrategyName() + "] only supports relation ["
-                    + ShapeRelation.INTERSECTS.getRelationName() + "] found relation [" + relation.getRelationName() + "]", errors);
-        }
-        return errors;
     }
 
     @Override

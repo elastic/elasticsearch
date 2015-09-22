@@ -166,37 +166,31 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, "id", (String) null);
     }
 
-    @Test
+    @Test(expected=IllegalArgumentException.class)
     public void testNoRelation() throws IOException {
         ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null);
-        try {
-            GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
-            builder.relation(null);
-            fail("relation cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
+        builder.relation(null);
     }
 
     @Test
-    public void testInvalidRelation() {
+    public void testInvalidRelation() throws IOException {
         ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null);
+        GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
         try {
-            GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
             builder.strategy(SpatialStrategy.TERM);
-            ShapeRelation relation = randomFrom(ShapeRelation.DISJOINT, ShapeRelation.WITHIN);
-            builder.relation(relation);
-            QueryValidationException exception = builder.validate();
-            assertThat(exception, notNullValue());
-            assertThat(exception.validationErrors(), notNullValue());
-            assertThat(exception.validationErrors().size(), equalTo(1));
-            assertThat(
-                    exception.validationErrors().get(0),
-                    equalTo("[" + GeoShapeQueryBuilder.NAME + "] strategy [" + SpatialStrategy.TERM.getStrategyName()
-                            + "] only supports relation [" + ShapeRelation.INTERSECTS.getRelationName() + "] found relation ["
-                            + relation.getRelationName() + "]"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.WITHIN));
+            fail("Illegal combination of strategy and relation setting");
+        } catch (IllegalArgumentException e) {
+            // okay
+        }
+
+        try {
+            builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.WITHIN));
+            builder.strategy(SpatialStrategy.TERM);
+            fail("Illegal combination of strategy and relation setting");
+        } catch (IllegalArgumentException e) {
+            // okay
         }
     }
 

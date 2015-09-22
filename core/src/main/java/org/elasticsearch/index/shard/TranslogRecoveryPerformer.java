@@ -36,6 +36,7 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
+import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -55,17 +56,19 @@ public class TranslogRecoveryPerformer {
     private final MapperService mapperService;
     private final IndexQueryParserService queryParserService;
     private final IndexAliasesService indexAliasesService;
+    private final ShardIndexingService indexingService;
     private final IndexCache indexCache;
     private final ESLogger logger;
     private final Map<String, Mapping> recoveredTypes = new HashMap<>();
     private final ShardId shardId;
 
     protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, IndexQueryParserService queryParserService,
-                                        IndexAliasesService indexAliasesService, IndexCache indexCache, ESLogger logger) {
+                                        IndexAliasesService indexAliasesService, ShardIndexingService indexingService, IndexCache indexCache, ESLogger logger) {
         this.shardId = shardId;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
         this.indexAliasesService = indexAliasesService;
+        this.indexingService = indexingService;
         this.indexCache = indexCache;
         this.logger = logger;
     }
@@ -152,6 +155,7 @@ public class TranslogRecoveryPerformer {
                                     .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()),
                             create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
                     maybeAddMappingUpdate(engineCreate.type(), engineCreate.parsedDoc().dynamicMappingsUpdate(), engineCreate.id(), allowMappingUpdates);
+                    indexingService.preCreate(engineCreate);
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [create] op of [{}][{}]", create.type(), create.id());
                     }
@@ -163,6 +167,7 @@ public class TranslogRecoveryPerformer {
                                     .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
                             index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
                     maybeAddMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate(), engineIndex.id(), allowMappingUpdates);
+                    indexingService.preIndex(engineIndex);
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [index] op of [{}][{}]", index.type(), index.id());
                     }
@@ -174,8 +179,10 @@ public class TranslogRecoveryPerformer {
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [delete] op of [{}][{}]", uid.type(), uid.id());
                     }
-                    engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
-                            delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false));
+                    Engine.Delete engineDelete = new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
+                            delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false);
+                    indexingService.preDelete(engineDelete);
+                    engine.delete(engineDelete);
                     break;
                 case DELETE_BY_QUERY:
                     Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;

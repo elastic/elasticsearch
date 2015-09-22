@@ -24,8 +24,11 @@ import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 /**
  */
@@ -36,8 +39,8 @@ public class HttpRequestTemplate implements ToXContent {
     private final int port;
     private final HttpMethod method;
     private final TextTemplate path;
-    private final ImmutableMap<String, TextTemplate> params;
-    private final ImmutableMap<String, TextTemplate> headers;
+    private final Map<String, TextTemplate> params;
+    private final Map<String, TextTemplate> headers;
     private final HttpAuth auth;
     private final TextTemplate body;
     private final @Nullable TimeValue connectionTimeout;
@@ -51,8 +54,8 @@ public class HttpRequestTemplate implements ToXContent {
         this.scheme = scheme != null ? scheme :Scheme.HTTP;
         this.method = method != null ? method : HttpMethod.GET;
         this.path = path;
-        this.params = params != null ? ImmutableMap.copyOf(params) : ImmutableMap.<String, TextTemplate>of();
-        this.headers = headers != null ? ImmutableMap.copyOf(headers) : ImmutableMap.<String, TextTemplate>of();
+        this.params = params != null ? ImmutableMap.copyOf(params) : emptyMap();
+        this.headers = headers != null ? ImmutableMap.copyOf(headers) : emptyMap();
         this.auth = auth;
         this.body = body;
         this.connectionTimeout = connectionTimeout;

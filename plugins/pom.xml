@@ -105,11 +105,6 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-expressions</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>com.spatial4j</groupId>
             <artifactId>spatial4j</artifactId>
             <scope>provided</scope>
@@ -401,6 +396,7 @@
         <module>discovery-azure</module>
         <module>discovery-ec2</module>
         <module>discovery-multicast</module>
+        <module>lang-expression</module>
         <module>lang-javascript</module>
         <module>lang-python</module>
         <module>mapper-murmur3</module>

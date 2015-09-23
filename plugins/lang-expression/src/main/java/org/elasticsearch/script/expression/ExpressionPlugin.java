@@ -19,26 +19,22 @@
 
 package org.elasticsearch.script.expression;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptModule;
 
-import java.io.IOException;
+public class ExpressionPlugin extends Plugin {
 
-/**
- * Exception used to wrap exceptions occuring while running expressions.
- * @deprecated not used anymore. but people dont seem to want it cleaned up. enjoy your pile of shitty exceptions, clean it up yourself.
- */
-@Deprecated
-public class ExpressionScriptExecutionException extends ElasticsearchException {
-    public ExpressionScriptExecutionException(String msg, Throwable cause) {
-        super(msg, cause);
+    @Override
+    public String name() {
+        return "lang-expression";
     }
 
-    public ExpressionScriptExecutionException(StreamInput in) throws IOException {
-        super(in);
+    @Override
+    public String description() {
+        return "Lucene expressions integration for Elasticsearch";
     }
 
-    public ExpressionScriptExecutionException(String msg) {
-        super(msg);
+    public void onModule(ScriptModule module) {
+        module.addScriptEngine(ExpressionScriptEngineService.class);
     }
 }

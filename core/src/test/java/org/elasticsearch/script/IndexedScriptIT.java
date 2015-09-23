@@ -27,7 +27,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -147,36 +146,5 @@ public class IndexedScriptIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test").setSource(new BytesArray(source)).get();
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getAggregations().get("test"), notNullValue());
-    }
-
-    @Test
-    public void testAllOpsDisabledIndexedScripts() throws IOException {
-        if (randomBoolean()) {
-            client().preparePutIndexedScript(ExpressionScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
-        } else {
-            client().prepareIndex(ScriptService.SCRIPT_INDEX, ExpressionScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
-        }
-        client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
-        try {
-            client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(new Script("script1", ScriptService.ScriptType.INDEXED, ExpressionScriptEngineService.NAME, null)).get();
-            fail("update script should have been rejected");
-        } catch(Exception e) {
-            assertThat(e.getMessage(), containsString("failed to execute script"));
-            assertThat(e.getCause().getMessage(), containsString("scripts of type [indexed], operation [update] and lang [expression] are disabled"));
-        }
-        try {
-            String query = "{ \"script_fields\" : { \"test1\" : { \"script_id\" : \"script1\", \"lang\":\"expression\" }}}";
-            client().prepareSearch().setSource(new BytesArray(query)).setIndices("test").setTypes("scriptTest").get();
-            fail("search script should have been rejected");
-        } catch(Exception e) {
-            assertThat(e.toString(), containsString("scripts of type [indexed], operation [search] and lang [expression] are disabled"));
-        }
-        try {
-            String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_id\":\"script1\", \"script_lang\":\"expression\" } } } }";
-            client().prepareSearch("test").setSource(new BytesArray(source)).get();
-        } catch(Exception e) {
-            assertThat(e.toString(), containsString("scripts of type [indexed], operation [aggs] and lang [expression] are disabled"));
-        }
     }
 }

@@ -27,7 +27,9 @@ import java.text.ParseException;
 
 /**
  * Exception representing a compilation error in an expression.
+ * @deprecated not used anymore. but people dont seem to want it cleaned up. enjoy your pile of shitty exceptions, clean it up yourself.
  */
+@Deprecated
 public class ExpressionScriptCompilationException extends ElasticsearchException {
     public ExpressionScriptCompilationException(String msg, ParseException e) {
         super(msg, e);

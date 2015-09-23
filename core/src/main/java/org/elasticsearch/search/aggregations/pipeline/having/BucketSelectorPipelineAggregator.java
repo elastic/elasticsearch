@@ -26,7 +26,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -105,7 +104,8 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
             ExecutableScript executableScript = reduceContext.scriptService().executable(compiledScript, vars);
             Object scriptReturnValue = executableScript.run();
             final boolean keepBucket;
-            if (ExpressionScriptEngineService.NAME.equals(script.getLang())) {
+            // TODO: WTF!!!!!
+            if ("expression".equals(script.getLang())) {
                 double scriptDoubleValue = (double) scriptReturnValue;
                 keepBucket = scriptDoubleValue == 1.0;
             } else {

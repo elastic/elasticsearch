@@ -19,26 +19,30 @@
 
 package org.elasticsearch.script.expression;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
+import java.util.Collection;
 
-/**
- * Exception used to wrap exceptions occuring while running expressions.
- * @deprecated not used anymore. but people dont seem to want it cleaned up. enjoy your pile of shitty exceptions, clean it up yourself.
- */
-@Deprecated
-public class ExpressionScriptExecutionException extends ElasticsearchException {
-    public ExpressionScriptExecutionException(String msg, Throwable cause) {
-        super(msg, cause);
+public class ExpressionRestIT extends ESRestTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(ExpressionPlugin.class);
     }
 
-    public ExpressionScriptExecutionException(StreamInput in) throws IOException {
-        super(in);
+    public ExpressionRestIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
     }
 
-    public ExpressionScriptExecutionException(String msg) {
-        super(msg);
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return ESRestTestCase.createParameters(0, 1);
     }
 }
+

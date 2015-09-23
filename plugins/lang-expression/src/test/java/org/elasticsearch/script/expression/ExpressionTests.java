@@ -29,7 +29,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Collections;
 
-public class ExpressionScriptTests extends ESSingleNodeTestCase {
+public class ExpressionTests extends ESSingleNodeTestCase {
 
     public void testNeedsScores() {
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");

@@ -100,6 +100,7 @@ public class DoSection implements ExecutableSection {
             }
         } catch(RestException e) {
             if (!Strings.hasLength(catchParam)) {
+                System.out.println(apiCallSection.getBodies()); // NOCOMMIT remove this
                 fail(formatStatusCodeMessage(e.restResponse(), "2xx"));
             } else if (catches.containsKey(catchParam)) {
                 assertStatusCode(e.restResponse());

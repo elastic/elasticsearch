@@ -123,7 +123,7 @@ public class GetIndexResponse extends ActionResponse {
                         in.readString(),
                         in.readStringArray(),
                         in.readOptionalBoolean(),
-                        SearchSourceBuilder.PROTOTYPE.readFrom(in))
+                        in.readBoolean() ? SearchSourceBuilder.PROTOTYPE.readFrom(in) : null)
                 );
             }
             warmersMapBuilder.put(key, Collections.unmodifiableList(warmerEntryBuilder));
@@ -174,7 +174,11 @@ public class GetIndexResponse extends ActionResponse {
                 out.writeString(warmerEntry.name());
                 out.writeStringArray(warmerEntry.types());
                 out.writeOptionalBoolean(warmerEntry.requestCache());
-                warmerEntry.source().writeTo(out);
+                boolean hasSource = warmerEntry.source() != null;
+                out.writeBoolean(hasSource);
+                if (hasSource) {
+                    warmerEntry.source().writeTo(out);
+                }
             }
         }
         out.writeVInt(mappings.size());

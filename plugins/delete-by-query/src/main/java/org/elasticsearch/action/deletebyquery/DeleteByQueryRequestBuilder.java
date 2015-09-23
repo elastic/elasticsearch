@@ -20,7 +20,6 @@
 package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,8 +30,6 @@ import org.elasticsearch.index.query.QueryBuilder;
  * @see DeleteByQueryRequest
  */
 public class DeleteByQueryRequestBuilder extends ActionRequestBuilder<DeleteByQueryRequest, DeleteByQueryResponse, DeleteByQueryRequestBuilder> {
-
-    private QueryBuilder<?> queryBuilder;
 
     public DeleteByQueryRequestBuilder(ElasticsearchClient client, DeleteByQueryAction action) {
         super(client, action, new DeleteByQueryRequest());
@@ -59,7 +56,7 @@ public class DeleteByQueryRequestBuilder extends ActionRequestBuilder<DeleteByQu
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public DeleteByQueryRequestBuilder setQuery(QueryBuilder<?> queryBuilder) {
-        this.queryBuilder = queryBuilder;
+        request.query(queryBuilder);
         return this;
     }
 
@@ -101,14 +98,6 @@ public class DeleteByQueryRequestBuilder extends ActionRequestBuilder<DeleteByQu
     public DeleteByQueryRequestBuilder setTypes(String... types) {
         request.types(types);
         return this;
-    }
-
-    @Override
-    public ListenableActionFuture<DeleteByQueryResponse> execute() {
-        if (queryBuilder != null) {
-            request.query(queryBuilder);
-        }
-        return super.execute();
     }
 
 }

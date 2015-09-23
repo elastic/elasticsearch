@@ -28,19 +28,16 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -48,10 +45,10 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -65,7 +62,6 @@ import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -78,12 +74,9 @@ import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.script.Template;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -111,7 +104,6 @@ import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -121,7 +113,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
@@ -692,8 +683,28 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
         context.parsedQuery(context.queryParserService().parse(source.query()));
         context.parsedPostFilter(context.queryParserService().parse(source.postFilter()));
-        context.sort(null); // NOCOMMIT parse source.sort() ByteReference into
-                            // Sort object
+        XContentParser completeSortParser = null;
+        try {
+            XContentBuilder completeSortBuilder = XContentFactory.jsonBuilder();
+            completeSortBuilder.startArray();
+            for (BytesReference sort : source.sorts()) {
+                XContentParser parser = XContentFactory.xContent(sort).createParser(sort);
+                completeSortBuilder.copyCurrentStructure(parser);
+            }
+            completeSortBuilder.endArray();
+            BytesReference completeSortBytes = completeSortBuilder.bytes();
+            completeSortParser = XContentFactory.xContent(completeSortBytes).createParser(completeSortBytes);
+            this.elementParsers.get("sort").parse(completeSortParser, context);
+        } catch (Exception e) {
+            String sSource = "_na_";
+            try {
+                sSource = source.toString();
+            } catch (Throwable e1) {
+                // ignore
+            }
+            XContentLocation location = completeSortParser != null ? completeSortParser.getTokenLocation() : null;
+            throw new SearchParseException(context, "failed to parse sort source [" + sSource + "]", location, e);
+        } // NORELEASE fix this to be more elegant
         context.trackScores(source.trackScores());
         context.minimumScore(source.minScore());
         context.timeoutInMillis(source.timeoutInMillis());
@@ -715,9 +726,28 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             XContentLocation location = suggestParser != null ? suggestParser.getTokenLocation() : null;
             throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
         }
-        context.addRescore(null);// NOCOMMIT parse source.rescore()
-                                 // ByteReference into RescoreSearchContext
-                                 // object
+        XContentParser completeRescoreParser = null;
+        try {
+            XContentBuilder completeRescoreBuilder = XContentFactory.jsonBuilder();
+            completeRescoreBuilder.startArray();
+            for (BytesReference rescore : source.rescores()) {
+                XContentParser parser = XContentFactory.xContent(rescore).createParser(rescore);
+                completeRescoreBuilder.copyCurrentStructure(parser);
+            }
+            completeRescoreBuilder.endArray();
+            BytesReference completeRescoreBytes = completeRescoreBuilder.bytes();
+            completeRescoreParser = XContentFactory.xContent(completeRescoreBytes).createParser(completeRescoreBytes);
+            this.elementParsers.get("rescore").parse(completeRescoreParser, context);
+        } catch (Exception e) {
+            String sSource = "_na_";
+            try {
+                sSource = source.toString();
+            } catch (Throwable e1) {
+                // ignore
+            }
+            XContentLocation location = completeRescoreParser != null ? completeRescoreParser.getTokenLocation() : null;
+            throw new SearchParseException(context, "failed to parse rescore source [" + sSource + "]", location, e);
+        } // NORELEASE fix this to be more elegant
         context.fieldNames().addAll(source.fields());
         context.explain(source.explain());
         context.fetchSourceContext(source.fetchSource());

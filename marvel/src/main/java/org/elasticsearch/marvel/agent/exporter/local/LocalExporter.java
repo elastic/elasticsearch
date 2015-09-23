@@ -22,6 +22,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -99,7 +100,7 @@ public class LocalExporter extends Exporter {
         try {
             indexTimeFormatter = DateTimeFormat.forPattern(indexTimeFormat).withZoneUTC();
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("invalid marvel index name time format [" + indexTimeFormat + "] set for [" + settingFQN(INDEX_NAME_TIME_FORMAT_SETTING) + "]", e);
+            throw new SettingsException("invalid marvel index name time format [" + indexTimeFormat + "] set for [" + settingFQN(INDEX_NAME_TIME_FORMAT_SETTING) + "]", e);
         }
 
         // Checks that the built-in template is versioned
@@ -305,26 +306,6 @@ public class LocalExporter extends Exporter {
         return MarvelSettings.MARVEL_INDICES_PREFIX + indexTimeFormatter.print(System.currentTimeMillis());
     }
 
-    public static class Factory extends Exporter.Factory<LocalExporter> {
-
-        private final SecuredClient client;
-        private final RendererRegistry registry;
-        private final ClusterService clusterService;
-
-        @Inject
-        public Factory(SecuredClient client, ClusterService clusterService, RendererRegistry registry) {
-            super(TYPE, true);
-            this.client = client;
-            this.clusterService = clusterService;
-            this.registry = registry;
-        }
-
-        @Override
-        public LocalExporter create(Config config) {
-            return new LocalExporter(config, client, clusterService, registry);
-        }
-    }
-
     class QueueConsumer extends Thread {
 
         private volatile boolean running = true;
@@ -395,5 +376,25 @@ public class LocalExporter extends Exporter {
         STOPPING,
         STOPPED,
         FAILED
+    }
+
+    public static class Factory extends Exporter.Factory<LocalExporter> {
+
+        private final SecuredClient client;
+        private final RendererRegistry registry;
+        private final ClusterService clusterService;
+
+        @Inject
+        public Factory(SecuredClient client, ClusterService clusterService, RendererRegistry registry) {
+            super(TYPE, true);
+            this.client = client;
+            this.clusterService = clusterService;
+            this.registry = registry;
+        }
+
+        @Override
+        public LocalExporter create(Config config) {
+            return new LocalExporter(config, client, clusterService, registry);
+        }
     }
 }

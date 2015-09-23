@@ -53,7 +53,6 @@ import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.shard.StoreRecoveryService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
@@ -442,9 +441,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                         // ignore
                     }
                 }
-                closeInjectorResource(sId, shardInjector,
-                        StoreRecoveryService.class);
-
                 // call this before we close the store, so we can release resources for it
                 indicesLifecycle.afterIndexShardClosed(sId, indexShard, indexSettings);
             }

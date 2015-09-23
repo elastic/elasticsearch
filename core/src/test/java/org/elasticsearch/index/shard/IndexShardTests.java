@@ -21,7 +21,9 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
@@ -37,14 +39,14 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -64,10 +66,13 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.settings.IndexSettingsService;
+import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -90,7 +95,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
@@ -765,6 +769,134 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             threads[i].join();
         }
         assertEquals(total + 1, shard.flushStats().getTotal());
+    }
+
+    public void testRecoverFromStore() {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        final IndexShard shard = test.shard(0);
+
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
+        if (randomBoolean()) {
+            client().admin().indices().prepareFlush().get();
+        }
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c simon says so");
+        ShardRoutingHelper.reinit(routing);
+        IndexShard newShard = test.createShard(0, routing);
+        newShard.updateRoutingEntry(routing, false);
+        assertTrue(newShard.recoverFromStore(routing));
+        routing = new ShardRouting(routing);
+        ShardRoutingHelper.moveToStarted(routing);
+        newShard.updateRoutingEntry(routing, true);
+        SearchResponse response = client().prepareSearch().get();
+        assertHitCount(response, 1);
+    }
+
+    public void testFailIfIndexNotPresentInRecoverFromStore() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        final IndexShard shard = test.shard(0);
+
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
+        if (randomBoolean()) {
+            client().admin().indices().prepareFlush().get();
+        }
+        final ShardRouting origRouting = shard.routingEntry();
+        ShardRouting routing = new ShardRouting(origRouting);
+        Store store = shard.store();
+        store.incRef();
+        test.removeShard(0, "b/c simon says so");
+        Lucene.cleanLuceneIndex(store.directory());
+        store.decRef();
+        ShardRoutingHelper.reinit(routing);
+        IndexShard newShard = test.createShard(0, routing);
+        newShard.updateRoutingEntry(routing, false);
+        try {
+            newShard.recoverFromStore(routing);
+            fail("index not there!");
+        } catch (IndexShardRecoveryException ex) {
+            assertTrue(ex.getMessage().contains("failed to fetch index version after copying it over"));
+        }
+
+        ShardRoutingHelper.moveToUnassigned(routing, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "because I say so"));
+        ShardRoutingHelper.initialize(routing, origRouting.currentNodeId());
+
+        assertFalse("it's already recovering", newShard.recoverFromStore(routing));
+        test.removeShard(0, "I broken it");
+        newShard = test.createShard(0, routing);
+        newShard.updateRoutingEntry(routing, false);
+        assertTrue("recover even if there is nothing to recover", newShard.recoverFromStore(routing));
+
+        routing = new ShardRouting(routing);
+        ShardRoutingHelper.moveToStarted(routing);
+        newShard.updateRoutingEntry(routing, true);
+        SearchResponse response = client().prepareSearch().get();
+        assertHitCount(response, 0);
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(true).get();
+        assertHitCount(client().prepareSearch().get(), 1);
+    }
+
+    public void testRestoreShard() throws IOException {
+        createIndex("test");
+        createIndex("test_target");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        IndexService test_target = indicesService.indexService("test_target");
+        final IndexShard test_shard = test.shard(0);
+
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
+        client().prepareIndex("test_target", "test", "1").setSource("{}").setRefresh(true).get();
+        assertHitCount(client().prepareSearch("test_target").get(), 1);
+        assertSearchHits(client().prepareSearch("test_target").get(), "1");
+        client().admin().indices().prepareFlush("test").get(); // only flush test
+        final ShardRouting origRouting = test_target.shard(0).routingEntry();
+        ShardRouting routing = new ShardRouting(origRouting);
+        ShardRoutingHelper.reinit(routing);
+        routing = ShardRoutingHelper.newWithRestoreSource(routing, new RestoreSource(new SnapshotId("foo", "bar"), Version.CURRENT, "test"));
+        test_target.removeShard(0, "just do it man!");
+        final IndexShard test_target_shard = test_target.createShard(0, routing);
+        Store sourceStore = test_shard.store();
+        Store targetStore = test_target_shard.store();
+
+        test_target_shard.updateRoutingEntry(routing, false);
+        assertTrue(test_target_shard.restoreFromRepository(routing, new IndexShardRepository() {
+            @Override
+            public void snapshot(SnapshotId snapshotId, ShardId shardId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
+            }
+
+            @Override
+            public void restore(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
+                try {
+                    Lucene.cleanLuceneIndex(targetStore.directory());
+                    for (String file : sourceStore.directory().listAll()) {
+                        targetStore.directory().copyFrom(sourceStore.directory(), file, file, IOContext.DEFAULT);
+                    }
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+
+            @Override
+            public IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
+                return null;
+            }
+
+            @Override
+            public void verify(String verificationToken) {
+            }
+        }));
+
+        routing = new ShardRouting(routing);
+        ShardRoutingHelper.moveToStarted(routing);
+        test_target_shard.updateRoutingEntry(routing, true);
+        assertHitCount(client().prepareSearch("test_target").get(), 1);
+        assertSearchHits(client().prepareSearch("test_target").get(), "0");
     }
 
 }

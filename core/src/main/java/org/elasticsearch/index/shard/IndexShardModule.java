@@ -66,7 +66,6 @@ public class IndexShardModule extends AbstractModule {
         }
 
         bind(EngineFactory.class).to(engineFactoryImpl);
-        bind(StoreRecoveryService.class).asEagerSingleton();
         bind(IndexSearcherWrappingService.class).asEagerSingleton();
         // this injects an empty set in IndexSearcherWrappingService, otherwise guice can't construct IndexSearcherWrappingService
         Multibinder<IndexSearcherWrapper> multibinder

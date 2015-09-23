@@ -65,7 +65,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.StoreRecoveryService;
+import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -115,11 +115,9 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * method.
  * <p>
  * Individual shards are getting restored as part of normal recovery process in
- * {@link StoreRecoveryService#recover(IndexShard, boolean, StoreRecoveryService.RecoveryListener)}
+ * {@link IndexShard#restoreFromRepository(ShardRouting, IndexShardRepository)}
  * method, which detects that shard should be restored from snapshot rather than recovered from gateway by looking
- * at the {@link org.elasticsearch.cluster.routing.ShardRouting#restoreSource()} property. If this property is not null
- * {@code recover} method uses {@link StoreRecoveryService#restore}
- * method to start shard restore process.
+ * at the {@link org.elasticsearch.cluster.routing.ShardRouting#restoreSource()} property.
  * <p>
  * At the end of the successful restore process {@code IndexShardSnapshotAndRestoreService} calls {@link #indexShardRestoreCompleted(SnapshotId, ShardId)},
  * which updates {@link RestoreInProgress} in cluster state or removes it when all shards are completed. In case of
@@ -489,7 +487,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     }
 
     /**
-     * This method is used by {@link StoreRecoveryService} to notify
+     * This method is used by {@link IndexShard} to notify
      * {@code RestoreService} about shard restore completion.
      *
      * @param snapshotId snapshot id

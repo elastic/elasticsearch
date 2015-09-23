@@ -19,12 +19,16 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -47,6 +51,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         assertThat(query, instanceOf(PrefixQuery.class));
         PrefixQuery prefixQuery = (PrefixQuery) query;
         assertThat(prefixQuery.getPrefix().field(), equalTo(queryBuilder.fieldName()));
+        assertThat(prefixQuery.getPrefix().text(), equalTo(queryBuilder.value()));
     }
 
     @Test
@@ -67,6 +72,17 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
             fail("cannot be null or empty");
         } catch (IllegalArgumentException e) {
             // expected
+        }
+    }
+
+    @Test
+    public void testBlendedRewriteMethod() throws IOException {
+        for (String rewrite : Arrays.asList("top_terms_blended_freqs_10", "topTermsBlendedFreqs10")) {
+            Query parsedQuery = parseQuery(prefixQuery("field", "val").rewrite(rewrite).buildAsBytes()).toQuery(createShardContext());
+            assertThat(parsedQuery, instanceOf(PrefixQuery.class));
+            PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
+            assertThat(prefixQuery.getPrefix(), equalTo(new Term("field", "val")));
+            assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
         }
     }
 }

@@ -25,8 +25,11 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTermsQueryBuilder> {
 
@@ -110,4 +113,44 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         context.setAllowUnmappedFields(true);
         assertNull(builder.toQuery(context));
     }
+
+    @Test
+    public void testCommonTermsQuery1() throws IOException {
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/commonTerms-query1.json");
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
+        ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
+        assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), nullValue());
+        assertThat(ectQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo("2"));
+    }
+
+    @Test
+    public void testCommonTermsQuery2() throws IOException {
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/commonTerms-query2.json");
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
+        ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
+        assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), equalTo("50%"));
+        assertThat(ectQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo("5<20%"));
+    }
+
+    @Test
+    public void testCommonTermsQuery3() throws IOException {
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/commonTerms-query3.json");
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
+        ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
+        assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), nullValue());
+        assertThat(ectQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo("2"));
+    }
+
+    @Test // see #11730
+    public void testCommonTermsQuery4() throws IOException {
+        boolean disableCoord = randomBoolean();
+        Query parsedQuery = parseQuery(commonTermsQuery("field", "text").disableCoord(disableCoord).buildAsBytes()).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
+        ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
+        assertThat(ectQuery.isCoordDisabled(), equalTo(disableCoord));
+    }
+
 }

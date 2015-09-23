@@ -22,8 +22,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Test;
 
 import java.io.IOException;
 
@@ -52,5 +54,15 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         } else {
             assertThat(termQuery.getTerm().bytes(), equalTo(BytesRefs.toBytesRef(queryBuilder.value())));
         }
+    }
+
+    @Test(expected = ParsingException.class)
+    public void testTermArray() throws IOException {
+        String queryAsString = "{\n" +
+                "    \"term\": {\n" +
+                "        \"age\": [34, 35]\n" +
+                "    }\n" +
+                "}";
+        parseQuery(queryAsString);
     }
 }

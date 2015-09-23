@@ -28,7 +28,9 @@ import org.elasticsearch.index.search.MatchQuery;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
@@ -102,6 +104,19 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     @Override
+    protected Map<String, MultiMatchQueryBuilder> getAlternateVersions() {
+        Map<String, MultiMatchQueryBuilder> alternateVersions = new HashMap<>();
+        String query = "{\n" +
+                "    \"multi_match\": {\n" +
+                "        \"query\": \"foo bar\",\n" +
+                "        \"fields\": \"myField\"\n" +
+                "    }\n" +
+                "}";
+        alternateVersions.put(query, new MultiMatchQueryBuilder("foo bar", "myField"));
+        return alternateVersions;
+    }
+
+    @Override
     protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         // we rely on integration tests for deeper checks here
         assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
@@ -130,6 +145,13 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         try {
             new MultiMatchQueryBuilder("value", new String[]{""});
             fail("field names cannot be empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        try {
+            new MultiMatchQueryBuilder("value", "field").type(null);
+            fail("type must not be null");
         } catch (IllegalArgumentException e) {
             // expected
         }

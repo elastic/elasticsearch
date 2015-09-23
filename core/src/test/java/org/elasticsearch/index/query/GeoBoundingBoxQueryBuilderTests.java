@@ -21,12 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.io.GeohashUtils;
 import com.spatial4j.core.shape.Rectangle;
-
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.NumericRangeQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
@@ -34,6 +29,9 @@ import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.junit.Test;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBoundingBoxQueryBuilder> {
     /** Randomly generate either NaN or one of the two infinity values. */
@@ -258,7 +256,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         }
     }
 
-    // Java really could do with function pointers - is there any Java8 feature that would help me here which I don't know of?
     public abstract class PointTester {
         private double brokenCoordinate = randomFrom(brokenDoubles);
         private double invalidCoordinate;
@@ -318,5 +315,107 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         public void fillIn(double coordinate, GeoBoundingBoxQueryBuilder qb) {
             qb.setCorners(qb.topLeft().getLat(), qb.topLeft().getLon(), qb.topLeft().getLat(), coordinate);
         }
+    }
+
+    @Test
+    public void testParsingAndToQuery1() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_bounding_box\":{\n" +
+                "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
+                "            \"top_left\":[-70, 40],\n" +
+                "            \"bottom_right\":[-80, 30]\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoBoundingBoxQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery2() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_bounding_box\":{\n" +
+                "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
+                "            \"top_left\":{\n" +
+                "                \"lat\":40,\n" +
+                "                \"lon\":-70\n" +
+                "            },\n" +
+                "            \"bottom_right\":{\n" +
+                "                \"lat\":30,\n" +
+                "                \"lon\":-80\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoBoundingBoxQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery3() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_bounding_box\":{\n" +
+                "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
+                "            \"top_left\":\"40, -70\",\n" +
+                "            \"bottom_right\":\"30, -80\"\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoBoundingBoxQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery4() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_bounding_box\":{\n" +
+                "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
+                "            \"top_left\":\"drn5x1g8cu2y\",\n" +
+                "            \"bottom_right\":\"30, -80\"\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoBoundingBoxQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery5() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_bounding_box\":{\n" +
+                "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
+                "            \"top_right\":\"40, -80\",\n" +
+                "            \"bottom_left\":\"30, -70\"\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoBoundingBoxQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery6() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_bounding_box\":{\n" +
+                "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
+                "            \"right\": -80,\n" +
+                "            \"top\": 40,\n" +
+                "            \"left\": -70,\n" +
+                "            \"bottom\": 30\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoBoundingBoxQuery(query);
+    }
+    
+    private void assertGeoBoundingBoxQuery(String query) throws IOException {
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) parsedQuery;
+        assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
+        assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
+        assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
+        assertThat(filter.bottomRight().lat(), closeTo(30, 0.00001));
+        assertThat(filter.bottomRight().lon(), closeTo(-80, 0.00001));
     }
 }

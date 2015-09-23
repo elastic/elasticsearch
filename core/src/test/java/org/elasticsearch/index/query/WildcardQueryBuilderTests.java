@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQueryBuilder> {
@@ -49,6 +50,10 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     @Override
     protected void doAssertLuceneQuery(WildcardQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(WildcardQuery.class));
+        WildcardQuery wildcardQuery = (WildcardQuery) query;
+        assertThat(wildcardQuery.getField(), equalTo(queryBuilder.fieldName()));
+        assertThat(wildcardQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
+        assertThat(wildcardQuery.getTerm().text(), equalTo(queryBuilder.value()));
     }
 
     @Test

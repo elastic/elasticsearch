@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Point;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -31,9 +30,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDistanceQueryBuilder> {
 
@@ -180,4 +177,202 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertThat(geoQuery.maxInclusiveDistance(), closeTo(distance, Math.abs(distance) / 1000));
     }
 
+    @Test
+    public void testParsingAndToQuery1() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_distance\":{\n" +
+                "        \"distance\":\"12mi\",\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "            \"lat\":40,\n" +
+                "            \"lon\":-70\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoDistanceRangeQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery2() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_distance\":{\n" +
+                "        \"distance\":\"12mi\",\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":[-70, 40]\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoDistanceRangeQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery3() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_distance\":{\n" +
+                "        \"distance\":\"12mi\",\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":\"40, -70\"\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoDistanceRangeQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery4() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_distance\":{\n" +
+                "        \"distance\":\"12mi\",\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":\"drn5x1g8cu2y\"\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoDistanceRangeQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery5() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_distance\":{\n" +
+                "        \"distance\":12,\n" +
+                "        \"unit\":\"mi\",\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "            \"lat\":40,\n" +
+                "            \"lon\":-70\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoDistanceRangeQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery6() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_distance\":{\n" +
+                "        \"distance\":\"12\",\n" +
+                "        \"unit\":\"mi\",\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "            \"lat\":40,\n" +
+                "            \"lon\":-70\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoDistanceRangeQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery7() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "  \"geo_distance\":{\n" +
+                "      \"distance\":\"19.312128\",\n" +
+                "      \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "          \"lat\":40,\n" +
+                "          \"lon\":-70\n" +
+                "      }\n" +
+                "  }\n" +
+                "}\n";
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        GeoDistanceRangeQuery filter = (GeoDistanceRangeQuery) parsedQuery;
+        assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
+        assertThat(filter.lat(), closeTo(40, 0.00001));
+        assertThat(filter.lon(), closeTo(-70, 0.00001));
+        assertThat(filter.minInclusiveDistance(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(filter.maxInclusiveDistance(), closeTo(DistanceUnit.DEFAULT.convert(0.012, DistanceUnit.MILES), 0.00001));
+    }
+
+    @Test
+    public void testParsingAndToQuery8() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_distance\":{\n" +
+                "        \"distance\":19.312128,\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "            \"lat\":40,\n" +
+                "            \"lon\":-70\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        GeoDistanceRangeQuery filter = (GeoDistanceRangeQuery) parsedQuery;
+        assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
+        assertThat(filter.lat(), closeTo(40, 0.00001));
+        assertThat(filter.lon(), closeTo(-70, 0.00001));
+        assertThat(filter.minInclusiveDistance(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(filter.maxInclusiveDistance(), closeTo(DistanceUnit.KILOMETERS.convert(12, DistanceUnit.MILES), 0.00001));
+    }
+
+    @Test
+    public void testParsingAndToQuery9() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_distance\":{\n" +
+                "        \"distance\":\"19.312128\",\n" +
+                "        \"unit\":\"km\",\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "            \"lat\":40,\n" +
+                "            \"lon\":-70\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoDistanceRangeQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery10() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_distance\":{\n" +
+                "        \"distance\":19.312128,\n" +
+                "        \"unit\":\"km\",\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "            \"lat\":40,\n" +
+                "            \"lon\":-70\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoDistanceRangeQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery11() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_distance\":{\n" +
+                "        \"distance\":\"19.312128km\",\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "            \"lat\":40,\n" +
+                "            \"lon\":-70\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoDistanceRangeQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery12() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_distance\":{\n" +
+                "        \"distance\":\"12mi\",\n" +
+                "        \"unit\":\"km\",\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "            \"lat\":40,\n" +
+                "            \"lon\":-70\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoDistanceRangeQuery(query);
+    }
+    
+    private void assertGeoDistanceRangeQuery(String query) throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        GeoDistanceRangeQuery filter = (GeoDistanceRangeQuery) parsedQuery;
+        assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
+        assertThat(filter.lat(), closeTo(40, 0.00001));
+        assertThat(filter.lon(), closeTo(-70, 0.00001));
+        assertThat(filter.minInclusiveDistance(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(filter.maxInclusiveDistance(), closeTo(DistanceUnit.DEFAULT.convert(12, DistanceUnit.MILES), 0.00001));
+    }
 }

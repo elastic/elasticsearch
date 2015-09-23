@@ -61,10 +61,27 @@ public class RandomQueryBuilder {
     public static MultiTermQueryBuilder createMultiTermQuery(Random r) {
         // for now, only use String Rangequeries for MultiTerm test, numeric and date makes little sense
         // see issue #12123 for discussion
-        // Prefix / Fuzzy / RegEx / Wildcard can go here later once refactored and they have random query generators
-        RangeQueryBuilder query = new RangeQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME);
-        query.from("a" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
-        query.to("z" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
-        return query;
+        switch(RandomInts.randomIntBetween(r, 0, 5)) {
+            case 0:
+                RangeQueryBuilder stringRangeQuery = new RangeQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME);
+                stringRangeQuery.from("a" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
+                stringRangeQuery.to("z" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
+                return stringRangeQuery;
+            case 1:
+                RangeQueryBuilder numericRangeQuery = new RangeQueryBuilder(AbstractQueryTestCase.INT_FIELD_NAME);
+                numericRangeQuery.from(RandomInts.randomIntBetween(r, 1, 100));
+                numericRangeQuery.to(RandomInts.randomIntBetween(r, 101, 200));
+                return numericRangeQuery;
+            case 2:
+                return new FuzzyQueryBuilder(AbstractQueryTestCase.INT_FIELD_NAME, RandomInts.randomInt(r, 1000));
+            case 3:
+                return new FuzzyQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME, RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
+            case 4:
+                return new PrefixQueryBuilderTests().createTestQueryBuilder();
+            case 5:
+                return new WildcardQueryBuilderTests().createTestQueryBuilder();
+            default:
+                throw new UnsupportedOperationException();
+        }
     }
 }

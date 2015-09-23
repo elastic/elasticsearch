@@ -1,9 +1,0 @@
-{
-    "not":{
-        "query":{
-            "term":{
-                "name.first":"shay1"
-            }
-        }
-    }
-}

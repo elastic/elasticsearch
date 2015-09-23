@@ -842,7 +842,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             XContentParser innerHitsParser = null;
             try {
                 innerHitsParser = XContentFactory.xContent(source.innerHits()).createParser(source.innerHits());
-                this.elementParsers.get("highlight").parse(innerHitsParser, context);
+                innerHitsParser.nextToken();
+                this.elementParsers.get("inner_hits").parse(innerHitsParser, context);
             } catch (Exception e) {
                 String sSource = "_na_";
                 try {

@@ -88,3 +88,12 @@ previous versions.
 When `max_children` was set to `0` on the `has_child` query then there was no upper limit on how many children documents
 are allowed to match. This has changed and `0` now really means to zero child documents are allowed. If no upper limit
 is needed then the `max_children` option shouldn't be defined at all on the `has_child` query.
+
+=== Settings changes ===
+
+==== Ping timeout settings
+
+Previously, there were three settings for the ping timeout: `discovery.zen.initial_ping_timeout`,
+`discovery.zen.ping.timeout` and `discovery.zen.ping_timeout`. The former two have been removed and
+the only setting key for the ping timeout is now `discovery.zen.ping_timeout`. The default value for
+ping timeouts remains at three seconds.

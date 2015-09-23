@@ -23,6 +23,7 @@ import org.elasticsearch.cloud.azure.AbstractAzureComputeServiceTestCase;
 import org.elasticsearch.cloud.azure.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
@@ -53,8 +54,8 @@ public class AzureMinimumMasterNodesTests extends AbstractAzureComputeServiceTes
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.zen.minimum_master_nodes", 2)
                 // Make the test run faster
-                .put("discovery.zen.join.timeout", "50ms")
-                .put("discovery.zen.ping.timeout", "10ms")
+                .put(ZenDiscovery.SETTING_JOIN_TIMEOUT, "50ms")
+                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "10ms")
                 .put("discovery.initial_state_timeout", "100ms");
         return builder.build();
     }

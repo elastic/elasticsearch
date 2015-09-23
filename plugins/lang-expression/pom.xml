@@ -18,7 +18,7 @@
         <elasticsearch.plugin.classname>org.elasticsearch.script.expression.ExpressionPlugin</elasticsearch.plugin.classname>
         <tests.rest.suite>lang_expression</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
-        <xlint.options>-Xlint:-rawtypes,-serial</xlint.options>
+        <xlint.options>-Xlint:-rawtypes</xlint.options>
     </properties>
 
     <dependencies>

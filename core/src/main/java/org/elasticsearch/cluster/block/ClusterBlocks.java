@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.block;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -152,7 +151,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         if (global(level).isEmpty()) {
             return null;
         }
-        return new ClusterBlockException(ImmutableSet.copyOf(global(level)));
+        return new ClusterBlockException(global(level));
     }
 
     public void indexBlockedRaiseException(ClusterBlockLevel level, String index) throws ClusterBlockException {

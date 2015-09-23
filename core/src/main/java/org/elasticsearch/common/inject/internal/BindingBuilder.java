@@ -16,17 +16,24 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.Binder;
+import org.elasticsearch.common.inject.ConfigurationException;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.lang.annotation.Annotation;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * Bind a non-constant key.
@@ -85,11 +92,11 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
                 for (Message message : e.getErrorMessages()) {
                     binder.addError(message);
                 }
-                injectionPoints = e.getPartialValue();
+                injectionPoints = unmodifiableSet(new HashSet<>(e.getPartialValue()));
             }
         } else {
             binder.addError(BINDING_TO_NULL);
-            injectionPoints = ImmutableSet.of();
+            injectionPoints = emptySet();
         }
 
         BindingImpl<T> base = getBinding();
@@ -110,7 +117,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
             for (Message message : e.getErrorMessages()) {
                 binder.addError(message);
             }
-            injectionPoints = e.getPartialValue();
+            injectionPoints = unmodifiableSet(new HashSet<>(e.getPartialValue()));
         }
 
         BindingImpl<T> base = getBinding();

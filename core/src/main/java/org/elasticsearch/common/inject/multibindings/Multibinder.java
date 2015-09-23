@@ -17,6 +17,7 @@
 package org.elasticsearch.common.inject.multibindings;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Binding;
 import org.elasticsearch.common.inject.ConfigurationException;
@@ -37,10 +38,13 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * An API to bind multiple values separately, only to later inject them as a
@@ -238,9 +242,8 @@ public abstract class Multibinder<T> {
         @Inject
         public void initialize(Injector injector) {
             providers = new ArrayList<>();
-            List<Dependency<?>> dependencies = new ArrayList<>();
+            Set<Dependency<?>> dependencies = new HashSet<>();
             for (Binding<?> entry : injector.findBindingsByType(elementType)) {
-
                 if (keyMatches(entry.getKey())) {
                     @SuppressWarnings("unchecked") // protected by findBindingsByType()
                             Binding<T> binding = (Binding<T>) entry;
@@ -249,7 +252,7 @@ public abstract class Multibinder<T> {
                 }
             }
 
-            this.dependencies = ImmutableSet.copyOf(dependencies);
+            this.dependencies = unmodifiableSet(dependencies);
             this.binder = null;
         }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
@@ -59,7 +60,10 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -89,8 +93,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     }
 
     public static class BlockingActionFilter extends org.elasticsearch.action.support.ActionFilter.Simple {
-
-        ImmutableSet<String> blockedActions = ImmutableSet.of();
+        private Set<String> blockedActions = emptySet();
 
         @Inject
         public BlockingActionFilter(Settings settings) {
@@ -116,7 +119,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
 
         public void blockActions(String... actions) {
-            blockedActions = ImmutableSet.copyOf(actions);
+            blockedActions = unmodifiableSet(newHashSet(actions));
         }
     }
 

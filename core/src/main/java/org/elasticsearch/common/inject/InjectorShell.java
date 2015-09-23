@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.logging.Logger;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.inject.Scopes.SINGLETON;
 
 /**
@@ -185,7 +186,7 @@ class InjectorShell {
         injector.state.putBinding(key,
                 new ProviderInstanceBindingImpl<>(injector, key, SourceProvider.UNKNOWN_SOURCE,
                         injectorFactory, Scoping.UNSCOPED, injectorFactory,
-                        ImmutableSet.<InjectionPoint>of()));
+                        emptySet()));
     }
 
     private static class InjectorFactory implements InternalFactory<Injector>, Provider<Injector> {
@@ -222,7 +223,7 @@ class InjectorShell {
         injector.state.putBinding(key,
                 new ProviderInstanceBindingImpl<>(injector, key,
                         SourceProvider.UNKNOWN_SOURCE, loggerFactory, Scoping.UNSCOPED,
-                        loggerFactory, ImmutableSet.<InjectionPoint>of()));
+                        loggerFactory, emptySet()));
     }
 
     private static class LoggerFactory implements InternalFactory<Logger>, Provider<Logger> {

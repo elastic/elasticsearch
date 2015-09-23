@@ -16,12 +16,15 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.util.Collection;
 import java.util.Locale;
+import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  * Thrown when a programming error such as a misplaced annotation, illegal binding, or unsupported
@@ -31,15 +34,14 @@ import java.util.Locale;
  * @since 2.0
  */
 public final class ConfigurationException extends RuntimeException {
-
-    private final ImmutableSet<Message> messages;
+    private final Set<Message> messages;
     private Object partialValue = null;
 
     /**
      * Creates a ConfigurationException containing {@code messages}.
      */
     public ConfigurationException(Iterable<Message> messages) {
-        this.messages = ImmutableSet.copyOf(messages);
+        this.messages = unmodifiableSet(newHashSet(messages));
         initCause(Errors.getOnlyCause(this.messages));
     }
 

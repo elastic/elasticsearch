@@ -96,7 +96,7 @@ dependencies {
     exclude group: 'org.hamcrest', module: 'hamcrest-core'
   }
   testCompile 'com.google.jimfs:jimfs:1.0'
-  testCompile 'org.apache.httpcomponents:httpclient:4.3.6'
+  testCompile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
 
   testCompile configurations.optional // optional deps are pulled into tests
 

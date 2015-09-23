@@ -6,7 +6,7 @@ esplugin {
 
 dependencies {
   compile 'com.amazonaws:aws-java-sdk-s3:1.10.19'
-  compile 'org.apache.httpcomponents:httpclient'
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
 }
 
 dependencyLicenses {

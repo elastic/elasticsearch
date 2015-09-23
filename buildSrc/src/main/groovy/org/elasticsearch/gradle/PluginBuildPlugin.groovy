@@ -23,7 +23,7 @@ class PluginBuildPlugin extends BuildPlugin {
             dependsOn bundle
             cluster {
                 setup {
-                    run name: "installPlugin", args: ['bin/plugin', 'install', "file://${bundle.outputs.files.asPath}"]
+                    run name: "installPlugin", args: ['bin/plugin', 'install', "file://${bundle.outputs.files.singleFile}"]
                 }
             }
         }
@@ -38,7 +38,7 @@ class PluginBuildPlugin extends BuildPlugin {
 
     @Override
     Class<? extends RandomizedTestingTask> getIntegTestClass() {
-        return IntegTestTask
+        return RestIntegTestTask
     }
 
     static void configureDependencies(Project project) {
@@ -51,7 +51,7 @@ class PluginBuildPlugin extends BuildPlugin {
         }
         project.dependencies {
             provided "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
-            compile project.configurations.provided
+            //compile project.configurations.provided
             testCompile "org.elasticsearch:test-framework:${elasticsearchVersion}"
             restSpec "org.elasticsearch:rest-api-spec:${elasticsearchVersion}"
         }
@@ -66,24 +66,7 @@ class PluginBuildPlugin extends BuildPlugin {
         ]
         Task copyRestSpec = project.tasks.create(copyRestSpecProps) {
             from project.zipTree(project.configurations.restSpec.asPath)
-            // required by the test framework
-            include 'rest-api-spec/api/info.json'
-            include 'rest-api-spec/api/cluster.health.json'
-            include 'rest-api-spec/api/cluster.state.json'
-            include 'rest-api-spec/api/cluster.state.json'
-            // used in plugin REST tests
-            include 'rest-api-spec/api/index.json'
-            include 'rest-api-spec/api/get.json'
-            include 'rest-api-spec/api/update.json'
-            include 'rest-api-spec/api/search.json'
-            include 'rest-api-spec/api/indices.analyze.json'
-            include 'rest-api-spec/api/indices.create.json'
-            include 'rest-api-spec/api/indices.refresh.json'
-            include 'rest-api-spec/api/nodes.info.json'
-            include 'rest-api-spec/api/count.json'
-            // used in repository plugin REST tests
-            include 'rest-api-spec/api/snapshot.create_repository.json'
-            include 'rest-api-spec/api/snapshot.get_repository.json'
+            include 'rest-api-spec/api/**'
             into project.sourceSets.test.output.resourcesDir
         }
         project.tasks.getByName('test').dependsOn copyRestSpec

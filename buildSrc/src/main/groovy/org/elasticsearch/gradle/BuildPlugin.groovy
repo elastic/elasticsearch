@@ -9,7 +9,7 @@ import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.TaskContainer
 
 /**
- * Encapsulates adding all build logic and configuration for elasticsearch projects.
+ * Encapsulates build configuration for elasticsearch projects.
  */
 class BuildPlugin implements Plugin<Project> {
 
@@ -19,15 +19,21 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('carrotsearch.randomizedtesting')
         project.pluginManager.apply('de.thetaphi.forbiddenapis')
 
-        Task precommit = configurePrecommit(project)
+        // configure test, and create integTest task as well
         Closure testConfig = createSharedTestConfig(project)
         RandomizedTestingTask test = configureTest(project.tasks, testConfig)
         RandomizedTestingTask integTest = configureIntegTest(project.tasks, getIntegTestClass(), test, testConfig)
 
+        // add hack to un-jar rest spec tests/api as test resources
+        /*Task restSpecHack = RestSpecHack.setup(project, true)
+        test.dependsOn(restSpecHack)
+        integTest.dependsOn(restSpecHack)*/
+
+        // enforce order of check tasks: precommit, test, integTest
+        Task precommit = configurePrecommit(project)
         test.mustRunAfter(precommit)
         integTest.mustRunAfter(precommit)
         project.tasks.findByName('check').dependsOn(precommit, integTest) // test is already a dep
-        println 'CHECK: ' + project.tasks.findByName('check').dependsOn
     }
 
     // overridable by subclass plugins
@@ -35,8 +41,10 @@ class BuildPlugin implements Plugin<Project> {
         return RandomizedTestingTask
     }
 
+    /** Returns a closure of common configuration shared by unit and integration tests. */
     static Closure createSharedTestConfig(Project project) {
         return {
+            // TODO: don't use JAVA_HOME env var, but instead sysprop set by java?
             jvm System.getenv('JAVA_HOME') + File.separator + 'bin' + File.separator + 'java'
             parallelism System.getProperty('tests.jvms', 'auto')
 
@@ -90,8 +98,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             balancers {
-                def version = project.property('version')
-                executionTime cacheFilename: ".local-$version-$name-execution-times.log"
+                executionTime cacheFilename: ".local-${project.version}-${name}-execution-times.log"
             }
 
             listeners {
@@ -102,6 +109,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
+    /** Configures the test task */
     static Task configureTest(TaskContainer tasks, Closure testConfig) {
         Task test = tasks.getByName('test')
         test.configure(testConfig)
@@ -111,6 +119,7 @@ class BuildPlugin implements Plugin<Project> {
         return test
     }
 
+    /** Adds and configures an integration test task */
     static Task configureIntegTest(TaskContainer tasks, Class integTestClass, RandomizedTestingTask test, Closure testConfig) {
         Map integTestOptions = [
             'name': 'integTest',

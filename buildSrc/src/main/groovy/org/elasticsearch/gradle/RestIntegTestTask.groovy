@@ -12,11 +12,14 @@ import org.gradle.util.ConfigureUtil
  * Runs integration tests, but first starts an ES cluster,
  * and passes the ES cluster info as parameters to the tests.
  */
-class IntegTestTask extends RandomizedTestingTask {
+class RestIntegTestTask extends RandomizedTestingTask {
 
     ClusterConfiguration clusterConfig = new ClusterConfiguration()
 
-    IntegTestTask() {
+    @Input
+    boolean includePackaged = false
+
+    RestIntegTestTask() {
         project.afterEvaluate {
             ClusterFormationTasks.addTasks(this, clusterConfig)
             configure {

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.warmer;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -210,7 +211,7 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if ("source".equals(currentFieldName)) {
                             ByteArrayOutputStream out = new ByteArrayOutputStream();
-                            try (XContentGenerator generator = parser.contentType().xContent().createGenerator(out)) {
+                            try (XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out)) {
                                 generator.copyCurrentStructure(parser);
                             }
                             source = new SearchSource(new BytesArray(out.toByteArray()));
@@ -273,7 +274,7 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
         return new IndexWarmersMetaData(entries.toArray(new Entry[entries.size()]));
     }
 
-    public static class SearchSource implements ToXContent, Writeable<SearchSource> {
+    public static class SearchSource extends ToXContentToBytes implements Writeable<SearchSource> {
         private final BytesReference binary;
         private SearchSourceBuilder cached;
 
@@ -325,6 +326,22 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
         @Override
         public SearchSource readFrom(StreamInput in) throws IOException {
             return new SearchSource(in);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            SearchSource that = (SearchSource) o;
+
+            return binary.equals(that.binary);
+
+        }
+
+        @Override
+        public int hashCode() {
+            return binary.hashCode();
         }
     }
 }

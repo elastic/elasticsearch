@@ -762,6 +762,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             XContentParser suggestParser = null;
             try {
                 suggestParser = XContentFactory.xContent(source.suggest()).createParser(source.suggest());
+                suggestParser.nextToken();
                 this.elementParsers.get("suggest").parse(suggestParser, context);
             } catch (Exception e) {
                 String sSource = "_na_";

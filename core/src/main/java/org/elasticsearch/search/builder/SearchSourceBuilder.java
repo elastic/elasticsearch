@@ -804,7 +804,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType()).copyCurrentStructure(parser);
                     builder.innerHitsBuilder = xContentBuilder.bytes();
                 } else if (context.parseFieldMatcher().match(currentFieldName, SUGGEST_FIELD)) {
-                    XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType()).copyCurrentStructure(parser);
+                    XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
+                    xContentBuilder.copyCurrentStructure(parser);
                     builder.suggestBuilder = xContentBuilder.bytes();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",

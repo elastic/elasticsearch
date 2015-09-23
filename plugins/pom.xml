@@ -104,11 +104,6 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-expressions</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>com.spatial4j</groupId>
             <artifactId>spatial4j</artifactId>
             <scope>provided</scope>
@@ -400,8 +395,9 @@
         <module>cloud-aws</module>
         <module>delete-by-query</module>
         <module>discovery-multicast</module>
-        <module>lang-python</module>
+        <module>lang-expression</module>
         <module>lang-javascript</module>
+        <module>lang-python</module>
         <module>mapper-murmur3</module>
         <module>mapper-size</module>
         <module>jvm-example</module>

@@ -27,7 +27,9 @@ import java.text.ParseException;
 
 /**
  * Exception representing a compilation error in an expression.
+ * @deprecated just for backwards compatibility
  */
+@Deprecated
 public class ExpressionScriptCompilationException extends ElasticsearchException {
     public ExpressionScriptCompilationException(String msg, ParseException e) {
         super(msg, e);

@@ -31,7 +31,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -106,11 +105,11 @@ public class RestSearchAction extends BaseRestHandler {
             if (isTemplateRequest) {
                 searchRequest.templateSource(RestActions.getRestContent(request));
             } else {
-                 BytesReference sourceBytes = RestActions.getRestContent(request);
-                 XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes);
-                 QueryParseContext queryParseContext = new QueryParseContext(new Index(""), queryRegistry); // NORELEASE remove index
-                 queryParseContext.reset(parser);
-                 searchRequest.source(SearchSourceBuilder.PROTOTYPE.fromXContent(parser, queryParseContext));
+                BytesReference sourceBytes = RestActions.getRestContent(request);
+                XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes);
+                QueryParseContext queryParseContext = new QueryParseContext(queryRegistry);
+                queryParseContext.reset(parser);
+                searchRequest.source(SearchSourceBuilder.PROTOTYPE.fromXContent(parser, queryParseContext));
             }
         }
 

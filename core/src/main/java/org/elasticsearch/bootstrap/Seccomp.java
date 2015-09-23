@@ -28,6 +28,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 
@@ -73,12 +74,13 @@ final class Seccomp {
     /** corresponds to struct sock_fprog */
     public static final class SockFProg extends Structure implements Structure.ByReference {
         public short   len;           // number of filters
-        public Pointer filter;       // filters
+        public Pointer filter;        // filters
         
         public SockFProg(SockFilter filters[]) {
             len = (short) filters.length;
             Memory filter = new Memory(len * 8);
             ByteBuffer bbuf = filter.getByteBuffer(0, len * 8);
+            bbuf.order(ByteOrder.nativeOrder()); // little endian
             for (SockFilter f : filters) {
                 bbuf.putShort(f.code);
                 bbuf.put(f.jt);

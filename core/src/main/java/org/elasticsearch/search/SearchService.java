@@ -820,6 +820,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             for (String field : source.fieldDataFields()) {
                 fieldDataFieldsContext.add(new FieldDataField(field));
             }
+            fieldDataFieldsContext.setHitExecutionNeeded(true);
         }
         if (source.highlighter() != null) {
             XContentParser highlighterParser = null;

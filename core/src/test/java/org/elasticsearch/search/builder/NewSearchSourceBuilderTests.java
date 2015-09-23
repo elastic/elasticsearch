@@ -432,11 +432,9 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
 
     protected SearchSourceBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
         XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
-        System.out.println(queryAsString);
         QueryParseContext context = createParseContext();
         context.reset(parser);
         context.parseFieldMatcher(matcher);
-        System.out.println(queryAsString);
         return SearchSourceBuilder.PROTOTYPE.fromXContent(parser, context);
     }
 

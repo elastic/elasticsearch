@@ -17,7 +17,6 @@
 package org.elasticsearch.common.inject.assistedinject;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.Inject;
@@ -43,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableSet;
 
 /**
@@ -338,6 +338,6 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
     }
 
     private static ConfigurationException newConfigurationException(String format, Object... args) {
-        return new ConfigurationException(ImmutableSet.of(new Message(Errors.format(format, args))));
+        return new ConfigurationException(singleton(new Message(Errors.format(format, args))));
     }
 }

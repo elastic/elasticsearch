@@ -19,7 +19,6 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableSet;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -45,6 +44,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
 
 /**
@@ -80,6 +80,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         this.action = (List<BaseNodesResponse<T>, T>) action;
     }
 
+    @Override
     public synchronized void close() {
         this.closed = true;
     }
@@ -126,7 +127,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
         // if we are still fetching, return null to indicate it
         if (hasAnyNodeFetching(cache) == true) {
-            return new FetchResult<>(shardId, null, ImmutableSet.<String>of(), ImmutableSet.<String>of());
+            return new FetchResult<>(shardId, null, emptySet(), emptySet());
         } else {
             // nothing to fetch, yay, build the return value
             Map<DiscoveryNode, T> fetchData = new HashMap<>();

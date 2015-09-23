@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
@@ -26,6 +25,8 @@ import org.elasticsearch.common.inject.spi.ExposedBinding;
 import org.elasticsearch.common.inject.spi.PrivateElements;
 
 import java.util.Set;
+
+import static java.util.Collections.singleton;
 
 public class ExposedBindingImpl<T> extends BindingImpl<T> implements ExposedBinding<T> {
 
@@ -50,7 +51,7 @@ public class ExposedBindingImpl<T> extends BindingImpl<T> implements ExposedBind
 
     @Override
     public Set<Dependency<?>> getDependencies() {
-        return ImmutableSet.<Dependency<?>>of(Dependency.get(Key.get(Injector.class)));
+        return singleton(Dependency.get(Key.get(Injector.class)));
     }
 
     @Override

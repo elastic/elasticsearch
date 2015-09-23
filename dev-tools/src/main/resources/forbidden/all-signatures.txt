@@ -133,6 +133,13 @@ com.google.common.collect.ImmutableSet#copyOf(java.lang.Iterable)
 com.google.common.collect.ImmutableSet#copyOf(java.util.Iterator)
 com.google.common.collect.ImmutableSet#copyOf(java.util.Collection)
 com.google.common.collect.ImmutableSet#copyOf(java.lang.Object[])
+com.google.common.collect.ImmutableSet#of()
+com.google.common.collect.ImmutableSet#of(java.lang.Object)
+com.google.common.collect.ImmutableSet#of(java.lang.Object, java.lang.Object)
+com.google.common.collect.ImmutableSet#of(java.lang.Object, java.lang.Object, java.lang.Object)
+com.google.common.collect.ImmutableSet#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)
+com.google.common.collect.ImmutableSet#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)
+com.google.common.collect.ImmutableSet#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object[])
 
 @defaultMessage Do not violate java's access system
 java.lang.reflect.AccessibleObject#setAccessible(boolean)

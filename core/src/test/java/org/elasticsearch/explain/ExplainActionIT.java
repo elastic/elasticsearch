@@ -19,8 +19,6 @@
 
 package org.elasticsearch.explain;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.explain.ExplainResponse;
@@ -42,6 +40,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -60,7 +59,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1").setSource("field", "value1").get();
-        
+
         ExplainResponse response = client().prepareExplain(indexOrAlias(), "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery()).get();
         assertNotNull(response);
@@ -145,7 +144,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getGetResult().getId(), equalTo("1"));
         Set<String> fields = new HashSet<>(response.getGetResult().getFields().keySet());
         fields.remove(TimestampFieldMapper.NAME); // randomly added via templates
-        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("obj1.field1")));
+        assertThat(fields, equalTo(singleton("obj1.field1")));
         assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
         assertThat(response.getGetResult().isSourceEmpty(), equalTo(true));
 
@@ -162,7 +161,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getGetResult().getId(), equalTo("1"));
         fields = new HashSet<>(response.getGetResult().getFields().keySet());
         fields.remove(TimestampFieldMapper.NAME); // randomly added via templates
-        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("obj1.field1")));
+        assertThat(fields, equalTo(singleton("obj1.field1")));
         assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
         assertThat(response.getGetResult().isSourceEmpty(), equalTo(false));
 

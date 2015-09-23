@@ -18,17 +18,28 @@
 package org.elasticsearch.common.inject.internal;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.io.Serializable;
-import java.lang.reflect.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.GenericDeclaration;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+
+import static java.util.Collections.singleton;
 
 /**
  * Static methods for working with types that we aren't publishing in the
@@ -65,7 +76,7 @@ public class MoreTypes {
     public static <T> TypeLiteral<T> makeKeySafe(TypeLiteral<T> type) {
         if (!isFullySpecified(type.getType())) {
             String message = type + " cannot be used as a key; It is not fully specified.";
-            throw new ConfigurationException(ImmutableSet.of(new Message(message)));
+            throw new ConfigurationException(singleton(new Message(message)));
         }
 
         @SuppressWarnings("unchecked")

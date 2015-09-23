@@ -20,7 +20,7 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -38,13 +38,16 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singleton;
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 // TODO: this needs to be a base test class, and all scripting engines extend it
 public class ScriptModesTests extends ESTestCase {
-
-    private static final Set<String> ALL_LANGS = ImmutableSet.of(GroovyScriptEngineService.NAME, MustacheScriptEngineService.NAME, "custom", "test");
+    private static final Set<String> ALL_LANGS = unmodifiableSet(
+            newHashSet(GroovyScriptEngineService.NAME, MustacheScriptEngineService.NAME, "custom", "test"));
 
     static final String[] ENABLE_VALUES = new String[]{"on", "true", "yes", "1"};
     static final String[] DISABLE_VALUES = new String[]{"off", "false", "no", "0"};
@@ -71,7 +74,7 @@ public class ScriptModesTests extends ESTestCase {
         }
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
-        scriptEngines = buildScriptEnginesByLangMap(ImmutableSet.of(
+        scriptEngines = buildScriptEnginesByLangMap(newHashSet(
                 new GroovyScriptEngineService(Settings.EMPTY),
                 new MustacheScriptEngineService(Settings.EMPTY),
                 //add the native engine just to make sure it gets filtered out
@@ -195,7 +198,7 @@ public class ScriptModesTests extends ESTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(specificEngineOpSettings(GroovyScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.MAPPING), randomFrom(DISABLE_VALUES))
                 .put(specificEngineOpSettings(GroovyScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.UPDATE), randomFrom(DISABLE_VALUES));
-        ImmutableSet<String> groovyLangSet = ImmutableSet.of(GroovyScriptEngineService.NAME);
+        Set<String> groovyLangSet = singleton(GroovyScriptEngineService.NAME);
         Set<String> allButGroovyLangSet = new HashSet<>(ALL_LANGS);
         allButGroovyLangSet.remove(GroovyScriptEngineService.NAME);
         this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, builder.build());
@@ -211,7 +214,7 @@ public class ScriptModesTests extends ESTestCase {
         Settings.Builder builder = Settings.builder().put("script.inline", randomFrom(DISABLE_VALUES))
                 .put(specificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.AGGS), randomFrom(ENABLE_VALUES))
                 .put(specificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.SEARCH), randomFrom(ENABLE_VALUES));
-        ImmutableSet<String> mustacheLangSet = ImmutableSet.of(MustacheScriptEngineService.NAME);
+        Set<String> mustacheLangSet = singleton(MustacheScriptEngineService.NAME);
         Set<String> allButMustacheLangSet = new HashSet<>(ALL_LANGS);
         allButMustacheLangSet.remove(MustacheScriptEngineService.NAME);
         this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, builder.build());

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
@@ -207,7 +205,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, internalTestCluster.getMasterName());
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
-        final Set<String> blockedActions = ImmutableSet.of(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]", IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[n]");
+        final Set<String> blockedActions = newHashSet(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]", IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[n]");
         // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
             mockTransportService.addDelegate(node, new MockTransportService.DelegateTransport(mockTransportService.original()) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
@@ -30,7 +29,21 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Properties;
+import java.util.Random;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.TreeSet;
+
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  *
@@ -443,7 +456,8 @@ public class Strings {
         return sb.toString();
     }
 
-    public static final ImmutableSet<Character> INVALID_FILENAME_CHARS = ImmutableSet.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
+    public static final Set<Character> INVALID_FILENAME_CHARS = unmodifiableSet(
+            newHashSet('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ','));
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
@@ -596,7 +610,7 @@ public class Strings {
                     result[res++] = builder.toString();
                     builder.setLength(0);
                 }
-                
+
             } else {
                 builder.append(s.charAt(i));
             }
@@ -1010,11 +1024,11 @@ public class Strings {
 
     private Strings() {
     }
-    
+
     public static byte[] toUTF8Bytes(CharSequence charSequence) {
         return toUTF8Bytes(charSequence, new BytesRefBuilder());
     }
-    
+
     public static byte[] toUTF8Bytes(CharSequence charSequence, BytesRefBuilder spare) {
         spare.copyChars(charSequence);
         return Arrays.copyOf(spare.bytes(), spare.length());

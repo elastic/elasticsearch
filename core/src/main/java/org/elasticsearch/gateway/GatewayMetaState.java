@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -110,7 +109,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         if (state.blocks().disableStatePersistence()) {
             // reset the current metadata, we need to start fresh...
             this.previousMetaData = null;
-            previouslyWrittenIndices = ImmutableSet.of();
+            previouslyWrittenIndices = emptySet();
             return;
         }
 

@@ -16,8 +16,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.CreationException;
@@ -50,6 +48,7 @@ import java.util.Formatter;
 import java.util.List;
 import java.util.Locale;
 
+import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 
 /**
@@ -319,7 +318,7 @@ public final class Errors implements Serializable {
         } else if (throwable instanceof CreationException) {
             return ((CreationException) throwable).getErrorMessages();
         } else {
-            return ImmutableSet.of();
+            return emptySet();
         }
     }
 

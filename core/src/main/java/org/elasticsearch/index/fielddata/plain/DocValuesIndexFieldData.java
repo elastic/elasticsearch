@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
@@ -30,7 +29,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
@@ -41,6 +39,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /** {@link IndexFieldData} impl based on Lucene's doc values. Caching is done on the Lucene side. */
 public abstract class DocValuesIndexFieldData {
@@ -79,9 +80,7 @@ public abstract class DocValuesIndexFieldData {
     }
 
     public static class Builder implements IndexFieldData.Builder {
-
-        private static final Set<String> BINARY_INDEX_FIELD_NAMES = ImmutableSet.of(UidFieldMapper.NAME, IdFieldMapper.NAME);
-        private static final Set<String> NUMERIC_INDEX_FIELD_NAMES = ImmutableSet.of(TimestampFieldMapper.NAME);
+        private static final Set<String> BINARY_INDEX_FIELD_NAMES = unmodifiableSet(newHashSet(UidFieldMapper.NAME, IdFieldMapper.NAME));
 
         private NumericType numericType;
 

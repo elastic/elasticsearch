@@ -16,8 +16,6 @@
 
 package org.elasticsearch.common.inject.multibindings;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Binding;
 import org.elasticsearch.common.inject.ConfigurationException;
@@ -44,6 +42,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableSet;
 
 /**
@@ -321,7 +321,7 @@ public abstract class Multibinder<T> {
             return;
         }
 
-        throw new ConfigurationException(ImmutableSet.of(new Message(Errors.format(format, args))));
+        throw new ConfigurationException(singleton(new Message(Errors.format(format, args))));
     }
 
     static <T> T checkNotNull(T reference, String name) {
@@ -330,7 +330,7 @@ public abstract class Multibinder<T> {
         }
 
         NullPointerException npe = new NullPointerException(name);
-        throw new ConfigurationException(ImmutableSet.of(
-                new Message(Collections.emptyList(), npe.toString(), npe)));
+        throw new ConfigurationException(singleton(
+                new Message(emptyList(), npe.toString(), npe)));
     }
 }

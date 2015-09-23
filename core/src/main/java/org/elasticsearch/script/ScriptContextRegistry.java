@@ -21,11 +21,16 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+
+import static java.util.Arrays.stream;
+import static java.util.Collections.unmodifiableSet;
+import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Stream.concat;
 
 /**
  * Registry for operations that use scripts as part of their execution. Can be standard operations of custom defined ones (via plugin).
@@ -33,7 +38,7 @@ import java.util.Map;
  * Scripts can be enabled/disabled via fine-grained settings for each single registered operation.
  */
 public final class ScriptContextRegistry {
-    static final ImmutableSet<String> RESERVED_SCRIPT_CONTEXTS = reservedScriptContexts();
+    static final Set<String> RESERVED_SCRIPT_CONTEXTS = reservedScriptContexts();
 
     private final ImmutableMap<String, ScriptContext> scriptContexts;
 
@@ -76,15 +81,11 @@ public final class ScriptContextRegistry {
         }
     }
 
-    private static ImmutableSet<String> reservedScriptContexts() {
-        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
-            builder.add(scriptType.toString());
-        }
-        for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
-            builder.add(scriptContext.getKey());
-        }
-        builder.add("script").add("engine");
-        return builder.build();
+    private static Set<String> reservedScriptContexts() {
+        Set<String> reserved = concat(stream(ScriptService.ScriptType.values()), stream(ScriptContext.Standard.values()))
+                .map(Object::toString).collect(toSet());
+        reserved.add("script");
+        reserved.add("engine");
+        return unmodifiableSet(reserved);
     }
 }

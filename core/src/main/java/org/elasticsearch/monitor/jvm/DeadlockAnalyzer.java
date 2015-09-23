@@ -20,12 +20,17 @@
 package org.elasticsearch.monitor.jvm;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
 
 /**
  *
@@ -117,17 +122,15 @@ public class DeadlockAnalyzer {
         return threadInfoMap.build();
     }
 
-
     public static class Deadlock {
-
         private final ThreadInfo members[];
         private final String description;
-        private final ImmutableSet<Long> memberIds;
+        private final Set<Long> memberIds;
 
         public Deadlock(ThreadInfo[] members) {
             this.members = members;
 
-            ImmutableSet.Builder<Long> builder = ImmutableSet.builder();
+            Set<Long> builder = new HashSet<>();
             StringBuilder sb = new StringBuilder();
             for (int x = 0; x < members.length; x++) {
                 ThreadInfo ti = members[x];
@@ -139,7 +142,7 @@ public class DeadlockAnalyzer {
                 builder.add(ti.getThreadId());
             }
             this.description = sb.toString();
-            this.memberIds = builder.build();
+            this.memberIds = unmodifiableSet(builder);
         }
 
         public ThreadInfo[] members() {

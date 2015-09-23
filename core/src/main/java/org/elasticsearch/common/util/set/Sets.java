@@ -53,6 +53,19 @@ public final class Sets {
         return set;
     }
 
+    /**
+     * Create a new HashSet copying the original set with elements added. Useful
+     * for initializing constants without static blocks.
+     */
+    public static <T> HashSet<T> newHashSetCopyWith(Set<T> original, T... elements) {
+        Objects.requireNonNull(original);
+        Objects.requireNonNull(elements);
+        HashSet<T> set = new HashSet<>(original.size() + elements.length);
+        set.addAll(original);
+        Collections.addAll(set, elements);
+        return set;
+    }
+
     public static <T> Set<T> newConcurrentHashSet() {
         return Collections.newSetFromMap(new ConcurrentHashMap<>());
     }

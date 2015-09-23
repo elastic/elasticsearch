@@ -26,7 +26,7 @@ dependencies {
 // point we can physically move the test framework files to this project
 project.ext {
   srcDir = new File(project.buildDir, 'src')
-  coreDir = project(':core').sourceSets.test.java.srcDirs.iterator().next()
+  coreDir = new File(project(':core').projectDir, 'src' + File.separator + 'test')
 }
 class ExecHack extends DefaultTask {
   File srcDir = project.ext.srcDir
@@ -60,30 +60,32 @@ class ExecHack extends DefaultTask {
     }
   } 
 }
-sourceSets.main.java.srcDir(srcDir)
+sourceSets.main.java.srcDir(new File(srcDir, "java"))
+sourceSets.main.resources.srcDir(new File(srcDir, "resources"))
 task copySourceFiles(type: ExecHack) {
-  copy 'org/elasticsearch/test'
-  copy 'org/elasticsearch/bootstrap/BootstrapForTesting.java'
-  copy 'org/elasticsearch/bootstrap/MockPluginPolicy.java'
-  copy 'org/elasticsearch/common/io/PathUtilsForTesting.java'
-  copy 'org/elasticsearch/common/cli/CliToolTestCase.java'
-  copy 'org/elasticsearch/cluster/MockInternalClusterInfoService.java'
-  copy 'org/elasticsearch/index/shard/MockEngineFactoryPlugin.java'
-  copy 'org/elasticsearch/search/MockSearchService.java'
-  copy 'org/elasticsearch/cache/recycler/MockPageCacheRecycler.java'
-  copy 'org/elasticsearch/common/util/MockBigArrays.java'
-  copy 'org/elasticsearch/node/NodeMocksPlugin.java'
-  copy 'org/elasticsearch/node/MockNode.java'
+  copy 'resources/log4j.properties'
+  copy 'java/org/elasticsearch/test'
+  copy 'java/org/elasticsearch/bootstrap/BootstrapForTesting.java'
+  copy 'java/org/elasticsearch/bootstrap/MockPluginPolicy.java'
+  copy 'java/org/elasticsearch/common/io/PathUtilsForTesting.java'
+  copy 'java/org/elasticsearch/common/cli/CliToolTestCase.java'
+  copy 'java/org/elasticsearch/cluster/MockInternalClusterInfoService.java'
+  copy 'java/org/elasticsearch/index/shard/MockEngineFactoryPlugin.java'
+  copy 'java/org/elasticsearch/search/MockSearchService.java'
+  copy 'java/org/elasticsearch/cache/recycler/MockPageCacheRecycler.java'
+  copy 'java/org/elasticsearch/common/util/MockBigArrays.java'
+  copy 'java/org/elasticsearch/node/NodeMocksPlugin.java'
+  copy 'java/org/elasticsearch/node/MockNode.java'
   // unit tests for yaml suite parser & rest spec parser need to be excluded
-  remove 'org/elasticsearch/test/rest/test'
+  remove 'java/org/elasticsearch/test/rest/test'
   // unit tests for test framework classes
-  remove 'org/elasticsearch/test/test'
+  remove 'java/org/elasticsearch/test/test'
 
   // no geo (requires optional deps)
-  remove 'org/elasticsearch/test/hamcrest/ElasticsearchGeoAssertions.java'
-  remove 'org/elasticsearch/test/geo/RandomShapeGenerator.java'
+  remove 'java/org/elasticsearch/test/hamcrest/ElasticsearchGeoAssertions.java'
+  remove 'java/org/elasticsearch/test/geo/RandomShapeGenerator.java'
   // this mock is just for a single logging test
-  remove 'org/elasticsearch/test/MockLogAppender.java'
+  remove 'java/org/elasticsearch/test/MockLogAppender.java'
 }
 compileJava.dependsOn copySourceFiles
 

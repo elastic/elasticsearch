@@ -72,7 +72,7 @@ class BuildPlugin implements Plugin<Project> {
             sysProp 'tests.security.manager', 'true'
             // default test sysprop values
             sysProp 'tests.ifNoTests', 'fail'
-            sysProp 'es.logger.level', 'ERROR'
+            sysProp 'es.logger.level', 'WARN'
             copySysPropPrefix 'tests.'
             copySysPropPrefix 'es.'
 

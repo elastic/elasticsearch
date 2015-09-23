@@ -17,7 +17,6 @@ dependencyLicenses {
 compileJava.options.compilerArgs << '-Xlint:-rawtypes'
 
 test {
-  // these two are needed for insecure plugins, remove if possible!
+  // this is needed for insecure plugins, remove if possible!
   sysProp 'tests.artifact', project.name 
-  sysProp 'tests.plugin.classname', esplugin.classname
 }

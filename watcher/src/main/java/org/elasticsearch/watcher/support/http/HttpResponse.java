@@ -18,31 +18,35 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import javax.annotation.Nullable;
+
+import static java.util.Collections.emptyMap;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 public class HttpResponse implements ToXContent {
 
     private final int status;
-    private final ImmutableMap<String, String[]> headers;
+    private final Map<String, String[]> headers;
     private final BytesReference body;
 
     public HttpResponse(int status) {
-        this(status, ImmutableMap.<String, String[]>of());
+        this(status, emptyMap());
     }
 
-    public HttpResponse(int status, ImmutableMap<String, String[]> headers) {
+    public HttpResponse(int status, Map<String, String[]> headers) {
         this(status, (BytesReference) null, headers);
     }
 
     public HttpResponse(int status, @Nullable String body) {
-        this(status, body != null ? new BytesArray(body) : null, ImmutableMap.<String, String[]>of());
+        this(status, body != null ? new BytesArray(body) : null, emptyMap());
     }
 
-    public HttpResponse(int status, @Nullable String body, ImmutableMap<String, String[]> headers) {
+    public HttpResponse(int status, @Nullable String body, Map<String, String[]> headers) {
         this(status, body != null ? new BytesArray(body) : null, headers);
     }
 
@@ -50,11 +54,11 @@ public class HttpResponse implements ToXContent {
         this(status, body != null ? new BytesArray(body) : null, ImmutableMap.<String, String[]>of());
     }
 
-    public HttpResponse(int status, @Nullable byte[] body, ImmutableMap<String, String[]> headers) {
+    public HttpResponse(int status, @Nullable byte[] body, Map<String, String[]> headers) {
         this(status, body != null ? new BytesArray(body) : null, headers);
     }
 
-    public HttpResponse(int status, @Nullable BytesReference body, ImmutableMap<String, String[]> headers) {
+    public HttpResponse(int status, @Nullable BytesReference body, Map<String, String[]> headers) {
         this.status = status;
         this.body = body;
         this.headers = headers;
@@ -72,7 +76,7 @@ public class HttpResponse implements ToXContent {
         return body;
     }
 
-    public ImmutableMap<String, String[]> headers() {
+    public Map<String, String[]> headers() {
         return headers;
     }
 

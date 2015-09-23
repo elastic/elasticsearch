@@ -90,7 +90,7 @@ public interface Permission {
          * is configured for any group also the allowed fields and role queries are resolved.
          */
         public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData) {
-            ImmutableMap<String, IndicesAccessControl.IndexAccessControl> indexPermissions = indices.authorize(
+            Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = indices.authorize(
                     action, requestedIndicesOrAliases, metaData
             );
 
@@ -283,8 +283,7 @@ public interface Permission {
     }
 
     static interface Indices extends Permission, Iterable<Indices.Group> {
-
-        ImmutableMap<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData);
+        Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData);
 
         public static class Core implements Indices {
 
@@ -455,7 +454,7 @@ public interface Permission {
                 // What this code does is just merge `IndexAccessControl` instances from the permissions this class holds:
                 Map<String, IndicesAccessControl.IndexAccessControl> indicesAccessControl = null;
                 for (Global permission : globals) {
-                    ImmutableMap<String, IndicesAccessControl.IndexAccessControl> temp = permission.indices().authorize(action, requestedIndicesOrAliases, metaData);
+                    Map<String, IndicesAccessControl.IndexAccessControl> temp = permission.indices().authorize(action, requestedIndicesOrAliases, metaData);
                     if (indicesAccessControl == null) {
                         indicesAccessControl = new HashMap<>(temp);
                     } else {

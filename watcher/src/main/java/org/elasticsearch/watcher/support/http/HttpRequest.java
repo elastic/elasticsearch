@@ -24,6 +24,8 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+
 public class HttpRequest implements ToXContent {
 
     final String host;
@@ -31,8 +33,8 @@ public class HttpRequest implements ToXContent {
     final Scheme scheme;
     final HttpMethod method;
     final @Nullable String path;
-    final ImmutableMap<String, String> params;
-    final ImmutableMap<String, String> headers;
+    final Map<String, String> params;
+    final Map<String, String> headers;
     final @Nullable HttpAuth auth;
     final @Nullable String body;
     final @Nullable TimeValue connectionTimeout;
@@ -46,8 +48,8 @@ public class HttpRequest implements ToXContent {
         this.scheme = scheme != null ? scheme : Scheme.HTTP;
         this.method = method != null ? method : HttpMethod.GET;
         this.path = path;
-        this.params = params != null ? params : ImmutableMap.<String, String>of();
-        this.headers = headers != null ? headers : ImmutableMap.<String, String>of();
+        this.params = params != null ? params : emptyMap();
+        this.headers = headers != null ? headers : emptyMap();
         this.auth = auth;
         this.body = body;
         this.connectionTimeout = connectionTimeout;

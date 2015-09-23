@@ -1,0 +1,22 @@
+
+esplugin {
+  description 'The Azure Repository plugin adds support for Azure storage repositories.'
+  classname 'org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin'
+}
+
+dependencies {
+  compile('com.microsoft.azure:azure-storage:2.0.0') {
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+  }
+}
+
+dependencyLicenses {
+  mapping from: /azure-.*/, to: 'azure'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /jersey-.*/, to: 'jersey'
+  mapping from: /jaxb-.*/, to: 'jaxb'
+  mapping from: /stax-.*/, to: 'stax'
+}
+
+compileJava.options.compilerArgs << '-Xlint:-deprecation,-serial'
+

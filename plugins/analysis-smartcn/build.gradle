@@ -8,3 +8,7 @@ dependencies {
   compile "org.apache.lucene:lucene-analyzers-smartcn:${versions.lucene}"
 }
 
+dependencyLicenses {
+  mapping from: /lucene-.*/, to: 'lucene'
+}
+

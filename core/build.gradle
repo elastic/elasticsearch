@@ -7,6 +7,7 @@ jar {
 
 configurations {
   optional // these are used at compile time (and test) but excluded from runtime
+  compile.extendsFrom(optional)
   restSpec // the rest spec is copied independently to the test classes dir
 }
 
@@ -86,7 +87,7 @@ dependencies {
   testCompile(group: 'junit', name: 'junit', version: '4.11') {
     transitive = false
   }
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.2.0-snapshot-${randomizedRunnerSnapshotRevision}"
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
 
   testCompile("org.apache.lucene:lucene-test-framework:${versions.lucene}") {
     exclude group: 'com.carrotsearch.randomizedtesting', module: 'junit4-ant'
@@ -103,7 +104,7 @@ dependencies {
 }
 
 // add optional dependencies to compile classpath only
-sourceSets.main.compileClasspath += [configurations.optional]
+//sourceSets.main.compileClasspath += [configurations.optional]
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"

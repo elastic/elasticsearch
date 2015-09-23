@@ -8,7 +8,11 @@ dependencies {
   compile('com.google.apis:google-api-services-compute:v1-rev71-1.20.0') {
     exclude group: 'com.google.guava', module: 'guava-jdk5'
   }
-  compile 'org.apache.httpcomponents:httpclient'
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+}
+
+dependencyLicenses {
+  mapping from: /google-.*/, to: 'google'
 }
 
 compileJava.options.compilerArgs << '-Xlint:-rawtypes,-unchecked'

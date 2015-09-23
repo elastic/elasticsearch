@@ -8,5 +8,9 @@ dependencies {
   compile "org.apache.lucene:lucene-analyzers-phonetic:${versions.lucene}"
 }
 
+dependencyLicenses {
+  mapping from: /lucene-.*/, to: 'lucene'
+}
+
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 

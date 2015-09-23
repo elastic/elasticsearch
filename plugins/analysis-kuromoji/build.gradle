@@ -8,3 +8,7 @@ dependencies {
   compile "org.apache.lucene:lucene-analyzers-kuromoji:${versions.lucene}"
 }
 
+dependencyLicenses {
+  mapping from: /lucene-.*/, to: 'lucene'
+}
+

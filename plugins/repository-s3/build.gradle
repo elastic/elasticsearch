@@ -3,9 +3,15 @@ esplugin {
   description 'The S3 repository plugin adds S3 repositories.'
   classname 'org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin'
 }
+
 dependencies {
-  compile 'com.amazonaws:aws-java-sdk-s3:1.10.12'
+  compile 'com.amazonaws:aws-java-sdk-s3:1.10.19'
   compile 'org.apache.httpcomponents:httpclient'
+}
+
+dependencyLicenses {
+  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /jackson-.*/, to: 'jackson'
 }
 
 compileJava.options.compilerArgs << '-Xlint:-deprecation,-rawtypes'

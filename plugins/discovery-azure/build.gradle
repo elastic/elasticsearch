@@ -1,0 +1,30 @@
+
+esplugin {
+  description 'The Azure Discovery plugin allows to use Azure API for the unicast discovery mechanism.'
+  classname 'org.elasticsearch.plugin.discovery.azure.AzureDiscoveryPlugin'
+}
+
+dependencies {
+  compile('com.microsoft.azure:azure-management-compute:0.7.0') {
+    exclude group: 'stax', module: 'stax-api'
+  }
+  compile('com.microsoft.azure:azure-management:0.7.0') {
+    exclude group: 'stax', module: 'stax-api'
+  }
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+}
+
+dependencyLicenses {
+  mapping from: /azure-.*/, to: 'azure'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /jersey-.*/, to: 'jersey'
+  mapping from: /jaxb-.*/, to: 'jaxb'
+  mapping from: /stax-.*/, to: 'stax'
+}
+
+compileJava.options.compilerArgs << '-Xlint:-path,-serial,-static,-unchecked'
+// TODO: why is deprecation needed here but not in maven....?
+compileJava.options.compilerArgs << '-Xlint:-deprecation'
+// TODO: and why does this static not show up in maven...
+compileTestJava.options.compilerArgs << '-Xlint:-static'
+

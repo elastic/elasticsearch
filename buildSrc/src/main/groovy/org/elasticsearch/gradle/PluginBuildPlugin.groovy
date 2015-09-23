@@ -46,6 +46,7 @@ class PluginBuildPlugin extends BuildPlugin {
         project.configurations {
             // a separate configuration from compile so added dependencies can be distinguished
             provided
+            compile.extendsFrom(provided)
             restSpec
         }
         project.dependencies {

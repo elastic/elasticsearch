@@ -9,11 +9,11 @@ allprojects {
     targetCompatibility = JavaVersion.VERSION_1_8
 
     luceneSnapshotRevision = '1702855'
-    randomizedRunnerSnapshotRevision = 'pr202'
     // dependency versions that are used in more than one place
     versions = [
       lucene:             "5.4.0-snapshot-${luceneSnapshotRevision}",
-      randomizedrunner:   "2.2.0-snapshot-${randomizedRunnerSnapshotRevision}"
+      randomizedrunner:   "2.1.17",
+      httpclient:         '4.3.6'
     ]
   }
 
@@ -27,10 +27,6 @@ allprojects {
     maven {
       name 'lucene-snapshots'
       url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${luceneSnapshotRevision}"
-    }
-    maven {
-      name 'randomizedrunner-snapshots'
-      url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/rr-${randomizedRunnerSnapshotRevision}"
     }
   }
 }

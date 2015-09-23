@@ -3,9 +3,15 @@ esplugin {
   description 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
   classname 'org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin'
 }
+
 dependencies {
-  compile 'com.amazonaws:aws-java-sdk-ec2:1.10.12'
+  compile 'com.amazonaws:aws-java-sdk-ec2:1.10.19'
   compile 'org.apache.httpcomponents:httpclient'
+}
+
+dependencyLicenses {
+  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /jackson-.*/, to: 'jackson'
 }
 
 compileJava.options.compilerArgs << '-Xlint:-rawtypes'

@@ -8,7 +8,7 @@ dependencies {
   compile(group: 'junit', name: 'junit', version: '4.11') {
     transitive = false
   }
-  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.2.0-snapshot-${randomizedRunnerSnapshotRevision}"
+  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
 
   compile("org.apache.lucene:lucene-test-framework:${versions.lucene}") {
     exclude group: 'com.carrotsearch.randomizedtesting', module: 'junit4-ant'

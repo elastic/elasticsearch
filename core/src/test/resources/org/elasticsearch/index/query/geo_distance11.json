@@ -1,9 +1,0 @@
-{
-            "geo_distance":{
-                "distance":"19.312128km",
-                "location":{
-                    "lat":40,
-                    "lon":-70
-                }
-            }
-}

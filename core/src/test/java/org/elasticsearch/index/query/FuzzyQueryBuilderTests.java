@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -29,6 +30,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuilder> {
@@ -102,5 +104,46 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         } catch (NumberFormatException e) {
             assertThat(e.getMessage(), Matchers.containsString("For input string"));
         }
+    }
+
+    @Test
+    public void testToQueryWithStringField() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"fuzzy\":{\n" +
+                "        \"" + STRING_FIELD_NAME + "\":{\n" +
+                "            \"value\":\"sh\",\n" +
+                "            \"fuzziness\": \"AUTO\",\n" +
+                "            \"prefix_length\":1,\n" +
+                "            \"boost\":2.0\n" +
+                "        }\n" +
+                "    }\n" +
+                "}";
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
+        assertThat(fuzzyQuery.getTerm(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
+        assertThat(fuzzyQuery.getMaxEdits(), equalTo(Fuzziness.AUTO.asDistance("sh")));
+        assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
+        assertThat(fuzzyQuery.getBoost(), equalTo(2.0f));
+    }
+
+    @Test
+    public void testToQueryWithNumericField() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"fuzzy\":{\n" +
+                "        \"" + INT_FIELD_NAME + "\":{\n" +
+                "            \"value\":12,\n" +
+                "            \"fuzziness\":5,\n" +
+                "            \"boost\":2.0\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery fuzzyQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(fuzzyQuery.getMin().longValue(), equalTo(7l));
+        assertThat(fuzzyQuery.getMax().longValue(), equalTo(17l));
     }
 }

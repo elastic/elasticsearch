@@ -153,24 +153,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return indicesQueriesRegistry;
     }
 
-    //norelease this needs to go away
-    public ParsedQuery parse(QueryBuilder queryBuilder) {
-        XContentParser parser = null;
-        try {
-            BytesReference bytes = queryBuilder.buildAsBytes();
-            parser = XContentFactory.xContent(bytes).createParser(bytes);
-            return innerParse(cache.get(), parser);
-        } catch (ParsingException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
-        }
-    }
-
     public ParsedQuery parse(BytesReference source) {
         return parse(cache.get(), source);
     }
@@ -185,22 +167,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
             throw e;
         } catch (Exception e) {
             throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
-        }
-    }
-
-    public ParsedQuery parse(String source) throws ParsingException, QueryShardException {
-        XContentParser parser = null;
-        try {
-            parser = XContentFactory.xContent(source).createParser(source);
-            return innerParse(cache.get(), parser);
-        } catch (QueryShardException|ParsingException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse [" + source + "]", e);
         } finally {
             if (parser != null) {
                 parser.close();

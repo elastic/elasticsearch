@@ -191,7 +191,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     /**
      * @return the string representation of the minimumShouldMatch settings for this query
      */
-    public String minimumNumberShouldMatch() {
+    public String minimumShouldMatch() {
         return this.minimumShouldMatch;
     }
 

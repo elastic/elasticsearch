@@ -118,11 +118,10 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         if (shape != null) {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             shape.toXContent(builder, EMPTY_PARAMS);
-            BytesReference bytes = builder.bytes();
-            if (bytes.length() == 0) {
+            this.shapeBytes = shape.buildAsBytes(XContentType.JSON);
+            if (this.shapeBytes.length() == 0) {
                 throw new IllegalArgumentException("shape must not be empty");
             }
-            this.shapeBytes = bytes;
         } else {
             throw new IllegalArgumentException("shape must not be null");
         }

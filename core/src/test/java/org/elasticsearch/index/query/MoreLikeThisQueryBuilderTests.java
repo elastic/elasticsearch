@@ -26,9 +26,12 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.termvectors.*;
+import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
@@ -48,8 +51,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
-
-import static org.hamcrest.Matchers.is;
 
 public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLikeThisQueryBuilder> {
 
@@ -133,17 +134,20 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     @Override
     protected MoreLikeThisQueryBuilder doCreateTestQueryBuilder() {
         MoreLikeThisQueryBuilder queryBuilder;
-        if (randomBoolean()) { // for the default field
-            queryBuilder = new MoreLikeThisQueryBuilder();
-        } else {
-            queryBuilder = new MoreLikeThisQueryBuilder(randomFields);
-        }
+        String[] likeTexts = null;
+        Item[] likeItems = null;
         // like field is required
         if (randomBoolean()) {
-            queryBuilder.like(generateRandomStringArray(5, 5, false, false));
+            likeTexts = generateRandomStringArray(5, 5, false, false);
         } else {
-            queryBuilder.like(randomLikeItems);
+            likeItems = randomLikeItems;
         }
+        if (randomBoolean()) { // for the default field
+            queryBuilder = new MoreLikeThisQueryBuilder(likeTexts, likeItems);
+        } else {
+            queryBuilder = new MoreLikeThisQueryBuilder(randomFields, likeTexts, likeItems);
+        }
+
         if (randomBoolean()) {
             queryBuilder.unlike(generateRandomStringArray(5, 5, false, false));
         }
@@ -228,7 +232,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     @Override
     protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (!queryBuilder.likeItems().isEmpty()) {
+        if (queryBuilder.likeItems() != null && queryBuilder.likeItems().length > 0) {
             assertThat(query, Matchers.instanceOf(BooleanQuery.class));
         } else {
             // we rely on integration tests for a deeper check here
@@ -236,30 +240,23 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         }
     }
 
-    @Test
-    public void testValidate() {
-        MoreLikeThisQueryBuilder queryBuilder = new MoreLikeThisQueryBuilder(Strings.EMPTY_ARRAY);
-        assertThat(queryBuilder.validate().validationErrors().size(), is(2));
+    @Test(expected=IllegalArgumentException.class)
+    public void testValidateEmptyFields() {
+        new MoreLikeThisQueryBuilder(new String[0], new String[]{"likeText"}, null);
+    }
 
-        queryBuilder = new MoreLikeThisQueryBuilder(Strings.EMPTY_ARRAY).like("some text");
-        assertThat(queryBuilder.validate().validationErrors().size(), is(1));
-
-        queryBuilder = new MoreLikeThisQueryBuilder("field").like(Strings.EMPTY_ARRAY);
-        assertThat(queryBuilder.validate().validationErrors().size(), is(1));
-
-        queryBuilder = new MoreLikeThisQueryBuilder("field").like(Item.EMPTY_ARRAY);
-        assertThat(queryBuilder.validate().validationErrors().size(), is(1));
-
-        queryBuilder = new MoreLikeThisQueryBuilder("field").like("some text");
-        assertNull(queryBuilder.validate());
+    @Test(expected=IllegalArgumentException.class)
+    public void testValidateEmptyLike() {
+        String[] likeTexts = randomBoolean() ? null : new String[0];
+        Item[] likeItems = randomBoolean() ? null : new Item[0];
+        new MoreLikeThisQueryBuilder(likeTexts, likeItems);
     }
 
     @Test
     public void testUnsupportedFields() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String unsupportedField = randomFrom(INT_FIELD_NAME, DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
-        MoreLikeThisQueryBuilder queryBuilder = new MoreLikeThisQueryBuilder(unsupportedField)
-                .like("some text")
+        MoreLikeThisQueryBuilder queryBuilder = new MoreLikeThisQueryBuilder(new String[] {unsupportedField}, new String[]{"some text"}, null)
                 .failOnUnsupportedField(true);
         try {
             queryBuilder.toQuery(createShardContext());

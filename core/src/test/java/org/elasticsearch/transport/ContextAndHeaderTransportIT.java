@@ -67,7 +67,6 @@ import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
@@ -233,8 +232,8 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
                 .get();
         transportClient().admin().indices().prepareRefresh(lookupIndex, queryIndex).get();
 
-        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = QueryBuilders.moreLikeThisQuery("name")
-                .like(new Item(lookupIndex, "type", "1"))
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"name"}, null,
+                new Item[] {new Item(lookupIndex, "type", "1")})
                 .minTermFreq(1)
                 .minDocFreq(1);
 
@@ -280,8 +279,9 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         SearchResponse searchResponse = transportClient()
                 .prepareSearch(queryIndex)
                 .setQuery(
-                        QueryBuilders.functionScoreQuery().boostMode(CombineFunction.REPLACE)
-                                .add(new ScriptScoreFunctionBuilder(new Script("my_script", ScriptType.INDEXED, "groovy", null)))).get();
+                        QueryBuilders.functionScoreQuery(
+                                new ScriptScoreFunctionBuilder(new Script("my_script", ScriptType.INDEXED, "groovy", null))).boostMode(
+                                CombineFunction.REPLACE)).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getMaxScore(), is(10.0f));

@@ -66,11 +66,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignific
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
-import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
-import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.*;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgParser;
 import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
@@ -150,7 +146,8 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  *
@@ -254,7 +251,7 @@ public class SearchModule extends AbstractModule {
         for (Class<? extends ScoreFunctionParser> clazz : functionScoreParsers) {
             parserMapBinder.addBinding().to(clazz);
         }
-        bind(ScoreFunctionParserMapper.class);
+        bind(ScoreFunctionParserMapper.class).asEagerSingleton();
     }
 
     protected void configureHighlighters() {

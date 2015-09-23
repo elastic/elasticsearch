@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionParserMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -175,6 +177,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     protected void configure() {
                         bind(Client.class).toInstance(proxy);
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
+                        bind(ScoreFunctionParserMapper.class).asEagerSingleton();
                         bind(ClusterService.class).toProvider(Providers.of(clusterService));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                         bind(NamedWriteableRegistry.class).asEagerSingleton();
@@ -281,23 +284,32 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Parses the query provided as string argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
-    protected void assertParsedQuery(String queryAsString, QueryBuilder<?> expectedQuery) throws IOException {
+    protected final void assertParsedQuery(String queryAsString, QueryBuilder<?> expectedQuery) throws IOException {
         assertParsedQuery(queryAsString, expectedQuery, ParseFieldMatcher.STRICT);
     }
 
-    protected void assertParsedQuery(String queryAsString, QueryBuilder<?> expectedQuery, ParseFieldMatcher matcher) throws IOException {
+    protected final void assertParsedQuery(String queryAsString, QueryBuilder<?> expectedQuery, ParseFieldMatcher matcher) throws IOException {
         QueryBuilder<?> newQuery = parseQuery(queryAsString, matcher);
         assertNotSame(newQuery, expectedQuery);
         assertEquals(expectedQuery, newQuery);
         assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
     }
 
-    protected QueryBuilder<?> parseQuery(String queryAsString) throws IOException {
+    protected final QueryBuilder<?> parseQuery(String queryAsString) throws IOException {
         return parseQuery(queryAsString, ParseFieldMatcher.STRICT);
     }
 
-    protected QueryBuilder<?> parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
+    protected final QueryBuilder<?> parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
         XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
+        return parseQuery(parser, matcher);
+    }
+
+    protected final QueryBuilder<?> parseQuery(BytesReference query) throws IOException {
+        XContentParser parser = XContentFactory.xContent(query).createParser(query);
+        return parseQuery(parser, ParseFieldMatcher.STRICT);
+    }
+
+    protected final QueryBuilder<?> parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
         QueryParseContext context = createParseContext();
         context.reset(parser);
         context.parseFieldMatcher(matcher);
@@ -461,8 +473,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected static QueryShardContext createShardContext() {
         QueryShardContext queryCreationContext = new QueryShardContext(index, queryParserService);
         queryCreationContext.reset();
-        queryCreationContext.parseFieldMatcher(ParseFieldMatcher.EMPTY);
-
+        queryCreationContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
         return queryCreationContext;
     }
 

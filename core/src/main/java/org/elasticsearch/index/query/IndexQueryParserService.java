@@ -96,8 +96,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private final boolean queryStringAllowLeadingWildcard;
     private final ParseFieldMatcher parseFieldMatcher;
     private final boolean defaultAllowUnmappedFields;
-
-    private Client client;
+    private final Client client;
 
     @Inject
     public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings, Settings settings,

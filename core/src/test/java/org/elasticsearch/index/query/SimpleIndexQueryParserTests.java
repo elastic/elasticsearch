@@ -20,41 +20,14 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.BoostingQuery;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NumericRangeQuery;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.search.spans.SpanContainingQuery;
-import org.apache.lucene.search.spans.SpanFirstQuery;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanNotQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
-import org.apache.lucene.search.spans.SpanWithinQuery;
+import org.apache.lucene.search.spans.*;
 import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -69,8 +42,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -81,11 +52,9 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -99,43 +68,11 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
-import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.disMaxQuery;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
-import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.notQuery;
-import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanContainingQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanFirstQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanOrQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanWithinQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.*;
 
 public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
 
@@ -937,8 +874,6 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         }
     }
 
-
-
     @Test
     public void testInQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
@@ -1014,26 +949,6 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
         ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
         assertThat(getTerm(constantScoreQuery.getQuery()), equalTo(new Term("name.last", "banon")));
-    }
-
-    @Test
-    public void testCustomWeightFactorQueryBuilder_withFunctionScore() throws IOException {
-        IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(functionScoreQuery(termQuery("name.last", "banon"), ScoreFunctionBuilders.weightFactorFunction(1.3f))).query();
-        assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
-        FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
-        assertThat((double) ((WeightFactorFunction) functionScoreQuery.getFunction()).getWeight(), closeTo(1.3, 0.001));
-    }
-
-    @Test
-    public void testCustomWeightFactorQueryBuilder_withFunctionScoreWithoutQueryGiven() throws IOException {
-        IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(functionScoreQuery(ScoreFunctionBuilders.weightFactorFunction(1.3f))).query();
-        assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
-        FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-        assertThat(functionScoreQuery.getSubQuery() instanceof MatchAllDocsQuery, equalTo(true));
-        assertThat((double) ((WeightFactorFunction) functionScoreQuery.getFunction()).getWeight(), closeTo(1.3, 0.001));
     }
 
     @Test
@@ -1316,7 +1231,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     @Test
     public void testMoreLikeThisBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(moreLikeThisQuery("name.first", "name.last").likeText("something").minTermFreq(1).maxQueryTerms(12)).query();
+        Query parsedQuery = queryParser.parse(moreLikeThisQuery(new String[] {"name.first", "name.last"}, new String[] {"something"}, null).minTermFreq(1).maxQueryTerms(12)).query();
         assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
         MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
         assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
@@ -1894,15 +1809,6 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertTrue(ectQuery.isCoordDisabled());
     }
 
-    @Test(expected = ParsingException.class)
-    public void assureMalformedThrowsException() throws IOException {
-        IndexQueryParserService queryParser;
-        queryParser = queryParser();
-        String query;
-        query = copyToStringFromClasspath("/org/elasticsearch/index/query/faulty-function-score-query.json");
-        Query parsedQuery = queryParser.parse(query).query();
-    }
-
     @Test
     public void testFilterParsing() throws IOException {
         IndexQueryParserService queryParser;
@@ -1995,75 +1901,6 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         String query = jsonBuilder().startObject().startObject("bool").endObject().endObject().string();
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(MatchAllDocsQuery.class));
-    }
-
-    @Test
-    public void testProperErrorMessageWhenTwoFunctionsDefinedInQueryBody() throws IOException {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-causing-NPE.json");
-        try {
-            queryParser.parse(query).query();
-            fail("FunctionScoreQueryParser should throw an exception here because two functions in body are not allowed.");
-        } catch (ParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("use [functions] array if you want to define several functions."));
-        }
-    }
-
-    @Test
-    public void testWeight1fStillProducesWeighFunction() throws IOException {
-        IndexQueryParserService queryParser = queryParser();
-        String queryString = jsonBuilder().startObject()
-                .startObject("function_score")
-                .startArray("functions")
-                .startObject()
-                .startObject("field_value_factor")
-                .field("field", "popularity")
-                .endObject()
-                .field("weight", 1.0)
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject().string();
-        IndexService indexService = createIndex("testidx", client().admin().indices().prepareCreate("testidx")
-                .addMapping("doc",jsonBuilder().startObject()
-                        .startObject("properties")
-                        .startObject("popularity").field("type", "float").endObject()
-                        .endObject()
-                        .endObject()));
-        SearchContext.setCurrent(createSearchContext(indexService));
-        Query query = queryParser.parse(queryString).query();
-        assertThat(query, instanceOf(FunctionScoreQuery.class));
-        assertThat(((FunctionScoreQuery) query).getFunction(), instanceOf(WeightFactorFunction.class));
-        SearchContext.removeCurrent();
-    }
-
-    @Test
-    public void testProperErrorMessagesForMisplacedWeightsAndFunctions() throws IOException {
-        IndexQueryParserService queryParser = queryParser();
-        String query = jsonBuilder().startObject().startObject("function_score")
-                .startArray("functions")
-                .startObject().startObject("script_score").field("script", "3").endObject().endObject()
-                .endArray()
-                .field("weight", 2)
-                .endObject().endObject().string();
-        try {
-            queryParser.parse(query).query();
-            fail("Expect exception here because array of functions and one weight in body is not allowed.");
-        } catch (ParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("you can either define [functions] array or a single function, not both. already found [functions] array, now encountering [weight]."));
-        }
-        query = jsonBuilder().startObject().startObject("function_score")
-                .field("weight", 2)
-                .startArray("functions")
-                .startObject().endObject()
-                .endArray()
-                .endObject().endObject().string();
-        try {
-            queryParser.parse(query).query();
-            fail("Expect exception here because array of functions and one weight in body is not allowed.");
-        } catch (ParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("you can either define [functions] array or a single function, not both. already found [weight], now encountering [functions]."));
-        }
     }
 
     /**

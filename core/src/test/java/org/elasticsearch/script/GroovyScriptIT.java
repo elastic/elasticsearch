@@ -109,9 +109,7 @@ public class GroovyScriptIT extends ESIntegTestCase {
         refresh();
 
         // doc[] access
-        SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery())
-.add(
-                                scriptFunction(new Script("doc['bar'].value", ScriptType.INLINE, "groovy", null)))
+        SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(scriptFunction(new Script("doc['bar'].value", ScriptType.INLINE, "groovy", null)))
             .boostMode(CombineFunction.REPLACE)).get();
 
         assertNoFailures(resp);
@@ -125,8 +123,8 @@ public class GroovyScriptIT extends ESIntegTestCase {
         refresh();
 
         // _score can be accessed
-        SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchQuery("foo", "dog"))
-            .add(scriptFunction(new Script("_score", ScriptType.INLINE, "groovy", null)))
+        SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchQuery("foo", "dog"),
+                scriptFunction(new Script("_score", ScriptType.INLINE, "groovy", null)))
             .boostMode(CombineFunction.REPLACE)).get();
         assertNoFailures(resp);
         assertSearchHits(resp, "3", "1");
@@ -137,7 +135,7 @@ public class GroovyScriptIT extends ESIntegTestCase {
         resp = client()
                 .prepareSearch("test")
                 .setQuery(
-                        functionScoreQuery(matchQuery("foo", "dog")).add(
+                        functionScoreQuery(matchQuery("foo", "dog"),
                                 scriptFunction(new Script("_score > 0.0 ? _score : 0", ScriptType.INLINE, "groovy", null))).boostMode(
                                 CombineFunction.REPLACE)).get();
         assertNoFailures(resp);

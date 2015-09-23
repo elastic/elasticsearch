@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -43,7 +44,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         } else {
             script = "5 * 2 > 2";
         }
-        return new ScriptQueryBuilder(new Script(script, ScriptType.INLINE, "expression", params));
+        return new ScriptQueryBuilder(new Script(script, ScriptType.INLINE, ExpressionScriptEngineService.NAME, params));
     }
 
     @Override

@@ -23,7 +23,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
@@ -35,31 +34,27 @@ import java.util.Set;
  */
 public class FunctionScoreQuery extends Query {
 
+    public static final float DEFAULT_MAX_BOOST = Float.MAX_VALUE;
+
     Query subQuery;
     final ScoreFunction function;
-    float maxBoost = Float.MAX_VALUE;
-    CombineFunction combineFunction;
-    private Float minScore = null;
+    final float maxBoost;
+    final CombineFunction combineFunction;
+    private Float minScore;
 
-    public FunctionScoreQuery(Query subQuery, ScoreFunction function, Float minScore) {
+    public FunctionScoreQuery(Query subQuery, ScoreFunction function, Float minScore, CombineFunction combineFunction, float maxBoost) {
         this.subQuery = subQuery;
         this.function = function;
-        this.combineFunction = function == null? CombineFunction.MULT : function.getDefaultScoreCombiner();
+        this.combineFunction = combineFunction;
         this.minScore = minScore;
+        this.maxBoost = maxBoost;
     }
 
     public FunctionScoreQuery(Query subQuery, ScoreFunction function) {
         this.subQuery = subQuery;
         this.function = function;
         this.combineFunction = function.getDefaultScoreCombiner();
-    }
-
-    public void setCombineFunction(CombineFunction combineFunction) {
-        this.combineFunction = combineFunction;
-    }
-    
-    public void setMaxBoost(float maxBoost) {
-        this.maxBoost = maxBoost;
+        this.maxBoost = DEFAULT_MAX_BOOST;
     }
 
     public float getMaxBoost() {
@@ -193,15 +188,20 @@ public class FunctionScoreQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass())
+        if (this == o) {
+            return true;
+        }
+        if (super.equals(o) == false) {
             return false;
+        }
         FunctionScoreQuery other = (FunctionScoreQuery) o;
-        return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery) && (this.function != null ? this.function.equals(other.function) : other.function == null)
-                && this.maxBoost == other.maxBoost;
+        return Objects.equals(this.subQuery, other.subQuery) && Objects.equals(this.function, other.function)
+                && Objects.equals(this.combineFunction, other.combineFunction)
+                && Objects.equals(this.minScore, other.minScore) && this.maxBoost == other.maxBoost;
     }
 
     @Override
     public int hashCode() {
-        return subQuery.hashCode() + 31 * Objects.hashCode(function) ^ Float.floatToIntBits(getBoost());
+        return Objects.hash(super.hashCode(), subQuery.hashCode(), function, combineFunction, minScore, maxBoost);
     }
 }

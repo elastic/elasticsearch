@@ -110,7 +110,9 @@ public class QueryShardContext {
     }
 
     public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
+        //norelease ParseFieldMatcher is currently duplicated, this should be cleaned up
         this.parseFieldMatcher = parseFieldMatcher;
+        this.parseContext.parseFieldMatcher(parseFieldMatcher);
     }
 
     public ParseFieldMatcher parseFieldMatcher() {
@@ -119,7 +121,7 @@ public class QueryShardContext {
 
     public void reset() {
         allowUnmappedFields = indexQueryParser.defaultAllowUnmappedFields();
-        this.parseFieldMatcher = ParseFieldMatcher.EMPTY;
+        this.parseFieldMatcher(ParseFieldMatcher.EMPTY);
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();

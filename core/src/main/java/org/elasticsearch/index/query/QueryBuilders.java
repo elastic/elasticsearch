@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.search.MatchQuery;
@@ -372,19 +373,34 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A query that allows to define a custom scoring function.
+     * A function_score query with no functions.
      *
      * @param queryBuilder The query to custom score
+     * @return the function score query
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder) {
         return new FunctionScoreQueryBuilder(queryBuilder);
     }
 
     /**
-     * A query that allows to define a custom scoring function.
+     * A query that allows to define a custom scoring function
+     *
+     * @param queryBuilder The query to custom score
+     * @param filterFunctionBuilders the filters and functions to execute
+     * @return the function score query
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery() {
-        return new FunctionScoreQueryBuilder();
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+        return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
+    }
+
+    /**
+     * A query that allows to define a custom scoring function
+     *
+     * @param filterFunctionBuilders the filters and functions to execute
+     * @return the function score query
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+        return new FunctionScoreQueryBuilder(filterFunctionBuilders);
     }
 
     /**
@@ -403,25 +419,47 @@ public abstract class QueryBuilders {
      * @param function     The function builder used to custom score
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder function) {
-        return (new FunctionScoreQueryBuilder(queryBuilder)).add(function);
+        return (new FunctionScoreQueryBuilder(queryBuilder, function));
     }
 
     /**
-     * A more like this query that finds documents that are "like" the provided {@link MoreLikeThisQueryBuilder#likeText(String)}
+     * A more like this query that finds documents that are "like" the provided texts or documents
      * which is checked against the fields the query is constructed with.
      *
-     * @param fields The fields to run the query against
+     * @param fields the field names that will be used when generating the 'More Like This' query.
+     * @param likeTexts the text to use when generating the 'More Like This' query.
+     * @param likeItems the documents to use when generating the 'More Like This' query.
      */
-    public static MoreLikeThisQueryBuilder moreLikeThisQuery(String... fields) {
-        return new MoreLikeThisQueryBuilder(fields);
+    public static MoreLikeThisQueryBuilder moreLikeThisQuery(String[] fields, String[] likeTexts, Item[] likeItems) {
+        return new MoreLikeThisQueryBuilder(fields, likeTexts, likeItems);
     }
 
     /**
-     * A more like this query that finds documents that are "like" the provided {@link MoreLikeThisQueryBuilder#likeText(String)}
+     * A more like this query that finds documents that are "like" the provided texts or documents
      * which is checked against the "_all" field.
+     * @param likeTexts the text to use when generating the 'More Like This' query.
+     * @param likeItems the documents to use when generating the 'More Like This' query.
      */
-    public static MoreLikeThisQueryBuilder moreLikeThisQuery() {
-        return new MoreLikeThisQueryBuilder();
+    public static MoreLikeThisQueryBuilder moreLikeThisQuery(String[] likeTexts, Item[] likeItems) {
+        return moreLikeThisQuery(null, likeTexts, likeItems);
+    }
+
+    /**
+     * A more like this query that finds documents that are "like" the provided texts
+     * which is checked against the "_all" field.
+     * @param likeTexts the text to use when generating the 'More Like This' query.
+     */
+    public static MoreLikeThisQueryBuilder moreLikeThisQuery(String[] likeTexts) {
+        return moreLikeThisQuery(null, likeTexts, null);
+    }
+
+    /**
+     * A more like this query that finds documents that are "like" the provided documents
+     * which is checked against the "_all" field.
+     * @param likeItems the documents to use when generating the 'More Like This' query.
+     */
+    public static MoreLikeThisQueryBuilder moreLikeThisQuery(Item[] likeItems) {
+        return moreLikeThisQuery(null, null, likeItems);
     }
 
     /**

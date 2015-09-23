@@ -52,6 +52,7 @@ import static org.elasticsearch.action.search.SearchType.DFS_QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
+
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -427,8 +428,8 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         logger.info("Start Testing failed multi search with a wrong query");
 
         MultiSearchResponse response = client().prepareMultiSearch()
-                // Add function score with a bogus score mode
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("nid", 1)).scoreMode("foobar")))
+                // Add geo distance range query against a field that doesn't exist (should be a geo point for the query to work)
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.geoDistanceRangeQuery("non_existing_field", 1, 1).from(10).to(15)))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
                 .execute().actionGet();
@@ -444,7 +445,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         logger.info("Done Testing failed search");
     }
 
-
     @Test
     public void testFailedMultiSearchWithWrongQuery_withFunctionScore() throws Exception {
         prepareData();
@@ -453,7 +453,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         MultiSearchResponse response = client().prepareMultiSearch()
                 // Add custom score query with bogus script
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("nid", 1)).add(new ScriptScoreFunctionBuilder(new Script("foo", ScriptService.ScriptType.INLINE, "bar", null)))))
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("nid", 1), new ScriptScoreFunctionBuilder(new Script("foo", ScriptService.ScriptType.INLINE, "bar", null)))))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
                 .execute().actionGet();

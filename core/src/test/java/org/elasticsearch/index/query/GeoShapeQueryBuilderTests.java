@@ -135,6 +135,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
      */
     @Override
     public void testToQuery() throws IOException {
+        //TODO figure out why this test might take up to 10 seconds once in a while
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         super.testToQuery();
     }

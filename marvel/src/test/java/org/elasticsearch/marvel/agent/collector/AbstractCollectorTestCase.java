@@ -28,6 +28,7 @@ import org.elasticsearch.marvel.shield.SecuredClient;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Before;
@@ -38,6 +39,15 @@ import java.util.concurrent.TimeUnit;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.SUITE, randomDynamicTemplates = false, transportClientRatio = 0.0)
 public class AbstractCollectorTestCase extends MarvelIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        if (shieldEnabled) {
+            return Arrays.asList(LicensePluginForCollectors.class, MarvelPlugin.class, ShieldPlugin.class);
+        }
+        return Arrays.asList(LicensePluginForCollectors.class, MarvelPlugin.class);
+    }
+
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

@@ -19,6 +19,7 @@ import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.mode.Mode;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
@@ -30,6 +31,14 @@ import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0, numClientNodes = 0)
 public class LicenseIntegrationTests extends MarvelIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        if (shieldEnabled) {
+            return Arrays.asList(MockLicensePlugin.class, MarvelPlugin.class, ShieldPlugin.class);
+        }
+        return Arrays.asList(MockLicensePlugin.class, MarvelPlugin.class);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

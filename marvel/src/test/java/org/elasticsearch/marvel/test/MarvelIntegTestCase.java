@@ -35,7 +35,7 @@ import java.util.Collection;
  */
 public class MarvelIntegTestCase extends ESIntegTestCase {
 
-    private static Boolean shieldEnabled;
+    protected static Boolean shieldEnabled;
 
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {

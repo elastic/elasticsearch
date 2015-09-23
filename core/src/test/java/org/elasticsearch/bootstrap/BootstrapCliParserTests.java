@@ -226,7 +226,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
             parser.parse("start", new String[]{"--foo=bar", "-Dbaz=qux"});
             fail("expected IllegalArgumentException for out-of-order parameters");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("must appear before any parameters starting with --"));
+            assertThat(e.getMessage(), containsString("must be before any parameters starting with --"));
         }
     }
 

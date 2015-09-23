@@ -19,24 +19,22 @@
 
 package org.elasticsearch.script.expression;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptModule;
 
-import java.io.IOException;
-import java.text.ParseException;
+public class ExpressionPlugin extends Plugin {
 
-/**
- * Exception representing a compilation error in an expression.
- */
-public class ExpressionScriptCompilationException extends ElasticsearchException {
-    public ExpressionScriptCompilationException(String msg, ParseException e) {
-        super(msg, e);
-    }
-    public ExpressionScriptCompilationException(String msg) {
-        super(msg);
+    @Override
+    public String name() {
+        return "lang-expression";
     }
 
-    public ExpressionScriptCompilationException(StreamInput in) throws IOException {
-        super(in);
+    @Override
+    public String description() {
+        return "Lucene expressions integration for Elasticsearch";
+    }
+
+    public void onModule(ScriptModule module) {
+        module.addScriptEngine(ExpressionScriptEngineService.class);
     }
 }

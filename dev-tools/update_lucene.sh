@@ -12,3 +12,5 @@ perl dev-tools/src/main/resources/license-check/check_license_and_sha.pl \
      --update plugins/analysis-smartcn/licenses/ plugins/analysis-smartcn/target/releases/analysis-smartcn-3.0.0-SNAPSHOT.zip analysis-smartcn-3.0.0-SNAPSHOT
 perl dev-tools/src/main/resources/license-check/check_license_and_sha.pl \
      --update plugins/analysis-stempel/licenses/ plugins/analysis-stempel/target/releases/analysis-stempel-3.0.0-SNAPSHOT.zip analysis-stempel-3.0.0-SNAPSHOT
+perl dev-tools/src/main/resources/license-check/check_license_and_sha.pl \
+     --update plugins/lang-expression/licenses/ plugins/lang-expression/target/releases/lang-expression-3.0.0-SNAPSHOT.zip lang-expression-3.0.0-SNAPSHOT

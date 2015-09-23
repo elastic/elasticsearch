@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -34,9 +33,10 @@ import java.util.Collection;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
+// TODO: this needs to be done with mock engines.
 public class CustomScriptContextIT extends ESIntegTestCase {
 
-    private static final ImmutableSet<String> LANG_SET = ImmutableSet.of(GroovyScriptEngineService.NAME, MustacheScriptEngineService.NAME, ExpressionScriptEngineService.NAME);
+    private static final ImmutableSet<String> LANG_SET = ImmutableSet.of(GroovyScriptEngineService.NAME, MustacheScriptEngineService.NAME);
 
     private static final String PLUGIN_NAME = "testplugin";
 
@@ -70,19 +70,7 @@ public class CustomScriptContextIT extends ESIntegTestCase {
             }
         }
 
-        try {
-            scriptService.compile(new Script("1", ScriptService.ScriptType.INLINE, "expression", null), new ScriptContext.Plugin(
-                    PLUGIN_NAME, "custom_exp_disabled_op"), contextAndHeaders);
-            fail("script compilation should have been rejected");
-        } catch(ScriptException e) {
-            assertThat(e.getMessage(), containsString("scripts of type [inline], operation [" + PLUGIN_NAME + "_custom_exp_disabled_op] and lang [expression] are disabled"));
-        }
-
-        CompiledScript compiledScript = scriptService.compile(new Script("1", ScriptService.ScriptType.INLINE, "expression", null),
-                randomFrom(new ScriptContext[] { ScriptContext.Standard.AGGS, ScriptContext.Standard.SEARCH }), contextAndHeaders);
-        assertThat(compiledScript, notNullValue());
-
-        compiledScript = scriptService.compile(new Script("1", ScriptService.ScriptType.INLINE, "mustache", null),
+        CompiledScript compiledScript = scriptService.compile(new Script("1", ScriptService.ScriptType.INLINE, "mustache", null),
                 new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"), contextAndHeaders);
         assertThat(compiledScript, notNullValue());
 

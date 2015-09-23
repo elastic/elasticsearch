@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -42,9 +41,10 @@ import java.util.Set;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
+// TODO: this needs to be a base test class, and all scripting engines extend it
 public class ScriptModesTests extends ESTestCase {
 
-    private static final Set<String> ALL_LANGS = ImmutableSet.of(GroovyScriptEngineService.NAME, MustacheScriptEngineService.NAME, ExpressionScriptEngineService.NAME, "custom", "test");
+    private static final Set<String> ALL_LANGS = ImmutableSet.of(GroovyScriptEngineService.NAME, MustacheScriptEngineService.NAME, "custom", "test");
 
     static final String[] ENABLE_VALUES = new String[]{"on", "true", "yes", "1"};
     static final String[] DISABLE_VALUES = new String[]{"off", "false", "no", "0"};
@@ -74,7 +74,6 @@ public class ScriptModesTests extends ESTestCase {
         scriptEngines = buildScriptEnginesByLangMap(ImmutableSet.of(
                 new GroovyScriptEngineService(Settings.EMPTY),
                 new MustacheScriptEngineService(Settings.EMPTY),
-                new ExpressionScriptEngineService(Settings.EMPTY),
                 //add the native engine just to make sure it gets filtered out
                 new NativeScriptEngineService(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
                 new CustomScriptEngineService()));
@@ -95,7 +94,7 @@ public class ScriptModesTests extends ESTestCase {
         if (assertScriptModesNonNull) {
             assertThat(scriptModes, notNullValue());
             //4 is the number of engines (native excluded), custom is counted twice though as it's associated with two different names
-            int numberOfSettings = 5 * ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
+            int numberOfSettings = 4 * ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
             assertThat(scriptModes.scriptModes.size(), equalTo(numberOfSettings));
             if (assertAllSettingsWereChecked) {
                 assertThat(checkedSettings.size(), equalTo(numberOfSettings));

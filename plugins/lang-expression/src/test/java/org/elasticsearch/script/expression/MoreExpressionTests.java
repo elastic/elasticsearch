@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
@@ -48,6 +49,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +63,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ExpressionScriptIT extends ESIntegTestCase {
+// TODO: please convert to unit tests!
+public class MoreExpressionTests extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(ExpressionPlugin.class);
+    }
 
     private SearchRequestBuilder buildRequest(String script, Object... params) {
         ensureGreen("test");
@@ -248,8 +257,8 @@ public class ExpressionScriptIT extends ESIntegTestCase {
             buildRequest("doc['bogus']").get();
             fail("Expected missing field to cause failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
-                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained ScriptException",
+                    e.toString().contains("ScriptException"), equalTo(true));
             assertThat(e.toString() + "should have contained missing field error",
                     e.toString().contains("does not exist in mappings"), equalTo(true));
         }
@@ -278,8 +287,8 @@ public class ExpressionScriptIT extends ESIntegTestCase {
             buildRequest("garbage%@#%@").get();
             fail("Expected expression compilation failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
-                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained ScriptException",
+                    e.toString().contains("ScriptException"), equalTo(true));
             assertThat(e.toString() + "should have contained compilation failure",
                     e.toString().contains("Failed to parse expression"), equalTo(true));
         }
@@ -291,8 +300,8 @@ public class ExpressionScriptIT extends ESIntegTestCase {
             buildRequest("a", "a", "astring").get();
             fail("Expected string parameter to cause failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
-                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained ScriptException",
+                    e.toString().contains("ScriptException"), equalTo(true));
             assertThat(e.toString() + "should have contained non-numeric parameter error",
                     e.toString().contains("must be a numeric type"), equalTo(true));
         }
@@ -304,8 +313,8 @@ public class ExpressionScriptIT extends ESIntegTestCase {
             buildRequest("doc['text']").get();
             fail("Expected text field to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
-                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained ScriptException",
+                    e.toString().contains("ScriptException"), equalTo(true));
             assertThat(e.toString() + "should have contained non-numeric field error",
                     e.toString().contains("must be numeric"), equalTo(true));
         }
@@ -317,8 +326,8 @@ public class ExpressionScriptIT extends ESIntegTestCase {
             buildRequest("bogus").get();
             fail("Expected bogus variable to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
-                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained ScriptException",
+                    e.toString().contains("ScriptException"), equalTo(true));
             assertThat(e.toString() + "should have contained unknown variable error",
                     e.toString().contains("Unknown variable"), equalTo(true));
         }
@@ -330,8 +339,8 @@ public class ExpressionScriptIT extends ESIntegTestCase {
             buildRequest("doc").get();
             fail("Expected doc variable without field to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
-                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained ScriptException",
+                    e.toString().contains("ScriptException"), equalTo(true));
             assertThat(e.toString() + "should have contained a missing specific field error",
                     e.toString().contains("must be used with a specific field"), equalTo(true));
         }
@@ -343,8 +352,8 @@ public class ExpressionScriptIT extends ESIntegTestCase {
             buildRequest("doc['foo'].bogus").get();
             fail("Expected bogus field member to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
-                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained ScriptException",
+                    e.toString().contains("ScriptException"), equalTo(true));
             assertThat(e.toString() + "should have contained member variable [value] or member methods may be accessed",
                     e.toString().contains("member variable [value] or member methods may be accessed"), equalTo(true));
         }
@@ -405,8 +414,8 @@ public class ExpressionScriptIT extends ESIntegTestCase {
         } catch (SearchPhaseExecutionException e) {
             message = e.toString();
         }
-        assertThat(message + "should have contained ExpressionScriptExecutionException",
-                message.contains("ExpressionScriptExecutionException"), equalTo(true));
+        assertThat(message + "should have contained ScriptException",
+                message.contains("ScriptException"), equalTo(true));
         assertThat(message + "should have contained text variable error",
                 message.contains("text variable"), equalTo(true));
     }

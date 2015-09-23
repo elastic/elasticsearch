@@ -42,12 +42,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,11 +50,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -100,7 +91,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         final CountDownLatch timedOut = new CountDownLatch(1);
         final AtomicBoolean executeCalled = new AtomicBoolean();
-        clusterService1.submitStateUpdateTask("test2", new TimeoutClusterStateUpdateTask() {
+        clusterService1.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
             @Override
             public TimeValue timeout() {
                 return TimeValue.timeValueMillis(2);
@@ -325,7 +316,12 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         taskFailed[0] = true;
         final CountDownLatch latch2 = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new ClusterStateNonMasterUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public boolean runOnlyOnMaster() {
+                return false;
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 taskFailed[0] = false;
@@ -525,7 +521,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         invoked1.await();
         final CountDownLatch invoked2 = new CountDownLatch(9);
         for (int i = 2; i <= 10; i++) {
-            clusterService.submitStateUpdateTask(Integer.toString(i), new ProcessedClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask(Integer.toString(i), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return currentState;
@@ -758,7 +754,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         rootLogger.addAppender(mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(4);
-            clusterService1.submitStateUpdateTask("test1", new ProcessedClusterStateUpdateTask() {
+            clusterService1.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return currentState;
@@ -774,7 +770,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                     fail();
                 }
             });
-            clusterService1.submitStateUpdateTask("test2", new ProcessedClusterStateUpdateTask() {
+            clusterService1.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     throw new IllegalArgumentException("Testing handling of exceptions in the cluster state task");
@@ -790,7 +786,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                     latch.countDown();
                 }
             });
-            clusterService1.submitStateUpdateTask("test3", new ProcessedClusterStateUpdateTask() {
+            clusterService1.submitStateUpdateTask("test3", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return ClusterState.builder(currentState).incrementVersion().build();
@@ -808,7 +804,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             });
             // Additional update task to make sure all previous logging made it to the logger
             // We don't check logging for this on since there is no guarantee that it will occur before our check
-            clusterService1.submitStateUpdateTask("test4", new ProcessedClusterStateUpdateTask() {
+            clusterService1.submitStateUpdateTask("test4", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return currentState;
@@ -851,7 +847,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         try {
             final CountDownLatch latch = new CountDownLatch(5);
             final CountDownLatch processedFirstTask = new CountDownLatch(1);
-            clusterService1.submitStateUpdateTask("test1", new ProcessedClusterStateUpdateTask() {
+            clusterService1.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     Thread.sleep(100);
@@ -874,7 +870,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
                     .put(InternalClusterService.SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD, "10ms")));
 
-            clusterService1.submitStateUpdateTask("test2", new ProcessedClusterStateUpdateTask() {
+            clusterService1.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     Thread.sleep(100);
@@ -891,7 +887,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                     latch.countDown();
                 }
             });
-            clusterService1.submitStateUpdateTask("test3", new ProcessedClusterStateUpdateTask() {
+            clusterService1.submitStateUpdateTask("test3", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     Thread.sleep(100);
@@ -908,7 +904,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                     fail();
                 }
             });
-            clusterService1.submitStateUpdateTask("test4", new ProcessedClusterStateUpdateTask() {
+            clusterService1.submitStateUpdateTask("test4", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     Thread.sleep(100);
@@ -927,7 +923,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             });
             // Additional update task to make sure all previous logging made it to the logger
             // We don't check logging for this on since there is no guarantee that it will occur before our check
-            clusterService1.submitStateUpdateTask("test5", new ProcessedClusterStateUpdateTask() {
+            clusterService1.submitStateUpdateTask("test5", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return currentState;

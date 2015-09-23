@@ -20,7 +20,7 @@ package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
@@ -102,7 +102,12 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
             return false;
         }
         final AtomicBoolean stopped = new AtomicBoolean(false);
-        clusterService.submitStateUpdateTask("service_disruption_delay", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
+        clusterService.submitStateUpdateTask("service_disruption_delay", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+
+            @Override
+            public boolean runOnlyOnMaster() {
+                return false;
+            }
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {

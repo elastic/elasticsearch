@@ -24,21 +24,10 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
-import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
-import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -61,14 +50,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
@@ -182,7 +164,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     public void createSnapshot(final SnapshotRequest request, final CreateSnapshotListener listener) {
         final SnapshotId snapshotId = new SnapshotId(request.repository(), request.name());
         validate(snapshotId);
-        clusterService.submitStateUpdateTask(request.cause(), new TimeoutClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newSnapshot = null;
 
@@ -303,7 +285,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 endSnapshot(snapshot);
                 return;
             }
-            clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshotId().getSnapshot() + "]", new ProcessedClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshotId().getSnapshot() + "]", new ClusterStateUpdateTask() {
                 boolean accepted = false;
                 SnapshotsInProgress.Entry updatedSnapshot;
                 String failure = null;
@@ -805,7 +787,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param t          exception if snapshot failed
      */
     private void removeSnapshotFromClusterState(final SnapshotId snapshotId, final SnapshotInfo snapshot, final Throwable t) {
-        clusterService.submitStateUpdateTask("remove snapshot metadata", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
@@ -860,7 +842,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      */
     public void deleteSnapshot(final SnapshotId snapshotId, final DeleteSnapshotListener listener) {
         validate(snapshotId);
-        clusterService.submitStateUpdateTask("delete snapshot", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask() {
 
             boolean waitForSnapshot = false;
 

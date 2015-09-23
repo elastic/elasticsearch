@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateNonMasterUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
@@ -342,19 +342,21 @@ public class MasterFaultDetection extends FaultDetection {
 
             if (!nodes.localNodeMaster() || !nodes.nodeExists(request.nodeId)) {
                 logger.trace("checking ping from [{}] under a cluster state thread", request.nodeId);
-                clusterService.submitStateUpdateTask("master ping (from: [" + request.nodeId + "])", new ProcessedClusterStateNonMasterUpdateTask() {
+                clusterService.submitStateUpdateTask("master ping (from: [" + request.nodeId + "])", new ClusterStateUpdateTask() {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         // if we are no longer master, fail...
                         DiscoveryNodes nodes = currentState.nodes();
-                        if (!nodes.localNodeMaster()) {
-                            throw new NotMasterException("local node is not master");
-                        }
                         if (!nodes.nodeExists(request.nodeId)) {
                             throw new NodeDoesNotExistOnMasterException();
                         }
                         return currentState;
+                    }
+
+                    @Override
+                    public void onNoLongerMaster(String source) {
+                        onFailure(source, new NotMasterException("local node is not master"));
                     }
 
                     @Override

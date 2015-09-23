@@ -713,11 +713,14 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(0, shard.engine().getTranslog().totalOperations());
         shard.engine().getTranslog().sync();
         long size = shard.engine().getTranslog().sizeInBytes();
+        logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]", shard.engine().getTranslog().sizeInBytes(), shard.engine().getTranslog().totalOperations(), shard.engine().getTranslog().getGeneration());
         client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, 1000)
                 .put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(size, ByteSizeUnit.BYTES))
                 .build()).get();
         client().prepareDelete("test", "test", "2").get();
+        logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]", shard.engine().getTranslog().sizeInBytes(), shard.engine().getTranslog().totalOperations(), shard.engine().getTranslog().getGeneration());
         assertBusy(() -> { // this is async
+            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]", shard.engine().getTranslog().sizeInBytes(), shard.engine().getTranslog().totalOperations(), shard.engine().getTranslog().getGeneration());
             assertFalse(shard.shouldFlush());
         });
         assertEquals(0, shard.engine().getTranslog().totalOperations());

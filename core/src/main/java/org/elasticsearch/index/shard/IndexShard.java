@@ -1504,6 +1504,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                     // in that situation we have an extra unexpected flush.
                     asyncFlushRunning.compareAndSet(true, false);
                 } else {
+                    logger.debug("submitting async flush request");
                     final AbstractRunnable abstractRunnable = new AbstractRunnable() {
                         @Override
                         public void onFailure(Throwable t) {

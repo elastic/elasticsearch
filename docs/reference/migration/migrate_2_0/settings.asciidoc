@@ -2,7 +2,7 @@
 
 ==== Command line flags
 
-Command line flags using notation `-Des.*` must be now specified as the first arguments.
+Command line flags using single dash notation must be now specified as the first arguments.
 For example if previously using: 
 
 [source,sh]

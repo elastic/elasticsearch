@@ -9,7 +9,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
-import org.elasticsearch.marvel.agent.exporter.HttpESExporterUtils;
+import org.elasticsearch.marvel.agent.exporter.http.HttpExporterUtils;
 import org.elasticsearch.marvel.agent.renderer.AbstractRendererTestCase;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.search.SearchHit;
@@ -60,7 +60,7 @@ public class ClusterStateIT extends AbstractRendererTestCase {
     @Test
     public void testNoNodesIndexing() throws Exception {
         logger.debug("--> forcing marvel's index template update");
-        assertAcked(client().admin().indices().preparePutTemplate("marvel").setSource(HttpESExporterUtils.loadDefaultTemplate()).execute().actionGet());
+        assertAcked(client().admin().indices().preparePutTemplate("marvel").setSource(HttpExporterUtils.loadDefaultTemplate()).execute().actionGet());
 
         logger.debug("--> deleting all marvel indices");
         cluster().wipeIndices(MarvelSettings.MARVEL_INDICES_PREFIX + "*");

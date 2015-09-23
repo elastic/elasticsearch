@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.marvel.agent.exporter;
+package org.elasticsearch.marvel.agent.exporter.http;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class HttpESExporterUtils {
+public class HttpExporterUtils {
 
     public static final String MARVEL_TEMPLATE_FILE = "/marvel_index_template.json";
     static final String MARVEL_VERSION_FIELD = "marvel_version";
@@ -77,11 +77,7 @@ public class HttpESExporterUtils {
         if (hostUrl.getPort() == -1) {
             // url has no port, default to 9200 - sadly we need to rebuild..
             StringBuilder newUrl = new StringBuilder(hostUrl.getProtocol() + "://");
-            if (hostUrl.getUserInfo() != null) {
-                newUrl.append(hostUrl.getUserInfo()).append("@");
-            }
             newUrl.append(hostUrl.getHost()).append(":9200").append(hostUrl.toURI().getPath());
-
             hostUrl = new URL(newUrl.toString());
 
         }
@@ -93,7 +89,7 @@ public class HttpESExporterUtils {
      * Loads the default Marvel template
      */
     public static byte[] loadDefaultTemplate() {
-        try (InputStream is = HttpESExporterUtils.class.getResourceAsStream(MARVEL_TEMPLATE_FILE)) {
+        try (InputStream is = HttpExporterUtils.class.getResourceAsStream(MARVEL_TEMPLATE_FILE)) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             Streams.copy(is, out);
             return out.toByteArray();
@@ -133,16 +129,5 @@ public class HttpESExporterUtils {
             }
         }
         return null;
-    }
-
-    private static final String userInfoChars = "\\w-\\._~!$&\\'\\(\\)*+,;=%";
-    private static Pattern urlPwdSanitizer = Pattern.compile("([" + userInfoChars + "]+?):[" + userInfoChars + "]+?@");
-
-    public static String santizeUrlPwds(Object text) {
-        if (text == null) {
-            return null;
-        }
-        Matcher matcher = urlPwdSanitizer.matcher(text.toString());
-        return matcher.replaceAll("$1:XXXXXX@");
     }
 }

@@ -7,7 +7,6 @@ package org.elasticsearch.marvel;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
@@ -16,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.collector.CollectorModule;
 import org.elasticsearch.marvel.agent.exporter.ExporterModule;
-import org.elasticsearch.marvel.agent.exporter.HttpESExporter;
+import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.renderer.RendererModule;
 import org.elasticsearch.marvel.agent.settings.MarvelModule;
 import org.elasticsearch.marvel.agent.settings.MarvelSetting;
@@ -97,14 +96,7 @@ public class MarvelPlugin extends Plugin {
     }
 
     public void onModule(ClusterModule module) {
-        // HttpESExporter
-        module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_INDEX_TIME_FORMAT, Validator.EMPTY);
-        module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_HOSTS, Validator.EMPTY);
-        module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_HOSTS + ".*", Validator.EMPTY);
-        module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_TIMEOUT, Validator.EMPTY);
-        module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_READ_TIMEOUT, Validator.EMPTY);
-        module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_SSL_HOSTNAME_VERIFICATION, Validator.EMPTY);
-
+        Exporters.registerDynamicSettings(module);
         // MarvelSettingsService
         for (MarvelSetting setting : MarvelSettings.dynamicSettings()) {
             module.registerClusterDynamicSetting(setting.dynamicSettingName(), setting.dynamicValidator());

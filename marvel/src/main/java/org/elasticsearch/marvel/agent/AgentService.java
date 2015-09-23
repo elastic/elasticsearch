@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.marvel.agent.collector.Collector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoCollector;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
+import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
@@ -32,18 +33,18 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
     private final MarvelSettings marvelSettings;
 
     private final Collection<Collector> collectors;
-    private final Collection<Exporter> exporters;
+    private final Exporters exporters;
 
     @Inject
     public AgentService(Settings settings, NodeSettingsService nodeSettingsService,
                         LicenseService licenseService, MarvelSettings marvelSettings,
-                        Set<Collector> collectors, Set<Exporter> exporters) {
+                        Set<Collector> collectors, Exporters exporters) {
         super(settings);
         this.marvelSettings = marvelSettings;
         this.samplingInterval = marvelSettings.interval().millis();
 
         this.collectors = Collections.unmodifiableSet(filterCollectors(collectors, marvelSettings.collectors()));
-        this.exporters = Collections.unmodifiableSet(exporters);
+        this.exporters = exporters;
 
         nodeSettingsService.addListener(this);
         logger.trace("marvel is running in [{}] mode", licenseService.mode());
@@ -88,26 +89,15 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
 
     @Override
     protected void doStart() {
-        if (exporters.size() == 0) {
-            return;
-        }
-
         for (Collector collector : collectors) {
             collector.start();
         }
-
-        for (Exporter exporter : exporters) {
-            exporter.start();
-        }
-
+        exporters.start();
         applyIntervalSettings();
     }
 
     @Override
     protected void doStop() {
-        if (exporters.size() == 0) {
-            return;
-        }
         if (workerThread != null && workerThread.isAlive()) {
             exportingWorker.closed = true;
             workerThread.interrupt();
@@ -123,9 +113,7 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
             collector.stop();
         }
 
-        for (Exporter exporter : exporters) {
-            exporter.stop();
-        }
+        exporters.stop();
     }
 
     @Override
@@ -137,11 +125,6 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
         for (Exporter exporter : exporters) {
             exporter.close();
         }
-    }
-
-    // used for testing
-    public Collection<Exporter> getExporters() {
-        return exporters;
     }
 
     @Override

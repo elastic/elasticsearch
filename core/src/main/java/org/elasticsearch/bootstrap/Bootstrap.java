@@ -91,6 +91,8 @@ final class Bootstrap {
             }
         }
         
+        Natives.trySeccomp();
+        
         // mlockall if requested
         if (mlockAll) {
             if (Constants.WINDOWS) {

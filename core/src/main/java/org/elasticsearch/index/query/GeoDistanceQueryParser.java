@@ -39,7 +39,7 @@ import java.io.IOException;
  * }
  * </pre>
  */
-public class GeoDistanceQueryParser extends BaseQueryParser {
+public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuilder> {
 
     @Override
     public String[] names() {
@@ -47,7 +47,7 @@ public class GeoDistanceQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public GeoDistanceQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;

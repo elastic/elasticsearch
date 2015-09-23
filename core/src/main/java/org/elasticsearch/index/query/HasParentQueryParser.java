@@ -27,7 +27,7 @@ import org.elasticsearch.index.query.support.QueryInnerHits;
 
 import java.io.IOException;
 
-public class HasParentQueryParser extends BaseQueryParser  {
+public class HasParentQueryParser implements QueryParser<HasParentQueryBuilder>  {
 
     private static final HasParentQueryBuilder PROTOTYPE = new HasParentQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
@@ -40,7 +40,7 @@ public class HasParentQueryParser extends BaseQueryParser  {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public HasParentQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

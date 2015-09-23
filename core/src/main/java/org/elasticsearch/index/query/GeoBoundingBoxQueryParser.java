@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class GeoBoundingBoxQueryParser extends BaseQueryParser<GeoBoundingBoxQueryBuilder> {
+public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQueryBuilder> {
 
     public static final String NAME = "geo_bbox";
 

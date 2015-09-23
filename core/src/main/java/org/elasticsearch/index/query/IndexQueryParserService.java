@@ -225,7 +225,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         QueryShardContext context = cache.get();
         context.reset(parser);
         try {
-            Query filter = context.parseContext().parseInnerFilter();
+            Query filter = context.parseContext().parseInnerQueryBuilder().toFilter(context);
             if (filter == null) {
                 return null;
             }

@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -29,7 +28,7 @@ import java.io.IOException;
 /**
  * Parser for not query
  */
-public class NotQueryParser extends BaseQueryParser<NotQueryBuilder> {
+public class NotQueryParser implements QueryParser<NotQueryBuilder> {
 
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
 
@@ -56,12 +55,12 @@ public class NotQueryParser extends BaseQueryParser<NotQueryBuilder> {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
-                    query = parseContext.parseInnerFilterToQueryBuilder();
+                    query = parseContext.parseInnerQueryBuilder();
                     queryFound = true;
                 } else {
                     queryFound = true;
                     // its the filter, and the name is the field
-                    query = parseContext.parseInnerFilterToQueryBuilder(currentFieldName);
+                    query = parseContext.parseInnerQueryBuilderByName(currentFieldName);
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {

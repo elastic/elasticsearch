@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -28,7 +27,7 @@ import java.io.IOException;
 /**
  * Parser for exists query
  */
-public class ExistsQueryParser extends BaseQueryParser<ExistsQueryBuilder> {
+public class ExistsQueryParser implements QueryParser<ExistsQueryBuilder> {
 
     @Override
     public String[] names() {

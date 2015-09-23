@@ -145,7 +145,7 @@ public class AliasValidator extends AbstractComponent {
         QueryShardContext context = indexQueryParserService.getShardContext();
         try {
             context.reset(parser);
-            context.parseContext().parseInnerFilter();
+            context.parseContext().parseInnerQueryBuilder().toFilter(context);
         } finally {
             context.reset(null);
             parser.close();

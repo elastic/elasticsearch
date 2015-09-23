@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * Parser for range query
  */
-public class RangeQueryParser extends BaseQueryParser<RangeQueryBuilder> {
+public class RangeQueryParser implements QueryParser<RangeQueryBuilder> {
 
     private static final ParseField FIELDDATA_FIELD = new ParseField("fielddata").withAllDeprecated("[no replacement]");
     private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of range query");

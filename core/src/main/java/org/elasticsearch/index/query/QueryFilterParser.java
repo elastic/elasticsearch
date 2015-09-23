@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.ParsingException;
-
 import java.io.IOException;
 
 /**
@@ -29,7 +27,7 @@ import java.io.IOException;
  */
 // TODO: remove when https://github.com/elastic/elasticsearch/issues/13326 is fixed
 @Deprecated
-public class QueryFilterParser extends BaseQueryParser<QueryFilterBuilder> {
+public class QueryFilterParser implements QueryParser<QueryFilterBuilder> {
 
     @Override
     public String[] names() {

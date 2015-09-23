@@ -30,7 +30,7 @@ import java.util.List;
 /**
  * Parser for span_or query
  */
-public class SpanOrQueryParser extends BaseQueryParser<SpanOrQueryBuilder> {
+public class SpanOrQueryParser implements QueryParser<SpanOrQueryBuilder> {
 
     @Override
     public String[] names() {

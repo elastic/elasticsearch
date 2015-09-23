@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
@@ -34,7 +33,7 @@ import java.util.Map;
 /**
  * Parser for script query
  */
-public class ScriptQueryParser extends BaseQueryParser<ScriptQueryBuilder> {
+public class ScriptQueryParser implements QueryParser<ScriptQueryBuilder> {
 
     @Override
     public String[] names() {
@@ -45,7 +44,7 @@ public class ScriptQueryParser extends BaseQueryParser<ScriptQueryBuilder> {
     public ScriptQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
-        
+
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
         Script script = null;
         Map<String, Object> params = null;

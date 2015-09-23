@@ -38,7 +38,7 @@ import java.util.List;
 /**
  * Parser for function_score query
  */
-public class FunctionScoreQueryParser extends BaseQueryParser<FunctionScoreQueryBuilder> {
+public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryBuilder> {
 
     private static final FunctionScoreQueryBuilder PROTOTYPE = new FunctionScoreQueryBuilder(EmptyQueryBuilder.PROTOTYPE, new FunctionScoreQueryBuilder.FilterFunctionBuilder[0]);
 
@@ -88,7 +88,7 @@ public class FunctionScoreQueryParser extends BaseQueryParser<FunctionScoreQuery
             } else if ("query".equals(currentFieldName)) {
                 query = parseContext.parseInnerQueryBuilder();
             } else if (parseContext.parseFieldMatcher().match(currentFieldName, FILTER_FIELD)) {
-                filter = parseContext.parseInnerFilterToQueryBuilder();
+                filter = parseContext.parseInnerQueryBuilder();
             } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                 scoreMode = FiltersFunctionScoreQuery.ScoreMode.fromString(parser.text());
             } else if ("boost_mode".equals(currentFieldName) || "boostMode".equals(currentFieldName)) {
@@ -179,7 +179,7 @@ public class FunctionScoreQueryParser extends BaseQueryParser<FunctionScoreQuery
                         functionWeight = parser.floatValue();
                     } else {
                         if ("filter".equals(currentFieldName)) {
-                            filter = parseContext.parseInnerFilterToQueryBuilder();
+                            filter = parseContext.parseInnerQueryBuilder();
                         } else {
                             if (scoreFunction != null) {
                                 throw new ParsingException(parser.getTokenLocation(), "failed to parse function_score functions. already found [{}], now encountering [{}].", scoreFunction.getName(), currentFieldName);

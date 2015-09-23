@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
-
 import java.io.IOException;
 
 /**
@@ -34,18 +31,6 @@ public interface QueryParser<QB extends QueryBuilder<QB>> {
      * The names this query parser is registered under.
      */
     String[] names();
-
-    /**
-     * Parses the into a query from the current parser location. Will be at
-     * "START_OBJECT" location, and should end when the token is at the matching
-     * "END_OBJECT".
-     * <p>
-     * Returns <tt>null</tt> if this query should be ignored in the context of
-     * the DSL.
-     */
-    //norelease can be removed in favour of fromXContent once search requests can be parsed on the coordinating node
-    @Nullable
-    Query parse(QueryShardContext context) throws IOException;
 
     /**
      * Creates a new {@link QueryBuilder} from the query held by the {@link QueryShardContext}

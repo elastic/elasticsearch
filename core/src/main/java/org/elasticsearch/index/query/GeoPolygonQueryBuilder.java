@@ -115,7 +115,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             shell.add(shell.get(0));
         }
 
-        final boolean indexCreatedBeforeV2_0 = context.parseContext().shardContext().indexVersionCreated().before(Version.V_2_0_0);
+        final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
         // validation was not available prior to 2.x, so to support bwc
         // percolation queries we only ignore_malformed on 2.x created indexes
         if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {

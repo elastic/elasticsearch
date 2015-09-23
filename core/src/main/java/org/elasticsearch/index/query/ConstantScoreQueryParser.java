@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * Parser for constant_score query
  */
-public class ConstantScoreQueryParser extends BaseQueryParser<ConstantScoreQueryBuilder> {
+public class ConstantScoreQueryParser implements QueryParser<ConstantScoreQueryBuilder> {
 
     private static final ParseField INNER_QUERY_FIELD = new ParseField("filter", "query");
 
@@ -56,7 +56,7 @@ public class ConstantScoreQueryParser extends BaseQueryParser<ConstantScoreQuery
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_QUERY_FIELD)) {
-                    query = parseContext.parseInnerFilterToQueryBuilder();
+                    query = parseContext.parseInnerQueryBuilder();
                     queryFound = true;
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[constant_score] query does not support [" + currentFieldName + "]");

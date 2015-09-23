@@ -266,7 +266,7 @@ public class GeohashCellQuery {
         }
     }
 
-    public static class Parser extends BaseQueryParser<Builder> {
+    public static class Parser implements QueryParser<Builder> {
 
         @Inject
         public Parser() {

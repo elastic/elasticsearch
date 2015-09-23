@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * Parser for span_first query
  */
-public class SpanFirstQueryParser extends BaseQueryParser<SpanFirstQueryBuilder> {
+public class SpanFirstQueryParser implements QueryParser<SpanFirstQueryBuilder> {
 
     @Override
     public String[] names() {

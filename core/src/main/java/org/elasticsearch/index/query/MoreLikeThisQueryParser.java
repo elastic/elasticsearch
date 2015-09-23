@@ -33,7 +33,7 @@ import java.util.List;
  *
  * The documents are provided as a set of strings and/or a list of {@link Item}.
  */
-public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBuilder> {
+public class MoreLikeThisQueryParser implements QueryParser<MoreLikeThisQueryBuilder> {
 
     public interface Field {
         ParseField FIELDS = new ParseField("fields");

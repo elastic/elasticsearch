@@ -30,7 +30,7 @@ import java.util.List;
 /**
  * Parser for ids query
  */
-public class IdsQueryParser extends BaseQueryParser<IdsQueryBuilder> {
+public class IdsQueryParser implements QueryParser<IdsQueryBuilder> {
 
     @Override
     public String[] names() {

@@ -21,14 +21,11 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.support.QueryParsers;
-
 import java.io.IOException;
 
-public class FuzzyQueryParser extends BaseQueryParser {
+public class FuzzyQueryParser implements QueryParser<FuzzyQueryBuilder> {
 
     private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("min_similarity");
 
@@ -38,14 +35,14 @@ public class FuzzyQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public FuzzyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "[fuzzy] query malformed, no field");
         }
-        
+
         String fieldName = parser.currentName();
         Object value = null;
 

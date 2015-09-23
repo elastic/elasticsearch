@@ -692,7 +692,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
 
     public void testMaybeFlush() throws Exception {
-        createIndex("test");
+        createIndex("test", settingsBuilder().put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.REQUEST).build());
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService("test");
@@ -711,9 +711,11 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             assertFalse(shard.shouldFlush());
         });
         assertEquals(0, shard.engine().getTranslog().totalOperations());
+        shard.engine().getTranslog().sync();
         long size = shard.engine().getTranslog().sizeInBytes();
         client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, 1000)
-                .put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(size, ByteSizeUnit.BYTES)).build()).get();
+                .put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(size, ByteSizeUnit.BYTES))
+                .build()).get();
         client().prepareDelete("test", "test", "2").get();
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldFlush());

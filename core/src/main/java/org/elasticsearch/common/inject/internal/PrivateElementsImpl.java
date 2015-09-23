@@ -51,7 +51,7 @@ public final class PrivateElementsImpl implements PrivateElements {
     /**
      * lazily instantiated
      */
-    private ImmutableMap<Key<?>, Object> exposedKeysToSources;
+    private Map<Key<?>, Object> exposedKeysToSources;
     private Injector injector;
 
     public PrivateElementsImpl(Object source) {

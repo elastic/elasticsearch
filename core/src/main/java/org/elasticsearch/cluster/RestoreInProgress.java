@@ -112,7 +112,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
     public static class Entry {
         private final State state;
         private final SnapshotId snapshotId;
-        private final ImmutableMap<ShardId, ShardRestoreStatus> shards;
+        private final Map<ShardId, ShardRestoreStatus> shards;
         private final List<String> indices;
 
         /**
@@ -148,7 +148,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
          *
          * @return list of shards
          */
-        public ImmutableMap<ShardId, ShardRestoreStatus> shards() {
+        public Map<ShardId, ShardRestoreStatus> shards() {
             return this.shards;
         }
 

@@ -596,7 +596,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                         for (final SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
                             SnapshotsInProgress.Entry updatedSnapshot = snapshot;
                             if (snapshot.state() == State.STARTED) {
-                                ImmutableMap<ShardId, ShardSnapshotStatus> shards = processWaitingShards(snapshot.shards(), routingTable);
+                                Map<ShardId, ShardSnapshotStatus> shards = processWaitingShards(snapshot.shards(), routingTable);
                                 if (shards != null) {
                                     changed = true;
                                     if (!snapshot.state().completed() && completed(shards.values())) {
@@ -625,7 +625,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         }
     }
 
-    private ImmutableMap<ShardId, ShardSnapshotStatus> processWaitingShards(ImmutableMap<ShardId, ShardSnapshotStatus> snapshotShards, RoutingTable routingTable) {
+    private Map<ShardId, ShardSnapshotStatus> processWaitingShards(Map<ShardId, ShardSnapshotStatus> snapshotShards, RoutingTable routingTable) {
         boolean snapshotChanged = false;
         ImmutableMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableMap.builder();
         for (ImmutableMap.Entry<ShardId, ShardSnapshotStatus> shardEntry : snapshotShards.entrySet()) {
@@ -716,10 +716,10 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param shards list of shard statuses
      * @return list of failed and closed indices
      */
-    private Tuple<Set<String>, Set<String>> indicesWithMissingShards(ImmutableMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards, MetaData metaData) {
+    private Tuple<Set<String>, Set<String>> indicesWithMissingShards(Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards, MetaData metaData) {
         Set<String> missing = new HashSet<>();
         Set<String> closed = new HashSet<>();
-        for (ImmutableMap.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards.entrySet()) {
+        for (Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards.entrySet()) {
             if (entry.getValue().state() == State.MISSING) {
                 if (metaData.hasIndex(entry.getKey().getIndex()) && metaData.index(entry.getKey().getIndex()).getState() == IndexMetaData.State.CLOSE) {
                     closed.add(entry.getKey().getIndex());
@@ -864,7 +864,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 } else {
                     // This snapshot is currently running - stopping shards first
                     waitForSnapshot = true;
-                    ImmutableMap<ShardId, ShardSnapshotStatus> shards;
+                    Map<ShardId, ShardSnapshotStatus> shards;
                     if (snapshot.state() == State.STARTED && snapshot.shards() != null) {
                         // snapshot is currently running - stop started shards
                         ImmutableMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = ImmutableMap.builder();

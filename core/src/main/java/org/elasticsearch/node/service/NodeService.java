@@ -20,6 +20,7 @@
 package org.elasticsearch.node.service;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -41,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  */
@@ -101,7 +103,7 @@ public class NodeService extends AbstractComponent {
     /**
      * Attributes different services in the node can add to be reported as part of the node info (for example).
      */
-    public ImmutableMap<String, String> attributes() {
+    public Map<String, String> attributes() {
         return this.serviceAttributes;
     }
 

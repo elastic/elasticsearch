@@ -19,17 +19,22 @@
 
 package org.elasticsearch.benchmark.common.recycler;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.recycler.AbstractRecyclerC;
 import org.elasticsearch.common.recycler.Recycler;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.common.recycler.Recyclers.*;
+import static org.elasticsearch.common.recycler.Recyclers.concurrent;
+import static org.elasticsearch.common.recycler.Recyclers.concurrentDeque;
+import static org.elasticsearch.common.recycler.Recyclers.deque;
+import static org.elasticsearch.common.recycler.Recyclers.dequeFactory;
+import static org.elasticsearch.common.recycler.Recyclers.locked;
+import static org.elasticsearch.common.recycler.Recyclers.none;
 
 /** Benchmark that tries to measure the overhead of object recycling depending on concurrent access. */
 public class RecyclerBenchmark {
@@ -89,11 +94,11 @@ public class RecyclerBenchmark {
             }
         };
 
-        final ImmutableMap<String, Recycler<Object>> recyclers = ImmutableMap.<String, Recycler<Object>>builder()
-                .put("none", none(c))
-                .put("concurrent-queue", concurrentDeque(c, limit))
-                .put("locked", locked(deque(c, limit)))
-                .put("concurrent", concurrent(dequeFactory(c, limit), Runtime.getRuntime().availableProcessors())).build();
+        Map<String, Recycler<Object>> recyclers = new HashMap<>();
+        recyclers.put("none", none(c));
+        recyclers.put("concurrent-queue", concurrentDeque(c, limit));
+        recyclers.put("locked", locked(deque(c, limit)));
+        recyclers.put("concurrent", concurrent(dequeFactory(c, limit), Runtime.getRuntime().availableProcessors()));
 
         // warmup
         final long start = System.nanoTime();

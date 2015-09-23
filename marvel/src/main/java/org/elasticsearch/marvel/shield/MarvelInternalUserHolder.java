@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.marvel.shield;
 
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.Permission;
@@ -20,7 +22,8 @@ public class MarvelInternalUserHolder {
     static final String[] ROLE_NAMES = new String[] { "__marvel_role" };
 
     public static final Permission.Global.Role ROLE = Permission.Global.Role.builder(ROLE_NAMES[0])
-            .cluster(Privilege.Cluster.action("indices:admin/template/put"))
+            .cluster(Privilege.Cluster.action(PutIndexTemplateAction.NAME))
+            .cluster(Privilege.Cluster.action(GetIndexTemplatesAction.NAME))
 
             // we need all monitoring access
             .cluster(Privilege.Cluster.MONITOR)

@@ -36,7 +36,11 @@ public abstract class Exporter  {
         return false;
     }
 
+    public abstract void start();
+
     public abstract void export(Collection<MarvelDoc> marvelDocs) throws Exception;
+
+    public abstract void stop();
 
     public abstract void close();
 

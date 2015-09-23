@@ -284,8 +284,8 @@ public class SecuredClient implements Client {
     @Inject
     public SecuredClient(Client client, MarvelShieldIntegration shieldIntegration) {
         this.client = client;
-        this.admin = new Admin(client);
         this.shieldIntegration = shieldIntegration;
+        this.admin = new Admin(this.client, this.shieldIntegration);
     }
 
     @Override
@@ -666,16 +666,20 @@ public class SecuredClient implements Client {
 
     static class IndicesAdmin implements IndicesAdminClient {
         private final ElasticsearchClient client;
+        private final MarvelShieldIntegration shieldIntegration;
 
-        public IndicesAdmin(ElasticsearchClient client) {
+        public IndicesAdmin(ElasticsearchClient client, MarvelShieldIntegration shieldIntegration) {
             this.client = client;
+            this.shieldIntegration = shieldIntegration;
         }
 
         public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder> action, Request request) {
+            shieldIntegration.bindInternalMarvelUser(request);
             return this.client.execute(action, request);
         }
 
         public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+            shieldIntegration.bindInternalMarvelUser(request);
             this.client.execute(action, request, listener);
         }
 
@@ -1106,16 +1110,20 @@ public class SecuredClient implements Client {
 
     static class ClusterAdmin implements ClusterAdminClient {
         private final ElasticsearchClient client;
+        private final MarvelShieldIntegration shieldIntegration;
 
-        public ClusterAdmin(ElasticsearchClient client) {
+        public ClusterAdmin(ElasticsearchClient client, MarvelShieldIntegration shieldIntegration) {
             this.client = client;
+            this.shieldIntegration = shieldIntegration;
         }
 
         public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder> action, Request request) {
+            shieldIntegration.bindInternalMarvelUser(request);
             return this.client.execute(action, request);
         }
 
         public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+            shieldIntegration.bindInternalMarvelUser(request);
             this.client.execute(action, request, listener);
         }
 
@@ -1369,9 +1377,9 @@ public class SecuredClient implements Client {
         private final ClusterAdmin clusterAdmin;
         private final IndicesAdmin indicesAdmin;
 
-        public Admin(ElasticsearchClient client) {
-            this.clusterAdmin = new ClusterAdmin(client);
-            this.indicesAdmin = new IndicesAdmin(client);
+        public Admin(ElasticsearchClient client, MarvelShieldIntegration shieldIntegration) {
+            this.clusterAdmin = new ClusterAdmin(client, shieldIntegration);
+            this.indicesAdmin = new IndicesAdmin(client, shieldIntegration);
         }
 
         public ClusterAdminClient cluster() {

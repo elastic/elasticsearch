@@ -48,10 +48,46 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
     @Override
     protected void doStart() {
         exporters = initExporters(settings.getAsSettings(EXPORTERS_SETTING));
+
+        ElasticsearchException exception = null;
+        for (Exporter exporter : exporters) {
+            try {
+                exporter.start();
+            } catch (Exception e) {
+                logger.error("exporter [{}] failed to start", e, exporter.name());
+                if (exception == null) {
+                    exception = new ElasticsearchException("failed to start exporters");
+                }
+                exception.addSuppressed(e);
+            }
+        }
+        if (exception != null) {
+            throw exception;
+        }
     }
 
     @Override
     protected void doStop() {
+        ElasticsearchException exception = null;
+        for (Exporter exporter : exporters) {
+            try {
+                exporter.stop();
+            } catch (Exception e) {
+                logger.error("exporter [{}] failed to stop", e, exporter.name());
+                if (exception == null) {
+                    exception = new ElasticsearchException("failed to stop exporters");
+                }
+                exception.addSuppressed(e);
+            }
+        }
+        if (exception != null) {
+            throw exception;
+        }
+    }
+
+
+    @Override
+    protected void doClose() {
         ElasticsearchException exception = null;
         for (Exporter exporter : exporters) {
             try {
@@ -67,10 +103,6 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
         if (exception != null) {
             throw exception;
         }
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     public Exporter getExporter(String name) {
@@ -109,8 +141,10 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
                 .put(updatedSettings)
                 .build());
         existing.close(logger);
+        exporters.start(logger);
     }
 
+    // TODO only rebuild the exporters that need to be updated according to settings
     CurrentExporters initExporters(Settings settings) {
         Set<String> singletons = new HashSet<>();
         Map<String, Exporter> exporters = new HashMap<>();
@@ -182,6 +216,16 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
 
         public Exporter get(String name) {
             return exporters.get(name);
+        }
+
+        void start(ESLogger logger) {
+            for (Exporter exporter : exporters.values()) {
+                try {
+                    exporter.start();
+                } catch (Exception e) {
+                    logger.error("failed to start exporter [{}]", e, exporter.name());
+                }
+            }
         }
 
         void close(ESLogger logger) {

@@ -73,10 +73,10 @@ public class HttpExporter extends Exporter {
     public static final String DEFAULT_INDEX_NAME_TIME_FORMAT = "YYYY.MM.dd";
 
     /** Minimum supported version of the remote template **/
-    static final Version MIN_SUPPORTED_TEMPLATE_VERSOIN = Version.V_2_0_0_beta2;
+    public static final Version MIN_SUPPORTED_TEMPLATE_VERSION = Version.V_2_0_0_beta2;
 
     /** Minimum supported version of the remote marvel cluster **/
-    static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_2_0_0_beta2;
+    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_2_0_0_beta2;
 
     volatile String[] hosts;
     final TimeValue connectionTimeout;
@@ -151,6 +151,16 @@ public class HttpExporter extends Exporter {
         logger.debug("initialized with hosts [{}], index prefix [{}], index time format [{}], template version [{}]",
                 Strings.arrayToCommaDelimitedString(hosts),
                 MarvelSettings.MARVEL_INDICES_PREFIX, indexTimeFormat, templateVersion);
+    }
+
+    @Override
+    public void start() {
+
+    }
+
+    @Override
+    public void stop() {
+
     }
 
     @Override
@@ -466,11 +476,11 @@ public class HttpExporter extends Exporter {
                     logger.warn("marvel template version cannot be found: template will be updated to version [{}]", templateVersion);
                 } else {
 
-                    if (remoteVersion.before(MIN_SUPPORTED_TEMPLATE_VERSOIN)) {
+                    if (remoteVersion.before(MIN_SUPPORTED_TEMPLATE_VERSION)) {
                         logger.error("marvel template version [{}] is below the minimum compatible version [{}] on host [{}]: "
                                         + "please manually update the marvel template to a more recent version"
                                         + "and delete the current active marvel index (don't forget to back up it first if needed)",
-                                remoteVersion, MIN_SUPPORTED_TEMPLATE_VERSOIN, host);
+                                remoteVersion, MIN_SUPPORTED_TEMPLATE_VERSION, host);
                         return false;
                     }
 

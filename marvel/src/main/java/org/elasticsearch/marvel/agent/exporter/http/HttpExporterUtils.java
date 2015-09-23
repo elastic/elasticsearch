@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
 public class HttpExporterUtils {
 
     public static final String MARVEL_TEMPLATE_FILE = "/marvel_index_template.json";
-    static final String MARVEL_VERSION_FIELD = "marvel_version";
+    public static final String MARVEL_VERSION_FIELD = "marvel_version";
     static final String VERSION_FIELD = "number";
 
     public static URL parseHostWithPath(String host, String path) throws URISyntaxException, MalformedURLException {

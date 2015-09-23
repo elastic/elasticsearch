@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
+import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.shield.MarvelSettingsFilter;
 import org.elasticsearch.marvel.shield.SecuredClient;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -38,11 +39,14 @@ public class ExportersTests extends ESTestCase {
     public void init() throws Exception {
         factories = new HashMap<>();
 
+        SecuredClient securedClient = mock(SecuredClient.class);
+        when(securedClient.settings()).thenReturn(Settings.EMPTY);
+        clusterService = mock(ClusterService.class);
+
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(mock(SecuredClient.class)));
+        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(securedClient, clusterService, mock(RendererRegistry.class)));
 
         settingsFilter = mock(MarvelSettingsFilter.class);
-        clusterService = mock(ClusterService.class);
         nodeSettingsService = mock(NodeSettingsService.class);
         exporters = new Exporters(Settings.EMPTY, factories, settingsFilter, clusterService, nodeSettingsService);
     }
@@ -239,9 +243,10 @@ public class ExportersTests extends ESTestCase {
         exporters.export(docsList);
 
         verify(exporters.getExporter("_name0"), times(1)).masterOnly();
+        verify(exporters.getExporter("_name0"), times(1)).start();
         verify(exporters.getExporter("_name0"), times(1)).export(docsList);
         verify(exporters.getExporter("_name1"), times(1)).masterOnly();
-        verifyNoMoreInteractions(exporters.getExporter("_name1"));
+        verify(exporters.getExporter("_name1"), times(1)).start();
     }
 
     static class TestFactory extends Exporter.Factory<TestFactory.TestExporter> {
@@ -262,7 +267,17 @@ public class ExportersTests extends ESTestCase {
             }
 
             @Override
+            public void start() {
+
+            }
+
+            @Override
             public void export(Collection<MarvelDoc> marvelDocs) throws Exception {
+            }
+
+            @Override
+            public void stop() {
+
             }
 
             @Override

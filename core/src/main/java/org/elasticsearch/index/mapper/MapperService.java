@@ -165,6 +165,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
+    @Override
     public void close() {
         for (DocumentMapper documentMapper : mappers.values()) {
             documentMapper.close();
@@ -290,7 +291,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     Set<String> parentTypesCopy = new HashSet<String>();
                     parentTypesCopy.addAll(parentTypes);
                     parentTypesCopy.add(mapper.parentFieldMapper().type());
-                    parentTypes = unmodifiableSet(parentTypes);
+                    parentTypes = unmodifiableSet(parentTypesCopy);
                 }
                 assert assertSerialization(mapper);
                 return mapper;

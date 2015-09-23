@@ -695,15 +695,19 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             XContentParser completeSortParser = null;
             try {
                 XContentBuilder completeSortBuilder = XContentFactory.jsonBuilder();
-                completeSortBuilder.startArray();
+                completeSortBuilder.startObject();
+                completeSortBuilder.startArray("sort");
                 for (BytesReference sort : source.sorts()) {
                     XContentParser parser = XContentFactory.xContent(sort).createParser(sort);
                     parser.nextToken();
                     completeSortBuilder.copyCurrentStructure(parser);
                 }
                 completeSortBuilder.endArray();
+                completeSortBuilder.endObject();
                 BytesReference completeSortBytes = completeSortBuilder.bytes();
                 completeSortParser = XContentFactory.xContent(completeSortBytes).createParser(completeSortBytes);
+                completeSortParser.nextToken();
+                completeSortParser.nextToken();
                 completeSortParser.nextToken();
                 this.elementParsers.get("sort").parse(completeSortParser, context);
             } catch (Exception e) {

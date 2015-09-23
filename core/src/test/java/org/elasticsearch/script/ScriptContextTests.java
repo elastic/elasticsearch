@@ -20,24 +20,19 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.ContextAndHeaderHolder;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
-public class CustomScriptContextTests extends ESTestCase {
+public class ScriptContextTests extends ESTestCase {
 
     private static final String PLUGIN_NAME = "testplugin";
-    private static final String SCRIPT_LANG = "customlang";
 
     ScriptService makeScriptService() throws Exception {
         Settings settings = Settings.builder()
@@ -45,7 +40,7 @@ public class CustomScriptContextTests extends ESTestCase {
             // no file watching, so we don't need a ResourceWatcherService
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
             .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", false)
-            .put("script.engine." + SCRIPT_LANG + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", false)
+            .put("script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", false)
             .build();
         Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));
         List<ScriptContext.Plugin> customContexts = Arrays.asList(
@@ -60,11 +55,11 @@ public class CustomScriptContextTests extends ESTestCase {
         ScriptService scriptService = makeScriptService();
         for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
             try {
-                Script script = new Script("1", scriptType, SCRIPT_LANG, null);
+                Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
                 scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"), contextAndHeaders);
                 fail("script compilation should have been rejected");
             } catch (ScriptException e) {
-                assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + SCRIPT_LANG + "] are disabled"));
+                assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
             }
         }
     }
@@ -72,12 +67,12 @@ public class CustomScriptContextTests extends ESTestCase {
     public void testCustomScriptContextSettings() throws Exception {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         ScriptService scriptService = makeScriptService();
-        Script script = new Script("1", ScriptService.ScriptType.INLINE, SCRIPT_LANG, null);
+        Script script = new Script("1", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, null);
         try {
             scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"), contextAndHeaders);
             fail("script compilation should have been rejected");
         } catch (ScriptException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [inline], operation [" + PLUGIN_NAME + "_custom_exp_disabled_op] and lang [" + SCRIPT_LANG + "] are disabled"));
+            assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [inline], operation [" + PLUGIN_NAME + "_custom_exp_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
         }
 
         // still works for other script contexts
@@ -91,7 +86,7 @@ public class CustomScriptContextTests extends ESTestCase {
         ScriptService scriptService = makeScriptService();
         for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
             try {
-                Script script = new Script("1", scriptType, SCRIPT_LANG, null);
+                Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
                 scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"), contextAndHeaders);
                 fail("script compilation should have been rejected");
             } catch (IllegalArgumentException e) {
@@ -111,7 +106,7 @@ public class CustomScriptContextTests extends ESTestCase {
         ScriptService scriptService = makeScriptService();
         for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
             try {
-                Script script = new Script("1", scriptType, SCRIPT_LANG, null);
+                Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
                 scriptService.compile(script, context, contextAndHeaders);
                 fail("script compilation should have been rejected");
             } catch (IllegalArgumentException e) {
@@ -120,42 +115,4 @@ public class CustomScriptContextTests extends ESTestCase {
         }
     }
 
-    static class MockScriptEngine implements ScriptEngineService {
-        @Override
-        public String[] types() {
-            return new String[] {SCRIPT_LANG};
-        }
-        @Override
-        public String[] extensions() {
-            return types();
-        }
-        @Override
-        public boolean sandboxed() {
-            return true;
-        }
-        @Override
-        public Object compile(String script) {
-            return Integer.parseInt(script);
-        }
-        @Override
-        public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
-            return null;
-        }
-        @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-            return null;
-        }
-        @Override
-        public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-            return null;
-        }
-        @Override
-        public Object unwrap(Object value) {
-            return null;
-        }
-        @Override
-        public void scriptRemoved(@Nullable CompiledScript script) {}
-        @Override
-        public void close() throws IOException {}
-    }
 }

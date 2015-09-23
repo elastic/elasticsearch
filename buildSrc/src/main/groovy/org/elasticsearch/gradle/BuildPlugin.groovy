@@ -15,30 +15,19 @@ class BuildPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
-        //getClass().getResource('/forbidden/core-signatures.txt').openConnection().setDefaultUseCaches(false)
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomizedtesting')
         project.pluginManager.apply('de.thetaphi.forbiddenapis')
-        // TODO: license checker
 
+        Task precommit = configurePrecommit(project)
         Closure testConfig = createSharedTestConfig(project)
         RandomizedTestingTask test = configureTest(project.tasks, testConfig)
         RandomizedTestingTask integTest = configureIntegTest(project.tasks, getIntegTestClass(), test, testConfig)
 
-        List<Task> precommitTasks = new ArrayList<>()
-        precommitTasks.add(configureForbiddenApis(project))
-        precommitTasks.add(configureForbiddenPatterns(project.tasks))
-
-        Map precommitOptions = [
-            name: 'precommit',
-            group: JavaBasePlugin.VERIFICATION_GROUP,
-            description: 'Runs all non test checks, useful for running before committing',
-            dependsOn: precommitTasks
-        ]
-        Task precommit = project.tasks.create(precommitOptions)
         test.mustRunAfter(precommit)
         integTest.mustRunAfter(precommit)
-        project.tasks.getByName('check').dependsOn(precommit, integTest)
+        project.tasks.findByName('check').dependsOn(precommit, integTest) // test is already a dep
+        println 'CHECK: ' + project.tasks.findByName('check').dependsOn
     }
 
     // overridable by subclass plugins
@@ -141,6 +130,20 @@ class BuildPlugin implements Plugin<Project> {
         return integTest
     }
 
+    static Task configurePrecommit(Project project) {
+        List precommitTasks = [
+                configureForbiddenApis(project),
+                configureForbiddenPatterns(project.tasks)]
+
+        Map precommitOptions = [
+                name: 'precommit',
+                group: JavaBasePlugin.VERIFICATION_GROUP,
+                description: 'Runs all non test checks, useful for running before committing.',
+                dependsOn: precommitTasks
+        ]
+        return project.tasks.create(precommitOptions)
+    }
+
     static Task configureForbiddenApis(Project project) {
         project.forbiddenApis {
             internalRuntimeForbidden = true
@@ -158,7 +161,9 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.findByName('forbiddenApisTest').configure {
             signaturesFiles += project.files(new File(getClass().getResource('/forbidden/test-signatures.txt').toURI()))
         }
-        return project.tasks.findByName('forbiddenApis')
+        Task forbiddenApis = project.tasks.findByName('forbiddenApis')
+        forbiddenApis.group = "" // clear group, so this does not show up under verification tasks
+        return forbiddenApis
     }
 
     static Task configureForbiddenPatterns(TaskContainer tasks) {

@@ -90,18 +90,6 @@ public class HttpExporterTests extends ESIntegTestCase {
         assertThat(response.getHits().totalHits(), is(1L));
     }
 
-//    TODO not sure what this tests... in any case... I'm pretty sure we can remove it
-//    @Test
-//    public void testHttpServerOff() {
-//        Settings.Builder builder = Settings.builder()
-//                .put(MarvelSettings.STARTUP_DELAY, "200m")
-//                .put(Node.HTTP_ENABLED, false);
-//        internalCluster().startNode(builder);
-//        HttpExporter httpEsExporter = getEsExporter();
-//        logger.info("trying exporting despite of no target");
-//        httpEsExporter.export(Collections.singletonList(newRandomMarvelDoc()));
-//    }
-//
     @Test
     public void testTemplateAdditionDespiteOfLateClusterForming() throws Exception {
 

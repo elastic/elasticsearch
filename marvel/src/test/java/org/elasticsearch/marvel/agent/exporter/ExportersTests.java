@@ -6,6 +6,7 @@
 package org.elasticsearch.marvel.agent.exporter;
 
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
@@ -16,13 +17,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.*;
 
 /**
  *
@@ -50,9 +49,9 @@ public class ExportersTests extends ESTestCase {
 
     @Test
     public void testInitExporters_Default() throws Exception {
-        Exporter.Factory factory = spy(new TestFactory("_type", true));
+        Exporter.Factory factory = new TestFactory("_type", true);
         factories.put("_type", factory);
-        Exporters.InternalExporters internalExporters = exporters.initExporters(Settings.builder()
+        Exporters.CurrentExporters internalExporters = exporters.initExporters(Settings.builder()
                 .build());
 
         assertThat(internalExporters, notNullValue());
@@ -64,9 +63,9 @@ public class ExportersTests extends ESTestCase {
 
     @Test
     public void testInitExporters_Single() throws Exception {
-        Exporter.Factory factory = spy(new TestFactory("_type", true));
+        Exporter.Factory factory = new TestFactory("_type", true);
         factories.put("_type", factory);
-        Exporters.InternalExporters internalExporters = exporters.initExporters(Settings.builder()
+        Exporters.CurrentExporters internalExporters = exporters.initExporters(Settings.builder()
                 .put("_name.type", "_type")
                 .build());
 
@@ -81,9 +80,9 @@ public class ExportersTests extends ESTestCase {
 
     @Test
     public void testInitExporters_Single_Disabled() throws Exception {
-        Exporter.Factory factory = spy(new TestFactory("_type", true));
+        Exporter.Factory factory = new TestFactory("_type", true);
         factories.put("_type", factory);
-        Exporters.InternalExporters internalExporters = exporters.initExporters(Settings.builder()
+        Exporters.CurrentExporters internalExporters = exporters.initExporters(Settings.builder()
                 .put("_name.type", "_type")
                 .put("_name.enabled", false)
                 .build());
@@ -113,10 +112,10 @@ public class ExportersTests extends ESTestCase {
     }
 
     @Test
-    public void testInitExporters_Mutliple_SameType() throws Exception {
-        Exporter.Factory factory = spy(new TestFactory("_type", false));
+    public void testInitExporters_Multiple_SameType() throws Exception {
+        Exporter.Factory factory = new TestFactory("_type", false);
         factories.put("_type", factory);
-        Exporters.InternalExporters internalExporters = exporters.initExporters(Settings.builder()
+        Exporters.CurrentExporters internalExporters = exporters.initExporters(Settings.builder()
                 .put("_name0.type", "_type")
                 .put("_name1.type", "_type")
                 .build());
@@ -135,13 +134,114 @@ public class ExportersTests extends ESTestCase {
     }
 
     @Test(expected = SettingsException.class)
-    public void testInitExporters_Mutliple_SameType_Singletons() throws Exception {
-        Exporter.Factory factory = spy(new TestFactory("_type", true));
+    public void testInitExporters_Multiple_SameType_Singletons() throws Exception {
+        Exporter.Factory factory = new TestFactory("_type", true);
         factories.put("_type", factory);
         exporters.initExporters(Settings.builder()
                 .put("_name0.type", "_type")
                 .put("_name1.type", "_type")
                 .build());
+    }
+
+    @Test
+    public void testSettingsUpdate() throws Exception {
+        Exporter.Factory factory = spy(new TestFactory("_type", false));
+        factories.put("_type", factory);
+        TestNodeSettingsService nodeSettingsService = new TestNodeSettingsService();
+
+        final AtomicReference<Settings> settingsHolder = new AtomicReference<>();
+
+        exporters = new Exporters(Settings.builder()
+                .put("marvel.agent.exporters._name0.type", "_type")
+                .put("marvel.agent.exporters._name1.type", "_type")
+                .build(), factories, settingsFilter, clusterService, nodeSettingsService) {
+            @Override
+            CurrentExporters initExporters(Settings settings) {
+                settingsHolder.set(settings);
+                return super.initExporters(settings);
+            }
+        };
+        exporters.start();
+
+        assertThat(settingsHolder.get(), notNullValue());
+        Map<String, String> settings = settingsHolder.get().getAsMap();
+        assertThat(settings.size(), is(2));
+        assertThat(settings, hasEntry("_name0.type", "_type"));
+        assertThat(settings, hasEntry("_name1.type", "_type"));
+
+        Settings update = Settings.builder()
+                .put("marvel.agent.exporters._name0.foo", "bar")
+                .put("marvel.agent.exporters._name1.foo", "bar")
+                .build();
+        nodeSettingsService.updateSettings(update);
+
+        assertThat(settingsHolder.get(), notNullValue());
+        settings = settingsHolder.get().getAsMap();
+        assertThat(settings.size(), is(4));
+        assertThat(settings, hasEntry("_name0.type", "_type"));
+        assertThat(settings, hasEntry("_name0.foo", "bar"));
+        assertThat(settings, hasEntry("_name1.type", "_type"));
+        assertThat(settings, hasEntry("_name1.foo", "bar"));
+    }
+
+    @Test
+    public void testExport_OnMaster() throws Exception {
+        Exporter.Factory factory = new MockFactory("mock", false);
+        Exporter.Factory masterOnlyFactory = new MockFactory("mock_master_only", true);
+        factories.put("mock", factory);
+        factories.put("mock_master_only", masterOnlyFactory);
+        Exporters exporters = new Exporters(Settings.builder()
+                .put("marvel.agent.exporters._name0.type", "mock")
+                .put("marvel.agent.exporters._name1.type", "mock_master_only")
+                .build(), factories, settingsFilter, clusterService, nodeSettingsService);
+        exporters.start();
+
+        DiscoveryNode localNode = mock(DiscoveryNode.class);
+        when(localNode.masterNode()).thenReturn(true);
+        when(clusterService.localNode()).thenReturn(localNode);
+
+        MarvelDoc doc = mock(MarvelDoc.class);
+        MarvelDoc[] docs = new MarvelDoc[randomIntBetween(1, 3)];
+        for (int i = 0; i < docs.length; i++) {
+            docs[i] = doc;
+        }
+        List<MarvelDoc> docsList = Arrays.asList(docs);
+        exporters.export(docsList);
+
+        verify(exporters.getExporter("_name0"), times(1)).masterOnly();
+        verify(exporters.getExporter("_name0"), times(1)).export(docsList);
+        verify(exporters.getExporter("_name1"), times(1)).masterOnly();
+        verify(exporters.getExporter("_name1"), times(1)).export(docsList);
+    }
+
+    @Test
+    public void testExport_NotOnMaster() throws Exception {
+        Exporter.Factory factory = new MockFactory("mock", false);
+        Exporter.Factory masterOnlyFactory = new MockFactory("mock_master_only", true);
+        factories.put("mock", factory);
+        factories.put("mock_master_only", masterOnlyFactory);
+        Exporters exporters = new Exporters(Settings.builder()
+                .put("marvel.agent.exporters._name0.type", "mock")
+                .put("marvel.agent.exporters._name1.type", "mock_master_only")
+                .build(), factories, settingsFilter, clusterService, nodeSettingsService);
+        exporters.start();
+
+        DiscoveryNode localNode = mock(DiscoveryNode.class);
+        when(localNode.masterNode()).thenReturn(false);
+        when(clusterService.localNode()).thenReturn(localNode);
+
+        MarvelDoc doc = mock(MarvelDoc.class);
+        MarvelDoc[] docs = new MarvelDoc[randomIntBetween(1, 3)];
+        for (int i = 0; i < docs.length; i++) {
+            docs[i] = doc;
+        }
+        List<MarvelDoc> docsList = Arrays.asList(docs);
+        exporters.export(docsList);
+
+        verify(exporters.getExporter("_name0"), times(1)).masterOnly();
+        verify(exporters.getExporter("_name0"), times(1)).export(docsList);
+        verify(exporters.getExporter("_name1"), times(1)).masterOnly();
+        verifyNoMoreInteractions(exporters.getExporter("_name1"));
     }
 
     static class TestFactory extends Exporter.Factory<TestFactory.TestExporter> {
@@ -167,6 +267,45 @@ public class ExportersTests extends ESTestCase {
 
             @Override
             public void close() {
+            }
+        }
+    }
+
+    static class MockFactory extends Exporter.Factory<Exporter> {
+
+        private final boolean masterOnly;
+
+        public MockFactory(String type, boolean masterOnly) {
+            super(type, false);
+            this.masterOnly = masterOnly;
+        }
+
+        @Override
+        public Exporter create(Exporter.Config config) {
+            Exporter exporter = mock(Exporter.class);
+            when(exporter.type()).thenReturn(type());
+            when(exporter.name()).thenReturn(config.name());
+            when(exporter.masterOnly()).thenReturn(masterOnly);
+            return exporter;
+        }
+    }
+
+    static class TestNodeSettingsService extends NodeSettingsService {
+
+        private final List<Listener> listeners = new ArrayList<>();
+
+        public TestNodeSettingsService() {
+            super(Settings.EMPTY);
+        }
+
+        @Override
+        public void addListener(Listener listener) {
+            listeners.add(listener);
+        }
+
+        public void updateSettings(Settings settings) {
+            for (Listener listener : listeners) {
+                listener.onRefreshSettings(settings);
             }
         }
     }

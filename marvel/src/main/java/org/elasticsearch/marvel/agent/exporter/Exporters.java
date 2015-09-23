@@ -31,7 +31,7 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
     private final MarvelSettingsFilter settingsFilter;
     private final ClusterService clusterService;
 
-    private volatile InternalExporters exporters = InternalExporters.EMPTY;
+    private volatile CurrentExporters exporters = CurrentExporters.EMPTY;
 
     @Inject
     public Exporters(Settings settings, Map<String, Exporter.Factory> factories,
@@ -99,7 +99,7 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
 
     @Override
     public void onRefreshSettings(Settings settings) {
-        InternalExporters existing = exporters;
+        CurrentExporters existing = exporters;
         Settings updatedSettings = settings.getAsSettings(EXPORTERS_SETTING);
         if (updatedSettings.names().isEmpty()) {
             return;
@@ -111,7 +111,7 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
         existing.close(logger);
     }
 
-    InternalExporters initExporters(Settings settings) {
+    CurrentExporters initExporters(Settings settings) {
         Set<String> singletons = new HashSet<>();
         Map<String, Exporter> exporters = new HashMap<>();
         boolean hasDisabled = false;
@@ -156,21 +156,21 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
             exporters.put(config.name(), factories.get(LocalExporter.TYPE).create(config));
         }
 
-        return new InternalExporters(settings, exporters);
+        return new CurrentExporters(settings, exporters);
     }
 
     public static void registerDynamicSettings(ClusterModule clusterModule) {
         clusterModule.registerClusterDynamicSetting(EXPORTERS_SETTING + "*", Validator.EMPTY);
     }
 
-    static class InternalExporters implements Iterable<Exporter> {
+    static class CurrentExporters implements Iterable<Exporter> {
 
-        static final InternalExporters EMPTY = new InternalExporters(Settings.EMPTY, Collections.emptyMap());
+        static final CurrentExporters EMPTY = new CurrentExporters(Settings.EMPTY, Collections.emptyMap());
 
         final Settings settings;
         final Map<String, Exporter> exporters;
 
-        public InternalExporters(Settings settings, Map<String, Exporter> exporters) {
+        public CurrentExporters(Settings settings, Map<String, Exporter> exporters) {
             this.settings = settings;
             this.exporters = exporters;
         }

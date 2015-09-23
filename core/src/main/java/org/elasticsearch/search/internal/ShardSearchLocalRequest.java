@@ -174,7 +174,9 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
-        source = SearchSourceBuilder.PROTOTYPE.readFrom(in);
+        if (in.readBoolean()) {
+            source = SearchSourceBuilder.PROTOTYPE.readFrom(in);
+        }
         types = in.readStringArray();
         filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
@@ -195,7 +197,13 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        source.writeTo(out);
+        if (source == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            source.writeTo(out);
+
+        }
         out.writeStringArray(types);
         out.writeStringArrayNullable(filteringAliases);
         if (!asKey) {

@@ -45,7 +45,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
@@ -319,7 +318,7 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
                 fetchSourceContext = new FetchSourceContext(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20));
                 break;
             case 3:
-                fetchSourceContext = new FetchSourceContext(randomBoolean(), includes, excludes, randomBoolean());
+                fetchSourceContext = new FetchSourceContext(true, includes, excludes, randomBoolean());
                 break;
             case 4:
                 fetchSourceContext = new FetchSourceContext(includes);
@@ -433,6 +432,7 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
 
     protected SearchSourceBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
         XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
+        System.out.println(queryAsString);
         QueryParseContext context = createParseContext();
         context.reset(parser);
         context.parseFieldMatcher(matcher);

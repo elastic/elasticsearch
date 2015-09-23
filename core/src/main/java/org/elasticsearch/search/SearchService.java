@@ -685,7 +685,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 context.queryBoost(indexBoost);
             }
         }
-        context.parsedQuery(context.queryParserService().parse(source.query()));
+        if (source.query() != null) {
+            context.parsedQuery(context.queryParserService().parse(source.query()));
+        }
         if (source.postFilter() != null) {
             context.parsedPostFilter(context.queryParserService().parse(source.postFilter()));
         }

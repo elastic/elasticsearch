@@ -21,15 +21,10 @@ package org.elasticsearch.action.count;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
-
-import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -74,29 +69,19 @@ public class CountRequestTests extends ESTestCase {
         assertThat(searchRequest.types(), equalTo(countRequest.types()));
         assertThat(searchRequest.routing(), equalTo(countRequest.routing()));
         assertThat(searchRequest.preference(), equalTo(countRequest.preference()));
-        BytesArray array = new BytesArray(XContentHelper.toString(searchRequest.source()));
-        Map<String, Object> sourceMap = XContentHelper.convertToMap(array, false).v2();
-        int count = 1;
-        assertThat(sourceMap.get("size"), equalTo(0));
+        SearchSourceBuilder source = searchRequest.source();
+        assertThat(source.size(), equalTo(0));
         if (querySet) {
-            count++;
-            assertThat(sourceMap.get("query"), notNullValue());
+            assertThat(source.query(), notNullValue());
         } else {
-            assertNull(sourceMap.get("query"));
+            assertNull(source.query());
         }
         if (countRequest.minScore() == CountRequest.DEFAULT_MIN_SCORE) {
-            assertThat(sourceMap.get("min_score"), nullValue());
+            assertThat(source.minScore(), nullValue());
         } else {
-            assertThat(((Number)sourceMap.get("min_score")).floatValue(), equalTo(countRequest.minScore()));
-            count++;
+            assertThat(source.minScore(), equalTo(countRequest.minScore()));
         }
-        if (countRequest.terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER) {
-            assertThat(sourceMap.get("terminate_after"), nullValue());
-        } else {
-            assertThat(sourceMap.get("terminate_after"), equalTo(countRequest.terminateAfter()));
-            count++;
-        }
-        assertThat(sourceMap.toString(), sourceMap.size(), equalTo(count));
+        assertThat(source.terminateAfter(), equalTo(countRequest.terminateAfter()));
     }
 
     private static String[] randomStringArray() {

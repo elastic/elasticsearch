@@ -23,12 +23,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -334,8 +331,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
-
-        source = SearchSourceBuilder.PROTOTYPE.readFrom(in);
+        if (in.readBoolean()) {
+            source = SearchSourceBuilder.PROTOTYPE.readFrom(in);
+        }
 
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -363,7 +361,12 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        source.writeTo(out);
+        if (source == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            source.writeTo(out);
+        }
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);

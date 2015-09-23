@@ -578,7 +578,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 BytesReference run = (BytesReference) executable.run();
                 try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
                     // NOCOMMIT this override the source entirely
-                    request.source(SearchSourceBuilder.PROTOTYPE.fromXContent(parser, new QueryParseContext(indexService.queryParserService().indicesQueriesRegistry())));
+                    QueryParseContext queryParseContext = new QueryParseContext(indexService.queryParserService().indicesQueriesRegistry());
+                    queryParseContext.reset(parser);
+                    request.source(SearchSourceBuilder.PROTOTYPE.fromXContent(parser, queryParseContext));
                 }
             }
             parseSource(context, request.source());
@@ -776,15 +778,19 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             XContentParser completeRescoreParser = null;
             try {
                 XContentBuilder completeRescoreBuilder = XContentFactory.jsonBuilder();
-                completeRescoreBuilder.startArray();
+                completeRescoreBuilder.startObject();
+                completeRescoreBuilder.startArray("rescore");
                 for (BytesReference rescore : source.rescores()) {
                     XContentParser parser = XContentFactory.xContent(rescore).createParser(rescore);
                     parser.nextToken();
                     completeRescoreBuilder.copyCurrentStructure(parser);
                 }
                 completeRescoreBuilder.endArray();
+                completeRescoreBuilder.endObject();
                 BytesReference completeRescoreBytes = completeRescoreBuilder.bytes();
                 completeRescoreParser = XContentFactory.xContent(completeRescoreBytes).createParser(completeRescoreBytes);
+                completeRescoreParser.nextToken();
+                completeRescoreParser.nextToken();
                 completeRescoreParser.nextToken();
                 this.elementParsers.get("rescore").parse(completeRescoreParser, context);
             } catch (Exception e) {

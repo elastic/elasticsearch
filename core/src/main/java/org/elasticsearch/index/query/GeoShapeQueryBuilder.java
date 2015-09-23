@@ -432,7 +432,9 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             }
         }
         builder.relation = ShapeRelation.DISJOINT.readFrom(in);
-        builder.strategy = SpatialStrategy.RECURSIVE.readFrom(in);
+        if (in.readBoolean()) {
+            builder.strategy = SpatialStrategy.RECURSIVE.readFrom(in);
+        }
         return builder;
     }
 
@@ -450,7 +452,11 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             out.writeOptionalString(indexedShapePath);
         }
         relation.writeTo(out);
-        strategy.writeTo(out);
+        boolean hasStrategy = strategy != null;
+        out.writeBoolean(hasStrategy);
+        if (hasStrategy) {
+            strategy.writeTo(out);
+        }
     }
 
     @Override

@@ -6,14 +6,18 @@
 package org.elasticsearch.shield.tribe;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
+
+import java.util.Arrays;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -25,11 +29,13 @@ import static org.hamcrest.CoreMatchers.containsString;
 public class TribeShieldLoadedTests extends ESTestCase {
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13212")
+    // we really need to support loading plugins at the node level this way which should flow the plugins down to the tribe service, right now it doesnt!
     public void testShieldLoadedOnBothTribeNodeAndClients() {
         //all good if the plugin is loaded on both tribe node and tribe clients, no matter how it gets loaded (manually or from classpath)
         Settings.Builder builder = defaultSettings();
 
-        try (Node node = NodeBuilder.nodeBuilder().settings(builder.build()).build()) {
+        try (Node node = new MockNode(builder.build(), Version.CURRENT, Arrays.asList(ShieldPlugin.class, LicensePlugin.class))) {
             node.start();
         }
     }
@@ -66,13 +72,15 @@ public class TribeShieldLoadedTests extends ESTestCase {
     private static Settings.Builder defaultSettings() {
         return addTribeSettings(Settings.builder()
                 .put("node.name", "tribe_node")
-                .put("path.home", createTempDir()), "t1");
+                .put("path.home", createTempDir())
+                .putArray("plugin.mandatory", ShieldPlugin.NAME, LicensePlugin.NAME), "t1");
     }
 
     private static Settings.Builder addTribeSettings(Settings.Builder settingsBuilder, String tribe) {
         String tribePrefix = "tribe." + tribe + ".";
         return settingsBuilder.put(tribePrefix + "cluster.name", "non_existing_cluster")
                 .put(tribePrefix + "discovery.type", "local")
-                .put(tribePrefix + "discovery.initial_state_timeout", 0);
+                .put(tribePrefix + "discovery.initial_state_timeout", 0)
+                .putArray(tribePrefix + "plugin.mandatory", ShieldPlugin.NAME, LicensePlugin.NAME);
     }
 }

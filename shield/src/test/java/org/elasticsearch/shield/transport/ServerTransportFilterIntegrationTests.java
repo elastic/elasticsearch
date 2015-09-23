@@ -30,7 +30,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.createFolder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -139,8 +138,9 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
                 .put("discovery.initial_state_timeout", "2s")
                 .put("path.home", createTempDir())
+                .put("node.client", true)
                 .build();
-        try (Node node = nodeBuilder().client(true).settings(nodeSettings).build()) {
+        try (Node node = new MockNode(nodeSettings, Version.CURRENT, Arrays.asList(ShieldPlugin.class, licensePluginClass()))) {
             node.start();
 
             // assert that node is not connected by waiting for the timeout

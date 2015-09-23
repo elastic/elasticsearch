@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
+import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -22,7 +23,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.*;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
-public class MarvelSettingsTests extends ESIntegTestCase {
+public class MarvelSettingsTests extends MarvelIntegTestCase {
 
     private final TimeValue startUp = randomParsedTimeValue();
     private final TimeValue interval = randomParsedTimeValue();
@@ -42,16 +43,6 @@ public class MarvelSettingsTests extends ESIntegTestCase {
                 .put(Node.HTTP_ENABLED, true)
                 .put(marvelSettings())
                 .build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LicensePlugin.class, MarvelPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
     }
 
     private Settings marvelSettings() {

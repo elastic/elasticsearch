@@ -30,37 +30,6 @@ public class HttpExporterUtils {
     static final String MARVEL_VERSION_FIELD = "marvel_version";
     static final String VERSION_FIELD = "number";
 
-    public static String[] extractHostsFromAddress(BoundTransportAddress boundAddress, ESLogger logger) {
-        if (boundAddress == null || boundAddress.boundAddresses() == null) {
-            logger.debug("local http server is not yet started. can't connect");
-            return null;
-        }
-
-        TransportAddress[] boundAddresses = boundAddress.boundAddresses();
-        List<String> hosts = new ArrayList<>(boundAddresses.length);
-        for (TransportAddress transportAddress : boundAddresses) {
-            if (transportAddress.uniqueAddressTypeId() == 1) {
-                InetSocketTransportAddress address = (InetSocketTransportAddress) transportAddress;
-                InetSocketAddress inetSocketAddress = address.address();
-                InetAddress inetAddress = inetSocketAddress.getAddress();
-                if (inetAddress == null) {
-                    logger.error("failed to extract the ip address of from transport address [{}]", transportAddress);
-                    continue;
-                }
-                hosts.add(NetworkAddress.formatAddress(inetSocketAddress));
-            } else {
-                logger.error("local node http transport is not bound via a InetSocketTransportAddress. address is [{}] with typeId [{}]", transportAddress, transportAddress.uniqueAddressTypeId());
-            }
-        }
-
-        if (hosts.isEmpty()) {
-            logger.error("could not extract any hosts from bound address. can't connect");
-            return null;
-        }
-
-        return hosts.toArray(new String[hosts.size()]);
-    }
-
     public static URL parseHostWithPath(String host, String path) throws URISyntaxException, MalformedURLException {
 
         if (!host.contains("://")) {

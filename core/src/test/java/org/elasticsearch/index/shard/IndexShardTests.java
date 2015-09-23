@@ -761,6 +761,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         for (int i = 0; i < threads.length; i++) {
             threads[i].join();
         }
+        assertEquals(total + 1, shard.flushStats().getTotal());
     }
 
 }

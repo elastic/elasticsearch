@@ -1496,26 +1496,35 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public boolean maybeFlush() {
         if (shouldFlush()) {
-            if (asyncFlushRunning.compareAndSet(false, true)) {
-                final AbstractRunnable abstractRunnable = new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Throwable t) {
-                        if (state != IndexShardState.CLOSED) {
-                            logger.warn("failed to flush index", t);
+            if (asyncFlushRunning.compareAndSet(false, true)) { // we can't use a lock here since we "release" in a different thread
+                if (shouldFlush() == false) {
+                    // we have to check again since otherwise there is a race when a thread passes
+                    // the first shouldFlush() check next to another thread which flushes fast enough
+                    // to finish before the current thread could flip the asyncFlushRunning flag.
+                    // in that situation we have an extra unexpected flush.
+                    asyncFlushRunning.compareAndSet(true, false);
+                } else {
+                    final AbstractRunnable abstractRunnable = new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Throwable t) {
+                            if (state != IndexShardState.CLOSED) {
+                                logger.warn("failed to flush index", t);
+                            }
                         }
-                    }
-                    @Override
-                    protected void doRun() throws Exception {
-                        flush(new FlushRequest());
-                    }
 
-                    @Override
-                    public void onAfter() {
-                        asyncFlushRunning.compareAndSet(true, false);
-                    }
-                };
-                threadPool.executor(ThreadPool.Names.FLUSH).execute(abstractRunnable);
-                return true;
+                        @Override
+                        protected void doRun() throws Exception {
+                            flush(new FlushRequest());
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            asyncFlushRunning.compareAndSet(true, false);
+                        }
+                    };
+                    threadPool.executor(ThreadPool.Names.FLUSH).execute(abstractRunnable);
+                    return true;
+                }
             }
         }
         return false;

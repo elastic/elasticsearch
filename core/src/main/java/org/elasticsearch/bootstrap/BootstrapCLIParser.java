@@ -128,7 +128,13 @@ final class BootstrapCLIParser extends CliTool {
             while (iterator.hasNext()) {
                 String arg = iterator.next();
                 if (!arg.startsWith("--")) {
-                    throw new IllegalArgumentException("Parameter [" + arg + "]does not start with --");
+                    if (arg.startsWith("-D") || arg.startsWith("-d") || arg.startsWith("-p")) {
+                        throw new IllegalArgumentException(
+                                "Parameter [" + arg + "] starting with \"-D\", \"-d\" or \"-p\" must be before any parameters starting with --"
+                        );
+                    } else {
+                        throw new IllegalArgumentException("Parameter [" + arg + "]does not start with --");
+                    }
                 }
                 // if there is no = sign, we have to get the next argu
                 arg = arg.replace("--", "");

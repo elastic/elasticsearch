@@ -30,7 +30,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.TemplateQueryParser;
@@ -42,7 +41,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.exists.RestExistsAction;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -108,7 +106,6 @@ public class RestSearchAction extends BaseRestHandler {
         if (RestActions.hasBodyContent(request)) {
             BytesReference restContent = RestActions.getRestContent(request);
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-            System.out.println(restContent.toUtf8());
             if (isTemplateRequest) {
                 try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                     context.reset(parser);

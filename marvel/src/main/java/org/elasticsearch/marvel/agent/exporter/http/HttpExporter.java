@@ -154,16 +154,6 @@ public class HttpExporter extends Exporter {
     }
 
     @Override
-    public void start() {
-
-    }
-
-    @Override
-    public void stop() {
-
-    }
-
-    @Override
     public void export(Collection<MarvelDoc> marvelDocs) throws Exception {
         HttpURLConnection connection = openExportingConnection();
         if (connection == null) {

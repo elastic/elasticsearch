@@ -243,10 +243,8 @@ public class ExportersTests extends ESTestCase {
         exporters.export(docsList);
 
         verify(exporters.getExporter("_name0"), times(1)).masterOnly();
-        verify(exporters.getExporter("_name0"), times(1)).start();
         verify(exporters.getExporter("_name0"), times(1)).export(docsList);
         verify(exporters.getExporter("_name1"), times(1)).masterOnly();
-        verify(exporters.getExporter("_name1"), times(1)).start();
     }
 
     static class TestFactory extends Exporter.Factory<TestFactory.TestExporter> {
@@ -267,17 +265,7 @@ public class ExportersTests extends ESTestCase {
             }
 
             @Override
-            public void start() {
-
-            }
-
-            @Override
             public void export(Collection<MarvelDoc> marvelDocs) throws Exception {
-            }
-
-            @Override
-            public void stop() {
-
             }
 
             @Override

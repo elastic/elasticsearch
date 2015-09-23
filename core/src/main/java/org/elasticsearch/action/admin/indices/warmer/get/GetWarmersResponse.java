@@ -69,7 +69,7 @@ public class GetWarmersResponse extends ActionResponse {
             for (int j = 0; j < valueSize; j++) {
                 String name = in.readString();
                 String[] types = in.readStringArray();
-                SearchSourceBuilder source = SearchSourceBuilder.PROTOTYPE.readFrom(in);
+                IndexWarmersMetaData.SearchSource source = new IndexWarmersMetaData.SearchSource(in);
                 Boolean queryCache = null;
                 queryCache = in.readOptionalBoolean();
                 warmerEntryBuilder.add(new IndexWarmersMetaData.Entry(

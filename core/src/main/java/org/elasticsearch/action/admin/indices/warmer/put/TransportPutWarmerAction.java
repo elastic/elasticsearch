@@ -115,9 +115,9 @@ public class TransportPutWarmerAction extends TransportMasterNodeAction<PutWarme
                         MetaData metaData = currentState.metaData();
                         String[] concreteIndices = indexNameExpressionResolver.concreteIndices(currentState, request.searchRequest().indicesOptions(), request.searchRequest().indices());
 
-                        SearchSourceBuilder source = null;
+                        IndexWarmersMetaData.SearchSource source = null;
                         if (request.searchRequest().source() != null) {
-                            source = request.searchRequest().source();
+                            source = new IndexWarmersMetaData.SearchSource(request.searchRequest().source());
                         }
 
                         // now replace it on the metadata

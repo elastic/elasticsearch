@@ -533,7 +533,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                             randomName("warm"),
                             new String[]{randomName("type")},
                             randomBoolean(),
-                            new SearchSourceBuilder()) // NOCOMMIT this used to be new BytesArray(randomAsciiOfLength(1000)) whiat should it be now?
+                            new IndexWarmersMetaData.SearchSource(new BytesArray(randomAsciiOfLength(1000))))
             );
         } else {
             return new IndexWarmersMetaData();

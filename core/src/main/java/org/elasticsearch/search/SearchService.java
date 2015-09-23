@@ -73,6 +73,7 @@ import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
@@ -1157,8 +1158,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         SearchContext context = null;
                         try {
                             long now = System.nanoTime();
+                            final IndexService indexService = indicesService.indexServiceSafe(indexShard.shardId().index().name());
                             ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexMetaData.numberOfShards(),
-                                    SearchType.QUERY_THEN_FETCH, entry.source(), entry.types(), entry.requestCache());
+                                    SearchType.QUERY_THEN_FETCH, entry.source().build(new QueryParseContext(indexService.queryParserService().indicesQueriesRegistry())), entry.types(), entry.requestCache());
                             context = createContext(request, warmerContext.searcher());
                             // if we use sort, we need to do query to sort on
                             // it and load relevant field data

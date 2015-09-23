@@ -28,7 +28,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
@@ -123,7 +122,7 @@ public class GetIndexResponse extends ActionResponse {
                         in.readString(),
                         in.readStringArray(),
                         in.readOptionalBoolean(),
-                        in.readBoolean() ? SearchSourceBuilder.PROTOTYPE.readFrom(in) : null)
+                        in.readBoolean() ? new IndexWarmersMetaData.SearchSource(in) : null)
                 );
             }
             warmersMapBuilder.put(key, Collections.unmodifiableList(warmerEntryBuilder));

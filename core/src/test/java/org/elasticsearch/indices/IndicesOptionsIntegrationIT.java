@@ -677,7 +677,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     @Test
     public void testDeleteWarmer() throws Exception {
         SearchSourceBuilder source = new SearchSourceBuilder();
-        IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry("test1", new String[] { "typ1" }, false, source);
+        IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry("test1", new String[] { "typ1" }, false, new IndexWarmersMetaData.SearchSource(source));
         assertAcked(prepareCreate("foobar").addCustom(new IndexWarmersMetaData(entry)));
         ensureYellow();
 
@@ -692,7 +692,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(client().admin().indices().prepareDeleteWarmer().setIndices("_all").setNames("test1"), true);
 
         SearchSourceBuilder source = new SearchSourceBuilder();
-        IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry("test1", new String[] { "type1" }, false, source);
+        IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry("test1", new String[] { "type1" }, false, new IndexWarmersMetaData.SearchSource(source));
         assertAcked(prepareCreate("foo").addCustom(new IndexWarmersMetaData(entry)));
         assertAcked(prepareCreate("foobar").addCustom(new IndexWarmersMetaData(entry)));
         assertAcked(prepareCreate("bar").addCustom(new IndexWarmersMetaData(entry)));

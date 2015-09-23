@@ -20,12 +20,12 @@
 package org.elasticsearch.action.admin.indices.warmer.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.Version;
+
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
@@ -69,7 +69,7 @@ public class GetWarmersResponse extends ActionResponse {
             for (int j = 0; j < valueSize; j++) {
                 String name = in.readString();
                 String[] types = in.readStringArray();
-                BytesReference source = in.readBytesReference();
+                SearchSourceBuilder source = SearchSourceBuilder.PROTOTYPE.readFrom(in);
                 Boolean queryCache = null;
                 queryCache = in.readOptionalBoolean();
                 warmerEntryBuilder.add(new IndexWarmersMetaData.Entry(
@@ -94,7 +94,7 @@ public class GetWarmersResponse extends ActionResponse {
             for (IndexWarmersMetaData.Entry warmerEntry : indexEntry.value) {
                 out.writeString(warmerEntry.name());
                 out.writeStringArray(warmerEntry.types());
-                out.writeBytesReference(warmerEntry.source());
+                warmerEntry.source().writeTo(out);
                 out.writeOptionalBoolean(warmerEntry.requestCache());
             }
         }

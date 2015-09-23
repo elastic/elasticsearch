@@ -23,8 +23,6 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -32,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,10 +66,10 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
     public static class Entry {
         private final String name;
         private final String[] types;
-        private final BytesReference source;
+        private final SearchSourceBuilder source;
         private final Boolean requestCache;
 
-        public Entry(String name, String[] types, Boolean requestCache, BytesReference source) {
+        public Entry(String name, String[] types, Boolean requestCache, SearchSourceBuilder source) {
             this.name = name;
             this.types = types == null ? Strings.EMPTY_ARRAY : types;
             this.source = source;
@@ -86,7 +85,7 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
         }
 
         @Nullable
-        public BytesReference source() {
+        public SearchSourceBuilder source() {
             return this.source;
         }
 
@@ -141,9 +140,9 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
         for (int i = 0; i < entries.length; i++) {
             String name = in.readString();
             String[] types = in.readStringArray();
-            BytesReference source = null;
+            SearchSourceBuilder source = null;
             if (in.readBoolean()) {
-                source = in.readBytesReference();
+                source = SearchSourceBuilder.PROTOTYPE.readFrom(in);
             }
             Boolean queryCache;
             queryCache = in.readOptionalBoolean();
@@ -162,7 +161,7 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeBytesReference(entry.source());
+                entry.source.writeTo(out);
             }
             out.writeOptionalBoolean(entry.requestCache());
         }
@@ -194,7 +193,7 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String name = currentFieldName;
                 List<String> types = new ArrayList<>(2);
-                BytesReference source = null;
+                SearchSourceBuilder source = null;
                 Boolean queryCache = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -207,13 +206,12 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if ("source".equals(currentFieldName)) {
-                            XContentBuilder builder = XContentFactory.jsonBuilder().map(parser.mapOrdered());
-                            source = builder.bytes();
+                            source = SearchSourceBuilder.PROTOTYPE.fromXContent(parser, null); // NOCOMMIT need context from somewhere
                         }
-                    } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                        if ("source".equals(currentFieldName)) {
-                            source = new BytesArray(parser.binaryValue());
-                        }
+//                    } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+//                        if ("source".equals(currentFieldName)) {
+//                            source = new BytesArray(parser.binaryValue());
+//                        } NORELEASE do we need this?
                     } else if (token.isValue()) {
                         if ("requestCache".equals(currentFieldName) || "request_cache".equals(currentFieldName)) {
                             queryCache = parser.booleanValue();
@@ -239,22 +237,12 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
     }
 
     public static void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        boolean binary = params.paramAsBoolean("binary", false);
         builder.startObject(entry.name(), XContentBuilder.FieldCaseConversion.NONE);
         builder.field("types", entry.types());
         if (entry.requestCache() != null) {
             builder.field("requestCache", entry.requestCache());
         }
-        builder.field("source");
-        if (binary) {
-            builder.value(entry.source());
-        } else {
-            Map<String, Object> mapping;
-            try (XContentParser parser = XContentFactory.xContent(entry.source()).createParser(entry.source())) {
-                mapping = parser.mapOrdered();
-            }
-            builder.map(mapping);
-        }
+        builder.field("source", entry.source());
         builder.endObject();
     }
 

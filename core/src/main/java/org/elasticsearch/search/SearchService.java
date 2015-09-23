@@ -30,6 +30,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -47,6 +48,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -76,6 +78,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -86,11 +89,16 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
+import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
+import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
@@ -101,6 +109,7 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -748,54 +757,65 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         context.aggregations(null); // NOCOMMIT parse source.aggregations()
                                     // ByteReference into
                                     // SearchContextAggregations object
-        context.suggest(null); // NOCOMMIT parse source.suggest() ByteReference
-                               // into SuggestionSearchContext object
+        XContentParser suggestParser = null;
+        try {
+            suggestParser = XContentFactory.xContent(source.suggest()).createParser(source.suggest());
+            this.elementParsers.get("suggest").parse(suggestParser, context);
+        } catch (Exception e) {
+            String sSource = "_na_";
+            try {
+                sSource = source.toString();
+            } catch (Throwable e1) {
+                // ignore
+            }
+            XContentLocation location = suggestParser != null ? suggestParser.getTokenLocation() : null;
+            throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
+        }
         context.addRescore(null);// NOCOMMIT parse source.rescore()
                                  // ByteReference into RescoreSearchContext
                                  // object
-        // NOCOMMIT populate the rest of the search request
+        context.fieldNames().addAll(source.fields());
         context.explain(source.explain());
+        context.fetchSourceContext(source.fetchSource());
+        FieldDataFieldsContext fieldDataFieldsContext = context.getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
+        for (String field : source.fieldDataFields()) {
+            fieldDataFieldsContext.add(new FieldDataField(field));
+        }
+        XContentParser highlighterParser = null;
+        try {
+            highlighterParser = XContentFactory.xContent(source.highlighter()).createParser(source.highlighter());
+            this.elementParsers.get("highlight").parse(highlighterParser, context);
+        } catch (Exception e) {
+            String sSource = "_na_";
+            try {
+                sSource = source.toString();
+            } catch (Throwable e1) {
+                // ignore
+            }
+            XContentLocation location = highlighterParser != null ? highlighterParser.getTokenLocation() : null;
+            throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
+        }
+        XContentParser innerHitsParser = null;
+        try {
+            innerHitsParser = XContentFactory.xContent(source.innerHits()).createParser(source.innerHits());
+            this.elementParsers.get("highlight").parse(innerHitsParser, context);
+        } catch (Exception e) {
+            String sSource = "_na_";
+            try {
+                sSource = source.toString();
+            } catch (Throwable e1) {
+                // ignore
+            }
+            XContentLocation location = innerHitsParser != null ? innerHitsParser.getTokenLocation() : null;
+            throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
+        }
+        for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
+            SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH);
+            context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, false)); // NORELEASE need to have ignore_exception parsed somewhere
+        }
+        // NOCOMMIT need to work out what to do about term_vectors_fetch (previously handled by TermVectorsFetchParseElement) as this is not available as an option in SearchSourceBuilder
         context.version(source.version());
-
-//        XContentParser parser = null;
-//        try {
-//            parser = XContentFactory.xContent(source).createParser(source);
-//            XContentParser.Token token;
-//            token = parser.nextToken();
-//            if (token != XContentParser.Token.START_OBJECT) {
-//                throw new ElasticsearchParseException("failed to parse search source. source must be an object, but found [{}] instead", token.name());
-//            }
-//            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-//                if (token == XContentParser.Token.FIELD_NAME) {
-//                    String fieldName = parser.currentName();
-//                    parser.nextToken();
-//                    SearchParseElement element = elementParsers.get(fieldName);
-//                    if (element == null) {
-//                        throw new SearchParseException(context, "failed to parse search source. unknown search element [" + fieldName + "]", parser.getTokenLocation());
-//                    }
-//                    element.parse(parser, context);
-//                } else {
-//                    if (token == null) {
-//                        throw new ElasticsearchParseException("failed to parse search source. end of query source reached but query is not complete.");
-//                    } else {
-//                        throw new ElasticsearchParseException("failed to parse search source. expected field name but got [{}]", token);
-//                    }
-//                }
-//            }
-//        } catch (Throwable e) {
-//            String sSource = "_na_";
-//            try {
-//                sSource = XContentHelper.convertToJson(source, false);
-//            } catch (Throwable e1) {
-//                // ignore
-//            }
-//            XContentLocation location = parser != null ? parser.getTokenLocation() : null;
-//            throw new SearchParseException(context, "failed to parse search source [" + sSource + "]", location, e);
-//        } finally {
-//            if (parser != null) {
-//                parser.close();
-//            }
-//        }
+        context.groupStats(Arrays.asList(source.stats())); // NORELEASE stats should be a list in SearchSourceBuilder
     }
 
     private static final int[] EMPTY_DOC_IDS = new int[0];
@@ -1088,32 +1108,26 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         SearchContext context = null;
                         try {
                             long now = System.nanoTime();
-                            // ShardSearchRequest request = new
-                            // ShardSearchLocalRequest(indexShard.shardId(),
-                            // indexMetaData.numberOfShards(),
-                            // SearchType.QUERY_THEN_FETCH, entry.source(),
-                            // entry.types(), entry.requestCache());
-                            // context = createContext(request,
-                            // warmerContext.searcher());
-                            // // if we use sort, we need to do query to sort on
+                            ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexMetaData.numberOfShards(),
+                                    SearchType.QUERY_THEN_FETCH, entry.source(), entry.types(), entry.requestCache());
+                            context = createContext(request, warmerContext.searcher());
+                            // if we use sort, we need to do query to sort on
                             // it and load relevant field data
-                            // // if not, we might as well set size=0 (and cache
+                            // if not, we might as well set size=0 (and cache
                             // if needed)
-                            // if (context.sort() == null) {
-                            // context.size(0);
-                            // }
-                            // boolean canCache =
-                            // indicesQueryCache.canCache(request, context);
-                            // // early terminate when we can cache, since we
+                            if (context.sort() == null) {
+                                context.size(0);
+                            }
+                            boolean canCache = indicesQueryCache.canCache(request, context);
+                            // early terminate when we can cache, since we
                             // can only do proper caching on top level searcher
-                            // // also, if we can't cache, and its top, we don't
+                            // also, if we can't cache, and its top, we don't
                             // need to execute it, since we already did when its
                             // not top
-                            // if (canCache != top) {
-                            // return;
-                            // }
-                            // loadOrExecuteQueryPhase(request, context,
-                            // queryPhase); NOCOMMIT fix this
+                            if (canCache != top) {
+                                return;
+                            }
+                            loadOrExecuteQueryPhase(request, context, queryPhase);
                             long took = System.nanoTime() - now;
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
                                 indexShard.warmerService().logger().trace("warmed [{}], took [{}]", entry.name(), TimeValue.timeValueNanos(took));

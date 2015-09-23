@@ -38,6 +38,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -114,11 +115,9 @@ public class TransportPutWarmerAction extends TransportMasterNodeAction<PutWarme
                         MetaData metaData = currentState.metaData();
                         String[] concreteIndices = indexNameExpressionResolver.concreteIndices(currentState, request.searchRequest().indicesOptions(), request.searchRequest().indices());
 
-                        BytesReference source = null;
+                        SearchSourceBuilder source = null;
                         if (request.searchRequest().source() != null) {
-//                            source = request.searchRequest().source(); // NOCOMMIT fix this
-                        } else if (request.searchRequest().extraSource() != null && request.searchRequest().extraSource().length() > 0) {
-                            source = request.searchRequest().extraSource();
+                            source = request.searchRequest().source();
                         }
 
                         // now replace it on the metadata

@@ -19,14 +19,27 @@
 package org.elasticsearch.rest.action.admin.indices.warmer.put;
 
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -35,9 +48,12 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestPutWarmerAction extends BaseRestHandler {
 
+    private final IndicesQueriesRegistry queryRegistry;
+
     @Inject
-    public RestPutWarmerAction(Settings settings, RestController controller, Client client) {
+    public RestPutWarmerAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry queryRegistry) {
         super(settings, controller, client);
+        this.queryRegistry = queryRegistry;
         controller.registerHandler(PUT, "/_warmer/{name}", this);
         controller.registerHandler(PUT, "/{index}/_warmer/{name}", this);
         controller.registerHandler(PUT, "/{index}/{type}/_warmer/{name}", this);
@@ -56,16 +72,19 @@ public class RestPutWarmerAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
         PutWarmerRequest putWarmerRequest = new PutWarmerRequest(request.param("name"));
-        // SearchRequest searchRequest = new
-        // SearchRequest(Strings.splitStringByCommaToArray(request.param("index")))
-        // .types(Strings.splitStringByCommaToArray(request.param("type")))
-        // .requestCache(request.paramAsBoolean("request_cache", null))
-        // .source(request.content());
-        // searchRequest.indicesOptions(IndicesOptions.fromRequest(request,
-        // searchRequest.indicesOptions()));
-        // putWarmerRequest.searchRequest(searchRequest); NOCOMMIT fix this
+
+        BytesReference sourceBytes = RestActions.getRestContent(request);
+        XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes);
+        QueryParseContext queryParseContext = new QueryParseContext(new Index(""), queryRegistry); // NORELEASE remove index
+        queryParseContext.reset(parser);
+        SearchSourceBuilder source = SearchSourceBuilder.PROTOTYPE.fromXContent(parser, queryParseContext);
+        SearchRequest searchRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")))
+                .types(Strings.splitStringByCommaToArray(request.param("type")))
+                .requestCache(request.paramAsBoolean("request_cache", null)).source(source);
+        searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
+        putWarmerRequest.searchRequest(searchRequest);
         putWarmerRequest.timeout(request.paramAsTime("timeout", putWarmerRequest.timeout()));
         putWarmerRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWarmerRequest.masterNodeTimeout()));
         client.admin().indices().putWarmer(putWarmerRequest, new AcknowledgedRestListener<>(channel));

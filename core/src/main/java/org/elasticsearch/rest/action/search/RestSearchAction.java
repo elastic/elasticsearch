@@ -26,9 +26,15 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -43,6 +49,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
+import java.io.IOException;
+
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -53,9 +61,12 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
  */
 public class RestSearchAction extends BaseRestHandler {
 
+    private final IndicesQueriesRegistry queryRegistry;
+
     @Inject
-    public RestSearchAction(Settings settings, RestController controller, Client client) {
+    public RestSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry queryRegistry) {
         super(settings, controller, client);
+        this.queryRegistry = queryRegistry;
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
@@ -79,13 +90,13 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
         SearchRequest searchRequest;
-        searchRequest = RestSearchAction.parseSearchRequest(request, parseFieldMatcher);
+        searchRequest = RestSearchAction.parseSearchRequest(request, parseFieldMatcher, queryRegistry);
         client.search(searchRequest, new RestStatusToXContentListener<SearchResponse>(channel));
     }
 
-    public static SearchRequest parseSearchRequest(RestRequest request, ParseFieldMatcher parseFieldMatcher) {
+    public static SearchRequest parseSearchRequest(RestRequest request, ParseFieldMatcher parseFieldMatcher, IndicesQueriesRegistry queryRegistry) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         SearchRequest searchRequest = new SearchRequest(indices);
         // get the content, and put it in the body
@@ -95,8 +106,11 @@ public class RestSearchAction extends BaseRestHandler {
             if (isTemplateRequest) {
                 searchRequest.templateSource(RestActions.getRestContent(request));
             } else {
-                // searchRequest.source(RestActions.getRestContent(request));
-                // NOCOMMIT fix this
+                 BytesReference sourceBytes = RestActions.getRestContent(request);
+                 XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes);
+                 QueryParseContext queryParseContext = new QueryParseContext(new Index(""), queryRegistry); // NORELEASE remove index
+                 queryParseContext.reset(parser);
+                 searchRequest.source(SearchSourceBuilder.PROTOTYPE.fromXContent(parser, queryParseContext));
             }
         }
 

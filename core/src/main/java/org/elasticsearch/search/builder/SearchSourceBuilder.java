@@ -1022,7 +1022,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
     }
 
-    private static class ScriptField implements Writeable<ScriptField>, ToXContent {
+    public static class ScriptField implements Writeable<ScriptField>, ToXContent {
 
         public static final ScriptField PROTOTYPE = new ScriptField(null, null);
 

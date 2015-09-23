@@ -31,6 +31,7 @@ import org.junit.Test;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 public class CountRequestTests extends ESTestCase {
@@ -75,11 +76,7 @@ public class CountRequestTests extends ESTestCase {
         if (countRequest.source() == null) {
             assertThat(searchRequest.source(), nullValue());
         } else {
-            // Map<String, Object> sourceMap =
-            // XContentHelper.convertToMap(searchRequest.source(), false).v2();
-            // assertThat(sourceMap.size(), equalTo(1));
-            // assertThat(sourceMap.get("query"), notNullValue()); NOCOMMIT fix
-            // this
+            assertThat(searchRequest.source().query(), notNullValue());
         }
 
         Map<String, Object> extraSourceMap = XContentHelper.convertToMap(searchRequest.extraSource(), false).v2();

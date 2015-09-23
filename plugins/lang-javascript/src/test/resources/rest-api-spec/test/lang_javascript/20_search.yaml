@@ -58,8 +58,9 @@
 
                 script_fields:
                     sNum1:
-                        lang: js
-                        script: "doc['num1'].value"
+                        script:
+                            inline: "doc['num1'].value"
+                            lang: js
                 sort:
                     num1:
                         order: asc

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
@@ -677,119 +678,180 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         context.from(source.from());
         context.size(source.size());
-        Float indexBoost = source.indexBoost().get(context.shardTarget().index());
-        if (indexBoost != null) {
-            context.queryBoost(indexBoost);
+        ObjectFloatHashMap<String> indexBoostMap = source.indexBoost();
+        if (indexBoostMap != null) {
+            Float indexBoost = indexBoostMap.get(context.shardTarget().index());
+            if (indexBoost != null) {
+                context.queryBoost(indexBoost);
+            }
         }
         context.parsedQuery(context.queryParserService().parse(source.query()));
-        context.parsedPostFilter(context.queryParserService().parse(source.postFilter()));
-        XContentParser completeSortParser = null;
-        try {
-            XContentBuilder completeSortBuilder = XContentFactory.jsonBuilder();
-            completeSortBuilder.startArray();
-            for (BytesReference sort : source.sorts()) {
-                XContentParser parser = XContentFactory.xContent(sort).createParser(sort);
-                completeSortBuilder.copyCurrentStructure(parser);
-            }
-            completeSortBuilder.endArray();
-            BytesReference completeSortBytes = completeSortBuilder.bytes();
-            completeSortParser = XContentFactory.xContent(completeSortBytes).createParser(completeSortBytes);
-            this.elementParsers.get("sort").parse(completeSortParser, context);
-        } catch (Exception e) {
-            String sSource = "_na_";
+        if (source.postFilter() != null) {
+            context.parsedPostFilter(context.queryParserService().parse(source.postFilter()));
+        }
+        if (source.sorts() != null) {
+            XContentParser completeSortParser = null;
             try {
-                sSource = source.toString();
-            } catch (Throwable e1) {
-                // ignore
-            }
-            XContentLocation location = completeSortParser != null ? completeSortParser.getTokenLocation() : null;
-            throw new SearchParseException(context, "failed to parse sort source [" + sSource + "]", location, e);
-        } // NORELEASE fix this to be more elegant
+                XContentBuilder completeSortBuilder = XContentFactory.jsonBuilder();
+                completeSortBuilder.startArray();
+                for (BytesReference sort : source.sorts()) {
+                    XContentParser parser = XContentFactory.xContent(sort).createParser(sort);
+                    parser.nextToken();
+                    completeSortBuilder.copyCurrentStructure(parser);
+                }
+                completeSortBuilder.endArray();
+                BytesReference completeSortBytes = completeSortBuilder.bytes();
+                completeSortParser = XContentFactory.xContent(completeSortBytes).createParser(completeSortBytes);
+                completeSortParser.nextToken();
+                this.elementParsers.get("sort").parse(completeSortParser, context);
+            } catch (Exception e) {
+                String sSource = "_na_";
+                try {
+                    sSource = source.toString();
+                } catch (Throwable e1) {
+                    // ignore
+                }
+                XContentLocation location = completeSortParser != null ? completeSortParser.getTokenLocation() : null;
+                throw new SearchParseException(context, "failed to parse sort source [" + sSource + "]", location, e);
+            } // NORELEASE fix this to be more elegant
+        }
         context.trackScores(source.trackScores());
-        context.minimumScore(source.minScore());
+        if (source.minScore() != null) {
+            context.minimumScore(source.minScore());
+        }
         context.timeoutInMillis(source.timeoutInMillis());
         context.terminateAfter(source.terminateAfter());
-        context.aggregations(null); // NOCOMMIT parse source.aggregations()
-                                    // ByteReference into
-                                    // SearchContextAggregations object
-        XContentParser suggestParser = null;
-        try {
-            suggestParser = XContentFactory.xContent(source.suggest()).createParser(source.suggest());
-            this.elementParsers.get("suggest").parse(suggestParser, context);
-        } catch (Exception e) {
-            String sSource = "_na_";
+        if (source.aggregations() != null) {
+            XContentParser completeAggregationsParser = null;
             try {
-                sSource = source.toString();
-            } catch (Throwable e1) {
-                // ignore
-            }
-            XContentLocation location = suggestParser != null ? suggestParser.getTokenLocation() : null;
-            throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
+                XContentBuilder completeAggregationsBuilder = XContentFactory.jsonBuilder();
+                completeAggregationsBuilder.startObject();
+                for (BytesReference agg : source.aggregations()) {
+                    XContentParser parser = XContentFactory.xContent(agg).createParser(agg);
+                    parser.nextToken();
+                    parser.nextToken();
+                    completeAggregationsBuilder.field(parser.currentName());
+                    parser.nextToken();
+                    completeAggregationsBuilder.copyCurrentStructure(parser);
+                }
+                completeAggregationsBuilder.endObject();
+                BytesReference completeAggregationsBytes = completeAggregationsBuilder.bytes();
+                completeAggregationsParser = XContentFactory.xContent(completeAggregationsBytes).createParser(completeAggregationsBytes);
+                completeAggregationsParser.nextToken();
+                this.elementParsers.get("aggregations").parse(completeAggregationsParser, context);
+            } catch (Exception e) {
+                String sSource = "_na_";
+                try {
+                    sSource = source.toString();
+                } catch (Throwable e1) {
+                    // ignore
+                }
+                XContentLocation location = completeAggregationsParser != null ? completeAggregationsParser.getTokenLocation() : null;
+                throw new SearchParseException(context, "failed to parse rescore source [" + sSource + "]", location, e);
+            } // NORELEASE fix this to be more elegant
         }
-        XContentParser completeRescoreParser = null;
-        try {
-            XContentBuilder completeRescoreBuilder = XContentFactory.jsonBuilder();
-            completeRescoreBuilder.startArray();
-            for (BytesReference rescore : source.rescores()) {
-                XContentParser parser = XContentFactory.xContent(rescore).createParser(rescore);
-                completeRescoreBuilder.copyCurrentStructure(parser);
-            }
-            completeRescoreBuilder.endArray();
-            BytesReference completeRescoreBytes = completeRescoreBuilder.bytes();
-            completeRescoreParser = XContentFactory.xContent(completeRescoreBytes).createParser(completeRescoreBytes);
-            this.elementParsers.get("rescore").parse(completeRescoreParser, context);
-        } catch (Exception e) {
-            String sSource = "_na_";
+        if (source.suggest() != null) {
+            XContentParser suggestParser = null;
             try {
-                sSource = source.toString();
-            } catch (Throwable e1) {
-                // ignore
+                suggestParser = XContentFactory.xContent(source.suggest()).createParser(source.suggest());
+                this.elementParsers.get("suggest").parse(suggestParser, context);
+            } catch (Exception e) {
+                String sSource = "_na_";
+                try {
+                    sSource = source.toString();
+                } catch (Throwable e1) {
+                    // ignore
+                }
+                XContentLocation location = suggestParser != null ? suggestParser.getTokenLocation() : null;
+                throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
             }
-            XContentLocation location = completeRescoreParser != null ? completeRescoreParser.getTokenLocation() : null;
-            throw new SearchParseException(context, "failed to parse rescore source [" + sSource + "]", location, e);
-        } // NORELEASE fix this to be more elegant
-        context.fieldNames().addAll(source.fields());
-        context.explain(source.explain());
-        context.fetchSourceContext(source.fetchSource());
-        FieldDataFieldsContext fieldDataFieldsContext = context.getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
-        for (String field : source.fieldDataFields()) {
-            fieldDataFieldsContext.add(new FieldDataField(field));
         }
-        XContentParser highlighterParser = null;
-        try {
-            highlighterParser = XContentFactory.xContent(source.highlighter()).createParser(source.highlighter());
-            this.elementParsers.get("highlight").parse(highlighterParser, context);
-        } catch (Exception e) {
-            String sSource = "_na_";
+        if (source.rescores() != null) {
+            XContentParser completeRescoreParser = null;
             try {
-                sSource = source.toString();
-            } catch (Throwable e1) {
-                // ignore
-            }
-            XContentLocation location = highlighterParser != null ? highlighterParser.getTokenLocation() : null;
-            throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
+                XContentBuilder completeRescoreBuilder = XContentFactory.jsonBuilder();
+                completeRescoreBuilder.startArray();
+                for (BytesReference rescore : source.rescores()) {
+                    XContentParser parser = XContentFactory.xContent(rescore).createParser(rescore);
+                    parser.nextToken();
+                    completeRescoreBuilder.copyCurrentStructure(parser);
+                }
+                completeRescoreBuilder.endArray();
+                BytesReference completeRescoreBytes = completeRescoreBuilder.bytes();
+                completeRescoreParser = XContentFactory.xContent(completeRescoreBytes).createParser(completeRescoreBytes);
+                completeRescoreParser.nextToken();
+                this.elementParsers.get("rescore").parse(completeRescoreParser, context);
+            } catch (Exception e) {
+                String sSource = "_na_";
+                try {
+                    sSource = source.toString();
+                } catch (Throwable e1) {
+                    // ignore
+                }
+                XContentLocation location = completeRescoreParser != null ? completeRescoreParser.getTokenLocation() : null;
+                throw new SearchParseException(context, "failed to parse rescore source [" + sSource + "]", location, e);
+            } // NORELEASE fix this to be more elegant
         }
-        XContentParser innerHitsParser = null;
-        try {
-            innerHitsParser = XContentFactory.xContent(source.innerHits()).createParser(source.innerHits());
-            this.elementParsers.get("highlight").parse(innerHitsParser, context);
-        } catch (Exception e) {
-            String sSource = "_na_";
+        if (source.fields() != null) {
+            context.fieldNames().addAll(source.fields());
+        }
+        if (source.explain() != null) {
+            context.explain(source.explain());
+        }
+        if (source.fetchSource() != null) {
+            context.fetchSourceContext(source.fetchSource());
+        }
+        if (source.fieldDataFields() != null) {
+            FieldDataFieldsContext fieldDataFieldsContext = context.getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
+            for (String field : source.fieldDataFields()) {
+                fieldDataFieldsContext.add(new FieldDataField(field));
+            }
+        }
+        if (source.highlighter() != null) {
+            XContentParser highlighterParser = null;
             try {
-                sSource = source.toString();
-            } catch (Throwable e1) {
-                // ignore
+                highlighterParser = XContentFactory.xContent(source.highlighter()).createParser(source.highlighter());
+                this.elementParsers.get("highlight").parse(highlighterParser, context);
+            } catch (Exception e) {
+                String sSource = "_na_";
+                try {
+                    sSource = source.toString();
+                } catch (Throwable e1) {
+                    // ignore
+                }
+                XContentLocation location = highlighterParser != null ? highlighterParser.getTokenLocation() : null;
+                throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
             }
-            XContentLocation location = innerHitsParser != null ? innerHitsParser.getTokenLocation() : null;
-            throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
         }
-        for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
-            SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH);
-            context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, false)); // NORELEASE need to have ignore_exception parsed somewhere
+        if (source.innerHits() != null) {
+            XContentParser innerHitsParser = null;
+            try {
+                innerHitsParser = XContentFactory.xContent(source.innerHits()).createParser(source.innerHits());
+                this.elementParsers.get("highlight").parse(innerHitsParser, context);
+            } catch (Exception e) {
+                String sSource = "_na_";
+                try {
+                    sSource = source.toString();
+                } catch (Throwable e1) {
+                    // ignore
+                }
+                XContentLocation location = innerHitsParser != null ? innerHitsParser.getTokenLocation() : null;
+                throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
+            }
+        }
+        if (source.scriptFields() != null) {
+            for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
+                SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH);
+                context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, false)); // NORELEASE need to have ignore_exception parsed somewhere
+            }
         }
         // NOCOMMIT need to work out what to do about term_vectors_fetch (previously handled by TermVectorsFetchParseElement) as this is not available as an option in SearchSourceBuilder
-        context.version(source.version());
-        context.groupStats(Arrays.asList(source.stats())); // NORELEASE stats should be a list in SearchSourceBuilder
+        if (source.version() != null) {
+            context.version(source.version());
+        }
+        if (source.stats() != null) {
+            context.groupStats(Arrays.asList(source.stats())); // NORELEASE stats should be a list in SearchSourceBuilder
+        }
     }
 
     private static final int[] EMPTY_DOC_IDS = new int[0];

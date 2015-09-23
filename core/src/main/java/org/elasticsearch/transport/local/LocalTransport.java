@@ -37,11 +37,27 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.ResponseHandlerFailureTransportException;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportSerializationException;
+import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -65,7 +81,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     private final static ConcurrentMap<LocalTransportAddress, LocalTransport> transports = newConcurrentMap();
     private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
-    private final NamedWriteableRegistry namedWriteableRegistry;
+    protected final NamedWriteableRegistry namedWriteableRegistry;
 
     public static final String TRANSPORT_LOCAL_ADDRESS = "transport.local.address";
     public static final String TRANSPORT_LOCAL_WORKERS = "transport.local.workers";

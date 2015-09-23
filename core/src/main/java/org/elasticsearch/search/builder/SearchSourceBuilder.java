@@ -40,7 +40,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -233,7 +232,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Gets the minimum score below which docs will be filtered out.
      */
-    public float minScore() {
+    public Float minScore() {
         return minScore;
     }
 

@@ -77,13 +77,15 @@ public class AssertingLocalTransport extends LocalTransport {
 
     @Override
     protected void handleParsedResponse(final TransportResponse response, final TransportResponseHandler handler) {
-        ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersionBetween(random, minVersion, maxVersion), response);
+        ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersionBetween(random, minVersion, maxVersion), response,
+                namedWriteableRegistry);
         super.handleParsedResponse(response, handler);
     }
 
     @Override
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
-        ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersionBetween(random, minVersion, maxVersion), request);
+        ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersionBetween(random, minVersion, maxVersion), request,
+                namedWriteableRegistry);
         super.sendRequest(node, requestId, action, request, options);
     }
 }

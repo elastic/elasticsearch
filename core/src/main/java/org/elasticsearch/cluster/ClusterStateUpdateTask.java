@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
 /**
@@ -51,4 +53,22 @@ abstract public class ClusterStateUpdateTask {
     public void onNoLongerMaster(String source) {
         onFailure(source, new EsRejectedExecutionException("no longer master. source: [" + source + "]"));
     }
+
+    /**
+     * Called when the result of the {@link #execute(ClusterState)} have been processed
+     * properly by all listeners.
+     */
+    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    }
+
+    /**
+     * If the cluster state update task wasn't processed by the provided timeout, call
+     * {@link #onFailure(String, Throwable)}. May return null to indicate no timeout is needed (default).
+     */
+    @Nullable
+    public TimeValue timeout() {
+        return null;
+    }
+
+
 }

@@ -32,7 +32,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -200,8 +199,8 @@ public class TestClusterService implements ClusterService {
             return;
         }
         setStateAndNotifyListeners(newState);
-        if (updateTask instanceof ProcessedClusterStateUpdateTask) {
-            ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newState);
+        if (updateTask instanceof ClusterStateUpdateTask) {
+            ((ClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newState);
         }
         logger.debug("finished [{}]", source);
     }

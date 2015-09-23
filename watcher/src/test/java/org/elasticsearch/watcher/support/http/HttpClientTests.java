@@ -74,7 +74,6 @@ public class HttpClientTests extends ESTestCase {
     }
 
     @Test
-
     public void testBasics() throws Exception {
         int responseCode = randomIntBetween(200, 203);
         String body = randomAsciiOfLengthBetween(2, 8096);
@@ -124,6 +123,23 @@ public class HttpClientTests extends ESTestCase {
 
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), equalTo("/test"));
+        assertThat(recordedRequest.getBody().readUtf8Line(), nullValue());
+    }
+
+    @Test
+    public void testUrlEncoding() throws Exception{
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
+                .method(HttpMethod.GET)
+                .path("/test")
+                .setParam("key", "value 123:123");
+
+        HttpResponse response = httpClient.execute(requestBuilder.build());
+        assertThat(response.status(), equalTo(200));
+        assertThat(response.body().toUtf8(), equalTo("body"));
+
+        RecordedRequest recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getPath(), equalTo("/test?key=value%20123:123"));
         assertThat(recordedRequest.getBody().readUtf8Line(), nullValue());
     }
 

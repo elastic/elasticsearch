@@ -107,9 +107,9 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
                 if (builder.length() != 0) {
                     builder.append('&');
                 }
-                builder.append(URLEncoder.encode(entry.getKey(), "utf-8"))
+                builder.append(entry.getKey())
                         .append('=')
-                        .append(URLEncoder.encode(entry.getValue(), "utf-8"));
+                        .append(entry.getValue());
             }
             queryString = builder.toString();
         }

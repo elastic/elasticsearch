@@ -128,7 +128,7 @@ holds an object where the keys serve as the header names and the values serve as
 | `request.scheme`                              | no        | http        | The connection scheme. Valid values are: `http` or `https`.
 | `request.host`                                | yes       | -           | The host to connect to.
 | `request.port`                                | yes       | -           | The port the HTTP service is listening on.
-| `request.path`                                | no        | -           | The URL path. The path can be static text or include Mustache <<templates, templates>>.
+| `request.path`                                | no        | -           | The URL path. The path can be static text or include Mustache <<templates, templates>>. URL query string parameters must be specified via the `request.params` attribute.
 | `request.method`                              | no        | get         | The HTTP method. Valid values are: `head`, `get`, `post`, `put` and `delete`.
 | `request.headers`                             | no        | -           | The HTTP request headers. The header values can be static text or include Mustache <<templates, templates>>.
 | `request.params`                              | no        | -           | The URL query string parameters. The parameter values can be static text or include Mustache <<templates, templates>>.

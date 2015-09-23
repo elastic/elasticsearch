@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -134,11 +133,19 @@ public class SimpleQueryStringBuilder extends QueryBuilder implements BoostableQ
         return this;
     }
 
+    /**
+     * @deprecated properly configure the analysis chain instead
+     */
+    @Deprecated
     public SimpleQueryStringBuilder locale(Locale locale) {
         this.locale = locale;
         return this;
     }
 
+    /**
+     * @deprecated properly configure the analysis chain instead
+     */
+    @Deprecated
     public SimpleQueryStringBuilder lenient(boolean lenient) {
         this.lenient = lenient;
         return this;

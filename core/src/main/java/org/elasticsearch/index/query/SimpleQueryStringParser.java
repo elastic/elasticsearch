@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -71,6 +72,8 @@ import java.util.Map;
 public class SimpleQueryStringParser implements QueryParser {
 
     public static final String NAME = "simple_query_string";
+
+    private static final ParseField LOCALE_FIELD = new ParseField("locale").withAllDeprecated("properly configure the analysis chain instead");
 
     @Inject
     public SimpleQueryStringParser() {
@@ -170,7 +173,7 @@ public class SimpleQueryStringParser implements QueryParser {
                             flags = SimpleQueryStringFlag.ALL.value();
                         }
                     }
-                } else if ("locale".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LOCALE_FIELD)) {
                     String localeStr = parser.text();
                     Locale locale = LocaleUtils.parse(localeStr);
                     sqsSettings.locale(locale);

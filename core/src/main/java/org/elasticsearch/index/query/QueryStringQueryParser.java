@@ -50,6 +50,7 @@ public class QueryStringQueryParser implements QueryParser {
 
     public static final String NAME = "query_string";
     private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("fuzzy_min_sim");
+    private static final ParseField LOCALE_FIELD = new ParseField("locale").withAllDeprecated("properly configure the analysis chain instead");
 
     private final boolean defaultAnalyzeWildcard;
     private final boolean defaultAllowLeadingWildcard;
@@ -193,7 +194,7 @@ public class QueryStringQueryParser implements QueryParser {
                     qpSettings.quoteFieldSuffix(parser.textOrNull());
                 } else if ("lenient".equalsIgnoreCase(currentFieldName)) {
                     qpSettings.lenient(parser.booleanValue());
-                } else if ("locale".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LOCALE_FIELD)) {
                     String localeStr = parser.text();
                     qpSettings.locale(LocaleUtils.parse(localeStr));
                 } else if ("time_zone".equals(currentFieldName)) {

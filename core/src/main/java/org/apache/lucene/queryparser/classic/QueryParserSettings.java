@@ -287,10 +287,18 @@ public class QueryParserSettings {
         this.useDisMax = useDisMax;
     }
 
+    /**
+     * @deprecated properly configure the analysis chain instead
+     */
+    @Deprecated
     public void locale(Locale locale) {
         this.locale = locale;
     }
 
+    /**
+     * @deprecated properly configure the analysis chain instead
+     */
+    @Deprecated
     public Locale locale() {
         return this.locale;
     }

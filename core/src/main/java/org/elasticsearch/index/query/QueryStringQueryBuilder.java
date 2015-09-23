@@ -328,6 +328,10 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
         return this;
     }
 
+    /**
+     * @deprecated properly configure the analysis chain instead
+     */
+    @Deprecated
     public QueryStringQueryBuilder locale(Locale locale) {
         this.locale = locale;
         return this;

@@ -7,20 +7,24 @@ WORK=target/stress
 BATCH_SIZE=25
 DIAGS=target/stress/diags
 AWAIT_YELLOW=0
+AWAIT_YELLOW_DEFAULT=10
 CLOSE_INDICES=false
 
-while getopts ":b:y:c" opt; do
+while getopts ":b:yc" opt; do
   case $opt in
     b)
       BATCH_SIZE=$OPTARG
       ;;
     y)
+      if [ -z ${OPTARG+x} ]; then
+        OPTARG=$AWAIT_YELLOW_DEFAULT
+      fi
       AWAIT_YELLOW=$OPTARG
       ;;
     c)
       CLOSE_INDICES=true
       if [ $AWAIT_YELLOW -eq 0 ]; then
-        AWAIT_YELLOW=30
+        AWAIT_YELLOW=$AWAIT_YELLOW_DEFAULT
       fi
       ;;
     \?)
@@ -51,22 +55,21 @@ function reset() {
   echo -n "Untarring elasticsearch..."
   tar xf $ES_TAR -C $WORK
   export ES_ROOT=target/stress/elasticsearch-*
-  echo "into " $ES_ROOT
+  echo "into" $ES_ROOT
 }
 
 function start_elasticsearch() {
   echo -n "Starting Elasticsearch..."
   ES_HEAP_SIZE=256m $ES_ROOT/bin/elasticsearch > $WORK/out 2>&1 &
   export ES_PID=$!
-  trap stop_elasticsearch EXIT
   echo $ES_PID
 }
 
 function start_gc_monitoring() {
-  echo -n "Starting gc monitoring..."
+  echo -n "Starting jstat..."
   jstat -gcutil $ES_PID 500ms > $WORK/gc &
-  # There is no need to explicitly kill jstat because it'll die when Elasticsearch does
-  echo $WORK/gc
+  export JSTAT_PID=$!
+  echo $JSTAT_PID
 }
 
 function wait_for_elasticsearch() {
@@ -81,12 +84,24 @@ function wait_for_elasticsearch() {
   grep tagline $WORK/root | cut -d'"' -f4
 }
 
-function stop_elasticsearch() {
-  echo -n "Stopping Elasticsearch..."
-  kill -9 $ES_PID &> /dev/null # no need to be gentle
-  wait &> /dev/null
-  echo "dead"
+function cleanup() {
   trap - EXIT
+  echo $ES_PID
+  if [ ! -z ${ES_PID+x} ]; then
+    stop_subprocess Elasticsearch $ES_PID
+  fi
+  if [ ! -z ${JSTAT_PID+x} ]; then
+    stop_subprocess jstat $JSTAT_PID
+  fi
+}
+
+function stop_subprocess() {
+  local name=$1
+  local pid=$2
+  echo -n "Stopping $name ($pid)..."
+  kill -9 $pid &> /dev/null # no need to be gentle
+  wait $pid &> /dev/null || true
+  echo "dead"
 }
 
 function create_index() {
@@ -124,13 +139,15 @@ function format_index_name() {
 function swamp_elasticsearch() {
   echo "Trying to crash elasticsearch with too many shards. This should take about a minute..."
   local count=0
+  local pretty_count=$(format_index_name $count)
   until false; do
-    echo -n "  Creating index [$(format_index_name $count), "
+    echo -n "  Creating index [$pretty_count, "
     local batch_start=$count
     for i in $(seq 1 $BATCH_SIZE); do
       create_index $pretty_count && ((count+=1)) || true
+      pretty_count=$(format_index_name $count)
     done
-    echo -n "$(format_index_name $count))..."
+    echo -n "$pretty_count)..."
     # Explicitly save batch_end because we're ok with some of the index creations failing.
     local batch_end=$((count-1))
     if ! await_yellow; then
@@ -173,6 +190,7 @@ function dump_diags() {
   head -n 10 $DIAGS/histo
 }
 
+trap cleanup EXIT
 find_es_tar
 reset
 start_elasticsearch

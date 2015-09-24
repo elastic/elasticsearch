@@ -136,7 +136,7 @@ not match any of the given filters. The value of this parameter can be as follow
 `true`::          Returns the `other` bucket bucket either in a bucket (named `_other_` by default) if named filters are being used, 
                   or as the last bucket if anonymous filters are being used
 
-The `other_bucket_key` parameter can be used to set the key for the `other` bucket to a value other than the default `_other_`. Seting 
+The `other_bucket_key` parameter can be used to set the key for the `other` bucket to a value other than the default `_other_`. Setting 
 this parameter will implicitly set the `other_bucket` parameter to `true`.
 
 The following snippet shows a response where the `other` bucket is requested to be named `other_messages`.

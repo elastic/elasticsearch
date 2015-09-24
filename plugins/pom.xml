@@ -228,6 +228,7 @@
                     <include>api/info.json</include>
                     <include>api/cluster.health.json</include>
                     <include>api/cluster.state.json</include>
+                    <include>api/cluster.stats.json</include>
                     <!-- used in plugin REST tests -->
                     <include>api/index.json</include>
                     <include>api/get.json</include>
@@ -402,6 +403,7 @@
         <module>repository-azure</module>
         <module>repository-s3</module>
         <module>store-smb</module>
+        <module>ingest</module>
 
         <!-- Internal plugins for test only -->
         <module>jvm-example</module>

@@ -56,10 +56,6 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.DEFAULT;
     /** Default for optimising query through pre computed bounding box query. */
     public static final String DEFAULT_OPTIMIZE_BBOX = "memory";
-    /** Default for coercing lon/lat values to a standard coordinate system */
-    public static final boolean DEFAULT_COERCE = false;
-    /** Default for accepting accept geo points with invalid latitude or longitude */
-    public static final boolean DEFAULT_IGNORE_MALFORMED = false;
 
     private final String fieldName;
     /** Distance from center to cover. */
@@ -70,10 +66,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     private GeoDistance geoDistance = DEFAULT_GEO_DISTANCE;
     /** Whether or not to use a bbox for pre-filtering. TODO change to enum? */
     private String optimizeBbox = DEFAULT_OPTIMIZE_BBOX;
-    /** Whether or not to normalize longitude and latitude values to a standard coordinate system */
-    private boolean coerce = DEFAULT_COERCE;
-    /** Whether or not to accept geo points with invalid latitude or longitude */
-    private boolean ignoreMalformed = DEFAULT_IGNORE_MALFORMED;
+    /** How strict should geo coordinate validation be? */
+    private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
 
     static final GeoDistanceQueryBuilder PROTOTYPE = new GeoDistanceQueryBuilder("_na_");
 
@@ -197,19 +191,14 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         return this.optimizeBbox;
     }
 
-    public GeoDistanceQueryBuilder coerce(boolean coerce) {
-        this.coerce = coerce;
-        if (this.coerce) {
-            this.ignoreMalformed = true;
-        }
-        return this;
+    /** Set validaton method for geo coordinates. */
+    public void setValidationMethod(GeoValidationMethod method) {
+        this.validationMethod = method;
     }
 
-    public GeoDistanceQueryBuilder ignoreMalformed(boolean ignoreMalformed) {
-        if (coerce == false) {
-            this.ignoreMalformed = ignoreMalformed;
-        }
-        return this;
+    /** Returns validation method for geo coordinates. */
+    public GeoValidationMethod getValidationMethod() {
+        return this.validationMethod;
     }
 
     @Override
@@ -219,8 +208,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             throw new QueryShardException(shardContext, "couldn't validate latitude/ longitude values", exception);
         }
 
-        if (coerce) {
-            GeoUtils.normalizePoint(center, coerce, coerce);
+        if (GeoValidationMethod.isCoerce(validationMethod)) {
+            GeoUtils.normalizePoint(center, true, true);
         }
 
         double normDistance = geoDistance.normalize(this.distance, DistanceUnit.DEFAULT);
@@ -246,23 +235,21 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         builder.field("distance", distance);
         builder.field("distance_type", geoDistance.name().toLowerCase(Locale.ROOT));
         builder.field("optimize_bbox", optimizeBbox);
-        builder.field("coerce", coerce);
-        builder.field("ignore_malformed", ignoreMalformed);
+        builder.field("validation_method", validationMethod);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(center, geoDistance, optimizeBbox, distance, coerce, ignoreMalformed);
+        return Objects.hash(center, geoDistance, optimizeBbox, distance, validationMethod);
     }
 
     @Override
     public boolean doEquals(GeoDistanceQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                 (distance == other.distance) &&
-                (coerce == other.coerce) &&
-                (ignoreMalformed == other.ignoreMalformed) &&
+                Objects.equals(validationMethod, other.validationMethod) &&
                 Objects.equals(center, other.center) &&
                 Objects.equals(optimizeBbox, other.optimizeBbox) &&
                 Objects.equals(geoDistance, other.geoDistance);
@@ -273,8 +260,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         String fieldName = in.readString();
         GeoDistanceQueryBuilder result = new GeoDistanceQueryBuilder(fieldName);
         result.distance = in.readDouble();
-        result.coerce = in.readBoolean();
-        result.ignoreMalformed = in.readBoolean();
+        result.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
         result.center = GeoPoint.readGeoPointFrom(in);
         result.optimizeBbox = in.readString();
         result.geoDistance = GeoDistance.readGeoDistanceFrom(in);
@@ -285,8 +271,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeDouble(distance);
-        out.writeBoolean(coerce);
-        out.writeBoolean(ignoreMalformed);
+        validationMethod.writeTo(out);
         center.writeTo(out);
         out.writeString(optimizeBbox);
         geoDistance.writeTo(out);
@@ -294,7 +279,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     private QueryValidationException checkLatLon(boolean indexCreatedBeforeV2_0) {
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
-        if (ignoreMalformed || indexCreatedBeforeV2_0) {
+        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) || indexCreatedBeforeV2_0) {
             return null;
         }
 

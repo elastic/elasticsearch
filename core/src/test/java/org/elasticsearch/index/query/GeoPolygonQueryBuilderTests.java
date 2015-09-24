@@ -49,8 +49,9 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     protected GeoPolygonQueryBuilder doCreateTestQueryBuilder() {
         List<GeoPoint> polygon = randomPolygon(randomIntBetween(4, 50));
         GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, polygon);
-        builder.coerce(randomBoolean());
-        builder.ignoreMalformed(randomBoolean());
+        if (randomBoolean()) {
+            builder.setValidationMethod(randomFrom(GeoValidationMethod.values()));
+        }
         return builder;
     }
 
@@ -62,7 +63,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         List<GeoPoint> queryBuilderPoints = queryBuilder.points();
         GeoPoint[] queryPoints = geoQuery.points();
         assertThat(queryPoints.length, equalTo(queryBuilderPoints.size()));
-        if (queryBuilder.coerce()) {
+        if (GeoValidationMethod.isCoerce(queryBuilder.getValidationMethod())) {
             for (int i = 0; i < queryBuilderPoints.size(); i++) {
                 GeoPoint queryBuilderPoint = queryBuilderPoints.get(i);
                 GeoUtils.normalizePoint(queryBuilderPoint, true, true);

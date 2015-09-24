@@ -73,10 +73,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         }
 
         if (randomBoolean()) {
-            builder.coerce(randomBoolean());
-        }
-        if (randomBoolean()) {
-            builder.ignoreMalformed(randomBoolean());
+            builder.setValidationMethod(randomFrom(GeoValidationMethod.values()));
         }
 
         builder.type(randomFrom(GeoExecType.values()));
@@ -119,7 +116,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         PointTester[] testers = { new TopTester(), new LeftTester(), new BottomTester(), new RightTester() };
 
         GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
-        builder.coerce(false).ignoreMalformed(false);
+        builder.setValidationMethod(GeoValidationMethod.STRICT);
 
         for (PointTester tester : testers) {
             try {
@@ -136,7 +133,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         PointTester[] testers = { new TopTester(), new LeftTester(), new BottomTester(), new RightTester() };
 
         GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
-        builder.ignoreMalformed(true);
+        builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED);
 
         for (PointTester tester : testers) {
             tester.invalidateCoordinate(builder, true);
@@ -152,7 +149,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             QueryValidationException except = null;
 
             GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
-            tester.invalidateCoordinate(builder.coerce(true), false);
+            tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.COERCE), false);
             except = builder.checkLatLon(true);
             assertNull("Inner post 2.0 validation w/ coerce should ignore invalid "
                     + tester.getClass().getName()
@@ -160,7 +157,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                     + tester.invalidCoordinate + " ",
                     except);
 
-            tester.invalidateCoordinate(builder.coerce(true), false);
+            tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.COERCE), false);
             except = builder.checkLatLon(false);
             assertNull("Inner pre 2.0 validation w/ coerce should ignore invalid coordinate: "
                     + tester.getClass().getName()
@@ -168,7 +165,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                     + tester.invalidCoordinate + " ",
                     except);
 
-            tester.invalidateCoordinate(builder.coerce(false).ignoreMalformed(false), false);
+            tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.STRICT), false);
             except = builder.checkLatLon(true);
             assertNull("Inner pre 2.0 validation w/o coerce should ignore invalid coordinate for old indexes: "
                     + tester.getClass().getName()
@@ -176,7 +173,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                     + tester.invalidCoordinate,
                     except);
 
-            tester.invalidateCoordinate(builder.coerce(false).ignoreMalformed(false), false);
+            tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.STRICT), false);
             except = builder.checkLatLon(false);
             assertNotNull("Inner post 2.0 validation w/o coerce should detect invalid coordinate: "
                     + tester.getClass().getName()
@@ -196,7 +193,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
         assumeTrue("top should not be equal to bottom for flip check", top != bottom);
         System.out.println("top: " + top + " bottom: " + bottom);
-        builder.coerce(false).ignoreMalformed(false).setCorners(bottom, left, top, right);
+        builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(bottom, left, top, right);
     }
 
     @Test
@@ -208,7 +205,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         double right = builder.bottomRight().getLon();
 
         assumeTrue("top should not be equal to bottom for flip check", top != bottom);
-        builder.coerce(false).ignoreMalformed(true).setCorners(bottom, left, top, right);
+        builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED).setCorners(bottom, left, top, right);
     }
 
     @Test
@@ -219,8 +216,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         double bottom = builder.bottomRight().getLat();
         double right = builder.bottomRight().getLon();
         
-        builder.ignoreMalformed(true).setCorners(top, right, bottom, left);
-        builder.ignoreMalformed(false).setCorners(top, right, bottom, left);
+        builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED).setCorners(top, right, bottom, left);
+        builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(top, right, bottom, left);
     }
 
     @Test
@@ -230,7 +227,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         if (getCurrentTypes().length != 0 && "mapped_geo".equals(qb.fieldName())) {
             // only execute this test if we are running on a valid geo field
             qb.setCorners(200, 200, qb.bottomRight().getLat(), qb.bottomRight().getLon());
-            qb.coerce(true);
+            qb.setValidationMethod(GeoValidationMethod.COERCE);
             Query query = qb.toQuery(createShardContext());
             if (query instanceof ConstantScoreQuery) {
                 ConstantScoreQuery result = (ConstantScoreQuery) query;
@@ -245,6 +242,11 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 assertTrue("memory queries should result in InMemoryGeoBoundingBoxQuery", query instanceof InMemoryGeoBoundingBoxQuery);
             }
         }
+    }
+    
+    @Test
+    public void checkStrictnessDefault() {
+        assertFalse("Someone changed the default for coordinate validation - were the docs changed as well?", GeoValidationMethod.DEFAULT_LENIENT_PARSING);
     }
 
     @Override

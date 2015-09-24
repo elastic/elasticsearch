@@ -80,8 +80,9 @@ public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQuer
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
-        boolean coerce = GeoBoundingBoxQueryBuilder.DEFAULT_COERCE;
-        boolean ignoreMalformed = GeoBoundingBoxQueryBuilder.DEFAULT_IGNORE_MALFORMED;
+        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        GeoValidationMethod validationMethod = null;
 
         GeoPoint sparse = new GeoPoint();
 
@@ -144,6 +145,8 @@ public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQuer
                     if (coerce) {
                         ignoreMalformed = true;
                     }
+                } else if ("validation_method".equals(currentFieldName)) {
+                    validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else if ("type".equals(currentFieldName)) {
                     type = parser.text();
                 } else if ("ignore_malformed".equals(currentFieldName)) {
@@ -161,8 +164,12 @@ public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQuer
         builder.queryName(queryName);
         builder.boost(boost);
         builder.type(GeoExecType.fromString(type));
-        builder.coerce(coerce);
-        builder.ignoreMalformed(ignoreMalformed);
+        if (validationMethod != null) {
+            // ignore deprecated coerce/ignoreMalformed settings if validationMethod is set
+            builder.setValidationMethod(validationMethod);
+        } else {
+            builder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
+        }
         return builder;
     }
 

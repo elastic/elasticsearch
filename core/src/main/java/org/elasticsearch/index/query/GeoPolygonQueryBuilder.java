@@ -51,9 +51,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     private final List<GeoPoint> shell;
 
-    private boolean coerce = false;
-
-    private boolean ignoreMalformed = false;
+    private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
 
     public GeoPolygonQueryBuilder(String fieldName, List<GeoPoint> points) {
         if (Strings.isEmpty(fieldName)) {
@@ -85,27 +83,15 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         return shell;
     }
 
-    public GeoPolygonQueryBuilder coerce(boolean coerce) {
-        if (coerce) {
-            this.ignoreMalformed = true;
-        }
-        this.coerce = coerce;
+    /** Sets the validation method to use for geo coordinates. */
+    public GeoPolygonQueryBuilder setValidationMethod(GeoValidationMethod method) {
+        this.validationMethod = method;
         return this;
     }
 
-    public boolean coerce() {
-        return this.coerce;
-    }
-
-    public GeoPolygonQueryBuilder ignoreMalformed(boolean ignoreMalformed) {
-        if (coerce == false) {
-            this.ignoreMalformed = ignoreMalformed;
-        }
-        return this;
-    }
-
-    public boolean ignoreMalformed() {
-        return ignoreMalformed;
+    /** Returns the validation method to use for geo coordinates. */
+    public GeoValidationMethod getValidationMethod() {
+        return this.validationMethod;
     }
 
     @Override
@@ -118,7 +104,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
         // validation was not available prior to 2.x, so to support bwc
         // percolation queries we only ignore_malformed on 2.x created indexes
-        if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
+        if (!indexCreatedBeforeV2_0 && !GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
             for (GeoPoint point : shell) {
                 if (!GeoUtils.isValidLatitude(point.lat())) {
                     throw new QueryShardException(context, "illegal latitude value [{}] for [{}]", point.lat(),
@@ -131,9 +117,9 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             }
         }
 
-        if (coerce) {
+        if (GeoValidationMethod.isCoerce(validationMethod)) {
             for (GeoPoint point : shell) {
-                GeoUtils.normalizePoint(point, coerce, coerce);
+                GeoUtils.normalizePoint(point, true, true);
             }
         }
 
@@ -161,8 +147,8 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         builder.endArray();
         builder.endObject();
 
-        builder.field(GeoPolygonQueryParser.COERCE_FIELD.getPreferredName(), coerce);
-        builder.field(GeoPolygonQueryParser.IGNORE_MALFORMED_FIELD.getPreferredName(), ignoreMalformed);
+        builder.field(GeoPolygonQueryParser.COERCE_FIELD.getPreferredName(), GeoValidationMethod.isCoerce(validationMethod));
+        builder.field(GeoPolygonQueryParser.IGNORE_MALFORMED_FIELD.getPreferredName(), GeoValidationMethod.isIgnoreMalformed(validationMethod));
 
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -177,8 +163,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             shell.add(GeoPoint.readGeoPointFrom(in));
         }
         GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(fieldName, shell);
-        builder.coerce = in.readBoolean();
-        builder.ignoreMalformed = in.readBoolean();
+        builder.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
         return builder;
     }
 
@@ -189,21 +174,19 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         for (GeoPoint point : shell) {
             point.writeTo(out);
         }
-        out.writeBoolean(coerce);
-        out.writeBoolean(ignoreMalformed);
+        validationMethod.writeTo(out);
     }
 
     @Override
     protected boolean doEquals(GeoPolygonQueryBuilder other) {
-        return Objects.equals(coerce, other.coerce)
+        return Objects.equals(validationMethod, other.validationMethod)
                 && Objects.equals(fieldName, other.fieldName)
-                && Objects.equals(ignoreMalformed, other.ignoreMalformed)
                 && Objects.equals(shell, other.shell);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(coerce, fieldName, ignoreMalformed, shell);
+        return Objects.hash(validationMethod, fieldName, shell);
     }
 
     @Override

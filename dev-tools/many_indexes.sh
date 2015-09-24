@@ -1,5 +1,30 @@
 #!/bin/bash
 
+# Script used to swap elasticsearch with too many indices and cause it to crash.
+# Run it like this to fill heap with allocated indexes:
+# ./dev-tools/many_indexes.sh -y 100000
+#
+# Run it like this to fill heap with cluster state:
+# ./dev-tools/many_indexes.sh -n -s 1000 -r 10
+
+# Licensed to Elasticsearch under one or more contributor
+# license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright
+# ownership. Elasticsearch licenses this file to you under
+# the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+
 set -e
 set -o pipefail
 
@@ -13,15 +38,12 @@ NEVER_ALLOCATE=false
 SHARDS=10
 REPLICAS=5
 
-while getopts ":b:ycnps:r:" opt; do
+while getopts "b:y:cnps:r:" opt; do
   case $opt in
     b)
       BATCH_SIZE=$OPTARG
       ;;
     y)
-      if [ -z ${OPTARG+x} ]; then
-        OPTARG=$AWAIT_YELLOW_DEFAULT
-      fi
       AWAIT_YELLOW=$OPTARG
       ;;
     c)
@@ -124,7 +146,7 @@ function index_settings() {
 
 function create_index() {
   local name=$1
-  curl -s -XPUT localhost:9200/$name -d '{
+  curl -s -XPUT -m 10 localhost:9200/$name -d '{
     "settings": {
       "index": {
 '"$(index_settings)"'
@@ -154,7 +176,7 @@ function format_index_name() {
 }
 
 function swamp_elasticsearch() {
-  echo "Trying to crash elasticsearch with too many shards. This should take about a minute..."
+  echo "Trying to crash elasticsearch with too many shards. This will take a few minutes..."
   local count=0
   local pretty_count=$(format_index_name $count)
   until false; do
@@ -167,8 +189,11 @@ function swamp_elasticsearch() {
       ((count+=1))
       pretty_count=$(format_index_name $count)
     done
-    wait $pids
-    echo -n "$pretty_count)..."
+    if wait $pids; then
+      echo -n "$pretty_count)..."
+    else
+      echo -n "$pretty_count)...some index creations timed out..."
+    fi
     local batch_end=$((count-1))
     if ! await_yellow; then
       # We assume that failing to get a yellow status is as good as filling up memory
@@ -182,9 +207,9 @@ function swamp_elasticsearch() {
       done
     fi
     echo -n "checking gc..."
-    if tail -n 10000 $WORK/gc | egrep '100.00\s+[0-9\.]+100.00\s+100.00|[0-9\.]\s+100.00\s+100.00\s+100.00' | head -n1; then
+    if tail -n 10000 $WORK/gc | egrep '100.00\s+[0-9\.]+\s+100.00\s+100.00|[0-9\.]+\s+100.00\s+100.00\s+100.00' | head -n1; then
       echo "Successfully filled elasticsearch's heap!"
-      break
+      return
     else
       tail -n1 $WORK/gc
     fi

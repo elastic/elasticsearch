@@ -9,8 +9,11 @@ DIAGS=target/stress/diags
 AWAIT_YELLOW=0
 AWAIT_YELLOW_DEFAULT=10
 CLOSE_INDICES=false
+NEVER_ALLOCATE=false
+SHARDS=10
+REPLICAS=5
 
-while getopts ":b:yc" opt; do
+while getopts ":b:ycnps:r:" opt; do
   case $opt in
     b)
       BATCH_SIZE=$OPTARG
@@ -27,12 +30,20 @@ while getopts ":b:yc" opt; do
         AWAIT_YELLOW=$AWAIT_YELLOW_DEFAULT
       fi
       ;;
+    n)
+      NEVER_ALLOCATE=true
+      ;;
+    s)
+      SHARDS=$OPTARG
+      ;;
+    r)
+      REPLICAS=$OPTARG
+      ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
       ;;
   esac
 done
-
 
 function find_es_tar() {
   echo -n "Searching for elasticsearch tar..."
@@ -86,7 +97,6 @@ function wait_for_elasticsearch() {
 
 function cleanup() {
   trap - EXIT
-  echo $ES_PID
   if [ ! -z ${ES_PID+x} ]; then
     stop_subprocess Elasticsearch $ES_PID
   fi
@@ -104,13 +114,20 @@ function stop_subprocess() {
   echo "dead"
 }
 
+function index_settings() {
+  if $NEVER_ALLOCATE; then
+    echo '        "routing.allocation.include.tag": "never_set",'
+  fi
+  echo '        "number_of_replicas": '$REPLICAS','
+  echo '        "number_of_shards": '$SHARDS
+}
+
 function create_index() {
   local name=$1
   curl -s -XPUT localhost:9200/$name -d '{
     "settings": {
       "index": {
-        "number_of_replicas": 5,
-        "number_of_shards": 10
+'"$(index_settings)"'
       }
     },
     "mappings": {
@@ -129,7 +146,7 @@ function create_index() {
         }
       }
     }
-  }'&> /dev/null
+  }' &> /dev/null
 }
 
 function format_index_name() {
@@ -143,12 +160,15 @@ function swamp_elasticsearch() {
   until false; do
     echo -n "  Creating index [$pretty_count, "
     local batch_start=$count
+    local pids=''
     for i in $(seq 1 $BATCH_SIZE); do
-      create_index $pretty_count && ((count+=1)) || true
+      create_index $pretty_count &
+      pids="$pids $!"
+      ((count+=1))
       pretty_count=$(format_index_name $count)
     done
+    wait $pids
     echo -n "$pretty_count)..."
-    # Explicitly save batch_end because we're ok with some of the index creations failing.
     local batch_end=$((count-1))
     if ! await_yellow; then
       # We assume that failing to get a yellow status is as good as filling up memory
@@ -162,7 +182,7 @@ function swamp_elasticsearch() {
       done
     fi
     echo -n "checking gc..."
-    if tail -n 10000 $WORK/gc | egrep '100.0.+100.00\s+100.00' | head; then
+    if tail -n 10000 $WORK/gc | egrep '100.00\s+[0-9\.]+100.00\s+100.00|[0-9\.]\s+100.00\s+100.00\s+100.00' | head -n1; then
       echo "Successfully filled elasticsearch's heap!"
       break
     else

@@ -83,6 +83,10 @@ Vagrant.configure(2) do |config|
   # the elasticsearch project called vagrant....
   config.vm.synced_folder ".", "/vagrant", disabled: true
   config.vm.synced_folder ".", "/elasticsearch"
+  config.vm.provider "virtualbox" do |v|
+    # Give the boxes 2GB so they can run our tests if they have to.
+    v.memory = 2048
+  end
   if Vagrant.has_plugin?("vagrant-cachier")
     config.cache.scope = :box
   end

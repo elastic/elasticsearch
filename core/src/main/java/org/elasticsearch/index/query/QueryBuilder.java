@@ -20,11 +20,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -49,14 +46,6 @@ public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB
      * @return the {@link Query} or <tt>null</tt> if this query should be ignored upstream
      */
     Query toFilter(QueryShardContext context) throws IOException;
-
-    /**
-     * Returns a {@link org.elasticsearch.common.bytes.BytesReference}
-     * containing the {@link ToXContent} output in binary format.
-     * Builds the request based on the default {@link XContentType}, either {@link Requests#CONTENT_TYPE} or provided as a constructor argument
-     */
-    //norelease once we move to serializing queries over the wire in Streamable format, this method shouldn't be needed anymore
-    BytesReference buildAsBytes();
 
     /**
      * Sets the arbitrary name to be assigned to the query (see named queries).

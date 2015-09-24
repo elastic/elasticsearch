@@ -23,6 +23,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.*;
@@ -58,6 +60,26 @@ public class DummyQueryParserPlugin extends Plugin {
         @Override
         protected Query doToQuery(QueryShardContext context) throws IOException {
             return new DummyQuery(context.isFilter());
+        }
+
+        @Override
+        protected DummyQueryBuilder doReadFrom(StreamInput in) throws IOException {
+            return null;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+
+        }
+
+        @Override
+        protected boolean doEquals(DummyQueryBuilder other) {
+            return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
         }
 
         @Override

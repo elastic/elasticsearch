@@ -4,8 +4,31 @@ set -e
 set -o pipefail
 
 WORK=target/stress
-CHECK_EVERY=25
+BATCH_SIZE=25
 DIAGS=target/stress/diags
+AWAIT_YELLOW=0
+CLOSE_INDICES=false
+
+while getopts ":b:y:c" opt; do
+  case $opt in
+    b)
+      BATCH_SIZE=$OPTARG
+      ;;
+    y)
+      AWAIT_YELLOW=$OPTARG
+      ;;
+    c)
+      CLOSE_INDICES=true
+      if [ $AWAIT_YELLOW -eq 0 ]; then
+        AWAIT_YELLOW=30
+      fi
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      ;;
+  esac
+done
+
 
 function find_es_tar() {
   echo -n "Searching for elasticsearch tar..."
@@ -36,7 +59,7 @@ function start_elasticsearch() {
   ES_HEAP_SIZE=256m $ES_ROOT/bin/elasticsearch > $WORK/out 2>&1 &
   export ES_PID=$!
   trap stop_elasticsearch EXIT
-  echo "as $ES_PID"
+  echo $ES_PID
 }
 
 function wait_for_elasticsearch() {
@@ -87,17 +110,36 @@ function create_index() {
   }'&> /dev/null
 }
 
+function format_index_name() {
+  printf %06d $1
+}
+
 function swamp_elasticsearch() {
   echo "Trying to crash elasticsearch with too many shards. This should take about a minute..."
   local count=0
-  local pretty_count=$(printf %04d $count)
   until false; do
-    for i in $(seq 1 $CHECK_EVERY); do
+    echo -n "  Creating index [$(format_index_name $count), "
+    local batch_start=$count
+    for i in $(seq 1 $BATCH_SIZE); do
       create_index $pretty_count && ((count+=1)) || true
-      pretty_count=$(printf %010d $count)
     done
+    echo -n "$(format_index_name $count))..."
+    # Explicitly save batch_end because we're ok with some of the index creations failing.
+    local batch_end=$((count-1))
+    if ! await_yellow; then
+      # We assume that failing to get a yellow status is as good as filling up memory
+      echo "failed to get yellow state after $AWAIT_YELLOW seconds!"
+      break
+    fi
+    if $CLOSE_INDICES; then
+      echo -n "closing..."
+      for i in $(seq $batch_start $batch_end); do
+        curl -s -XPOST 'localhost:9200/'$(format_index_name $i)'/_close' &> /dev/null
+      done
+    fi
+    echo -n "checking gc..."
     local JSTAT=$(jstat -gcutil $ES_PID | tail -n 1)
-    echo "  Created $pretty_count indices...$JSTAT"
+    echo "$JSTAT"
     if echo $JSTAT | egrep '100.0.+100.00\s+100.00' > /dev/null; then
       echo "Successfully filled elasticsearch's heap!"
       break
@@ -105,11 +147,18 @@ function swamp_elasticsearch() {
   done
 }
 
+function await_yellow() {
+  if [ $AWAIT_YELLOW -gt 0 ]; then
+    echo -n "waiting for yellow..."
+    curl -s -m$AWAIT_YELLOW 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout='$AWAIT_YELLOW's' &> /dev/null
+  fi
+}
+
 function dump_diags() {
   echo "Dumping diagnostics to $DIAGS..."
   echo -n "  $DIAGS/heap..."
   mkdir -p $DIAGS
-  jmap -dump:format=b,file=$DIAGS/heap.hprof $ES_PID
+  jmap -dump:format=b,file=$DIAGS/heap.hprof $ES_PID > /dev/null
   echo "done"
   echo -n "  $DIAGS/histo..."
   jmap -histo $ES_PID > $DIAGS/histo

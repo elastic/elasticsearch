@@ -11,12 +11,9 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.license.plugin.LicensePlugin;
-import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMarvelDoc;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryCollector;
@@ -24,41 +21,47 @@ import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
 import org.elasticsearch.test.InternalTestCluster;
 import org.hamcrest.Matchers;
 import org.joda.time.format.DateTimeFormat;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 
 // Transport Client instantiation also calls the marvel plugin, which then fails to find modules
-@ClusterScope(transportClientRatio = 0.0, scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
-public class HttpExporterTests extends ESIntegTestCase {
+@SuppressLocalMode
+@ClusterScope(scope = TEST, transportClientRatio = 0.0, numDataNodes = 0, numClientNodes = 0)
+public class HttpExporterTests extends MarvelIntegTestCase {
 
     final static AtomicLong timeStampGenerator = new AtomicLong();
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LicensePlugin.class, MarvelPlugin.class);
+    protected boolean enableShield() {
+        return false;
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
+    @Before
+    public void init() throws Exception {
+        startCollection();
+    }
+
+    @After
+    public void cleanup() throws Exception {
+        stopCollection();
     }
 
     @Override
@@ -229,7 +232,7 @@ public class HttpExporterTests extends ESIntegTestCase {
                 assertMarvelTemplateExists();
                 logger.debug("--> template exists");
             }
-        }, 10, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS);
     }
 
     @Test
@@ -308,23 +311,6 @@ public class HttpExporterTests extends ESIntegTestCase {
         }
     }
 
-    private void assertMarvelTemplateExists() {
-        assertTrue("marvel template must exists", isTemplateExists("marvel"));
-    }
-
-    private void assertMarvelTemplateNotExists() {
-        assertFalse("marvel template must not exists", isTemplateExists("marvel"));
-    }
-
-    private boolean isTemplateExists(String templateName) {
-        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(templateName).get().getIndexTemplates()) {
-            if (template.getName().equals(templateName)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     static class TargetNode {
 
         private final String name;
@@ -333,7 +319,7 @@ public class HttpExporterTests extends ESIntegTestCase {
         private final Client client;
 
         private TargetNode(InternalTestCluster cluster) {
-            name = cluster.startNode();
+            name = cluster.startNode(Settings.builder().put(Node.HTTP_ENABLED, true));
             address = cluster.getInstance(HttpServerTransport.class, name).boundAddress().publishAddress();
             httpAddress = address.getHost() + ":" + address.getPort();
             this.client = cluster.client(name);

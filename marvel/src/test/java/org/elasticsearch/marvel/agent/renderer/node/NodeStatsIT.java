@@ -36,6 +36,7 @@ public class NodeStatsIT extends AbstractRendererTestCase {
 
         logger.debug("--> searching for marvel documents of type [{}]", NodeStatsCollector.TYPE);
         SearchResponse response = client().prepareSearch().setTypes(NodeStatsCollector.TYPE).get();
+
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");

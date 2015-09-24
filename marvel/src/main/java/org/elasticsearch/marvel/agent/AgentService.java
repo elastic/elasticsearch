@@ -88,6 +88,18 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
         }
     }
 
+    public void stopCollection() {
+        if (exportingWorker != null) {
+            exportingWorker.collecting = false;
+        }
+    }
+
+    public void startCollection() {
+        if (exportingWorker != null) {
+            exportingWorker.collecting = true;
+        }
+    }
+
     @Override
     protected void doStart() {
         for (Collector collector : collectors) {
@@ -140,6 +152,7 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
     class ExportingWorker implements Runnable {
 
         volatile boolean closed = false;
+        volatile boolean collecting = true;
 
         @Override
         public void run() {
@@ -162,9 +175,11 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
                     try {
                         for (Collector collector : collectors) {
                             logger.trace("collecting [{}]", collector.name());
-                            Collection<MarvelDoc> docs = collector.collect();
-                            if (docs != null) {
-                                bulk.add(docs);
+                            if (collecting) {
+                                Collection<MarvelDoc> docs = collector.collect();
+                                if (docs != null) {
+                                    bulk.add(docs);
+                                }
                             }
                             if (closed) {
                                 // Stop collecting if the worker is marked as closed
@@ -172,7 +187,7 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
                             }
                         }
                     } finally {
-                        bulk.close(!closed);
+                        bulk.close(!closed && collecting);
                     }
 
                 } catch (InterruptedException e) {

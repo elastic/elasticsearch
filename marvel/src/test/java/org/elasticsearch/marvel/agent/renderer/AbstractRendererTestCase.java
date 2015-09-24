@@ -12,6 +12,8 @@ import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Map;
@@ -19,7 +21,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.*;
 
 
-@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, randomDynamicTemplates = false, transportClientRatio = 0.0)
+@ClusterScope(scope = ESIntegTestCase.Scope.TEST, randomDynamicTemplates = false, transportClientRatio = 0.0)
 public abstract class AbstractRendererTestCase extends MarvelIntegTestCase {
 
     @Override
@@ -31,6 +33,16 @@ public abstract class AbstractRendererTestCase extends MarvelIntegTestCase {
                 .put(MarvelSettings.INTERVAL, "1s")
                 .put(MarvelSettings.COLLECTORS, Strings.collectionToCommaDelimitedString(collectors()))
                 .build();
+    }
+
+    @Before
+    public void init() throws Exception {
+        startCollection();
+    }
+
+    @After
+    public void cleanup() throws Exception {
+        stopCollection();
     }
 
     protected abstract Collection<String> collectors ();

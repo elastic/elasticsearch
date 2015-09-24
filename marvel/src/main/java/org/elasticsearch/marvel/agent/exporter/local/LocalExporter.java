@@ -48,6 +48,8 @@ public class LocalExporter extends Exporter {
     private final ClusterService clusterService;
     private final RendererRegistry renderers;
 
+    private final LocalBulk bulk;
+
     final @Nullable TimeValue bulkTimeout;
 
     private final AtomicReference<State> state = new AtomicReference<>();
@@ -72,11 +74,25 @@ public class LocalExporter extends Exporter {
         bulkTimeout = config.settings().getAsTime(BULK_TIMEOUT_SETTING, null);
 
         state.set(State.STARTING);
+        bulk = new LocalBulk(name(), logger, client, indexNameResolver, renderers);
+    }
+
+    @Override
+    public ExportBulk openBulk() {
+        if (!canExport()) {
+            return null;
+        }
+        return bulk;
     }
 
     @Override
     public void close() {
         if (state.compareAndSet(State.STARTING, State.STOPPING) || state.compareAndSet(State.STARTED, State.STOPPING)) {
+            try {
+                bulk.terminate();
+            } catch (Exception e) {
+                logger.error("failed to cleanly close open bulk for [{}] exporter", e, name());
+            }
             state.set(State.STOPPED);
         }
     }
@@ -196,7 +212,6 @@ public class LocalExporter extends Exporter {
 //                return false;
 //            }
         }
-
         //TODO  this is erroneous
         //      the check may figure out that the existing version is too old and therefore
         //      it can't and won't update the template (prompting the user to delete the template).
@@ -211,14 +226,6 @@ public class LocalExporter extends Exporter {
         logger.debug("exporter [{}] can now export marvel data", name());
         state.set(State.STARTED);
         return true;
-    }
-
-    @Override
-    public ExportBulk openBulk() {
-        if (!canExport()) {
-            return null;
-        }
-        return new LocalBulk(name(), client, indexNameResolver, renderers);
     }
 
     public enum State {

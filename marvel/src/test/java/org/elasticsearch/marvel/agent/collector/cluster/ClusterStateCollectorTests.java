@@ -96,7 +96,8 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
             }
         }
 
-        client().admin().indices().prepareRefresh().get();
+        securedFlush();
+        securedRefresh();
         for (int i = 0; i < nbIndices; i++) {
             assertHitCount(client().prepareCount("test-" + i).get(), docsPerIndex[i]);
         }

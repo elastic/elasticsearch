@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.renderer.indices;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;

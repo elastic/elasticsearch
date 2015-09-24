@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.IndexNameResolver;
@@ -20,12 +21,14 @@ import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  *
  */
 public class LocalBulk extends ExportBulk {
 
+    private final ESLogger logger;
     private final Client client;
     private final IndexNameResolver indexNameResolver;
     private final RendererRegistry renderers;
@@ -33,17 +36,24 @@ public class LocalBulk extends ExportBulk {
     private BytesStreamOutput buffer = null;
     private BulkRequestBuilder requestBuilder;
 
-    public LocalBulk(String name, Client client, IndexNameResolver indexNameResolver, RendererRegistry renderers) {
+    AtomicReference<State> state = new AtomicReference<>();
+
+    public LocalBulk(String name, ESLogger logger, Client client, IndexNameResolver indexNameResolver, RendererRegistry renderers) {
         super(name);
+        this.logger = logger;
         this.client = client;
         this.indexNameResolver = indexNameResolver;
         this.renderers = renderers;
+        state.set(State.ACTIVE);
     }
 
     @Override
-    public ExportBulk add(Collection<MarvelDoc> docs) throws Exception {
+    public synchronized ExportBulk add(Collection<MarvelDoc> docs) throws Exception {
 
         for (MarvelDoc marvelDoc : docs) {
+            if (state.get() != State.ACTIVE) {
+                return this;
+            }
             if (requestBuilder == null) {
                 requestBuilder = client.prepareBulk();
             }
@@ -81,13 +91,27 @@ public class LocalBulk extends ExportBulk {
 
     @Override
     public void flush() throws IOException {
-        if (requestBuilder == null) {
+        if (state.get() != State.ACTIVE || requestBuilder == null) {
             return;
         }
         BulkResponse bulkResponse = requestBuilder.get();
         if (bulkResponse.hasFailures()) {
             throw new ElasticsearchException(bulkResponse.buildFailureMessage());
         }
+        requestBuilder = null;
     }
 
+    void terminate() {
+        state.set(State.TERMINATING);
+        synchronized (this) {
+            requestBuilder = null;
+            state.compareAndSet(State.TERMINATING, State.TERMINATED);
+        }
+    }
+
+    enum State {
+        ACTIVE,
+        TERMINATING,
+        TERMINATED
+    }
 }

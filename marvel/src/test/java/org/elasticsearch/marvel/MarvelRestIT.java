@@ -7,6 +7,7 @@ package org.elasticsearch.marvel;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
@@ -14,7 +15,7 @@ import org.junit.Ignore;
 
 import java.io.IOException;
 
-@Ignore
+@LuceneTestCase.AwaitsFix(bugUrl = "why do we have this rest test in the first place???")
 public class MarvelRestIT extends ESRestTestCase {
 
     public MarvelRestIT(@Name("yaml") RestTestCandidate testCandidate) {

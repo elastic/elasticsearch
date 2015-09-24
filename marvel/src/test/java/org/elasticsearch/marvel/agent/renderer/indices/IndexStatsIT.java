@@ -30,8 +30,10 @@ public class IndexStatsIT extends AbstractRendererTestCase {
     public void testIndexStats() throws Exception {
         logger.debug("--> creating some indices for future index stats");
         final int nbIndices = randomIntBetween(1, 5);
+        String[] indices = new String[nbIndices];
         for (int i = 0; i < nbIndices; i++) {
-            createIndex("stat" + i);
+            indices[i] = "stat" + i;
+            createIndex(indices[i]);
         }
 
         final long[] nbDocsPerIndex = new long[nbIndices];
@@ -48,10 +50,12 @@ public class IndexStatsIT extends AbstractRendererTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
+                securedFlush(indices);
+                securedRefresh();
                 for (int i = 0; i < nbIndices; i++) {
                     CountResponse count = client().prepareCount()
                             .setTypes(IndexStatsCollector.TYPE)
-                            .setQuery(QueryBuilders.termQuery("index_stats.index", "stat" + i))
+                            .setQuery(QueryBuilders.termQuery("index_stats.index", indices[i]))
                             .get();
                     assertThat(count.getCount(), greaterThan(0L));
                 }

@@ -184,7 +184,6 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         }
     }
 
-    //norelease this method parses from xcontent to lucene query, need to re-investigate how to split context here
     private Query parseQuery(String type, XContentParser parser) {
         String[] previousTypes = null;
         if (type != null) {

@@ -201,7 +201,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                         changes.add(ShardStatusChangeType.ADDED);
                     }
                     // check if it is deemed to be inactive (sam translogId and numberOfOperations over a long period of time)
-                    if (status.translogId == translog.currentId() && translog.estimatedNumberOfOperations() == 0) {
+                    if (status.translogId == translog.currentId() && translog.estimatedNumberOfOperations() == status.translogNumberOfOperations) {
                         if (status.time == -1) { // first time
                             status.time = time;
                         }

@@ -32,6 +32,8 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.concurrent.ExecutionException;
+
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
 public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest {
@@ -74,7 +76,7 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
         success = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
-                return  shard1.engine().config().getIndexingBufferSize().bytes() >= expected1ShardSize;
+                return shard1.engine().config().getIndexingBufferSize().bytes() >= expected1ShardSize;
             }
         });
 
@@ -87,7 +89,7 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
     }
 
     @Test
-    public void testIndexBufferSizeUpdateInactiveShard() throws InterruptedException {
+    public void testIndexBufferSizeUpdateInactiveShard() throws InterruptedException, ExecutionException {
 
         createNode(ImmutableSettings.builder().put("indices.memory.shard_inactive_time", "100ms").build());
 
@@ -96,6 +98,13 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
         ensureGreen();
 
         final IndexShard shard1 = internalCluster().getInstance(IndicesService.class).indexService("test1").shard(0);
+
+
+        if (randomBoolean()) {
+            logger.info("--> indexing some pending operations");
+            indexRandom(false, client().prepareIndex("test1", "type", "0").setSource("f", "0"));
+        }
+
         boolean success = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
@@ -117,12 +126,15 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
             }
         });
         if (!success) {
-            fail("failed to update shard indexing buffer size due to inactive state. expected something larger then [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
+            fail("failed to update shard indexing buffer size due to active state. expected something larger then [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
                             shard1.engine().config().getIndexingBufferSize().bytes() + "]"
             );
         }
 
-        flush(); // clean translogs
+        if (randomBoolean()) {
+            logger.info("--> flushing translogs");
+            flush(); // clean translogs
+        }
 
         success = awaitBusy(new Predicate<Object>() {
             @Override

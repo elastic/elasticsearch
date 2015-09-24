@@ -482,7 +482,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryParseContext} based on the base test index and queryParserService
      */
     protected static QueryParseContext createParseContext() {
-        return createShardContext().parseContext();
+        QueryParseContext queryParseContext = new QueryParseContext(queryParserService.indicesQueriesRegistry());
+        queryParseContext.reset(null);
+        queryParseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
+        return queryParseContext;
     }
 
     /**

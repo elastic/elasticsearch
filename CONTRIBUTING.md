@@ -8,14 +8,14 @@
 ```
 git clone https://github.com/elastic/elasticsearch-marvel.git && cd elasticsearch-marvel
 ```
-- install dependencies
+- Install dependencies
 ```
 npm install
 ```
 - Start it up
   - Start Elasticsearch, with esvm `esvm --branch 2.0` or with traditionally `bin/elasticsearch`.
   - Start up the mock Marvel agent with `gulp index`
-  - Start up the watching and sync of marvel and Kibana with `gulp dev`
+  - Start up the filesystem watching of Marvel code and syncing to Kibana's plugin directory with `gulp dev`
   - Finally startup Kibana from that directory run `bin/kibana`
 
 - Check it out, navigate to your [Kibana App](http://localhost:5601)

@@ -179,7 +179,10 @@ class JNANatives {
                 LOCAL_SECCOMP = true;
             } catch (Exception e) {
                 // this is likely to happen unless the kernel is newish, its a best effort at the moment
-                // so unfortunately, we hide the stacktrace for now...
+                // so we log stacktrace at debug for now...
+                if (logger.isDebugEnabled()) {
+                    logger.debug("unable to install seccomp filter", e);
+                }
                 logger.warn("unable to install seccomp filter: " + e.getMessage());
             }
         }

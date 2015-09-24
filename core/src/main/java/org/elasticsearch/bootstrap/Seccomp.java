@@ -185,6 +185,8 @@ final class Seccomp {
     // ...
     static final int BLACKLIST_START = 57;
     static final int BLACKLIST_END   = 59;
+    
+    // TODO: execveat()? its less of a risk since the jvm does not use it...
 
     /** try to install our filters */
     static void installFilter() {

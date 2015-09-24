@@ -43,4 +43,11 @@ public final class BootstrapInfo {
     public static boolean isMemoryLocked() {
         return Natives.isMemoryLocked();
     }
+    
+    /**
+     * Returns true if secure computing mode is enabled (linux/amd64 only)
+     */
+    public static boolean isSeccompInstalled() {
+        return Natives.isSeccompInstalled();
+    }
 }

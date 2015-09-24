@@ -286,6 +286,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     @Test
     public void testDateRangeQueryTimezone() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         long startDate = System.currentTimeMillis();
         String query = "{\n" +
                 "    \"range\" : {\n" +

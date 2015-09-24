@@ -156,10 +156,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
         return queryBuilder;
     }
 
-    //norelease make this abstract once all builders implement doReadFrom themselves
-    protected QB doReadFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException();
-    }
+    protected abstract QB doReadFrom(StreamInput in) throws IOException;
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
@@ -168,10 +165,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
         out.writeOptionalString(queryName);
     }
 
-    //norelease make this abstract once all builders implement doWriteTo themselves
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException();
-    }
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     protected final QueryValidationException addValidationError(String validationError, QueryValidationException validationException) {
         return QueryValidationException.addValidationError(getName(), validationError, validationException);
@@ -195,20 +189,14 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     /**
      * Indicates whether some other {@link QueryBuilder} object of the same type is "equal to" this one.
      */
-    //norelease to be made abstract once all queries are refactored
-    protected boolean doEquals(QB other) {
-        return super.equals(other);
-    }
+    protected abstract boolean doEquals(QB other);
 
     @Override
     public final int hashCode() {
         return Objects.hash(getClass(), queryName, boost, doHashCode());
     }
 
-    //norelease to be made abstract once all queries are refactored
-    protected int doHashCode() {
-        return super.hashCode();
-    }
+    protected abstract int doHashCode();
 
     /**
      * This helper method checks if the object passed in is a string, if so it
@@ -274,21 +262,5 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
             queries.add(in.readQuery());
         }
         return queries;
-    }
-
-    protected final void writeOptionalQuery(StreamOutput out, QueryBuilder query) throws IOException {
-        if (query == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeQuery(query);
-        }
-    }
-
-    protected final QueryBuilder readOptionalQuery(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            return in.readQuery();
-        }
-        return null;
     }
 }

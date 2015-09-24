@@ -44,9 +44,9 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
             case 0:
                 return new WrapperQueryBuilder(wrappedQuery.toString());
             case 1:
-                return new WrapperQueryBuilder(wrappedQuery.buildAsBytes().toBytes());
+                return new WrapperQueryBuilder(((AbstractQueryBuilder<?>)wrappedQuery).buildAsBytes().toBytes());
             case 2:
-                return new WrapperQueryBuilder(wrappedQuery.buildAsBytes());
+                return new WrapperQueryBuilder(((AbstractQueryBuilder<?>)wrappedQuery).buildAsBytes());
             default:
                 throw new UnsupportedOperationException();
         }

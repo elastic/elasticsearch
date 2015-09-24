@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.util.concurrent.UncheckedExecutionException;
 import dk.brics.automaton.Automaton;
 import dk.brics.automaton.BasicAutomata;
 import dk.brics.automaton.BasicOperations;
+
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
@@ -21,12 +20,16 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
 
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Predicate;
 
+import static java.util.Collections.singleton;
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.shield.support.Automatons.patterns;
 
 /**
@@ -401,6 +404,7 @@ public abstract class Privilege<P extends Privilege<P>> {
             return BasicOperations.subsetOf(other.automaton, automaton);
         }
 
+        @Override
         public String toString() {
             return name.toString();
         }
@@ -417,20 +421,20 @@ public abstract class Privilege<P extends Privilege<P>> {
         public static final Name NONE = new Name("none");
         public static final Name ALL = new Name("all");
 
-        private final ImmutableSet<String> parts;
+        private final Set<String> parts;
 
         public Name(String name) {
             assert name != null && !name.contains(",");
-            parts = ImmutableSet.of(name);
+            parts = singleton(name);
         }
 
         public Name(Set<String> parts) {
             assert !parts.isEmpty();
-            this.parts = ImmutableSet.copyOf(parts);
+            this.parts = unmodifiableSet(new HashSet<>(parts));
         }
 
         public Name(String... parts) {
-            this(ImmutableSet.copyOf(parts));
+            this(unmodifiableSet(newHashSet(parts)));
         }
 
         @Override

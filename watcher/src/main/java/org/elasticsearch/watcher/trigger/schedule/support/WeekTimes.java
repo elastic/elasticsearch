@@ -5,15 +5,19 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.support;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Set;
 
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.watcher.support.Strings.join;
 
 /**
@@ -73,7 +77,7 @@ public class WeekTimes implements Times {
         if (!days.equals(that.days)) return false;
 
         // we don't care about order
-        if (!ImmutableSet.copyOf(times).equals(ImmutableSet.copyOf(that.times))) return false;
+        if (!newHashSet(times).equals(newHashSet(that.times))) return false;
 
         return true;
     }

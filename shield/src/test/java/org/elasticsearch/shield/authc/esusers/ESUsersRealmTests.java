@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.esusers;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -16,7 +15,6 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -29,14 +27,24 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Locale;
 
-import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.*;
+import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  *
@@ -184,7 +192,7 @@ public class ESUsersRealmTests extends ESTestCase {
         RestController restController = mock(RestController.class);
         RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
         new ESUsersRealm(config, new UserPasswdStore(config), new UserRolesStore(config));
-        when(restController.relevantHeaders()).thenReturn(ImmutableSet.<String>of());
+        when(restController.relevantHeaders()).thenReturn(emptySet());
         when(client.admin()).thenReturn(adminClient);
         when(client.settings()).thenReturn(Settings.EMPTY);
         when(client.headers()).thenReturn(Headers.EMPTY);

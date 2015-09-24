@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.support;
 
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -14,9 +13,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.DAYS;
+import static java.util.concurrent.TimeUnit.HOURS;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.xContentParser;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -63,11 +68,10 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
     @Test
     public void testParseTimeValue_String() throws Exception {
         int value = randomIntBetween(2, 200);
-        ImmutableMap<String, TimeValue> values = ImmutableMap.<String, TimeValue>builder()
-                .put(value + "s", TimeValue.timeValueSeconds(value))
-                .put(value + "m", TimeValue.timeValueMinutes(value))
-                .put(value + "h", TimeValue.timeValueHours(value))
-                .build();
+        Map<String, TimeValue> values = new HashMap<>();
+        values.put(value + "s", TimeValue.timeValueSeconds(value));
+        values.put(value + "m", TimeValue.timeValueMinutes(value));
+        values.put(value + "h", TimeValue.timeValueHours(value));
 
         String key = randomFrom(values.keySet().toArray(new String[values.size()]));
 
@@ -84,11 +88,10 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
     @Test(expected = ElasticsearchParseException.class)
     public void testParseTimeValue_String_Negative() throws Exception {
         int value = -1 * randomIntBetween(2, 200);
-        ImmutableMap<String, TimeValue> values = ImmutableMap.<String, TimeValue>builder()
-                .put(value + "s", TimeValue.timeValueSeconds(value))
-                .put(value + "m", TimeValue.timeValueMinutes(value))
-                .put(value + "h", TimeValue.timeValueHours(value))
-                .build();
+        Map<String, TimeValue> values = new HashMap<>();
+        values.put(value + "s", TimeValue.timeValueSeconds(value));
+        values.put(value + "m", TimeValue.timeValueMinutes(value));
+        values.put(value + "h", TimeValue.timeValueHours(value));
 
         String key = randomFrom(values.keySet().toArray(new String[values.size()]));
 

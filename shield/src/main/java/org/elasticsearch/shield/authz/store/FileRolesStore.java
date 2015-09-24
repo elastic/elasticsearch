@@ -6,8 +6,7 @@
 package org.elasticsearch.shield.authz.store;
 
 import com.fasterxml.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -37,8 +36,20 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
 
 /**
  *
@@ -51,10 +62,10 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
 
     private final Path file;
     private final RefreshListener listener;
-    private final ImmutableSet<Permission.Global.Role> reservedRoles;
+    private final Set<Permission.Global.Role> reservedRoles;
     private final ResourceWatcherService watcherService;
 
-    private volatile ImmutableMap<String, Permission.Global.Role> permissions;
+    private volatile Map<String, Permission.Global.Role> permissions;
 
     @Inject
     public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Set<Permission.Global.Role> reservedRoles) {
@@ -66,8 +77,8 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         this.file = resolveFile(settings, env);
         this.listener = listener;
         this.watcherService = watcherService;
-        this.reservedRoles = ImmutableSet.copyOf(reservedRoles);
-        permissions = ImmutableMap.of();
+        this.reservedRoles = unmodifiableSet(new HashSet<>(reservedRoles));
+        permissions = emptyMap();
     }
 
     @Override
@@ -104,19 +115,19 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         return env.binFile().getParent().resolve(location);
     }
 
-    public static ImmutableSet<String> parseFileForRoleNames(Path path, ESLogger logger) {
-        ImmutableMap<String, Permission.Global.Role> roleMap = parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger, false);
+    public static Set<String> parseFileForRoleNames(Path path, ESLogger logger) {
+        Map<String, Permission.Global.Role> roleMap = parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger, false);
         if (roleMap == null) {
-            return ImmutableSet.<String>builder().build();
+            return emptySet();
         }
         return roleMap.keySet();
     }
 
-    public static ImmutableMap<String, Permission.Global.Role> parseFile(Path path, Set<Permission.Global.Role> reservedRoles, ESLogger logger) {
+    public static Map<String, Permission.Global.Role> parseFile(Path path, Set<Permission.Global.Role> reservedRoles, ESLogger logger) {
         return parseFile(path, reservedRoles, logger, true);
     }
 
-    public static ImmutableMap<String, Permission.Global.Role> parseFile(Path path, Set<Permission.Global.Role> reservedRoles, ESLogger logger, boolean resolvePermission) {
+    public static Map<String, Permission.Global.Role> parseFile(Path path, Set<Permission.Global.Role> reservedRoles, ESLogger logger, boolean resolvePermission) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
@@ -150,7 +161,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
             roles.put(reservedRole.name(), reservedRole);
         }
 
-        return ImmutableMap.copyOf(roles);
+        return unmodifiableMap(roles);
     }
 
     private static Permission.Global.Role parseRole(String segment, Path path, ESLogger logger, boolean resolvePermissions) {

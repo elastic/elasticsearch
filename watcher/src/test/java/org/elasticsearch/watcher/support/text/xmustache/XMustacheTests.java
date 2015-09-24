@@ -6,9 +6,9 @@
 package org.elasticsearch.watcher.support.text.xmustache;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-import org.elasticsearch.common.bytes.BytesReference;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.CompiledScript;
@@ -25,7 +25,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static java.util.Collections.singleton;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -46,14 +52,21 @@ public class XMustacheTests extends ESTestCase {
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
                 new String[] { "foo", "bar" },
-                Arrays.asList("foo", "bar"),
-                ImmutableSet.of("foo", "bar"));
+                Arrays.asList("foo", "bar"));
         vars.put("data", data);
         Object output = engine.execute(mustache, vars);
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         BytesReference bytes = (BytesReference) output;
         assertThat(bytes.toUtf8(), equalTo("foo bar"));
+
+        // Sets can come out in any order
+        vars.put("data", newHashSet("foo", "bar"));
+        output = engine.execute(mustache, vars);
+        assertThat(output, notNullValue());
+        assertThat(output, instanceOf(BytesReference.class));
+        bytes = (BytesReference) output;
+        assertThat(bytes.toUtf8(), both(containsString("foo")).and(containsString("bar")));
     }
 
     @Test
@@ -64,7 +77,7 @@ public class XMustacheTests extends ESTestCase {
         Object data = randomFrom(
                 new String[][] { new String[] { "foo", "bar" }},
                 Collections.singletonList(new String[] { "foo", "bar" }),
-                ImmutableSet.of(new String[] { "foo", "bar" })
+                singleton(new String[] { "foo", "bar" })
         );
         vars.put("data", data);
         Object output = engine.execute(mustache, vars);
@@ -82,7 +95,7 @@ public class XMustacheTests extends ESTestCase {
         Object data = randomFrom(
                 new Map[] { ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar") },
                 Arrays.asList(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")),
-                ImmutableSet.of(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")));
+                newHashSet(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")));
         vars.put("data", data);
         Object output = engine.execute(mustache, vars);
         assertThat(output, notNullValue());

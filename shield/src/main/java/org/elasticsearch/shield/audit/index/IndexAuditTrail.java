@@ -6,7 +6,7 @@
 package org.elasticsearch.shield.audit.index;
 
 import com.google.common.base.Splitter;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
@@ -66,15 +66,31 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.shield.audit.AuditUtil.indices;
 import static org.elasticsearch.shield.audit.AuditUtil.restRequestContent;
-import static org.elasticsearch.shield.audit.index.IndexAuditLevel.*;
+import static org.elasticsearch.shield.audit.index.IndexAuditLevel.ACCESS_DENIED;
+import static org.elasticsearch.shield.audit.index.IndexAuditLevel.ACCESS_GRANTED;
+import static org.elasticsearch.shield.audit.index.IndexAuditLevel.ANONYMOUS_ACCESS_DENIED;
+import static org.elasticsearch.shield.audit.index.IndexAuditLevel.AUTHENTICATION_FAILED;
+import static org.elasticsearch.shield.audit.index.IndexAuditLevel.CONNECTION_DENIED;
+import static org.elasticsearch.shield.audit.index.IndexAuditLevel.CONNECTION_GRANTED;
+import static org.elasticsearch.shield.audit.index.IndexAuditLevel.RUN_AS_DENIED;
+import static org.elasticsearch.shield.audit.index.IndexAuditLevel.RUN_AS_GRANTED;
+import static org.elasticsearch.shield.audit.index.IndexAuditLevel.SYSTEM_ACCESS_GRANTED;
+import static org.elasticsearch.shield.audit.index.IndexAuditLevel.TAMPERED_REQUEST;
+import static org.elasticsearch.shield.audit.index.IndexAuditLevel.parse;
 import static org.elasticsearch.shield.audit.index.IndexNameResolver.resolve;
 
 /**
@@ -107,7 +123,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             RUN_AS_GRANTED.toString()
     };
 
-    private static final ImmutableSet<String> forbiddenIndexSettings = ImmutableSet.of("index.mapper.dynamic");
+    private static final Set<String> FORBIDDEN_INDEX_SETTINGS = singleton("index.mapper.dynamic");
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final String nodeName;
@@ -725,7 +741,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         Settings.Builder builder = Settings.builder();
         for (Map.Entry<String, String> entry : newSettings.getAsMap().entrySet()) {
             String name = "index." + entry.getKey();
-            if (forbiddenIndexSettings.contains(name)) {
+            if (FORBIDDEN_INDEX_SETTINGS.contains(name)) {
                 logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
                 continue;
             }

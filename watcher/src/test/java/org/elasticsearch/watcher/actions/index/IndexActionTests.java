@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.actions.index;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -35,11 +35,18 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Map;
 
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.joda.time.DateTimeZone.UTC;
 
 /**
@@ -132,7 +139,7 @@ public class IndexActionTests extends ESIntegTestCase {
         Object list = randomFrom(
                 new Map[] { ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1") },
                 Arrays.asList(ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1")),
-                ImmutableSet.of(ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1"))
+                unmodifiableSet(newHashSet(ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1")))
         );
 
         IndexAction action = new IndexAction("test-index", "test-type", timestampField, null, null);

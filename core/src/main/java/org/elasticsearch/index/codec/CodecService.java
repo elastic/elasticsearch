@@ -23,10 +23,8 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
 import org.apache.lucene.codecs.lucene54.Lucene54Codec;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.mapper.MapperService;
-import java.util.Map;
 
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
@@ -35,44 +33,35 @@ import java.util.Map;
  * {@link Codec} capabilities through this {@link CodecService}.
  */
 public class CodecService {
-
-    private final Map<String, Codec> codecs;
-
     public final static String DEFAULT_CODEC = "default";
     public final static String BEST_COMPRESSION_CODEC = "best_compression";
     /** the raw unfiltered lucene default. useful for testing */
     public final static String LUCENE_DEFAULT_CODEC = "lucene_default";
 
+    private final MapperService mapperService;
+    private final ESLogger logger;
+
     public CodecService(@Nullable MapperService mapperService, ESLogger logger) {
-        final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
-        if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, new Lucene54Codec());
-            codecs.put(BEST_COMPRESSION_CODEC, new Lucene54Codec(Mode.BEST_COMPRESSION));
-        } else {
-            codecs.put(DEFAULT_CODEC,
-                    new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
-            codecs.put(BEST_COMPRESSION_CODEC,
-                    new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
-        }
-        codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
-        for (String codec : Codec.availableCodecs()) {
-            codecs.put(codec, Codec.forName(codec));
-        }
-        this.codecs = codecs.immutableMap();
+        this.mapperService = mapperService;
+        this.logger = logger;
     }
 
     public Codec codec(String name) {
-        Codec codec = codecs.get(name);
-        if (codec == null) {
-            throw new IllegalArgumentException("failed to find codec [" + name + "]");
+        switch (name) {
+        case DEFAULT_CODEC:
+            if (mapperService == null) {
+                return new Lucene54Codec();
+            }
+            return new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger);
+        case BEST_COMPRESSION_CODEC:
+            if (mapperService == null) {
+                return new Lucene54Codec(Mode.BEST_COMPRESSION);
+            }
+            return new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger);
+        case LUCENE_DEFAULT_CODEC:
+            return Codec.getDefault();
+        default:
+            return Codec.forName(name);
         }
-        return codec;
-    }
-
-    /**
-     * Returns all registered available codec names
-     */
-    public String[] availableCodecs() {
-        return codecs.keySet().toArray(new String[0]);
     }
 }

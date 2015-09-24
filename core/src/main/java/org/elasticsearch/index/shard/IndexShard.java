@@ -1521,6 +1521,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         @Override
                         public void onAfter() {
                             asyncFlushRunning.compareAndSet(true, false);
+                            maybeFlush(); // fire a flush up again if we have filled up the limits such that shouldFlush() returns true
                         }
                     };
                     threadPool.executor(ThreadPool.Names.FLUSH).execute(abstractRunnable);
@@ -1530,5 +1531,4 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
         return false;
     }
-
 }

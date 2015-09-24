@@ -690,7 +690,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertTrue(postIndexWithExceptionCalled.get());
     }
 
-
     public void testMaybeFlush() throws Exception {
         createIndex("test", settingsBuilder().put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.REQUEST).build());
         ensureGreen();

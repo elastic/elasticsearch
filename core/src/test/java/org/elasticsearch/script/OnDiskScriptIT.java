@@ -72,7 +72,7 @@ public class OnDiskScriptIT extends ESIntegTestCase {
         SearchResponse searchResponse = client()
                 .prepareSearch()
                 .setSource(
-                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
+                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1)
                                 .scriptField("test1", new Script("script1", ScriptType.FILE, null, null))
                                 .scriptField("test2", new Script("script2", ScriptType.FILE, null, script2Params))).setIndices("test")
                 .setTypes("scriptTest").get();

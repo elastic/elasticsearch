@@ -154,7 +154,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/683")
     public void testShardsCollectorWithLicensing() {
         String[] nodes = internalCluster().getNodeNames();
         for (String node : nodes) {

@@ -10,6 +10,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
@@ -30,6 +31,8 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
             new LicensesService.TrialLicenseOptions(TimeValue.timeValueHours(30 * 24), 1000);
 
     private static final FormatDateTimeFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
+
+    static final TimeValue GRACE_PERIOD = days(7);
 
     private final LicensesManagerService managerService;
     private final LicensesClientService clientService;
@@ -69,24 +72,37 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
                                 "#", DATE_FORMATTER.printer().print(license.expiryDate()));
                     }
                 },
-                new LicensesService.ExpirationCallback.Post(days(0), null, minutes(10)) {
+                new LicensesService.ExpirationCallback.Post(days(0), GRACE_PERIOD, minutes(10)) {
                     @Override
                     public void on(License license, LicensesService.ExpirationStatus status) {
+                        long endOfGracePeriod = license.expiryDate() + GRACE_PERIOD.getMillis();
                         logger.error("\n" +
                                 "#\n" +
-                                "# MARVEL LICENSE WAS EXPIRED ON [{}].\n" +
+                                "# MARVEL LICENSE HAS EXPIRED ON [{}].\n" +
+                                "# MARVEL WILL STOP COLLECTING DATA ON [{}].\n" +
                                 "# HAVE A NEW LICENSE? PLEASE UPDATE IT. OTHERWISE, PLEASE REACH OUT TO YOUR SUPPORT CONTACT.\n" +
-                                "#", DATE_FORMATTER.printer().print(license.expiryDate()));
+                                "#", DATE_FORMATTER.printer().print(endOfGracePeriod), DATE_FORMATTER.printer().print(license.expiryDate()));
                     }
                 }
         );
         this.acknowledgementCallback = new LicensesClientService.AcknowledgementCallback() {
             @Override
             public List<String> acknowledge(License currentLicense, License newLicense) {
-                // TODO: add messages to be acknowledged when installing newLicense from currentLicense
-                // NOTE: currentLicense can be null, as a license registration can happen before
-                // a trial license could be generated
-                return Collections.emptyList();
+                switch (newLicense.type()) {
+
+                    case "trial":
+                    case "gold":
+                    case "platinum":
+                        return Collections.emptyList();
+
+                    default: // "basic" - we also fall back to basic for an unknown type
+                        return Collections.singletonList(LoggerMessageFormat.format(
+                                "Marvel: Multi-cluster support is disabled for clusters with [{}] licenses.\n" +
+                                "If you are running multiple customers, users won't be able to access this\n" +
+                                "all the clusters with [{}] licenses from a single Marvel instance. To access them\n" +
+                                "a dedicated and separated marvel instance will be required for each cluster",
+                                newLicense.type(), newLicense.type()));
+                }
             }
         };
     }

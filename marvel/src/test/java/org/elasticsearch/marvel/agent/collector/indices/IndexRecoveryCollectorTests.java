@@ -116,7 +116,7 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/683")
     public void testIndexRecoveryCollectorWithLicensing() {
         String[] nodes = internalCluster().getNodeNames();
         for (String node : nodes) {

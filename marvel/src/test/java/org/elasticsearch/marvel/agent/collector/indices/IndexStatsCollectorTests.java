@@ -171,7 +171,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/683")
     public void testIndexStatsCollectorWithLicensing() {
         String[] nodes = internalCluster().getNodeNames();
         for (String node : nodes) {

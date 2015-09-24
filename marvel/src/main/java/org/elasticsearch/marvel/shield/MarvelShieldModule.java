@@ -7,10 +7,7 @@ package org.elasticsearch.marvel.shield;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.util.Providers;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authz.Privilege;
 
 /**
  *

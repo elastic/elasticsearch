@@ -37,7 +37,7 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(clusterStatsMarvelDoc.getClusterStats().getNodesStats().getCounts().getTotal(), equalTo(internalCluster().getNodeNames().length));
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/683")
     public void testClusterStatsCollectorWithLicensing() {
         String[] nodes = internalCluster().getNodeNames();
         for (String node : nodes) {

@@ -29,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Map;
 
 /**
  *
@@ -40,19 +41,35 @@ public class MarvelIntegTestCase extends ESIntegTestCase {
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         if (shieldEnabled == null) {
-            shieldEnabled = false; // enableShield();
+            shieldEnabled = true; // enableShield();
         }
         return super.buildTestCluster(scope, seed);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        Map<String, String> originalSettings = super.nodeSettings(nodeOrdinal).getAsMap();
+        if (shieldEnabled) {
+            originalSettings.remove("index.queries.cache.type"); // setting not supported by shield
+        }
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(originalSettings)
                 // we do this by default in core, but for marvel this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false)
                 .put(ShieldSettings.settings(shieldEnabled))
                 .build();
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        if (shieldEnabled) {
+            return Settings.builder()
+                    .put(super.transportClientSettings())
+                    .put("client.transport.sniff", false)
+                    .put("shield.user", "test:changeme")
+                    .build();
+        }
+        return super.transportClientSettings();
     }
 
     @Override

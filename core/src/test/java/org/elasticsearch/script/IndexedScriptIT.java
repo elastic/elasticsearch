@@ -24,18 +24,23 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -81,13 +86,20 @@ public class IndexedScriptIT extends ESIntegTestCase {
         builders.add(client().prepareIndex("test", "scriptTest", "5").setSource("{\"theField\":\"bar\"}"));
 
         indexRandom(true, builders);
-        String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_id\" : \"script1\", \"lang\":\"groovy\" }, \"test2\" : { \"script_id\" : \"script2\", \"lang\":\"groovy\", \"params\":{\"factor\":3}  }}, size:1}";
-//        SearchResponse searchResponse = client().prepareSearch().setSource(new BytesArray(query)).setIndices("test").setTypes("scriptTest").get();
-//        assertHitCount(searchResponse, 5);
-//        assertTrue(searchResponse.getHits().hits().length == 1);
-//        SearchHit sh = searchResponse.getHits().getAt(0);
-//        assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
-//        assertThat((Integer)sh.field("test2").getValue(), equalTo(6)); NOCOMMIT fix this
+        Map<String, Object> script2Params = new HashMap<>();
+        script2Params.put("factor", 3);
+        SearchResponse searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1)
+                                .scriptField("test1", new Script("script1", ScriptType.INDEXED, "groovy", null))
+                                .scriptField("test2", new Script("script2", ScriptType.INDEXED, "groovy", script2Params)))
+                .setIndices("test").setTypes("scriptTest").get();
+        assertHitCount(searchResponse, 5);
+        assertTrue(searchResponse.getHits().hits().length == 1);
+        SearchHit sh = searchResponse.getHits().getAt(0);
+        assertThat((Integer) sh.field("test1").getValue(), equalTo(2));
+        assertThat((Integer) sh.field("test2").getValue(), equalTo(6));
     }
 
     // Relates to #10397
@@ -100,17 +112,18 @@ public class IndexedScriptIT extends ESIntegTestCase {
 
         int iterations = randomIntBetween(2, 11);
         for (int i = 1; i < iterations; i++) {
-            PutIndexedScriptResponse response = 
+            PutIndexedScriptResponse response =
                     client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "script1", "{\"script\":\"" + i + "\"}").get();
             assertEquals(i, response.getVersion());
-            
-            String query = "{"
-                    + " \"query\" : { \"match_all\": {}}, "
-                    + " \"script_fields\" : { \"test_field\" : { \"script_id\" : \"script1\", \"lang\":\"groovy\" } } }";    
-//            SearchResponse searchResponse = client().prepareSearch().setSource(new BytesArray(query)).setIndices("test_index").setTypes("test_type").get();
-//            assertHitCount(searchResponse, 1);
-//            SearchHit sh = searchResponse.getHits().getAt(0);
-//            assertThat((Integer)sh.field("test_field").getValue(), equalTo(i)); NOCOMMIT fix this
+            SearchResponse searchResponse = client()
+                    .prepareSearch()
+                    .setSource(
+                            new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).scriptField("test_field",
+                                    new Script("script1", ScriptType.INDEXED, "groovy", null))).setIndices("test_index")
+                    .setTypes("test_type").get();
+            assertHitCount(searchResponse, 1);
+            SearchHit sh = searchResponse.getHits().getAt(0);
+            assertThat((Integer)sh.field("test_field").getValue(), equalTo(i));
         }
     }
 
@@ -143,10 +156,13 @@ public class IndexedScriptIT extends ESIntegTestCase {
         }
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         refresh();
-        String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_id\":\"script1\" } } } }";
-//        SearchResponse searchResponse = client().prepareSearch("test").setSource(new BytesArray(source)).get();
-//        assertHitCount(searchResponse, 1);
-//        assertThat(searchResponse.getAggregations().get("test"), notNullValue()); NOCOMMIT fix this
+        SearchResponse searchResponse = client()
+                .prepareSearch("test")
+                .setSource(
+                        new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
+                                new Script("script1", ScriptType.INDEXED, null, null)))).get();
+        assertHitCount(searchResponse, 1);
+        assertThat(searchResponse.getAggregations().get("test"), notNullValue());
     }
 
     @Test
@@ -165,18 +181,22 @@ public class IndexedScriptIT extends ESIntegTestCase {
             assertThat(e.getMessage(), containsString("failed to execute script"));
             assertThat(e.getCause().getMessage(), containsString("scripts of type [indexed], operation [update] and lang [expression] are disabled"));
         }
-//        try {
-//            String query = "{ \"script_fields\" : { \"test1\" : { \"script_id\" : \"script1\", \"lang\":\"expression\" }}}";
-//            client().prepareSearch().setSource(new BytesArray(query)).setIndices("test").setTypes("scriptTest").get();
-//            fail("search script should have been rejected");
-//        } catch(Exception e) {
-//            assertThat(e.toString(), containsString("scripts of type [indexed], operation [search] and lang [expression] are disabled"));
-//        }
-//        try {
-//            String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_id\":\"script1\", \"script_lang\":\"expression\" } } } }";
-//            client().prepareSearch("test").setSource(new BytesArray(source)).get();
-//        } catch(Exception e) {
-//            assertThat(e.toString(), containsString("scripts of type [indexed], operation [aggs] and lang [expression] are disabled"));
-//        } NOCOMMIT fix this
+        try {
+            client().prepareSearch()
+                    .setSource(
+                            new SearchSourceBuilder().scriptField("test1", new Script("script1", ScriptType.INDEXED, "expression", null)))
+                    .setIndices("test").setTypes("scriptTest").get();
+            fail("search script should have been rejected");
+        } catch (Exception e) {
+            assertThat(e.toString(), containsString("scripts of type [indexed], operation [search] and lang [expression] are disabled"));
+        }
+        try {
+            client().prepareSearch("test")
+                    .setSource(
+                            new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
+                                    new Script("script1", ScriptType.INDEXED, "expression", null)))).get();
+        } catch (Exception e) {
+            assertThat(e.toString(), containsString("scripts of type [indexed], operation [aggs] and lang [expression] are disabled"));
+        }
     }
 }

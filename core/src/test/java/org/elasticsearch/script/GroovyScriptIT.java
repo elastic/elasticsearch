@@ -23,8 +23,11 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -33,7 +36,6 @@ import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
@@ -52,17 +54,17 @@ public class GroovyScriptIT extends ESIntegTestCase {
         client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
 
         // Test that something that would usually be a BigDecimal is transformed into a Double
-        assertScript("def n = 1.23; assert n instanceof Double;");
-        assertScript("def n = 1.23G; assert n instanceof Double;");
-        assertScript("def n = BigDecimal.ONE; assert n instanceof BigDecimal;");
+        assertScript("def n = 1.23; assert n instanceof Double; return n;");
+        assertScript("def n = 1.23G; assert n instanceof Double; return n;");
+        assertScript("def n = BigDecimal.ONE; assert n instanceof BigDecimal; return n;");
     }
 
-    public void assertScript(String script) {
-        // SearchResponse resp = client().prepareSearch("test")
-        // .setSource(new BytesArray("{\"query\": {\"match_all\": {}}," +
-        // "\"sort\":{\"_script\": {\"script\": \""+ script +
-        // "; 1\", \"type\": \"number\", \"lang\": \"groovy\"}}}")).get();
-        // assertNoFailures(resp); NOCOMMIT fix this
+    public void assertScript(String scriptString) {
+        Script script = new Script(scriptString, ScriptType.INLINE, "groovy", null);
+        SearchResponse resp = client().prepareSearch("test")
+                .setSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).sort(SortBuilders.scriptSort(script, "number")))
+                .get();
+        assertNoFailures(resp);
     }
 
     @Test

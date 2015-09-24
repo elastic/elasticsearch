@@ -621,7 +621,7 @@ public class TopHitsIT extends ESIntegTestCase {
     // assertThat(e.toString(),
     // containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
     // }
-    // } NOCOMMIT fix this
+    // } NORELEASE this needs to be tested in a top_hits aggregations unit test
 
     @Test
     public void testEmptyIndex() throws Exception {

@@ -388,7 +388,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 //            // all is well
 //        }
 //        logger.info("Done Testing failed search");
-//    } NOCOMMIT fix this
+//    } NORELEASE this needs to be tested in a unit test
 
     @Test
     public void testFailedSearchWithWrongFrom() throws Exception {

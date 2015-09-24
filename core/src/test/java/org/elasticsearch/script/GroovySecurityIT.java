@@ -22,9 +22,12 @@ package org.elasticsearch.script;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.groovy.GroovyScriptExecutionException;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -40,7 +43,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class GroovySecurityIT extends ESIntegTestCase {
-    
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -48,6 +51,7 @@ public class GroovySecurityIT extends ESIntegTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "this fails on groovy compile errors") // NOCOMMIT fix this
     public void testEvilGroovyScripts() throws Exception {
         int nodes = randomIntBetween(1, 3);
         Settings nodeSettings = Settings.builder()
@@ -96,7 +100,7 @@ public class GroovySecurityIT extends ESIntegTestCase {
 
         // AccessControlException[access denied ("java.io.FilePermission" "<<ALL FILES>>" "execute")]
         assertFailure("def methodName = 'ex'; Runtime.\\\"${'get' + 'Runtime'}\\\"().\\\"${methodName}ec\\\"(\\\"touch /tmp/gotcha2\\\")");
-        
+
         // test a directory we normally have access to, but the groovy script does not.
         Path dir = createTempDir();
         // TODO: figure out the necessary escaping for windows paths here :)
@@ -107,31 +111,46 @@ public class GroovySecurityIT extends ESIntegTestCase {
     }
 
     private void assertSuccess(String script) {
+        /*
+         * new BytesArray("{\"query\": {\"match_all\": {}}," +
+                        "\"sort\":{\"_script\": {\"script\": \"" + script +
+                        "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}")
+         */
         logger.info("--> script: " + script);
-//        SearchResponse resp = client().prepareSearch("test")
-//                .setSource(new BytesArray("{\"query\": {\"match_all\": {}}," +
-//                        "\"sort\":{\"_script\": {\"script\": \"" + script +
-//                        "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}")).get();
-//        assertNoFailures(resp);
-//        assertEquals(1, resp.getHits().getTotalHits());
-//        assertThat(resp.getHits().getAt(0).getSortValues(), equalTo(new Object[]{7.0})); NOCOMMIT fix this
+        SearchResponse resp = client()
+                .prepareSearch("test")
+                .setSource(
+                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).sort(
+                                SortBuilders.scriptSort(new Script(script + "; doc['foo'].value + 2", ScriptType.INLINE, "groovy", null),
+                                        "number"))).get();
+        assertNoFailures(resp);
+        assertEquals(1, resp.getHits().getTotalHits());
+        assertThat(resp.getHits().getAt(0).getSortValues(), equalTo(new Object[]{7.0}));
     }
 
     private void assertFailure(String script) {
+        /*
+         * new BytesArray("{\"query\": {\"match_all\": {}}," +
+         * "\"sort\":{\"_script\": {\"script\": \"" + script +
+         * "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}"
+         * )
+         */
         logger.info("--> script: " + script);
-//        SearchResponse resp = client().prepareSearch("test")
-//                 .setSource(new BytesArray("{\"query\": {\"match_all\": {}}," +
-//                         "\"sort\":{\"_script\": {\"script\": \"" + script +
-//                         "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}")).get();
-//        assertEquals(0, resp.getHits().getTotalHits());
-//        ShardSearchFailure fails[] = resp.getShardFailures();
-//        // TODO: GroovyScriptExecutionException needs work:
-//        // fix it to preserve cause so we don't do this flaky string-check stuff
-//        for (ShardSearchFailure fail : fails) {
-//            assertThat(fail.getCause(), instanceOf(GroovyScriptExecutionException.class));
-//            assertTrue("unexpected exception" + fail.getCause(),
-//                       // different casing, depending on jvm impl...
-//                       fail.getCause().toString().toLowerCase(Locale.ROOT).contains("[access denied"));
-//        } NOCOMMIT fix this
+        SearchResponse resp = client()
+                .prepareSearch("test")
+                .setSource(
+                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).sort(
+                                SortBuilders.scriptSort(new Script(script + "; doc['foo'].value + 2", ScriptType.INLINE, "groovy", null),
+                                        "number"))).get();
+        assertEquals(0, resp.getHits().getTotalHits());
+        ShardSearchFailure fails[] = resp.getShardFailures();
+        // TODO: GroovyScriptExecutionException needs work:
+        // fix it to preserve cause so we don't do this flaky string-check stuff
+        for (ShardSearchFailure fail : fails) {
+            assertThat(fail.getCause(), instanceOf(GroovyScriptExecutionException.class));
+            assertTrue("unexpected exception" + fail.getCause(),
+            // different casing, depending on jvm impl...
+                    fail.getCause().toString().toLowerCase(Locale.ROOT).contains("[access denied"));
+        }
     }
 }

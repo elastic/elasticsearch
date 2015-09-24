@@ -24,17 +24,16 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -447,10 +446,10 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         SearchResponse sr = response.actionGet();
         assertOrderedSearchHits(sr, "2", "1");
     }
-    
+
     @Test
     public void testParseDateMath() throws Exception {
-        
+
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
@@ -471,7 +470,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         assertNoFailures(sr);
         assertOrderedSearchHits(sr, "1", "2");
-        
+
         sr = client().search(
                 searchRequest().source(
                         searchSource().query(
@@ -809,29 +808,29 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 .actionGet();
         refresh();
 
-        XContentBuilder query = XContentFactory.jsonBuilder();
-        // query that contains a single function and a functions[] array
-        query.startObject().startObject("query").startObject("function_score").field("weight", "1").startArray("functions").startObject().startObject("script_score").field("script", "3").endObject().endObject().endArray().endObject().endObject().endObject();
-//        try {
-//            client().search(searchRequest().source(query.bytes())).actionGet();
-//            fail("Search should result in SearchPhaseExecutionException");
-//        } catch (SearchPhaseExecutionException e) {
-//            logger.info(e.shardFailures()[0].reason());
-//            assertThat(e.shardFailures()[0].reason(), containsString("already found [weight], now encountering [functions]."));
-//        }
-//
-//        query = XContentFactory.jsonBuilder();
-//        // query that contains a single function (but not boost factor) and a functions[] array
-//        query.startObject().startObject("query").startObject("function_score").startObject("random_score").field("seed", 3).endObject().startArray("functions").startObject().startObject("random_score").field("seed", 3).endObject().endObject().endArray().endObject().endObject().endObject();
-//        try {
-//            client().search(searchRequest().source(query.bytes())).actionGet();
-//            fail("Search should result in SearchPhaseExecutionException");
-//        } catch (SearchPhaseExecutionException e) {
-//            logger.info(e.shardFailures()[0].reason());
-//            assertThat(e.shardFailures()[0].reason(), containsString("already found [random_score], now encountering [functions]"));
-//            assertThat(e.shardFailures()[0].reason(), not(containsString("did you mean [boost] instead?")));
-//
-//        } NOCOMMIT fix this
+        try {
+            client().search(
+                    searchRequest().source(
+                            new SearchSourceBuilder().query(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.scriptFunction(
+                                    new Script("3")).setWeight(1.0f))))).actionGet();
+            fail("Search should result in SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            logger.info(e.shardFailures()[0].reason());
+            assertThat(e.shardFailures()[0].reason(), containsString("already found [weight], now encountering [functions]."));
+        }
+
+        try {
+            client().search(
+                    searchRequest().source(
+                            new SearchSourceBuilder().query(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.randomFunction(3)))))
+                    .actionGet();
+            fail("Search should result in SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            logger.info(e.shardFailures()[0].reason());
+            assertThat(e.shardFailures()[0].reason(), containsString("already found [random_score], now encountering [functions]"));
+            assertThat(e.shardFailures()[0].reason(), not(containsString("did you mean [boost] instead?")));
+
+        }
         }
 
     @Test

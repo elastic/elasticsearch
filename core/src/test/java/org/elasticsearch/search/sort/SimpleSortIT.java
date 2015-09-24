@@ -30,7 +30,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.StringAndBytesText;
@@ -44,6 +43,7 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
@@ -1868,51 +1868,6 @@ public class SimpleSortIT extends ESIntegTestCase {
         assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(3.25, 4, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
         assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(5.25, 4, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
 
-        //test all the different formats in one
-        createQPoints(qHashes, qPoints);
-        XContentBuilder searchSourceBuilder = jsonBuilder();
-        searchSourceBuilder.startObject().startArray("sort").startObject().startObject("_geo_distance").startArray("location");
-
-        for (int i = 0; i < 4; i++) {
-            int at = randomInt(qPoints.size() - 1);
-            int format = randomInt(3);
-            switch (format) {
-                case 0: {
-                    searchSourceBuilder.value(qHashes.get(at));
-                    break;
-                }
-                case 1: {
-                    searchSourceBuilder.value(qPoints.get(at).lat() + "," + qPoints.get(at).lon());
-                    break;
-                }
-                case 2: {
-                    searchSourceBuilder.value(qPoints.get(at));
-                    break;
-                }
-                case 3: {
-                    searchSourceBuilder.startArray().value(qPoints.get(at).lon()).value(qPoints.get(at).lat()).endArray();
-                    break;
-                }
-            }
-            qHashes.remove(at);
-            qPoints.remove(at);
-        }
-
-        searchSourceBuilder.endArray();
-        searchSourceBuilder.field("order", "asc");
-        searchSourceBuilder.field("unit", "km");
-        searchSourceBuilder.field("sort_mode", "min");
-        searchSourceBuilder.field("distance_type", "plane");
-        searchSourceBuilder.endObject();
-        searchSourceBuilder.endObject();
-        searchSourceBuilder.endArray();
-        searchSourceBuilder.endObject();
-
-//        searchResponse = client().prepareSearch().setSource(searchSourceBuilder.bytes()).execute().actionGet();
-//        assertOrderedSearchHits(searchResponse, "d1", "d2");
-//        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
-//        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(4.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
-        // NOCOMMIT fix this
     }
 
     public void testSinglePointGeoDistanceSort() throws ExecutionException, InterruptedException, IOException {
@@ -1951,41 +1906,26 @@ public class SimpleSortIT extends ESIntegTestCase {
                 .execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
-//        String geoSortRequest = jsonBuilder().startObject().startArray("sort").startObject()
-//                .startObject("_geo_distance")
-//                .startArray("location").value(2f).value(2f).endArray()
-//                .field("unit", "km")
-//                .field("distance_type", "plane")
-//                .endObject()
-//                .endObject().endArray().string();
-//        searchResponse = client().prepareSearch().setSource(new BytesArray(geoSortRequest))
-//                .execute().actionGet();
-//        checkCorrectSortOrderForGeoSort(searchResponse);
-//
-//        geoSortRequest = jsonBuilder().startObject().startArray("sort").startObject()
-//                .startObject("_geo_distance")
-//                .field("location", "s037ms06g7h0")
-//                .field("unit", "km")
-//                .field("distance_type", "plane")
-//                .endObject()
-//                .endObject().endArray().string();
-//        searchResponse = client().prepareSearch().setSource(new BytesArray(geoSortRequest))
-//                .execute().actionGet();
-//        checkCorrectSortOrderForGeoSort(searchResponse);
-//
-//        geoSortRequest = jsonBuilder().startObject().startArray("sort").startObject()
-//                .startObject("_geo_distance")
-//                .startObject("location")
-//                .field("lat", 2)
-//                .field("lon", 2)
-//                .endObject()
-//                .field("unit", "km")
-//                .field("distance_type", "plane")
-//                .endObject()
-//                .endObject().endArray().string();
-//        searchResponse = client().prepareSearch().setSource(new BytesArray(geoSortRequest))
-//                .execute().actionGet();
-//        checkCorrectSortOrderForGeoSort(searchResponse); NOCOMMIT fix this
+        searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location").point(2.0, 2.0)
+                                .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
+        checkCorrectSortOrderForGeoSort(searchResponse);
+
+        searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location").geohashes("s037ms06g7h0")
+                                .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
+        checkCorrectSortOrderForGeoSort(searchResponse);
+
+        searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location").point(2.0, 2.0)
+                                .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
+        checkCorrectSortOrderForGeoSort(searchResponse);
     }
 
     private void checkCorrectSortOrderForGeoSort(SearchResponse searchResponse) {

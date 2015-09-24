@@ -20,15 +20,20 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -62,13 +67,20 @@ public class OnDiskScriptIT extends ESIntegTestCase {
         builders.add(client().prepareIndex("test", "scriptTest", "5").setSource("{\"theField\":\"bar\"}"));
         indexRandom(true, builders);
 
-        String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\" }, \"test2\" : { \"script_file\" : \"script2\", \"params\":{\"factor\":3}  }}, size:1}";
-//        SearchResponse searchResponse = client().prepareSearch().setSource(new BytesArray(query)).setIndices("test").setTypes("scriptTest").get();
-//        assertHitCount(searchResponse, 5);
-//        assertTrue(searchResponse.getHits().hits().length == 1);
-//        SearchHit sh = searchResponse.getHits().getAt(0);
-//        assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
-//        assertThat((Integer)sh.field("test2").getValue(), equalTo(6)); NOCOMMIT fix this
+        Map<String, Object> script2Params = new HashMap<>();
+        script2Params.put("factor", 3);
+        SearchResponse searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
+                                .scriptField("test1", new Script("script1", ScriptType.FILE, null, null))
+                                .scriptField("test2", new Script("script2", ScriptType.FILE, null, script2Params))).setIndices("test")
+                .setTypes("scriptTest").get();
+        assertHitCount(searchResponse, 5);
+        assertTrue(searchResponse.getHits().hits().length == 1);
+        SearchHit sh = searchResponse.getHits().getAt(0);
+        assertThat((Integer) sh.field("test1").getValue(), equalTo(2));
+        assertThat((Integer) sh.field("test2").getValue(), equalTo(6));
     }
 
     @Test
@@ -81,13 +93,18 @@ public class OnDiskScriptIT extends ESIntegTestCase {
         builders.add(client().prepareIndex("test", "scriptTest", "5").setSource("{\"theField\":\"bar\"}"));
         indexRandom(true, builders);
 
-        String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\" }, \"test2\" : { \"script_file\" : \"script1\", \"lang\":\"expression\"  }}, size:1}";
-//        SearchResponse searchResponse = client().prepareSearch().setSource(new BytesArray(query)).setIndices("test").setTypes("scriptTest").get();
-//        assertHitCount(searchResponse, 5);
-//        assertTrue(searchResponse.getHits().hits().length == 1);
-//        SearchHit sh = searchResponse.getHits().getAt(0);
-//        assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
-//        assertThat((Double)sh.field("test2").getValue(), equalTo(10d)); NOCOMMIT fix this
+        SearchResponse searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1)
+                                .scriptField("test1", new Script("script1", ScriptType.FILE, null, null))
+                                .scriptField("test2", new Script("script1", ScriptType.FILE, "expression", null))).setIndices("test")
+                .setTypes("scriptTest").get();
+        assertHitCount(searchResponse, 5);
+        assertTrue(searchResponse.getHits().hits().length == 1);
+        SearchHit sh = searchResponse.getHits().getAt(0);
+        assertThat((Integer) sh.field("test1").getValue(), equalTo(2));
+        assertThat((Double) sh.field("test2").getValue(), equalTo(10d));
     }
 
     @Test
@@ -102,20 +119,26 @@ public class OnDiskScriptIT extends ESIntegTestCase {
 
         indexRandom(true, builders);
 
-        String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_file\":\"script1\", \"lang\": \"expression\" } } } }";
-//        try {
-//            client().prepareSearch("test").setSource(new BytesArray(source)).get();
-//            fail("aggs script should have been rejected");
-//        } catch(Exception e) {
-//            assertThat(e.toString(), containsString("scripts of type [file], operation [aggs] and lang [expression] are disabled"));
-//        }
-//
-//        String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\", \"lang\":\"expression\" }}, size:1}";
-//        SearchResponse searchResponse = client().prepareSearch().setSource(new BytesArray(query)).setIndices("test").setTypes("scriptTest").get();
-//        assertHitCount(searchResponse, 5);
-//        assertTrue(searchResponse.getHits().hits().length == 1);
-//        SearchHit sh = searchResponse.getHits().getAt(0);
-//        assertThat((Double)sh.field("test1").getValue(), equalTo(10d)); NOCOMMIT fix this
+        try {
+            client().prepareSearch("test")
+                    .setSource(
+                            new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
+                                    new Script("script1", ScriptType.FILE, "expression", null)))).get();
+            fail("aggs script should have been rejected");
+        } catch (Exception e) {
+            assertThat(e.toString(), containsString("scripts of type [file], operation [aggs] and lang [expression] are disabled"));
+        }
+
+        SearchResponse searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1)
+                                .scriptField("test1", new Script("script1", ScriptType.FILE, "expression", null))).setIndices("test")
+                .setTypes("scriptTest").get();
+        assertHitCount(searchResponse, 5);
+        assertTrue(searchResponse.getHits().hits().length == 1);
+        SearchHit sh = searchResponse.getHits().getAt(0);
+        assertThat((Double) sh.field("test1").getValue(), equalTo(10d));
     }
 
     @Test
@@ -123,28 +146,34 @@ public class OnDiskScriptIT extends ESIntegTestCase {
         //whether we even compile or cache the on disk scripts doesn't change the end result (the returned error)
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         refresh();
-        String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_file\":\"script1\", \"lang\": \"mustache\" } } } }";
-//        try {
-//            client().prepareSearch("test").setSource(new BytesArray(source)).get();
-//            fail("aggs script should have been rejected");
-//        } catch(Exception e) {
-//            assertThat(e.toString(), containsString("scripts of type [file], operation [aggs] and lang [mustache] are disabled"));
-//        }
-//        String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\", \"lang\":\"mustache\" }}, size:1}";
-//        try {
-//            client().prepareSearch().setSource(new BytesArray(query)).setIndices("test").setTypes("scriptTest").get();
-//            fail("search script should have been rejected");
-//        } catch(Exception e) {
-//            assertThat(e.toString(), containsString("scripts of type [file], operation [search] and lang [mustache] are disabled"));
-//        }
-//        try {
-//            client().prepareUpdate("test", "scriptTest", "1")
-//                    .setScript(new Script("script1", ScriptService.ScriptType.FILE, MustacheScriptEngineService.NAME, null)).get();
-//            fail("update script should have been rejected");
-//        } catch (Exception e) {
-//            assertThat(e.getMessage(), containsString("failed to execute script"));
-//            assertThat(e.getCause().getMessage(), containsString("scripts of type [file], operation [update] and lang [mustache] are disabled"));
-//        } NOCOMMIT fix this
+        try {
+            client().prepareSearch("test")
+                    .setSource(
+                            new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
+                                    new Script("script1", ScriptType.FILE, MustacheScriptEngineService.NAME, null)))).get();
+            fail("aggs script should have been rejected");
+        } catch (Exception e) {
+            assertThat(e.toString(), containsString("scripts of type [file], operation [aggs] and lang [mustache] are disabled"));
+        }
+        try {
+            client().prepareSearch()
+                    .setSource(
+                            new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1)
+                                    .scriptField("test1", new Script("script1", ScriptType.FILE, MustacheScriptEngineService.NAME, null)))
+                    .setIndices("test").setTypes("scriptTest").get();
+            fail("search script should have been rejected");
+        } catch (Exception e) {
+            assertThat(e.toString(), containsString("scripts of type [file], operation [search] and lang [mustache] are disabled"));
+        }
+        try {
+            client().prepareUpdate("test", "scriptTest", "1")
+                    .setScript(new Script("script1", ScriptService.ScriptType.FILE, MustacheScriptEngineService.NAME, null)).get();
+            fail("update script should have been rejected");
+        } catch (Exception e) {
+            assertThat(e.getMessage(), containsString("failed to execute script"));
+            assertThat(e.getCause().getMessage(),
+                    containsString("scripts of type [file], operation [update] and lang [mustache] are disabled"));
+        }
     }
 
 }

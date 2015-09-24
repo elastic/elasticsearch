@@ -43,6 +43,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -1477,18 +1478,11 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         client().prepareIndex("test", "posts", "1").setParent("1").setSource("field", "bar").get();
         refresh();
 
-        // SearchResponse resp;
-        // resp = client().prepareSearch("test")
-        // .setSource(new
-        // BytesArray("{\"query\": {\"has_child\": {\"type\": \"posts\", \"query\": {\"match\": {\"field\": \"bar\"}}}}}")).get();
-        // assertHitCount(resp, 1L);
-        //
-        // // Now reverse the order for the type after the query
-        // resp = client().prepareSearch("test")
-        // .setSource(new
-        // BytesArray("{\"query\": {\"has_child\": {\"query\": {\"match\": {\"field\": \"bar\"}}, \"type\": \"posts\"}}}")).get();
-        // assertHitCount(resp, 1L); NOCOMMIT fix this
-
+        SearchResponse resp;
+        resp = client().prepareSearch("test")
+                .setSource(new SearchSourceBuilder().query(QueryBuilders.hasChildQuery("posts", QueryBuilders.matchQuery("field", "bar"))))
+                .get();
+        assertHitCount(resp, 1L);
     }
 
     @Test

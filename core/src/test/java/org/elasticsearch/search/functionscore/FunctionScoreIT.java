@@ -23,18 +23,20 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -370,55 +372,36 @@ public class FunctionScoreIT extends ESIntegTestCase {
         return builders;
     }
 
-//    @Test
-//    public void checkWeightOnlyCreatesBoostFunction() throws IOException {
-//        assertAcked(prepareCreate(INDEX).addMapping(
-//                TYPE,
-//                MAPPING_WITH_DOUBLE_AND_GEO_POINT_AND_TEXT_FIELD));
-//        ensureYellow();
-//
-//        index(INDEX, TYPE, "1", SIMPLE_DOC);
-//        refresh();
-//        String query =jsonBuilder().startObject()
-//                .startObject("query")
-//                .startObject("function_score")
-//                .startArray("functions")
-//                .startObject()
-//                .field("weight",2)
-//                .endObject()
-//                .endArray()
-//                .endObject()
-//                .endObject()
-//                .endObject().string();
-//        SearchResponse response = client().search(
-//                searchRequest().source(new BytesArray(query))
-//                ).actionGet();
-//        assertSearchResponse(response);
-//        assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
-//
-//        query =jsonBuilder().startObject()
-//                .startObject("query")
-//                .startObject("function_score")
-//                .field("weight",2)
-//                .endObject()
-//                .endObject()
-//                .endObject().string();
-//        response = client().search(
-//                searchRequest().source(new BytesArray(query))
-//        ).actionGet();
-//        assertSearchResponse(response);
-//        assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
-//        response = client().search(
-//                searchRequest().source(searchSource().query(functionScoreQuery(new WeightBuilder().setWeight(2.0f))))
-//        ).actionGet();
-//        assertSearchResponse(response);
-//        assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
-//        response = client().search(
-//                searchRequest().source(searchSource().query(functionScoreQuery(weightFactorFunction(2.0f))))
-//        ).actionGet();
-//        assertSearchResponse(response);
-//        assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
-//    } NOCOMMIT fix this
+    @Test
+    public void checkWeightOnlyCreatesBoostFunction() throws IOException {
+        assertAcked(prepareCreate(INDEX).addMapping(
+                TYPE,
+                MAPPING_WITH_DOUBLE_AND_GEO_POINT_AND_TEXT_FIELD));
+        ensureYellow();
+
+        index(INDEX, TYPE, "1", SIMPLE_DOC);
+        refresh();
+        SearchResponse response = client().search(
+                searchRequest().source(new SearchSourceBuilder().query(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.weightFactorFunction(2.0f))))
+                ).actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
+        response = client().search(
+                searchRequest().source(new SearchSourceBuilder().query(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.weightFactorFunction(2.0f))))
+        ).actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
+        response = client().search(
+                searchRequest().source(searchSource().query(functionScoreQuery(new WeightBuilder().setWeight(2.0f))))
+        ).actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
+        response = client().search(
+                searchRequest().source(searchSource().query(functionScoreQuery(weightFactorFunction(2.0f))))
+        ).actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
+    } 
 
     @Test
     public void testScriptScoresNested() throws IOException {

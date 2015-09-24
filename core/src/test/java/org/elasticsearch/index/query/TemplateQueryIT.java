@@ -27,22 +27,16 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -94,40 +88,30 @@ public class TemplateQueryIT extends ESIntegTestCase {
         assertHitCount(sr, 2);
     }
 
-//    @Test NOCOMMIT fix this
-//    public void testTemplateInBodyWithSize() throws IOException {
-//        String request = "{\n" +
-//                "    \"size\":0," +
-//                "    \"query\": {\n" +
-//                "        \"template\": {\n" +
-//                "            \"query\": {\"match_{{template}}\": {}},\n" +
-//                "            \"params\" : {\n" +
-//                "                \"template\" : \"all\"\n" +
-//                "            }\n" +
-//                "        }\n" +
-//                "    }\n" +
-//                "}";
-//        SearchResponse sr = client().prepareSearch().setSource(new BytesArray(request))
-//                .execute().actionGet();
-//        assertNoFailures(sr);
-//        assertThat(sr.getHits().hits().length, equalTo(0));
-//        request = "{\n" +
-//                "    \"query\": {\n" +
-//                "        \"template\": {\n" +
-//                "            \"query\": {\"match_{{template}}\": {}},\n" +
-//                "            \"params\" : {\n" +
-//                "                \"template\" : \"all\"\n" +
-//                "            }\n" +
-//                "        }\n" +
-//                "    },\n" +
-//                "    \"size\":0" +
-//                "}";
-//
-//        sr = client().prepareSearch().setSource(new BytesArray(request))
-//                .execute().actionGet();
-//        assertNoFailures(sr);
-//        assertThat(sr.getHits().hits().length, equalTo(0));
-//    }
+    @Test
+    public void testTemplateInBodyWithSize() throws IOException {
+        String request = "{\n" +
+                "    \"size\":0," +
+                "    \"query\": {\n" +
+                "        \"template\": {\n" +
+                "            \"query\": {\"match_{{template}}\": {}},\n" +
+                "            \"params\" : {\n" +
+                "                \"template\" : \"all\"\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}";
+        Map<String, Object> params = new HashMap<>();
+        params.put("template", "all");
+        SearchResponse sr = client().prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().size(0).query(
+                                QueryBuilders.templateQuery(new Template("{ \"query\": { \"match_{{template}}\": {} } }",
+                                        ScriptType.INLINE, null, null, params)))).execute()
+                .actionGet();
+        assertNoFailures(sr);
+        assertThat(sr.getHits().hits().length, equalTo(0));
+    }
 
     @Test
     public void testTemplateWOReplacementInBody() throws IOException {

@@ -21,9 +21,7 @@ package org.elasticsearch.search.fields;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Base64;
@@ -35,11 +33,13 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
@@ -63,7 +63,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -513,16 +516,17 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(1).toString(), equalTo("value2"));
     }
 
-//    @Test // see #8203
-//    public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
-//        createIndex("test");
-//        indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
-//        refresh();
-//        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": \"test_field\"}"))).get();
-//        assertHitCount(searchResponse, 1);
-//        Map<String,SearchHitField> fields = searchResponse.getHits().getHits()[0].getFields();
-//        assertThat((String)fields.get("test_field").value(), equalTo("foobar"));
-//    } NOCOMMIT fix this
+    @Test // see #8203
+    public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
+        createIndex("test");
+        indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
+        refresh();
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(
+                new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).fieldDataField("test_field")).get();
+        assertHitCount(searchResponse, 1);
+        Map<String,SearchHitField> fields = searchResponse.getHits().getHits()[0].getFields();
+        assertThat((String)fields.get("test_field").value(), equalTo("foobar"));
+    }
 
 //    @Test(expected = SearchPhaseExecutionException.class)
 //    public void testInvalidFieldDataField() throws ExecutionException, InterruptedException {
@@ -532,7 +536,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 //        } else {
 //            client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": 1.0}"))).get();
 //        }
-//    } NOCOMMIT fix this
+//    } NORELEASE need a unit test for this
 
     @Test
     public void testFieldsPulledFromFieldData() throws Exception {

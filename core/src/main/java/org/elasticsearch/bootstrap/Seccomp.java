@@ -221,6 +221,7 @@ final class Seccomp {
             switch (errno) {
                 case EFAULT: break; // available
                 case EINVAL: throw new UnsupportedOperationException("seccomp unavailable: CONFIG_SECCOMP_FILTER not compiled into kernel, CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed");
+                default: throw new UnsupportedOperationException("prctl(PR_SET_SECCOMP): " + JNACLibrary.strerror(Native.getLastError()));
             }
         }
 

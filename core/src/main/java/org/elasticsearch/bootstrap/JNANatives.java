@@ -41,6 +41,8 @@ class JNANatives {
 
     // Set to true, in case native mlockall call was successful
     static boolean LOCAL_MLOCKALL = false;
+    // Set to true, in case native seccomp call was successful
+    static boolean LOCAL_SECCOMP = false;
 
     static void tryMlockall() {
         int errno = Integer.MIN_VALUE;
@@ -170,4 +172,19 @@ class JNANatives {
         }
     }
 
+    static void trySeccomp() {
+        if (Constants.LINUX && "amd64".equals(Constants.OS_ARCH)) {
+            try {
+                Seccomp.installFilter();
+                LOCAL_SECCOMP = true;
+            } catch (Exception e) {
+                // this is likely to happen unless the kernel is newish, its a best effort at the moment
+                // so we log stacktrace at debug for now...
+                if (logger.isDebugEnabled()) {
+                    logger.debug("unable to install seccomp filter", e);
+                }
+                logger.warn("unable to install seccomp filter: " + e.getMessage());
+            }
+        }
+    }
 }

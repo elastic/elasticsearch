@@ -25,12 +25,13 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
+
+import java.util.concurrent.ExecutionException;
 
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -87,7 +88,7 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
     }
 
     @Test
-    public void testIndexBufferSizeUpdateInactiveShard() throws InterruptedException {
+    public void testIndexBufferSizeUpdateInactiveShard() throws InterruptedException, ExecutionException {
 
         createNode(Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, "100ms").build());
 
@@ -96,6 +97,12 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
         ensureGreen();
 
         final IndexShard shard1 = internalCluster().getInstance(IndicesService.class).indexService("test1").shard(0);
+
+        if (randomBoolean()) {
+            logger.info("--> indexing some pending operations");
+            indexRandom(false, client().prepareIndex("test1", "type", "0").setSource("f", "0"));
+        }
+
         boolean success = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
@@ -117,12 +124,15 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
             }
         });
         if (!success) {
-            fail("failed to update shard indexing buffer size due to inactive state. expected something larger then [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
+            fail("failed to update shard indexing buffer size due to active state. expected something larger then [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
                             shard1.engine().config().getIndexingBufferSize().bytes() + "]"
             );
         }
 
-        flush(); // clean translogs
+        if (randomBoolean()) {
+            logger.info("--> flushing translogs");
+            flush(); // clean translogs
+        }
 
         success = awaitBusy(new Predicate<Object>() {
             @Override

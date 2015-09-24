@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.test.ESTestCase;
 
+/** Simple tests seccomp filter is working. */
 public class SeccompTests extends ESTestCase {
     
     @Override
@@ -51,5 +52,22 @@ public class SeccompTests extends ESTestCase {
                     ... 
             */
         }
+    }
+    
+    // make sure thread inherits this too (its documented that way)
+    public void testNoExecutionFromThread() throws Exception {
+        Thread t = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    Runtime.getRuntime().exec("ls");
+                    fail("should not have been able to execute!");
+                } catch (Exception expected) {
+                    // ok
+                }
+            }
+        };
+        t.start();
+        t.join();
     }
 }

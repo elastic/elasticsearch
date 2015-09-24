@@ -5,29 +5,31 @@ import org.gradle.api.AntBuilder
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.testing.Test
 
 class RandomizedTestingPlugin implements Plugin<Project> {
 
     void apply(Project project) {
-        // Depends on Java to add
-        project.pluginManager.apply('java')
-
         replaceTestTask(project.tasks)
         configureAnt(project.ant)
     }
 
     static void replaceTestTask(TaskContainer tasks) {
         Test oldTestTask = tasks.findByPath('test')
+        if (oldTestTask == null) {
+            // no test task, ok, user will use testing task on their own
+            return
+        }
         tasks.remove(oldTestTask)
 
         Map properties = [
             name: 'test',
             type: RandomizedTestingTask,
             dependsOn: oldTestTask.dependsOn,
-            group: 'Verification',
-            description: 'Runs unit tests with JUnit4'
+            group: JavaBasePlugin.VERIFICATION_GROUP,
+            description: 'Runs unit tests with the randomized testing framework'
         ]
         RandomizedTestingTask newTestTask = tasks.create(properties)
         newTestTask.classpath = oldTestTask.classpath

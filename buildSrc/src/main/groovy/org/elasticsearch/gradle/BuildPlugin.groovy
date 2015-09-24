@@ -7,6 +7,7 @@ import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.TaskContainer
+import org.gradle.api.tasks.compile.JavaCompile
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -18,6 +19,8 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomizedtesting')
         project.pluginManager.apply('de.thetaphi.forbiddenapis')
+
+        configureCompile(project)
 
         // configure test, and create integTest task as well
         Closure testConfig = createSharedTestConfig(project)
@@ -39,6 +42,16 @@ class BuildPlugin implements Plugin<Project> {
     // overridable by subclass plugins
     Class<? extends RandomizedTestingTask> getIntegTestClass() {
         return RandomizedTestingTask
+    }
+
+    /** Adds compiler settings to the project */
+    static void configureCompile(Project project) {
+        project.gradle.projectsEvaluated {
+            // fail on all javac warnings
+            project.tasks.withType(JavaCompile) {
+                options.compilerArgs << '-Werror' << '-Xlint:all' << '-Xdoclint:all/private' << '-Xdoclint:-missing'
+            }
+        }
     }
 
     /** Returns a closure of common configuration shared by unit and integration tests. */
@@ -139,6 +152,7 @@ class BuildPlugin implements Plugin<Project> {
         return integTest
     }
 
+    /** Adds a precommit task which depends on non-test check tasks. */
     static Task configurePrecommit(Project project) {
         List precommitTasks = [
                 configureForbiddenApis(project),

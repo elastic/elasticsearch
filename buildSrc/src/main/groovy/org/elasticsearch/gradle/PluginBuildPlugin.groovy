@@ -8,7 +8,7 @@ import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.bundling.Zip
 
 /**
- * Encapsulates adding all build logic and configuration for elasticsearch projects.
+ * Encapsulates build configuration for an Elasticsearch plugin.
  */
 class PluginBuildPlugin extends BuildPlugin {
 
@@ -17,7 +17,14 @@ class PluginBuildPlugin extends BuildPlugin {
         super.apply(project)
         // TODO: add target compatibility (java version) to elasticsearch properties and set for the project
         configureDependencies(project)
-        configureRestSpecHack(project)
+        Task copyRestSpec = RestSpecHack.setup(project, false)
+        project.tasks.getByName('test').dependsOn copyRestSpec
+        project.tasks.getByName('integTest').dependsOn copyRestSpec
+
+        // HACK: rest test case should not try to load from the filesystem
+        project.tasks.getByName('integTest').configure {
+            sysProp 'tests.rest.load_packaged', 'false'
+        }
         Task bundle = configureBundleTask(project.tasks)
         project.integTest {
             dependsOn bundle
@@ -47,34 +54,11 @@ class PluginBuildPlugin extends BuildPlugin {
             // a separate configuration from compile so added dependencies can be distinguished
             provided
             compile.extendsFrom(provided)
-            restSpec
         }
         project.dependencies {
             provided "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
             //compile project.configurations.provided
             testCompile "org.elasticsearch:test-framework:${elasticsearchVersion}"
-            restSpec "org.elasticsearch:rest-api-spec:${elasticsearchVersion}"
-        }
-    }
-
-    static void configureRestSpecHack(Project project) {
-        // HACK: rest spec tests should work as an included jar on the classpath
-        Map copyRestSpecProps = [
-            name: 'copyRestSpec',
-            type: Copy,
-            dependsOn: [project.configurations.restSpec.buildDependencies, 'processTestResources']
-        ]
-        Task copyRestSpec = project.tasks.create(copyRestSpecProps) {
-            from project.zipTree(project.configurations.restSpec.asPath)
-            include 'rest-api-spec/api/**'
-            into project.sourceSets.test.output.resourcesDir
-        }
-        project.tasks.getByName('test').dependsOn copyRestSpec
-        project.tasks.getByName('integTest').dependsOn copyRestSpec
-
-        // HACK: rest test case should not try to load from the filesystem
-        project.tasks.getByName('integTest').configure {
-            sysProp 'tests.rest.load_packaged', 'false'
         }
     }
 

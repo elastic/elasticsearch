@@ -1,7 +1,10 @@
 
+plugins {
+  id 'nebula.source-jar' version '4.2.1'
+}
 apply plugin: 'elasticsearch.build'
 
-jar {
+tasks.withType(Jar) {
   baseName = 'elasticsearch'
 }
 
@@ -103,12 +106,10 @@ dependencies {
   restSpec project(':rest-api-spec') // for rest tests
 }
 
-// add optional dependencies to compile classpath only
-//sourceSets.main.compileClasspath += [configurations.optional]
-
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
 
+/*
 task sourcesJar(type: Jar, dependsOn: classes) {
   classifier = 'sources'
   from sourceSets.main.java
@@ -117,6 +118,7 @@ task sourcesJar(type: Jar, dependsOn: classes) {
 artifacts {
   archives sourcesJar
 }
+*/
 
 forbiddenPatterns {
   exclude '**/*.json'

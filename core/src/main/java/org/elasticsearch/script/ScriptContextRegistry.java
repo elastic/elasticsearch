@@ -24,13 +24,11 @@ import com.google.common.collect.ImmutableMap;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Arrays.stream;
 import static java.util.Collections.unmodifiableSet;
-import static java.util.stream.Collectors.toSet;
-import static java.util.stream.Stream.concat;
 
 /**
  * Registry for operations that use scripts as part of their execution. Can be standard operations of custom defined ones (via plugin).
@@ -82,8 +80,13 @@ public final class ScriptContextRegistry {
     }
 
     private static Set<String> reservedScriptContexts() {
-        Set<String> reserved = concat(stream(ScriptService.ScriptType.values()), stream(ScriptContext.Standard.values()))
-                .map(Object::toString).collect(toSet());
+        Set<String> reserved = new HashSet<>(ScriptService.ScriptType.values().length + ScriptContext.Standard.values().length);
+        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+            reserved.add(scriptType.toString());
+        }
+        for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
+            reserved.add(scriptContext.getKey());
+        }
         reserved.add("script");
         reserved.add("engine");
         return unmodifiableSet(reserved);

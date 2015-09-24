@@ -51,7 +51,6 @@ public class GroovySecurityIT extends ESIntegTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "this fails on groovy compile errors") // NOCOMMIT fix this
     public void testEvilGroovyScripts() throws Exception {
         int nodes = randomIntBetween(1, 3);
         Settings nodeSettings = Settings.builder()
@@ -74,7 +73,7 @@ public class GroovySecurityIT extends ESIntegTestCase {
         // Ranges
         assertSuccess("def range = 1..doc['foo'].value; def v = range.get(0)");
         // Maps
-        assertSuccess("def v = doc['foo'].value; def m = [:]; m.put(\\\"value\\\", v)");
+        assertSuccess("def v = doc['foo'].value; def m = [:]; m.put(\"value\", v)");
         // Times
         assertSuccess("def t = Instant.now().getMillis()");
         // GroovyCollections
@@ -82,40 +81,35 @@ public class GroovySecurityIT extends ESIntegTestCase {
 
         // Fail cases:
         // AccessControlException[access denied ("java.io.FilePermission" "<<ALL FILES>>" "execute")]
-        assertFailure("pr = Runtime.getRuntime().exec(\\\"touch /tmp/gotcha\\\"); pr.waitFor()");
+        assertFailure("pr = Runtime.getRuntime().exec(\"touch /tmp/gotcha\"); pr.waitFor()");
 
         // AccessControlException[access denied ("java.lang.RuntimePermission" "accessClassInPackage.sun.reflect")]
-        assertFailure("d = new DateTime(); d.getClass().getDeclaredMethod(\\\"year\\\").setAccessible(true)");
-        assertFailure("d = new DateTime(); d.\\\"${'get' + 'Class'}\\\"()." +
-                        "\\\"${'getDeclared' + 'Method'}\\\"(\\\"year\\\").\\\"${'set' + 'Accessible'}\\\"(false)");
-        assertFailure("Class.forName(\\\"org.joda.time.DateTime\\\").getDeclaredMethod(\\\"year\\\").setAccessible(true)");
+        assertFailure("d = new DateTime(); d.getClass().getDeclaredMethod(\"year\").setAccessible(true)");
+        assertFailure("d = new DateTime(); d.\"${'get' + 'Class'}\"()." +
+                        "\"${'getDeclared' + 'Method'}\"(\"year\").\"${'set' + 'Accessible'}\"(false)");
+        assertFailure("Class.forName(\"org.joda.time.DateTime\").getDeclaredMethod(\"year\").setAccessible(true)");
 
         // AccessControlException[access denied ("groovy.security.GroovyCodeSourcePermission" "/groovy/shell")]
         assertFailure("Eval.me('2 + 2')");
         assertFailure("Eval.x(5, 'x + 2')");
 
         // AccessControlException[access denied ("java.lang.RuntimePermission" "accessDeclaredMembers")]
-        assertFailure("d = new Date(); java.lang.reflect.Field f = Date.class.getDeclaredField(\\\"fastTime\\\");" +
-                " f.setAccessible(true); f.get(\\\"fastTime\\\")");
+        assertFailure("d = new Date(); java.lang.reflect.Field f = Date.class.getDeclaredField(\"fastTime\");" +
+                " f.setAccessible(true); f.get(\"fastTime\")");
 
         // AccessControlException[access denied ("java.io.FilePermission" "<<ALL FILES>>" "execute")]
-        assertFailure("def methodName = 'ex'; Runtime.\\\"${'get' + 'Runtime'}\\\"().\\\"${methodName}ec\\\"(\\\"touch /tmp/gotcha2\\\")");
+        assertFailure("def methodName = 'ex'; Runtime.\"${'get' + 'Runtime'}\"().\"${methodName}ec\"(\"touch /tmp/gotcha2\")");
 
         // test a directory we normally have access to, but the groovy script does not.
         Path dir = createTempDir();
         // TODO: figure out the necessary escaping for windows paths here :)
         if (!Constants.WINDOWS) {
             // access denied ("java.io.FilePermission" ".../tempDir-00N" "read")
-            assertFailure("new File(\\\"" + dir + "\\\").exists()");
+            assertFailure("new File(\"" + dir + "\").exists()");
         }
     }
 
     private void assertSuccess(String script) {
-        /*
-         * new BytesArray("{\"query\": {\"match_all\": {}}," +
-                        "\"sort\":{\"_script\": {\"script\": \"" + script +
-                        "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}")
-         */
         logger.info("--> script: " + script);
         SearchResponse resp = client()
                 .prepareSearch("test")
@@ -129,12 +123,6 @@ public class GroovySecurityIT extends ESIntegTestCase {
     }
 
     private void assertFailure(String script) {
-        /*
-         * new BytesArray("{\"query\": {\"match_all\": {}}," +
-         * "\"sort\":{\"_script\": {\"script\": \"" + script +
-         * "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}"
-         * )
-         */
         logger.info("--> script: " + script);
         SearchResponse resp = client()
                 .prepareSearch("test")

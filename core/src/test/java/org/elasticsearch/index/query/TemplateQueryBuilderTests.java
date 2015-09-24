@@ -84,7 +84,8 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         builder.doXContent(content, null);
         content.endObject();
         content.close();
-        assertEquals("{\"template\":{\"inline\":\"I am a $template string\",\"params\":{\"template\":\"filled\"}}}", content.string());
+        assertEquals("{\"template\":{\"inline\":\"I am a $template string\",\"lang\":\"mustache\",\"params\":{\"template\":\"filled\"}}}",
+                content.string());
     }
 
 }

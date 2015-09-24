@@ -50,7 +50,9 @@ final class Seccomp {
     
     // TODO: support new seccomp(2) syscall, to specify SECCOMP_FILTER_FLAG_TSYNC
     
+    static final int PR_GET_NO_NEW_PRIVS = 39;   // since Linux 3.5
     static final int PR_SET_NO_NEW_PRIVS = 38;   // since Linux 3.5
+    static final int PR_GET_SECCOMP      = 21;   // since Linux 2.6.23
     static final int PR_SET_SECCOMP      = 22;   // since Linux 2.6.23
     static final int SECCOMP_MODE_FILTER =  2;   // since Linux Linux 3.5
     static native int prctl(int option, long arg2, long arg3, long arg4, long arg5);
@@ -118,13 +120,17 @@ final class Seccomp {
     static final int SECCOMP_RET_ERRNO = 0x00050000;
     static final int SECCOMP_RET_DATA  = 0x0000FFFF;
     static final int SECCOMP_RET_ALLOW = 0x7FFF0000;
-    static final int EACCES = 0xD;
-    
+
+    static final int EACCES = 0x0D;
+    static final int EFAULT = 0x0E;
+    static final int EINVAL = 0x16;
+    static final int ENOSYS = 0x26;
+
     static final int SECCOMP_DATA_NR_OFFSET   = 0x00;
     static final int SECCOMP_DATA_ARCH_OFFSET = 0x04;
     
     // currently this range is blocked (inclusive):
-    // execve is really the only one needed but why let someone fork a 30G heap?
+    // execve is really the only one needed but why let someone fork a 30G heap? (not really what happens)
     // ...
     // 57: fork
     // 58: vfork
@@ -135,7 +141,34 @@ final class Seccomp {
 
     /** try to install our filters */
     static void installFilter() {
-        // first set PR_SET_NO_NEW_PRIVS, needed to be able to set a seccomp filter as ordinary user
+        // first be defensive: we can give nice errors this way, at the very least.
+
+        // check for kernel version
+        if (prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) < 0) {
+            int errno = Native.getLastError();
+            switch (errno) {
+                case ENOSYS: throw new UnsupportedOperationException("seccomp unavailable: requires kernel 3.5+ with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
+                default: throw new UnsupportedOperationException("prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(Native.getLastError()));
+            }
+        }
+        // check for SECCOMP
+        if (prctl(PR_GET_SECCOMP, 0, 0, 0, 0) < 0) {
+            int errno = Native.getLastError();
+            switch (errno) {
+                case EINVAL: throw new UnsupportedOperationException("seccomp unavailable: CONFIG_SECCOMP not compiled into kernel, CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed");
+                default: throw new UnsupportedOperationException("prctl(PR_GET_SECCOMP): " + JNACLibrary.strerror(Native.getLastError()));
+            }
+        }
+        // check for SECCOMP_MODE_FILTER
+        if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, 0, 0, 0) < 0) {
+            int errno = Native.getLastError();
+            switch (errno) {
+                case EFAULT: break; // available
+                case EINVAL: throw new UnsupportedOperationException("seccomp unavailable: CONFIG_SECCOMP_FILTER not compiled into kernel, CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed");
+            }
+        }
+
+        // ok, now set PR_SET_NO_NEW_PRIVS, needed to be able to set a seccomp filter as ordinary user
         if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0) {
             throw new UnsupportedOperationException("prctl(PR_SET_NO_NEW_PRIVS): " + JNACLibrary.strerror(Native.getLastError()));
         }
@@ -154,6 +187,7 @@ final class Seccomp {
         prog.write();
         long pointer = Pointer.nativeValue(prog.getPointer());
 
+        // install filter, after this there is no going back!
         if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, pointer, 0, 0) < 0) {
             throw new UnsupportedOperationException("prctl(PR_SET_SECCOMP): " + JNACLibrary.strerror(Native.getLastError()));
         }

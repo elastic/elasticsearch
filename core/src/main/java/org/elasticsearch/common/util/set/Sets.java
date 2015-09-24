@@ -21,17 +21,11 @@ package org.elasticsearch.common.util.set;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiConsumer;
-import java.util.function.BinaryOperator;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public final class Sets {
@@ -59,27 +53,6 @@ public final class Sets {
         return set;
     }
 
-    /**
-     * Create a new HashSet copying the original set with elements added. Useful
-     * for initializing constants without static blocks.
-     */
-    public static <T> HashSet<T> newHashSetCopyWith(Set<T> original, T... elements) {
-        Objects.requireNonNull(original);
-        Objects.requireNonNull(elements);
-        HashSet<T> set = new HashSet<>(original.size() + elements.length);
-        set.addAll(original);
-        Collections.addAll(set, elements);
-        return set;
-    }
-
-    /**
-     * Collects {@code Stream<Collection<T>>} into {@code Set<T>}.
-     */
-    @SuppressWarnings("unchecked")
-    public static <T> Collector<Collection<T>, Set<T>, Set<T>> toFlatSet() {
-        return (Collector<Collection<T>, Set<T>, Set<T>>) (Object) ToFlatSetCollector.INSTANCE;
-    }
-
     public static <T> Set<T> newConcurrentHashSet() {
         return Collections.newSetFromMap(new ConcurrentHashMap<>());
     }
@@ -102,40 +75,5 @@ public final class Sets {
         Set<T> union = new HashSet<>(left);
         union.addAll(right);
         return union;
-    }
-
-    /**
-     * Collects {@code Stream<Collection<T>>} into {@code Set<T>}.
-     */
-    private static enum ToFlatSetCollector implements Collector<Collection<Object>, Set<Object>, Set<Object>> {
-        INSTANCE;
-
-        @Override
-        public Supplier<Set<Object>> supplier() {
-            return HashSet::new;
-        }
-
-        @Override
-        public BiConsumer<Set<Object>, Collection<Object>> accumulator() {
-            return Collection::addAll;
-        }
-
-        @Override
-        public BinaryOperator<Set<Object>> combiner() {
-            return (lhs, rhs) -> {
-                lhs.addAll(rhs);
-                return lhs;
-            };
-        }
-
-        @Override
-        public Function<Set<Object>, Set<Object>> finisher() {
-            return Function.identity();
-        }
-
-        @Override
-        public Set<java.util.stream.Collector.Characteristics> characteristics() {
-            return EnumSet.of(Collector.Characteristics.IDENTITY_FINISH, Collector.Characteristics.UNORDERED);
-        }
     }
 }

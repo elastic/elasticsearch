@@ -64,6 +64,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -75,7 +76,6 @@ import java.util.function.Function;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
-import static org.elasticsearch.common.util.set.Sets.newHashSetCopyWith;
 
 /**
  *
@@ -288,7 +288,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }
                 mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
                 if (mapper.parentFieldMapper().active()) {
-                    parentTypes = unmodifiableSet(newHashSetCopyWith(parentTypes, mapper.parentFieldMapper().type()));
+                    Set<String> newParentTypes = new HashSet<>(parentTypes.size() + 1);
+                    newParentTypes.addAll(parentTypes);
+                    newParentTypes.add(mapper.parentFieldMapper().type());
+                    parentTypes = unmodifiableSet(newParentTypes);
                 }
                 assert assertSerialization(mapper);
                 return mapper;

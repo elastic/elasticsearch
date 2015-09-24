@@ -46,12 +46,9 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
 
 import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
@@ -484,18 +481,6 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a set using reader to decode the set elements.
-     */
-    public <T> Set<T> readSet(ObjectReader<T> reader) throws IOException {
-        int num = readVInt();
-        Set<T> builder = new HashSet<>(num);
-        for (int i = 0; i < num; i++) {
-            builder.add(reader.read(this));
-        }
-        return builder;
-    }
-
-    /**
      * Serializes a potential null value.
      */
     public <T extends Streamable> T readOptionalStreamable(T streamable) throws IOException {
@@ -599,13 +584,5 @@ public abstract class StreamInput extends InputStream {
 
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
         return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length));
-    }
-
-    /**
-     * FunctionalInterface for methods that read an object from the stream.
-     */
-    @FunctionalInterface
-    public static interface ObjectReader<T> {
-        public T read(StreamInput in) throws IOException;
     }
 }

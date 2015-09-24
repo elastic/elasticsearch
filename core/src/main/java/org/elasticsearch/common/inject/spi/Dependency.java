@@ -18,11 +18,11 @@ package org.elasticsearch.common.inject.spi;
 
 import org.elasticsearch.common.inject.Key;
 
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.toFlatSet;
 
 /**
  * A variable that can be resolved by an injector.
@@ -60,8 +60,11 @@ public final class Dependency<T> {
      * Returns the dependencies from the given injection points.
      */
     public static Set<Dependency<?>> forInjectionPoints(Set<InjectionPoint> injectionPoints) {
-        return unmodifiableSet(
-                injectionPoints.stream().map(InjectionPoint::getDependencies).collect(toFlatSet()));
+        Set<Dependency<?>> dependencies = new HashSet<>();
+        for (InjectionPoint injectionPoint : injectionPoints) {
+            dependencies.addAll(injectionPoint.getDependencies());
+        }
+        return unmodifiableSet(dependencies);
     }
 
     /**

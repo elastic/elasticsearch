@@ -29,13 +29,14 @@ import org.elasticsearch.rest.support.RestUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSetCopyWith;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
@@ -84,7 +85,10 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
      * By default no headers get copied but it is possible to extend this behaviour via plugins by calling this method.
      */
     public synchronized void registerRelevantHeaders(String... headers) {
-        relevantHeaders = unmodifiableSet(newHashSetCopyWith(relevantHeaders, headers));
+        Set<String> newRelevantHeaders = new HashSet<>(relevantHeaders.size() + headers.length);
+        newRelevantHeaders.addAll(relevantHeaders);
+        Collections.addAll(newRelevantHeaders, headers);
+        relevantHeaders = unmodifiableSet(newRelevantHeaders);
     }
 
     /**

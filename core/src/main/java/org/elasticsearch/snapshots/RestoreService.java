@@ -102,7 +102,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_M
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_UPGRADED;
 import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSetCopyWith;
 
 /**
  * Service responsible for restoring snapshots
@@ -139,11 +138,17 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             SETTING_CREATION_DATE));
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
-    private static final Set<String> UNREMOVABLE_SETTINGS = unmodifiableSet(newHashSetCopyWith(UNMODIFIABLE_SETTINGS,
-            SETTING_NUMBER_OF_REPLICAS,
-            SETTING_AUTO_EXPAND_REPLICAS,
-            SETTING_VERSION_UPGRADED,
-            SETTING_VERSION_MINIMUM_COMPATIBLE));
+    private static final Set<String> UNREMOVABLE_SETTINGS;
+
+    static {
+        Set<String> unremovable = new HashSet<>(UNMODIFIABLE_SETTINGS.size() + 4);
+        unremovable.addAll(UNMODIFIABLE_SETTINGS);
+        unremovable.add(SETTING_NUMBER_OF_REPLICAS);
+        unremovable.add(SETTING_AUTO_EXPAND_REPLICAS);
+        unremovable.add(SETTING_VERSION_UPGRADED);
+        unremovable.add(SETTING_VERSION_MINIMUM_COMPATIBLE);
+        UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
+    }
 
     private final ClusterService clusterService;
 

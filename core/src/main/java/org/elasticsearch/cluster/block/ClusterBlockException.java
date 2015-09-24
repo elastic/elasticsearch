@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
@@ -42,7 +43,12 @@ public class ClusterBlockException extends ElasticsearchException {
 
     public ClusterBlockException(StreamInput in) throws IOException {
         super(in);
-        blocks = unmodifiableSet(in.readSet(ClusterBlock::readClusterBlock));
+        int totalBlocks = in.readVInt();
+        Set<ClusterBlock> blocks = new HashSet<>(totalBlocks);
+        for (int i = 0; i < totalBlocks;i++) {
+            blocks.add(ClusterBlock.readClusterBlock(in));
+        }
+        this.blocks = unmodifiableSet(blocks);
     }
 
     @Override

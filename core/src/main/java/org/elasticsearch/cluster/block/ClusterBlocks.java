@@ -91,7 +91,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return levelHolders[level.id()].indices();
     }
 
-    public Set<ClusterBlock> blocksForIndex(ClusterBlockLevel level, String index) {
+    private Set<ClusterBlock> blocksForIndex(ClusterBlockLevel level, String index) {
         return indices(level).getOrDefault(index, emptySet());
     }
 
@@ -220,7 +220,12 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     }
 
     private static Set<ClusterBlock> readBlockSet(StreamInput in) throws IOException {
-        return unmodifiableSet(in.readSet(ClusterBlock::readClusterBlock));
+        int totalBlocks = in.readVInt();
+        Set<ClusterBlock> blocks = new HashSet<>(totalBlocks);
+        for (int i = 0; i < totalBlocks;i++) {
+            blocks.add(ClusterBlock.readClusterBlock(in));
+        }
+        return unmodifiableSet(blocks);
     }
 
     static class ImmutableLevelHolder {

@@ -26,12 +26,15 @@ import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.hamcrest.Matchers.is;
 
 /**
- * This test checks to ensure that the IndexAuditTrail starts properly when indexing to a remote cluster
+ * This test checks to ensure that the IndexAuditTrail starts properly when indexing to a remote cluster. The cluster
+ * started by the integration tests is indexed into by the remote cluster started before the test.
+ *
+ * The cluster started by the integrations tests may also index into itself...
  */
 @ClusterScope(scope = Scope.TEST)
 public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
 
-    public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + SUITE_CLUSTER_NODE_PREFIX;
+    public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + TEST_CLUSTER_NODE_PREFIX;
 
     private InternalTestCluster remoteCluster;
 
@@ -77,11 +80,11 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
         }
 
         // create another cluster
-        String cluster2Name = clusterName(Scope.SUITE.name(), randomLong());
+        String cluster2Name = clusterName(Scope.TEST.name(), randomLong());
 
         // Setup a second test cluster with randomization for number of nodes, shield enabled, and SSL
         final int numNodes = randomIntBetween(2, 3);
-        ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.SUITE) {
+        ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.TEST) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
@@ -107,6 +110,11 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
     @After
     public void stopRemoteCluster() throws Exception {
         if (remoteCluster != null) {
+            Iterable<IndexAuditTrail> auditTrails = internalCluster().getInstances(IndexAuditTrail.class);
+            for (IndexAuditTrail auditTrail : auditTrails) {
+                auditTrail.close();
+            }
+
             try {
                 remoteCluster.wipe(Collections.<String>emptySet());
             } finally {

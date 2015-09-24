@@ -191,6 +191,7 @@ final class Seccomp {
     /** try to install our filters */
     static void installFilter() {
         // first be defensive: we can give nice errors this way, at the very least.
+        // also, some of these security features get backported to old versions, checking kernel version here is a big no-no! 
         boolean supported = Constants.LINUX && "amd64".equals(Constants.OS_ARCH);
         if (supported == false) {
             throw new IllegalStateException("bug: should not be trying to initialize seccomp for an unsupported architecture");

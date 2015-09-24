@@ -169,7 +169,9 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         if (!indexBlocked(level, index)) {
             return null;
         }
-        Stream<ClusterBlock> blocks = concat(global(level).stream(), blocksForIndex(level, index).stream());
+        Stream<ClusterBlock> blocks = concat(
+                global(level).stream(),
+                blocksForIndex(level, index).stream());
         return new ClusterBlockException(unmodifiableSet(blocks.collect(toSet())));
     }
 

@@ -5,24 +5,16 @@
  */
 package org.elasticsearch.marvel.agent.renderer;
 
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.LicensePlugin;
-import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.*;
 
@@ -32,39 +24,16 @@ public abstract class AbstractRendererTestCase extends MarvelIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(Node.HTTP_ENABLED, true)
                 .put(MarvelSettings.STARTUP_DELAY, "3s")
                 .put(MarvelSettings.INTERVAL, "1s")
-                .put(MarvelSettings.COLLECTORS, Strings.collectionToCommaDelimitedString(collectors()));
-
-        // we need to remove this potential setting for shield
-        builder.remove("index.queries.cache.type");
-
-        return builder.build();
+                .put(MarvelSettings.COLLECTORS, Strings.collectionToCommaDelimitedString(collectors()))
+                .build();
     }
 
     protected abstract Collection<String> collectors ();
-
-    protected void waitForMarvelDocs(final String type) throws Exception {
-        waitForMarvelDocs(type, 0L);
-    }
-
-    protected void waitForMarvelDocs(final String type, final long minCount) throws Exception {
-        logger.debug("--> waiting for at least [{}] marvel docs of type [{}] to be collected", minCount, type);
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    refresh();
-                    assertThat(client().prepareCount().setTypes(type).get().getCount(), greaterThan(minCount));
-                } catch (Throwable t) {
-                    fail("exception when waiting for marvel docs: " + t.getMessage());
-                }
-            }
-        }, 30L, TimeUnit.SECONDS);
-    }
 
     /**
      * Checks if a field exist in a map of values. If the field contains a dot like 'foo.bar'
@@ -96,26 +65,5 @@ public abstract class AbstractRendererTestCase extends MarvelIntegTestCase {
         } else {
             assertTrue("expecting field [" + field + "] to be present in marvel document", values.containsKey(field));
         }
-    }
-
-    protected void assertMarvelTemplateExists() throws Exception {
-        final String marvelTemplate = "marvel";
-
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(marvelTemplate).get();
-                assertNotNull(response);
-
-                boolean found = false;
-                for (IndexTemplateMetaData template : response.getIndexTemplates()) {
-                    if (marvelTemplate.equals(template.getName())) {
-                        found = true;
-                        break;
-                    }
-                }
-                assertTrue("Template [" + marvelTemplate + "] not found", found);
-            }
-        });
     }
 }

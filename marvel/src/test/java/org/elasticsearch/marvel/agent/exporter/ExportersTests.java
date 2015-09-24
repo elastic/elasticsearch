@@ -189,7 +189,7 @@ public class ExportersTests extends ESTestCase {
     }
 
     @Test
-    public void testExport_OnMaster() throws Exception {
+    public void testOpenBulk_OnMaster() throws Exception {
         Exporter.Factory factory = new MockFactory("mock", false);
         Exporter.Factory masterOnlyFactory = new MockFactory("mock_master_only", true);
         factories.put("mock", factory);
@@ -204,18 +204,13 @@ public class ExportersTests extends ESTestCase {
         when(localNode.masterNode()).thenReturn(true);
         when(clusterService.localNode()).thenReturn(localNode);
 
-        MarvelDoc doc = mock(MarvelDoc.class);
-        MarvelDoc[] docs = new MarvelDoc[randomIntBetween(1, 3)];
-        for (int i = 0; i < docs.length; i++) {
-            docs[i] = doc;
-        }
-        List<MarvelDoc> docsList = Arrays.asList(docs);
-        exporters.export(docsList);
+        ExportBulk bulk = exporters.openBulk();
+        assertThat(bulk, notNullValue());
 
         verify(exporters.getExporter("_name0"), times(1)).masterOnly();
-        verify(exporters.getExporter("_name0"), times(1)).export(docsList);
+        verify(exporters.getExporter("_name0"), times(1)).openBulk();
         verify(exporters.getExporter("_name1"), times(1)).masterOnly();
-        verify(exporters.getExporter("_name1"), times(1)).export(docsList);
+        verify(exporters.getExporter("_name1"), times(1)).openBulk();
     }
 
     @Test
@@ -234,17 +229,13 @@ public class ExportersTests extends ESTestCase {
         when(localNode.masterNode()).thenReturn(false);
         when(clusterService.localNode()).thenReturn(localNode);
 
-        MarvelDoc doc = mock(MarvelDoc.class);
-        MarvelDoc[] docs = new MarvelDoc[randomIntBetween(1, 3)];
-        for (int i = 0; i < docs.length; i++) {
-            docs[i] = doc;
-        }
-        List<MarvelDoc> docsList = Arrays.asList(docs);
-        exporters.export(docsList);
+        ExportBulk bulk = exporters.openBulk();
+        assertThat(bulk, notNullValue());
 
         verify(exporters.getExporter("_name0"), times(1)).masterOnly();
-        verify(exporters.getExporter("_name0"), times(1)).export(docsList);
+        verify(exporters.getExporter("_name0"), times(1)).openBulk();
         verify(exporters.getExporter("_name1"), times(1)).masterOnly();
+        verifyNoMoreInteractions(exporters.getExporter("_name1"));
     }
 
     static class TestFactory extends Exporter.Factory<TestFactory.TestExporter> {
@@ -269,6 +260,11 @@ public class ExportersTests extends ESTestCase {
             }
 
             @Override
+            public ExportBulk openBulk() {
+                return mock(ExportBulk.class);
+            }
+
+            @Override
             public void close() {
             }
         }
@@ -289,6 +285,7 @@ public class ExportersTests extends ESTestCase {
             when(exporter.type()).thenReturn(type());
             when(exporter.name()).thenReturn(config.name());
             when(exporter.masterOnly()).thenReturn(masterOnly);
+            when(exporter.openBulk()).thenReturn(mock(ExportBulk.class));
             return exporter;
         }
     }

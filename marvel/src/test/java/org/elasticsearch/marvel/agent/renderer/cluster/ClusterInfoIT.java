@@ -65,7 +65,7 @@ public class ClusterInfoIT extends AbstractRendererTestCase {
         assertThat(licensesList, instanceOf(List.class));
 
         List licenses = (List) licensesList;
-        assertThat(licenses.size(), equalTo(1));
+        assertThat(licenses.size(), equalTo(shieldEnabled ? 2 : 1));
 
         Map license = (Map) licenses.iterator().next();
         assertThat(license, instanceOf(Map.class));

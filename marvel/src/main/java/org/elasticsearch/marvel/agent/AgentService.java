@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.marvel.agent.collector.Collector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoCollector;
+import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
@@ -106,7 +107,6 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
             } catch (InterruptedException e) {
                 // we don't care...
             }
-
         }
 
         for (Collector collector : collectors) {
@@ -155,21 +155,26 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
                         continue;
                     }
 
-                    for (Collector collector : collectors) {
-                        logger.trace("collecting {}", collector.name());
-                        Collection<MarvelDoc> results = collector.collect();
-
-                        if (results != null && !results.isEmpty()) {
-                            for (Exporter exporter : exporters) {
-                                exporter.export(results);
+                    ExportBulk bulk = exporters.openBulk();
+                    if (bulk == null) { // exporters are either not ready or faulty
+                        continue;
+                    }
+                    try {
+                        for (Collector collector : collectors) {
+                            logger.trace("collecting [{}]", collector.name());
+                            Collection<MarvelDoc> docs = collector.collect();
+                            if (docs != null) {
+                                bulk.add(docs);
+                            }
+                            if (closed) {
+                                // Stop collecting if the worker is marked as closed
+                                break;
                             }
                         }
-
-                        if (closed) {
-                            // Stop collecting if the worker is marked as closed
-                            break;
-                        }
+                    } finally {
+                        bulk.close(!closed);
                     }
+
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (Throwable t) {

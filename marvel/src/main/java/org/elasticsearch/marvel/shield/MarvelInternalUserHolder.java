@@ -22,11 +22,12 @@ public class MarvelInternalUserHolder {
     static final String[] ROLE_NAMES = new String[] { "__marvel_role" };
 
     public static final Permission.Global.Role ROLE = Permission.Global.Role.builder(ROLE_NAMES[0])
-            .cluster(Privilege.Cluster.action(PutIndexTemplateAction.NAME))
-            .cluster(Privilege.Cluster.action(GetIndexTemplatesAction.NAME))
+            .cluster(Privilege.Cluster.get(new Privilege.Name(
+                    PutIndexTemplateAction.NAME + "*",
+                    GetIndexTemplatesAction.NAME + "*",
+                    Privilege.Cluster.MONITOR.name().toString())))
 
             // we need all monitoring access
-            .cluster(Privilege.Cluster.MONITOR)
             .add(Privilege.Index.MONITOR, "*")
 
             // and full access to .marvel-* and .marvel-data indices

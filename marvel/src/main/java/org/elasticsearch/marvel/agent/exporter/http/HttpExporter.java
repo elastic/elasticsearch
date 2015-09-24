@@ -21,14 +21,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.shield.MarvelSettingsFilter;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
 import javax.net.ssl.*;
 import java.io.*;
@@ -51,7 +50,6 @@ public class HttpExporter extends Exporter {
     public static final String TYPE = "http";
 
     public static final String HOST_SETTING = "host";
-    public static final String INDEX_NAME_TIME_FORMAT_SETTING = "index.name.time_format";
     public static final String CONNECTION_TIMEOUT_SETTING = "connection.timeout";
     public static final String CONNECTION_READ_TIMEOUT_SETTING = "connection.read_timeout";
     public static final String AUTH_USERNAME_SETTING = "auth.username";
@@ -70,8 +68,6 @@ public class HttpExporter extends Exporter {
     public static final String SSL_TRUSTSTORE_ALGORITHM_SETTING = SSL_SETTING + ".truststore.algorithm";
     public static final String SSL_HOSTNAME_VERIFICATION_SETTING = SSL_SETTING + ".hostname_verification";
 
-    public static final String DEFAULT_INDEX_NAME_TIME_FORMAT = "YYYY.MM.dd";
-
     /** Minimum supported version of the remote template **/
     public static final Version MIN_SUPPORTED_TEMPLATE_VERSION = Version.V_2_0_0_beta2;
 
@@ -82,8 +78,6 @@ public class HttpExporter extends Exporter {
     final TimeValue connectionTimeout;
     final TimeValue connectionReadTimeout;
     final BasicAuth auth;
-
-    final DateTimeFormatter indexTimeFormatter;
 
     /** https support * */
     final SSLSocketFactory sslSocketFactory;
@@ -97,7 +91,6 @@ public class HttpExporter extends Exporter {
 
     volatile boolean checkedAndUploadedIndexTemplate = false;
     volatile boolean supportedClusterVersion = false;
-
 
 
     /** Version of the built-in template **/
@@ -120,13 +113,6 @@ public class HttpExporter extends Exporter {
 
         auth = resolveAuth(config.settings());
 
-        String indexTimeFormat = config.settings().get(INDEX_NAME_TIME_FORMAT_SETTING, DEFAULT_INDEX_NAME_TIME_FORMAT);
-        try {
-            indexTimeFormatter = DateTimeFormat.forPattern(indexTimeFormat).withZoneUTC();
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("invalid marvel index name time format [" + indexTimeFormat + "] set for [" + settingFQN(INDEX_NAME_TIME_FORMAT_SETTING) + "]", e);
-        }
-
         connectionTimeout = config.settings().getAsTime(CONNECTION_TIMEOUT_SETTING, TimeValue.timeValueMillis(6000));
         connectionReadTimeout = config.settings().getAsTime(CONNECTION_READ_TIMEOUT_SETTING, TimeValue.timeValueMillis(connectionTimeout.millis() * 10));
 
@@ -148,40 +134,15 @@ public class HttpExporter extends Exporter {
             throw new IllegalStateException("unable to find built-in template version");
         }
 
-        logger.debug("initialized with hosts [{}], index prefix [{}], index time format [{}], template version [{}]",
+        logger.debug("initialized with hosts [{}], index prefix [{}], index resolver [{}], template version [{}]",
                 Strings.arrayToCommaDelimitedString(hosts),
-                MarvelSettings.MARVEL_INDICES_PREFIX, indexTimeFormat, templateVersion);
+                MarvelSettings.MARVEL_INDICES_PREFIX, indexNameResolver, templateVersion);
     }
 
     @Override
-    public void export(Collection<MarvelDoc> marvelDocs) throws Exception {
+    public ExportBulk openBulk() {
         HttpURLConnection connection = openExportingConnection();
-        if (connection == null) {
-            return;
-        }
-
-        if ((marvelDocs != null) && (!marvelDocs.isEmpty())) {
-            OutputStream os = connection.getOutputStream();
-
-            // We need to use a buffer to render each Marvel document
-            // because the renderer might close the outputstream (ex: XContentBuilder)
-            try (BytesStreamOutput buffer = new BytesStreamOutput()) {
-                for (MarvelDoc marvelDoc : marvelDocs) {
-                    render(marvelDoc, buffer);
-
-                    // write the result to the connection
-                    os.write(buffer.bytes().toBytes());
-                    buffer.reset();
-                }
-            } finally {
-                try {
-                    sendCloseExportingConnection(connection);
-                } catch (IOException e) {
-                    logger.error("failed sending data to [{}]: {}", connection.getURL(), ExceptionsHelper.detailedMessage(e));
-                    throw e;
-                }
-            }
-        }
+        return connection != null ? new Bulk(connection) : null;
     }
 
     @Override
@@ -203,7 +164,7 @@ public class HttpExporter extends Exporter {
         if (bulkTimeout != null) {
             queryString = "?master_timeout=" + bulkTimeout;
         }
-        HttpURLConnection conn = openAndValidateConnection("POST", getIndexName() + "/_bulk" + queryString, XContentType.SMILE.restContentType());
+        HttpURLConnection conn = openAndValidateConnection("POST", "/_bulk" + queryString, XContentType.SMILE.restContentType());
         if (conn != null && (keepAliveThread == null || !keepAliveThread.isAlive())) {
             // start keep alive upon successful connection if not there.
             initKeepAliveThread();
@@ -226,9 +187,10 @@ public class HttpExporter extends Exporter {
             // Builds the bulk action metadata line
             builder.startObject();
             builder.startObject("index");
-            if (marvelDoc.index() != null) {
-                builder.field("_index", marvelDoc.index());
-            }
+
+            // we need the index to be based on the document timestamp
+            builder.field("_index", indexNameResolver.resolve(marvelDoc));
+
             if (marvelDoc.type() != null) {
                 builder.field("_type", marvelDoc.type());
             }
@@ -277,11 +239,6 @@ public class HttpExporter extends Exporter {
                 }
             }
         }
-    }
-
-    String getIndexName() {
-        return MarvelSettings.MARVEL_INDICES_PREFIX + indexTimeFormatter.print(System.currentTimeMillis());
-
     }
 
     /**
@@ -714,6 +671,58 @@ public class HttpExporter extends Exporter {
             String userInfo = username + ":" + (password != null ? new String(password) : "");
             String basicAuth = "Basic " + Base64.encodeBytes(userInfo.getBytes("ISO-8859-1"));
             connection.setRequestProperty("Authorization", basicAuth);
+        }
+    }
+
+    class Bulk extends ExportBulk {
+
+        private HttpURLConnection connection;
+        private OutputStream out;
+
+        public Bulk(HttpURLConnection connection) {
+            super(name());
+            this.connection = connection;
+        }
+
+        @Override
+        public Bulk add(Collection<MarvelDoc> docs) throws Exception {
+            if (connection == null) {
+                connection = openExportingConnection();
+            }
+            if ((docs != null) && (!docs.isEmpty())) {
+                if (out == null) {
+                    out = connection.getOutputStream();
+                }
+
+                // We need to use a buffer to render each Marvel document
+                // because the renderer might close the outputstream (ex: XContentBuilder)
+                try (BytesStreamOutput buffer = new BytesStreamOutput()) {
+                    for (MarvelDoc marvelDoc : docs) {
+                        render(marvelDoc, buffer);
+
+                        // write the result to the connection
+                        out.write(buffer.bytes().toBytes());
+                    }
+                }
+            }
+            return this;
+        }
+
+        @Override
+        public void flush() throws IOException {
+            if (connection != null) {
+                flush(connection);
+                connection = null;
+            }
+        }
+
+        private void flush(HttpURLConnection connection) throws IOException {
+            try {
+                sendCloseExportingConnection(connection);
+            } catch (IOException e) {
+                logger.error("failed sending data to [{}]: {}", connection.getURL(), ExceptionsHelper.detailedMessage(e));
+                throw e;
+            }
         }
     }
 

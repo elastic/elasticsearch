@@ -31,7 +31,7 @@ public class IndexRecoveryIT extends AbstractRendererTestCase {
             client().prepareIndex("test-" + i, "foo").setRefresh(true).setSource("field1", "value1").get();
         }
 
-        waitForMarvelDocs(IndexRecoveryCollector.TYPE);
+        awaitMarvelDocsCount(greaterThan(0L), IndexRecoveryCollector.TYPE);
 
         logger.debug("--> searching for marvel documents of type [{}]", IndexRecoveryCollector.TYPE);
         SearchResponse response = client().prepareSearch().setTypes(IndexRecoveryCollector.TYPE).get();

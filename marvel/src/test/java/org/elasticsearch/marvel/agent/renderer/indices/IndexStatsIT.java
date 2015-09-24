@@ -42,7 +42,7 @@ public class IndexStatsIT extends AbstractRendererTestCase {
             }
         }
 
-        waitForMarvelDocs(IndexStatsCollector.TYPE);
+        awaitMarvelDocsCount(greaterThan(0L), IndexStatsCollector.TYPE);
 
         logger.debug("--> wait for index stats collector to collect stat for each index");
         assertBusy(new Runnable() {

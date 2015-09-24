@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.collector.cluster;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -21,6 +22,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
+@Seed("F57FD3DC45ADC34F")
 public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
 
     @Test

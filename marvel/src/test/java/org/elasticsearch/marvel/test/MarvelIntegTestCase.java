@@ -6,11 +6,15 @@
 package org.elasticsearch.marvel.test;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
+import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
@@ -19,6 +23,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
+import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
 
 import java.io.BufferedWriter;
@@ -29,12 +34,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 /**
  *
  */
-public class MarvelIntegTestCase extends ESIntegTestCase {
+public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     protected static Boolean shieldEnabled;
 
@@ -48,16 +55,16 @@ public class MarvelIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Map<String, String> originalSettings = super.nodeSettings(nodeOrdinal).getAsMap();
-        if (shieldEnabled) {
-            originalSettings.remove("index.queries.cache.type"); // setting not supported by shield
-        }
-        return Settings.builder()
-                .put(originalSettings)
+        Settings.Builder builder = Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
                 // we do this by default in core, but for marvel this isn't needed and only adds noise.
-                .put("index.store.mock.check_index_on_close", false)
-                .put(ShieldSettings.settings(shieldEnabled))
-                .build();
+                .put("index.store.mock.check_index_on_close", false);
+
+        if (shieldEnabled) {
+            ShieldSettings.apply(builder);
+        }
+
+        return builder.build();
     }
 
     @Override
@@ -92,6 +99,76 @@ public class MarvelIntegTestCase extends ESIntegTestCase {
         return randomBoolean();
     }
 
+    protected void deleteMarvelIndices() {
+        if (shieldEnabled) {
+            try {
+                assertAcked(client().admin().indices().prepareDelete(MarvelSettings.MARVEL_INDICES_PREFIX + "*"));
+            } catch (Exception e) {
+                // if shield couldn't resolve any marvel index, it'll throw index not found exception.
+                if (!(e instanceof IndexNotFoundException)) {
+                    throw e;
+                }
+            }
+        } else {
+            assertAcked(client().admin().indices().prepareDelete(MarvelSettings.MARVEL_INDICES_PREFIX + "*"));
+        }
+    }
+
+    protected void awaitMarvelDocsCount(Matcher<Long> matcher, String... types) throws Exception {
+        securedRefresh();
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertMarvelDocsCount(matcher, types);
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    protected void assertMarvelDocsCount(Matcher<Long> matcher, String... types) {
+        try {
+            long count = client().prepareCount(MarvelSettings.MARVEL_INDICES_PREFIX + "*")
+                    .setTypes(types).get().getCount();
+            assertThat(count, matcher);
+        } catch (IndexNotFoundException e) {
+            if (shieldEnabled) {
+                assertThat(0L, matcher);
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    protected void assertMarvelTemplateExists() {
+        assertTrue("marvel template shouldn't exists", isTemplateExists(LocalExporter.INDEX_TEMPLATE_NAME));
+    }
+
+    protected void assertMarvelTemplateNotExists() {
+        assertFalse("marvel template should exists", isTemplateExists(LocalExporter.INDEX_TEMPLATE_NAME));
+    }
+
+    private boolean isTemplateExists(String templateName) {
+        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(templateName).get().getIndexTemplates()) {
+            if (template.getName().equals(templateName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected void securedRefresh() {
+        if (shieldEnabled) {
+            try {
+                refresh();
+            } catch (Exception e) {
+                if (!(e instanceof IndexNotFoundException)) {
+                    throw e;
+                }
+            }
+        } else {
+            refresh();
+        }
+    }
+
     /** Shield related settings */
 
     public static class ShieldSettings {
@@ -119,29 +196,28 @@ public class MarvelIntegTestCase extends ESIntegTestCase {
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                        "  cluster: cluster:monitor/nodes/info, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, cluster:admin/settings/update, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
-                        "  indices:\n" +
-                        "    '*': all\n" +
-                        "\n" +
-                        "admin:\n" +
-                        "  cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
-                        "transport_client:\n" +
-                        "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
-                        "\n" +
-                        "monitor:\n" +
-                        "  cluster: monitor_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n"
+                "  cluster: cluster:monitor/nodes/info, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, cluster:admin/settings/update, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
+                "  indices:\n" +
+                "    '*': all\n" +
+                "\n" +
+                "admin:\n" +
+                "  cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
+                "transport_client:\n" +
+                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
+                "\n" +
+                "monitor:\n" +
+                "  cluster: monitor_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n"
                 ;
 
 
-        public static Settings settings(boolean enabled)  {
-            Settings.Builder builder = Settings.builder();
-            if (!enabled) {
-                return builder.put("shield.enabled", false).build();
-            }
+        public static void apply(Settings.Builder builder)  {
             try {
-                Path folder = createTempDir().resolve("watcher_shield");
+                Path folder = createTempDir().resolve("marvel_shield");
                 Files.createDirectories(folder);
-                return builder.put("shield.enabled", true)
+
+                builder.remove("index.queries.cache.type");
+
+                builder.put("shield.enabled", true)
                         .put("shield.user", "test:changeme")
                         .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
                         .put("shield.authc.realms.esusers.order", 0)
@@ -154,8 +230,7 @@ public class MarvelIntegTestCase extends ESIntegTestCase {
                         .put("shield.audit.enabled", auditLogsEnabled)
                                 // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
                                 // validation in ShieldPlugin fail. Shield can only run with this query cache impl
-                        .put(IndexCacheModule.QUERY_CACHE_TYPE, ShieldPlugin.OPT_OUT_QUERY_CACHE)
-                        .build();
+                        .put(IndexCacheModule.QUERY_CACHE_TYPE, ShieldPlugin.OPT_OUT_QUERY_CACHE);
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for shield", ex);
             }

@@ -9,9 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMarvelDoc;
@@ -32,14 +30,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.marvel.agent.exporter.http.HttpExporter.MIN_SUPPORTED_TEMPLATE_VERSION;
 import static org.elasticsearch.marvel.agent.exporter.http.HttpExporterUtils.MARVEL_VERSION_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class LocalExporterTests extends MarvelIntegTestCase {
@@ -62,13 +58,13 @@ public class LocalExporterTests extends MarvelIntegTestCase {
                 .build());
         ensureGreen();
 
-        Exporter exporter = getExporter("_local");
+        Exporter exporter = getLocalExporter("_local");
 
         logger.debug("--> exporting a single marvel doc");
         exporter.export(Collections.singletonList(newRandomMarvelDoc()));
-        assertMarvelDocsCount(1);
+        awaitMarvelDocsCount(is(1L));
 
-        wipeMarvelIndices();
+        deleteMarvelIndices();
 
         final List<MarvelDoc> marvelDocs = new ArrayList<>();
         for (int i=0; i < randomIntBetween(2, 50); i++) {
@@ -77,7 +73,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
 
         logger.debug("--> exporting {} marvel docs", marvelDocs.size());
         exporter.export(marvelDocs);
-        assertMarvelDocsCount(marvelDocs.size());
+        awaitMarvelDocsCount(is((long) marvelDocs.size()));
 
         SearchResponse response = client().prepareSearch(MarvelSettings.MARVEL_INDICES_PREFIX + "*").get();
         for (SearchHit hit : response.getHits().hits()) {
@@ -94,14 +90,14 @@ public class LocalExporterTests extends MarvelIntegTestCase {
                 .build());
         ensureGreen();
 
-        LocalExporter exporter = getExporter("_local");
+        LocalExporter exporter = getLocalExporter("_local");
         assertTrue(exporter.shouldUpdateTemplate(null, Version.CURRENT));
 
         assertMarvelTemplateNotExists();
 
         logger.debug("--> exporting when the marvel template does not exists: template should be created");
         exporter.export(Collections.singletonList(newRandomMarvelDoc()));
-        assertMarvelDocsCount(1);
+        awaitMarvelDocsCount(is(1L));
         assertMarvelTemplateExists();
 
         assertThat(exporter.templateVersion(), equalTo(Version.CURRENT));
@@ -114,7 +110,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
                 .build());
         ensureGreen();
 
-        LocalExporter exporter = getExporter("_local");
+        LocalExporter exporter = getLocalExporter("_local");
         Version fakeVersion = MIN_SUPPORTED_TEMPLATE_VERSION;
         assertTrue(exporter.shouldUpdateTemplate(fakeVersion, Version.CURRENT));
 
@@ -126,20 +122,21 @@ public class LocalExporterTests extends MarvelIntegTestCase {
 
         logger.debug("--> exporting when the marvel template must be updated: document is exported and the template is updated");
         exporter.export(Collections.singletonList(newRandomMarvelDoc()));
-        assertMarvelDocsCount(1);
+        awaitMarvelDocsCount(is(1L));
         assertMarvelTemplateExists();
 
         assertThat(exporter.templateVersion(), equalTo(Version.CURRENT));
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "LocalExporter#210")
     public void testUnsupportedTemplateVersion() throws Exception {
         internalCluster().startNode(Settings.builder()
                 .put("marvel.agent.exporters._local.type", LocalExporter.TYPE)
                 .build());
         ensureGreen();
 
-        LocalExporter exporter = getExporter("_local");
+        LocalExporter exporter = getLocalExporter("_local");
+
         Version fakeVersion = randomFrom(Version.V_0_18_0, Version.V_1_0_0, Version.V_1_4_0);
         assertFalse(exporter.shouldUpdateTemplate(fakeVersion, Version.CURRENT));
 
@@ -150,8 +147,9 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         assertThat(exporter.templateVersion(), equalTo(fakeVersion));
 
         logger.debug("--> exporting when the marvel template is tool old: no document is exported and the template is not updated");
+        awaitMarvelDocsCount(is(0L));
         exporter.export(Collections.singletonList(newRandomMarvelDoc()));
-        assertMarvelDocsCount(0);
+        awaitMarvelDocsCount(is(0L));
         assertMarvelTemplateExists();
 
         assertThat(exporter.templateVersion(), equalTo(fakeVersion));
@@ -159,8 +157,9 @@ public class LocalExporterTests extends MarvelIntegTestCase {
 
     @Test
     public void testIndexTimestampFormat() throws Exception {
+        long time = System.currentTimeMillis();
         final String timeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM");
-        final String expectedIndexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(System.currentTimeMillis());
+        String expectedIndexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(time);
 
         internalCluster().startNode(Settings.builder()
                 .put("marvel.agent.exporters._local.type", LocalExporter.TYPE)
@@ -168,54 +167,41 @@ public class LocalExporterTests extends MarvelIntegTestCase {
                 .build());
         ensureGreen();
 
-        LocalExporter exporter = getExporter("_local");
-        assertThat(exporter.indexName(), equalTo(expectedIndexName));
+        LocalExporter exporter = getLocalExporter("_local");
+
+        assertThat(exporter.indexNameResolver().resolve(time), equalTo(expectedIndexName));
 
         logger.debug("--> exporting a random marvel document");
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
-        assertMarvelDocsCount(1);
+        MarvelDoc doc = newRandomMarvelDoc();
+        exporter.export(Collections.singletonList(doc));
+        awaitMarvelDocsCount(is(1L));
+        expectedIndexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
 
         logger.debug("--> check that the index [{}] has the correct timestamp [{}]", timeFormat, expectedIndexName);
         assertTrue(client().admin().indices().prepareExists(expectedIndexName).get().isExists());
 
         logger.debug("--> updates the timestamp");
         final String newTimeFormat = randomFrom("dd", "dd.MM.YYYY", "dd.MM");
-        final String newExpectedIndexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(System.currentTimeMillis());
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .put("marvel.agent.exporters._local.index.name.time_format", newTimeFormat)));
 
         logger.debug("--> exporting a random marvel document");
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
-        assertMarvelDocsCount(1);
+        doc = newRandomMarvelDoc();
+        exporter.export(Collections.singletonList(doc));
+        awaitMarvelDocsCount(is(1L));
+        String newExpectedIndexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
 
         logger.debug("--> check that the index [{}] has the correct timestamp [{}]", newTimeFormat, newExpectedIndexName);
-        assertThat(exporter.indexName(), equalTo(newExpectedIndexName));
+        assertThat(exporter.indexNameResolver().resolve(doc.timestamp()), equalTo(newExpectedIndexName));
         assertTrue(client().admin().indices().prepareExists(newExpectedIndexName).get().isExists());
     }
 
-
-    private <T extends Exporter> T getExporter(String name) {
-        Exporter exporter = internalCluster().getInstance(Exporters.class).getExporter(name);
-        assertNotNull("exporter [" + name + "] should not be null", exporter);
-        return (T) exporter;
-    }
-
-    private void assertMarvelDocsCount(long expectedHitCount) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                String index = MarvelSettings.MARVEL_INDICES_PREFIX + "*";
-                IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
-
-                assertThat(client().admin().indices().prepareRefresh(index).setIndicesOptions(indicesOptions).get().getFailedShards(), equalTo(0));
-                assertHitCount(client().prepareCount(index).setIndicesOptions(indicesOptions).get(), expectedHitCount);
-            }
-        }, 5, TimeUnit.SECONDS);
-    }
-
-    private void wipeMarvelIndices() {
-        assertAcked(client().admin().indices().prepareDelete(MarvelSettings.MARVEL_INDICES_PREFIX + "*"));
+    private LocalExporter getLocalExporter(String name) throws Exception {
+        final Exporter exporter = internalCluster().getInstance(Exporters.class).getExporter(name);
+        assertThat(exporter, notNullValue());
+        assertThat(exporter, instanceOf(LocalExporter.class));
+        return (LocalExporter) exporter;
     }
 
     private MarvelDoc newRandomMarvelDoc() {
@@ -228,20 +214,4 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         }
     }
 
-    private void assertMarvelTemplateExists() {
-        assertTrue("marvel template must exists", isTemplateExists(LocalExporter.INDEX_TEMPLATE_NAME));
-    }
-
-    private void assertMarvelTemplateNotExists() {
-        assertFalse("marvel template must not exists", isTemplateExists(LocalExporter.INDEX_TEMPLATE_NAME));
-    }
-
-    private boolean isTemplateExists(String templateName) {
-        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(templateName).get().getIndexTemplates()) {
-            if (template.getName().equals(templateName)) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

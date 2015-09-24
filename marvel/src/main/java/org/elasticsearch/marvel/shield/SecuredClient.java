@@ -347,7 +347,7 @@ public class SecuredClient implements Client {
     }
 
     public IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id) {
-        return (this.prepareIndex().setIndex(index)).setType(type).setId(id);
+        return this.prepareIndex().setIndex(index).setType(type).setId(id);
     }
 
     public ActionFuture<UpdateResponse> update(UpdateRequest request) {
@@ -379,7 +379,7 @@ public class SecuredClient implements Client {
     }
 
     public DeleteRequestBuilder prepareDelete(String index, String type, String id) {
-        return (this.prepareDelete().setIndex(index)).setType(type).setId(id);
+        return this.prepareDelete().setIndex(index).setType(type).setId(id);
     }
 
     public ActionFuture<BulkResponse> bulk(BulkRequest request) {
@@ -407,7 +407,7 @@ public class SecuredClient implements Client {
     }
 
     public GetRequestBuilder prepareGet(String index, String type, String id) {
-        return (this.prepareGet().setIndex(index)).setType(type).setId(id);
+        return this.prepareGet().setIndex(index).setType(type).setId(id);
     }
 
     public ActionFuture<GetIndexedScriptResponse> getIndexedScript(GetIndexedScriptRequest request) {
@@ -479,7 +479,7 @@ public class SecuredClient implements Client {
     }
 
     public SearchRequestBuilder prepareSearch(String... indices) {
-        return (new SearchRequestBuilder(this, SearchAction.INSTANCE)).setIndices(indices);
+        return new SearchRequestBuilder(this, SearchAction.INSTANCE).setIndices(indices);
     }
 
     public ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request) {
@@ -525,7 +525,7 @@ public class SecuredClient implements Client {
     }
 
     public CountRequestBuilder prepareCount(String... indices) {
-        return (new CountRequestBuilder(this, CountAction.INSTANCE)).setIndices(indices);
+        return new CountRequestBuilder(this, CountAction.INSTANCE).setIndices(indices);
     }
 
     public ActionFuture<ExistsResponse> exists(ExistsRequest request) {
@@ -537,7 +537,7 @@ public class SecuredClient implements Client {
     }
 
     public ExistsRequestBuilder prepareExists(String... indices) {
-        return (new ExistsRequestBuilder(this, ExistsAction.INSTANCE)).setIndices(indices);
+        return new ExistsRequestBuilder(this, ExistsAction.INSTANCE).setIndices(indices);
     }
 
     public ActionFuture<SuggestResponse> suggest(SuggestRequest request) {
@@ -549,7 +549,7 @@ public class SecuredClient implements Client {
     }
 
     public SuggestRequestBuilder prepareSuggest(String... indices) {
-        return (new SuggestRequestBuilder(this, SuggestAction.INSTANCE)).setIndices(indices);
+        return new SuggestRequestBuilder(this, SuggestAction.INSTANCE).setIndices(indices);
     }
 
     public ActionFuture<TermVectorsResponse> termVectors(TermVectorsRequest request) {
@@ -772,7 +772,7 @@ public class SecuredClient implements Client {
         }
 
         public ClearIndicesCacheRequestBuilder prepareClearCache(String... indices) {
-            return (new ClearIndicesCacheRequestBuilder(this, ClearIndicesCacheAction.INSTANCE)).setIndices(indices);
+            return new ClearIndicesCacheRequestBuilder(this, ClearIndicesCacheAction.INSTANCE).setIndices(indices);
         }
 
         public ActionFuture<CreateIndexResponse> create(CreateIndexRequest request) {
@@ -868,7 +868,7 @@ public class SecuredClient implements Client {
         }
 
         public PutMappingRequestBuilder preparePutMapping(String... indices) {
-            return (new PutMappingRequestBuilder(this, PutMappingAction.INSTANCE)).setIndices(indices);
+            return new PutMappingRequestBuilder(this, PutMappingAction.INSTANCE).setIndices(indices);
         }
 
         public ActionFuture<OptimizeResponse> optimize(OptimizeRequest request) {
@@ -892,7 +892,7 @@ public class SecuredClient implements Client {
         }
 
         public UpgradeRequestBuilder prepareUpgrade(String... indices) {
-            return (new UpgradeRequestBuilder(this, UpgradeAction.INSTANCE)).setIndices(indices);
+            return new UpgradeRequestBuilder(this, UpgradeAction.INSTANCE).setIndices(indices);
         }
 
         public ActionFuture<UpgradeStatusResponse> upgradeStatus(UpgradeStatusRequest request) {
@@ -904,7 +904,7 @@ public class SecuredClient implements Client {
         }
 
         public UpgradeStatusRequestBuilder prepareUpgradeStatus(String... indices) {
-            return (new UpgradeStatusRequestBuilder(this, UpgradeStatusAction.INSTANCE)).setIndices(indices);
+            return new UpgradeStatusRequestBuilder(this, UpgradeStatusAction.INSTANCE).setIndices(indices);
         }
 
         public ActionFuture<RefreshResponse> refresh(RefreshRequest request) {
@@ -916,7 +916,7 @@ public class SecuredClient implements Client {
         }
 
         public RefreshRequestBuilder prepareRefresh(String... indices) {
-            return (new RefreshRequestBuilder(this, RefreshAction.INSTANCE)).setIndices(indices);
+            return new RefreshRequestBuilder(this, RefreshAction.INSTANCE).setIndices(indices);
         }
 
         public ActionFuture<IndicesStatsResponse> stats(IndicesStatsRequest request) {
@@ -928,7 +928,7 @@ public class SecuredClient implements Client {
         }
 
         public IndicesStatsRequestBuilder prepareStats(String... indices) {
-            return (new IndicesStatsRequestBuilder(this, IndicesStatsAction.INSTANCE)).setIndices(indices);
+            return new IndicesStatsRequestBuilder(this, IndicesStatsAction.INSTANCE).setIndices(indices);
         }
 
         public ActionFuture<RecoveryResponse> recoveries(RecoveryRequest request) {
@@ -940,7 +940,7 @@ public class SecuredClient implements Client {
         }
 
         public RecoveryRequestBuilder prepareRecoveries(String... indices) {
-            return (new RecoveryRequestBuilder(this, RecoveryAction.INSTANCE)).setIndices(indices);
+            return new RecoveryRequestBuilder(this, RecoveryAction.INSTANCE).setIndices(indices);
         }
 
         public ActionFuture<IndicesSegmentResponse> segments(IndicesSegmentsRequest request) {
@@ -952,7 +952,7 @@ public class SecuredClient implements Client {
         }
 
         public IndicesSegmentsRequestBuilder prepareSegments(String... indices) {
-            return (new IndicesSegmentsRequestBuilder(this, IndicesSegmentsAction.INSTANCE)).setIndices(indices);
+            return new IndicesSegmentsRequestBuilder(this, IndicesSegmentsAction.INSTANCE).setIndices(indices);
         }
 
         public ActionFuture<IndicesShardStoresResponse> shardStores(IndicesShardStoresRequest request) {
@@ -976,7 +976,7 @@ public class SecuredClient implements Client {
         }
 
         public UpdateSettingsRequestBuilder prepareUpdateSettings(String... indices) {
-            return (new UpdateSettingsRequestBuilder(this, UpdateSettingsAction.INSTANCE, Strings.EMPTY_ARRAY)).setIndices(indices);
+            return new UpdateSettingsRequestBuilder(this, UpdateSettingsAction.INSTANCE, Strings.EMPTY_ARRAY).setIndices(indices);
         }
 
         public ActionFuture<AnalyzeResponse> analyze(AnalyzeRequest request) {
@@ -1044,7 +1044,7 @@ public class SecuredClient implements Client {
         }
 
         public ValidateQueryRequestBuilder prepareValidateQuery(String... indices) {
-            return (new ValidateQueryRequestBuilder(this, ValidateQueryAction.INSTANCE)).setIndices(indices);
+            return new ValidateQueryRequestBuilder(this, ValidateQueryAction.INSTANCE).setIndices(indices);
         }
 
         public ActionFuture<RenderSearchTemplateResponse> renderSearchTemplate(RenderSearchTemplateRequest request) {
@@ -1144,7 +1144,7 @@ public class SecuredClient implements Client {
         }
 
         public ClusterHealthRequestBuilder prepareHealth(String... indices) {
-            return (new ClusterHealthRequestBuilder(this, ClusterHealthAction.INSTANCE)).setIndices(indices);
+            return new ClusterHealthRequestBuilder(this, ClusterHealthAction.INSTANCE).setIndices(indices);
         }
 
         public ActionFuture<ClusterStateResponse> state(ClusterStateRequest request) {
@@ -1192,7 +1192,7 @@ public class SecuredClient implements Client {
         }
 
         public NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds) {
-            return (new NodesInfoRequestBuilder(this, NodesInfoAction.INSTANCE)).setNodesIds(nodesIds);
+            return new NodesInfoRequestBuilder(this, NodesInfoAction.INSTANCE).setNodesIds(nodesIds);
         }
 
         public ActionFuture<NodesStatsResponse> nodesStats(NodesStatsRequest request) {
@@ -1204,7 +1204,7 @@ public class SecuredClient implements Client {
         }
 
         public NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
-            return (new NodesStatsRequestBuilder(this, NodesStatsAction.INSTANCE)).setNodesIds(nodesIds);
+            return new NodesStatsRequestBuilder(this, NodesStatsAction.INSTANCE).setNodesIds(nodesIds);
         }
 
         public ActionFuture<ClusterStatsResponse> clusterStats(ClusterStatsRequest request) {
@@ -1228,7 +1228,7 @@ public class SecuredClient implements Client {
         }
 
         public NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds) {
-            return (new NodesHotThreadsRequestBuilder(this, NodesHotThreadsAction.INSTANCE)).setNodesIds(nodesIds);
+            return new NodesHotThreadsRequestBuilder(this, NodesHotThreadsAction.INSTANCE).setNodesIds(nodesIds);
         }
 
         public ActionFuture<ClusterSearchShardsResponse> searchShards(ClusterSearchShardsRequest request) {
@@ -1244,7 +1244,7 @@ public class SecuredClient implements Client {
         }
 
         public ClusterSearchShardsRequestBuilder prepareSearchShards(String... indices) {
-            return (new ClusterSearchShardsRequestBuilder(this, ClusterSearchShardsAction.INSTANCE)).setIndices(indices);
+            return new ClusterSearchShardsRequestBuilder(this, ClusterSearchShardsAction.INSTANCE).setIndices(indices);
         }
 
         public PendingClusterTasksRequestBuilder preparePendingClusterTasks() {

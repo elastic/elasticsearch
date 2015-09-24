@@ -10,9 +10,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.junit.Ignore;
 
 import java.io.IOException;
 
+@Ignore
 public class MarvelRestIT extends ESRestTestCase {
 
     public MarvelRestIT(@Name("yaml") RestTestCandidate testCandidate) {

@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.marvel.agent.renderer.cluster;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.renderer.AbstractRendererTestCase;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.search.SearchHit;
 import org.junit.Test;
 
@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 
+@Seed("B3CB5D1CDFA878F7:888A4AA279DFFE81")
 public class ClusterStatsIT extends AbstractRendererTestCase {
 
     @Override
@@ -46,9 +47,9 @@ public class ClusterStatsIT extends AbstractRendererTestCase {
         }, 30L, TimeUnit.SECONDS);
 
         logger.debug("--> delete all indices in case of cluster stats documents have been indexed with no shards data");
-        assertAcked(client().admin().indices().prepareDelete(MarvelSettings.MARVEL_INDICES_PREFIX + "*"));
+        deleteMarvelIndices();
 
-        waitForMarvelDocs(ClusterStatsCollector.TYPE);
+        awaitMarvelDocsCount(greaterThan(0L), ClusterStatsCollector.TYPE);
 
         logger.debug("--> searching for marvel documents of type [{}]", ClusterStatsCollector.TYPE);
         SearchResponse response = client().prepareSearch().setTypes(ClusterStatsCollector.TYPE).get();

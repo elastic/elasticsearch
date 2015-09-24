@@ -36,6 +36,7 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -228,7 +229,7 @@ public class HttpExporterTests extends ESIntegTestCase {
                 assertMarvelTemplateExists();
                 logger.debug("--> template exists");
             }
-        });
+        }, 10, TimeUnit.SECONDS);
     }
 
     @Test
@@ -245,9 +246,10 @@ public class HttpExporterTests extends ESIntegTestCase {
 
         logger.info("exporting a first event");
         HttpExporter exporter = getExporter(agentNode);
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+        MarvelDoc doc = newRandomMarvelDoc();
+        exporter.export(Collections.singletonList(doc));
 
-        String indexName = exporter.getIndexName();
+        String indexName = exporter.indexNameResolver().resolve(doc);
         logger.info("checks that the index [{}] is created", indexName);
         assertTrue(client().admin().indices().prepareExists(indexName).get().isExists());
 
@@ -259,10 +261,11 @@ public class HttpExporterTests extends ESIntegTestCase {
         exporter = getExporter(agentNode);
 
         logger.info("exporting a second event");
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+        doc = newRandomMarvelDoc();
+        exporter.export(Collections.singletonList(doc));
 
         String expectedMarvelIndex = MarvelSettings.MARVEL_INDICES_PREFIX
-                + DateTimeFormat.forPattern(newTimeFormat).withZoneUTC().print(System.currentTimeMillis());
+                + DateTimeFormat.forPattern(newTimeFormat).withZoneUTC().print(doc.timestamp());
 
         logger.info("checks that the index [{}] is created", expectedMarvelIndex);
         assertTrue(client().admin().indices().prepareExists(expectedMarvelIndex).get().isExists());

@@ -82,7 +82,8 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
         return exporters.iterator();
     }
 
-    public void export(Collection<MarvelDoc> marvelDocs) {
+    public ExportBulk openBulk() {
+        List<ExportBulk> bulks = new ArrayList<>();
         for (Exporter exporter : exporters) {
             if (exporter.masterOnly() && !clusterService.localNode().masterNode()) {
                 // the exporter is supposed to only run on the master node, but we're not
@@ -90,11 +91,17 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
                 continue;
             }
             try {
-                exporter.export(marvelDocs);
+                ExportBulk bulk = exporter.openBulk();
+                if (bulk == null) {
+                    logger.info("skipping exporter [{}] as it isn't ready yet", exporter.name());
+                } else {
+                    bulks.add(bulk);
+                }
             } catch (Exception e) {
                 logger.error("exporter [{}] failed to export marvel data", e, exporter.name());
             }
         }
+        return bulks.isEmpty() ? null : new ExportBulk.Compound(bulks);
     }
 
     @Override

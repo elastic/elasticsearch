@@ -31,7 +31,7 @@ public class ShardsIT extends AbstractRendererTestCase {
             client().prepareIndex("test-" + i, "foo").setRefresh(true).setSource("field1", "value1").get();
         }
 
-        waitForMarvelDocs(ShardsCollector.TYPE);
+        awaitMarvelDocsCount(greaterThan(0L), ShardsCollector.TYPE);
 
         logger.debug("--> searching for marvel documents of type [{}]", ShardsCollector.TYPE);
         SearchResponse response = client().prepareSearch().setTypes(ShardsCollector.TYPE).get();

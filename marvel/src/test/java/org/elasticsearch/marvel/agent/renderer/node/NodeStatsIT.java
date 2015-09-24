@@ -32,7 +32,7 @@ public class NodeStatsIT extends AbstractRendererTestCase {
             client().prepareIndex("test", "foo").setSource("value", randomInt()).get();
         }
 
-        waitForMarvelDocs(NodeStatsCollector.TYPE);
+        awaitMarvelDocsCount(greaterThan(0L), NodeStatsCollector.TYPE);
 
         logger.debug("--> searching for marvel documents of type [{}]", NodeStatsCollector.TYPE);
         SearchResponse response = client().prepareSearch().setTypes(NodeStatsCollector.TYPE).get();

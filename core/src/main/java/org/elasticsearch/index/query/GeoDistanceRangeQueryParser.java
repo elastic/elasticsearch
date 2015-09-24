@@ -37,7 +37,7 @@ import java.io.IOException;
  * }
  * </pre>
  */
-public class GeoDistanceRangeQueryParser extends BaseQueryParser<GeoDistanceRangeQueryBuilder> {
+public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRangeQueryBuilder> {
 
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField TO_FIELD = new ParseField("to");

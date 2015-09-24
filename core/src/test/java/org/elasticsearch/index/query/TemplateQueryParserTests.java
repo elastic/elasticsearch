@@ -56,8 +56,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
 /**
@@ -131,7 +129,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         templateSourceParser.nextToken();
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        Query query = parser.parse(context);
+        Query query = parser.fromXContent(context.parseContext()).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 
@@ -143,7 +141,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         context.reset(templateSourceParser);
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        Query query = parser.parse(context);
+        Query query = parser.fromXContent(context.parseContext()).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 
@@ -161,7 +159,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         context.reset(templateSourceParser);
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        parser.parse(context);
+        parser.fromXContent(context.parseContext()).toQuery(context);
     }
 
     @Test
@@ -173,7 +171,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         templateSourceParser.nextToken();
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        Query query = parser.parse(context);
+        Query query = parser.fromXContent(context.parseContext()).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 }

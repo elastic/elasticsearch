@@ -23,6 +23,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -31,6 +33,16 @@ public class MatchAllQueryBuilderTests extends AbstractQueryTestCase<MatchAllQue
     @Override
     protected MatchAllQueryBuilder doCreateTestQueryBuilder() {
         return new MatchAllQueryBuilder();
+    }
+
+    @Override
+    protected Map<String, MatchAllQueryBuilder> getAlternateVersions() {
+        Map<String, MatchAllQueryBuilder> alternateVersions = new HashMap<>();
+        String queryAsString = "{\n" +
+                "    \"match_all\": []\n" +
+                "}";
+        alternateVersions.put(queryAsString, new MatchAllQueryBuilder());
+        return alternateVersions;
     }
 
     @Override

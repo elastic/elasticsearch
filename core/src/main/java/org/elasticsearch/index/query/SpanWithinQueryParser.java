@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * Parser for span_within query
  */
-public class SpanWithinQueryParser extends BaseQueryParser<SpanWithinQueryBuilder> {
+public class SpanWithinQueryParser implements QueryParser<SpanWithinQueryBuilder> {
 
     @Override
     public String[] names() {

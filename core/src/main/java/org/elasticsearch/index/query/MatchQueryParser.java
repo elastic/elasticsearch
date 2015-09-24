@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.MatchQuery;
@@ -32,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public class MatchQueryParser extends BaseQueryParser {
+public class MatchQueryParser implements QueryParser<MatchQueryBuilder> {
 
     @Override
     public String[] names() {

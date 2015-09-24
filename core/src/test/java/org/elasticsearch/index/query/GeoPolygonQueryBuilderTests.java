@@ -23,6 +23,7 @@ import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -37,6 +38,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -70,7 +73,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 assertThat(queryPoints[i], equalTo(queryBuilderPoints.get(i)));
             }
         }
-
     }
 
     /**
@@ -154,5 +156,115 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         } catch (IllegalArgumentException ex) {
             assertEquals("Deprecated field [normalize] used, expected [coerce] instead", ex.getMessage());
         }
+    }
+
+    @Test
+    public void testParsingAndToQueryParsingExceptions() throws IOException {
+        String[] brokenFiles = new String[]{
+                "/org/elasticsearch/index/query/geo_polygon_exception_1.json",
+                "/org/elasticsearch/index/query/geo_polygon_exception_2.json",
+                "/org/elasticsearch/index/query/geo_polygon_exception_3.json",
+                "/org/elasticsearch/index/query/geo_polygon_exception_4.json",
+                "/org/elasticsearch/index/query/geo_polygon_exception_5.json"
+        };
+        for (String brokenFile : brokenFiles) {
+            String query = copyToStringFromClasspath(brokenFile);
+            try {
+                parseQuery(query);
+                fail("parsing a broken geo_polygon filter didn't fail as expected while parsing: " + brokenFile);
+            } catch (ParsingException e) {
+                // success!
+            }
+        }
+    }
+
+    @Test
+    public void testParsingAndToQuery1() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_polygon\":{\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "            \"points\":[\n" +
+                "                [-70, 40],\n" +
+                "                [-80, 30],\n" +
+                "                [-90, 20]\n" +
+                "            ]\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoPolygonQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery2() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_polygon\":{\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "            \"points\":[\n" +
+                "                {\n" +
+                "                    \"lat\":40,\n" +
+                "                    \"lon\":-70\n" +
+                "                },\n" +
+                "                {\n" +
+                "                    \"lat\":30,\n" +
+                "                    \"lon\":-80\n" +
+                "                },\n" +
+                "                {\n" +
+                "                    \"lat\":20,\n" +
+                "                    \"lon\":-90\n" +
+                "                }\n" +
+                "            ]\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoPolygonQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery3() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_polygon\":{\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "            \"points\":[\n" +
+                "                \"40, -70\",\n" +
+                "                \"30, -80\",\n" +
+                "                \"20, -90\"\n" +
+                "            ]\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoPolygonQuery(query);
+    }
+
+    @Test
+    public void testParsingAndToQuery4() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"geo_polygon\":{\n" +
+                "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+                "            \"points\":[\n" +
+                "                \"drn5x1g8cu2y\",\n" +
+                "                \"30, -80\",\n" +
+                "                \"20, -90\"\n" +
+                "            ]\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+        assertGeoPolygonQuery(query);
+    }
+
+    private void assertGeoPolygonQuery(String query) throws IOException {
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        GeoPolygonQuery filter = (GeoPolygonQuery) parsedQuery;
+        assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
+        assertThat(filter.points().length, equalTo(4));
+        assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
+        assertThat(filter.points()[0].lon(), closeTo(-70, 0.00001));
+        assertThat(filter.points()[1].lat(), closeTo(30, 0.00001));
+        assertThat(filter.points()[1].lon(), closeTo(-80, 0.00001));
+        assertThat(filter.points()[2].lat(), closeTo(20, 0.00001));
+        assertThat(filter.points()[2].lon(), closeTo(-90, 0.00001));
     }
 }

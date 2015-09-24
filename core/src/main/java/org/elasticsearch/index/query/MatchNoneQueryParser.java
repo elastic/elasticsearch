@@ -21,12 +21,11 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class MatchNoneQueryParser extends BaseQueryParser {
+public class MatchNoneQueryParser implements QueryParser<MatchNoneQueryBuilder> {
 
     @Override
     public String[] names() {

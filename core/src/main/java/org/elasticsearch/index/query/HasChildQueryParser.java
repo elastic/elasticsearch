@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  * A query parser for <tt>has_child</tt> queries.
  */
-public class HasChildQueryParser extends BaseQueryParser {
+public class HasChildQueryParser implements QueryParser<HasChildQueryBuilder> {
 
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
 
@@ -41,7 +41,7 @@ public class HasChildQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public HasChildQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String childType = null;

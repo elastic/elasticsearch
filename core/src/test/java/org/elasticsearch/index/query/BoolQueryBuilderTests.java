@@ -19,15 +19,17 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -80,6 +82,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             } else {
                 assertThat(query, instanceOf(BooleanQuery.class));
                 BooleanQuery booleanQuery = (BooleanQuery) query;
+                assertThat(booleanQuery.isCoordDisabled(), equalTo(queryBuilder.disableCoord()));
                 if (queryBuilder.adjustPureNegative()) {
                     boolean isNegative = true;
                     for (BooleanClause clause : clauses) {
@@ -172,5 +175,31 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             fail("cannot be null");
         } catch (IllegalArgumentException e) {
         }
+    }
+
+    // https://github.com/elasticsearch/elasticsearch/issues/7240
+    @Test
+    public void testEmptyBooleanQuery() throws Exception {
+        String query = jsonBuilder().startObject().startObject("bool").endObject().endObject().string();
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        assertThat(parsedQuery, Matchers.instanceOf(MatchAllDocsQuery.class));
+    }
+
+    public void testDefaultMinShouldMatch() throws Exception {
+        // Queries have a minShouldMatch of 0
+        BooleanQuery bq = (BooleanQuery) parseQuery(boolQuery().must(termQuery("foo", "bar")).buildAsBytes()).toQuery(createShardContext());
+        assertEquals(0, bq.getMinimumNumberShouldMatch());
+
+        bq = (BooleanQuery) parseQuery(boolQuery().should(termQuery("foo", "bar")).buildAsBytes()).toQuery(createShardContext());
+        assertEquals(0, bq.getMinimumNumberShouldMatch());
+
+        // Filters have a minShouldMatch of 0/1
+        ConstantScoreQuery csq = (ConstantScoreQuery) parseQuery(constantScoreQuery(boolQuery().must(termQuery("foo", "bar"))).buildAsBytes()).toQuery(createShardContext());
+        bq = (BooleanQuery) csq.getQuery();
+        assertEquals(0, bq.getMinimumNumberShouldMatch());
+
+        csq = (ConstantScoreQuery) parseQuery(constantScoreQuery(boolQuery().should(termQuery("foo", "bar"))).buildAsBytes()).toQuery(createShardContext());
+        bq = (BooleanQuery) csq.getQuery();
+        assertEquals(1, bq.getMinimumNumberShouldMatch());
     }
 }

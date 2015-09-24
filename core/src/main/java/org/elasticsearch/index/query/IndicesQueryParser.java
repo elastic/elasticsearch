@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,7 +30,7 @@ import java.util.Collection;
 /**
  * Parser for {@link IndicesQueryBuilder}.
  */
-public class IndicesQueryParser extends BaseQueryParser {
+public class IndicesQueryParser implements QueryParser {
 
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
     private static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query", "no_match_filter");
@@ -97,7 +96,7 @@ public class IndicesQueryParser extends BaseQueryParser {
                 }
             }
         }
-        
+
         if (innerQuery == null) {
             throw new ParsingException(parser.getTokenLocation(), "[indices] requires 'query' element");
         }

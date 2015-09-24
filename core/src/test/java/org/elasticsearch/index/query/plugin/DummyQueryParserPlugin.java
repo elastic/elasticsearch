@@ -28,9 +28,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.BaseQueryParser;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
@@ -92,14 +91,14 @@ public class DummyQueryParserPlugin extends Plugin {
         }
     }
 
-    public static class DummyQueryParser extends BaseQueryParser {
+    public static class DummyQueryParser implements QueryParser<DummyQueryBuilder> {
         @Override
         public String[] names() {
             return new String[]{DummyQueryBuilder.NAME};
         }
 
         @Override
-        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        public DummyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser.Token token = parseContext.parser().nextToken();
             assert token == XContentParser.Token.END_OBJECT;
             return new DummyQueryBuilder();

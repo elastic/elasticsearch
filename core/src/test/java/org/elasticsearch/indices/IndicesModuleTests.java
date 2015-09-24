@@ -20,7 +20,6 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.*;
@@ -39,11 +38,6 @@ public class IndicesModuleTests extends ModuleTestCase {
 
         @Override
         public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-            return null;
-        }
-
-        @Override
-        public Query parse(QueryShardContext context) throws IOException {
             return null;
         }
 

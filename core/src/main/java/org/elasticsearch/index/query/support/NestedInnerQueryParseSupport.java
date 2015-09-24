@@ -77,7 +77,7 @@ public class NestedInnerQueryParseSupport {
         if (path != null) {
             setPathLevel();
             try {
-                innerQuery = parseContext.parseInnerQuery();
+                innerQuery = parseContext.parseInnerQueryBuilder().toQuery(this.shardContext);
             } finally {
                 resetPathLevel();
             }
@@ -92,7 +92,7 @@ public class NestedInnerQueryParseSupport {
         if (path != null) {
             setPathLevel();
             try {
-                innerFilter = parseContext.parseInnerFilter();
+                innerFilter = parseContext.parseInnerQueryBuilder().toFilter(this.shardContext);
             } finally {
                 resetPathLevel();
             }
@@ -120,7 +120,7 @@ public class NestedInnerQueryParseSupport {
                 parseContext.parser(innerParser);
                 setPathLevel();
                 try {
-                    innerQuery = parseContext.parseInnerQuery();
+                    innerQuery = parseContext.parseInnerQueryBuilder().toQuery(this.shardContext);
                 } finally {
                     resetPathLevel();
                 }
@@ -148,7 +148,7 @@ public class NestedInnerQueryParseSupport {
             try {
                 XContentParser innerParser = XContentHelper.createParser(source);
                 parseContext.parser(innerParser);
-                innerFilter = parseContext.parseInnerFilter();
+                innerFilter = parseContext.parseInnerQueryBuilder().toFilter(this.shardContext);
                 filterParsed = true;
                 return innerFilter;
             } finally {

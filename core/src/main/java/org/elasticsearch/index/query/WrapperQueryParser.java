@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -28,7 +27,7 @@ import java.io.IOException;
 /**
  * Query parser for JSON Queries.
  */
-public class WrapperQueryParser extends BaseQueryParser {
+public class WrapperQueryParser implements QueryParser {
 
     @Override
     public String[] names() {

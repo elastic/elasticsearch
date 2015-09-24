@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -29,7 +28,7 @@ import java.io.IOException;
 /**
  * Parser for match_all query
  */
-public class MatchAllQueryParser extends BaseQueryParser<MatchAllQueryBuilder> {
+public class MatchAllQueryParser implements QueryParser<MatchAllQueryBuilder> {
 
     @Override
     public String[] names() {

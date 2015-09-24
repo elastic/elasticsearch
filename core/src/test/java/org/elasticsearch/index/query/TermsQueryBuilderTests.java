@@ -31,6 +31,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -110,6 +111,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         // compare whether we have the expected list of terms returned
         final List<Term> booleanTerms = new ArrayList<>();
         for (BooleanClause booleanClause : booleanQuery) {
+            assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
             assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
             Term term = ((TermQuery) booleanClause.getQuery()).getTerm();
             booleanTerms.add(term);
@@ -212,15 +214,21 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         TermsQueryBuilder copy = assertSerialization(queryBuilder);
         assertTrue(queryBuilder.disableCoord());
         assertTrue(copy.disableCoord());
+        Query luceneQuery = queryBuilder.toQuery(createShardContext());
+        assertThat(luceneQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) luceneQuery;
+        assertThat(booleanQuery.isCoordDisabled(), equalTo(true));
 
         String randomMinShouldMatch = RandomPicks.randomFrom(random(), Arrays.asList("min_match", "min_should_match", "minimum_should_match"));
         query = "{\n" +
                 "  \"terms\": {\n" +
                 "    \"field\": [\n" +
-                "      \"blue\",\n" +
-                "      \"pill\"\n" +
+                "      \"value1\",\n" +
+                "      \"value2\",\n" +
+                "      \"value3\",\n" +
+                "      \"value4\"\n" +
                 "    ],\n" +
-                "    \"" + randomMinShouldMatch +"\": \"42%\"\n" +
+                "    \"" + randomMinShouldMatch +"\": \"25%\"\n" +
                 "  }\n" +
                 "}";
         try {
@@ -231,8 +239,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
         queryBuilder = (TermsQueryBuilder) parseQuery(query, ParseFieldMatcher.EMPTY);
         copy = assertSerialization(queryBuilder);
-        assertEquals("42%", queryBuilder.minimumShouldMatch());
-        assertEquals("42%", copy.minimumShouldMatch());
+        assertEquals("25%", queryBuilder.minimumShouldMatch());
+        assertEquals("25%", copy.minimumShouldMatch());
+        luceneQuery = queryBuilder.toQuery(createShardContext());
+        assertThat(luceneQuery, instanceOf(BooleanQuery.class));
+        booleanQuery = (BooleanQuery) luceneQuery;
+        assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(1));
     }
 
     @Override
@@ -241,7 +253,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
-            builder.array(termsPath, randomTerms.toArray(new Object[0]));
+            builder.array(termsPath, randomTerms.toArray(new Object[randomTerms.size()]));
             builder.endObject();
             json = builder.string();
         } catch (IOException ex) {
@@ -274,6 +286,19 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             TermsQueryBuilder copy = assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1l, 3l, 4l), values);
+        }
+    }
+
+    @Test
+    public void testTermsQueryWithMultipleFields() throws IOException {
+        String query = XContentFactory.jsonBuilder().startObject()
+                .startObject("terms").array("foo", 123).array("bar", 456).endObject()
+                .endObject().string();
+        try {
+            parseQuery(query);
+            fail("parsing should have failed");
+        } catch (ParsingException ex) {
+            assertThat(ex.getMessage(), equalTo("[terms] query does not support multiple fields"));
         }
     }
 }

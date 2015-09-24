@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  * Parser for missing query
  */
-public class MissingQueryParser extends BaseQueryParser<MissingQueryBuilder> {
+public class MissingQueryParser implements QueryParser<MissingQueryBuilder> {
 
     @Override
     public String[] names() {

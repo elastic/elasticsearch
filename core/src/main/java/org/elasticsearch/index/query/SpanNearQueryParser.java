@@ -30,7 +30,7 @@ import java.util.List;
 /**
  * Parser for span_near query
  */
-public class SpanNearQueryParser extends BaseQueryParser<SpanNearQueryBuilder> {
+public class SpanNearQueryParser implements QueryParser<SpanNearQueryBuilder> {
 
     @Override
     public String[] names() {

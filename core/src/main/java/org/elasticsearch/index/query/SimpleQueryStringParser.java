@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -60,7 +58,7 @@ import java.util.Map;
  * {@code fields} - fields to search, defaults to _all if not set, allows
  * boosting a field with ^n
  */
-public class SimpleQueryStringParser extends BaseQueryParser<SimpleQueryStringBuilder> {
+public class SimpleQueryStringParser implements QueryParser<SimpleQueryStringBuilder> {
 
     @Override
     public String[] names() {

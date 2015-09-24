@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -29,7 +28,7 @@ import java.io.IOException;
 /**
  * Parser for type query
  */
-public class TypeQueryParser extends BaseQueryParser<TypeQueryBuilder> {
+public class TypeQueryParser implements QueryParser<TypeQueryBuilder> {
 
     @Override
     public String[] names() {

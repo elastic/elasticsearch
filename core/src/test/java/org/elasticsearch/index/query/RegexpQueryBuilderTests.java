@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBuilder> {
@@ -58,6 +59,8 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
     @Override
     protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(RegexpQuery.class));
+        RegexpQuery regexpQuery = (RegexpQuery) query;
+        assertThat(regexpQuery.getField(), equalTo(queryBuilder.fieldName()));
     }
 
     @Test

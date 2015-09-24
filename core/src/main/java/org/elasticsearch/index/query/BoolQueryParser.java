@@ -32,7 +32,7 @@ import java.util.List;
 /**
  * Parser for bool query
  */
-public class BoolQueryParser extends BaseQueryParser<BoolQueryBuilder> {
+public class BoolQueryParser implements QueryParser<BoolQueryBuilder> {
 
     @Inject
     public BoolQueryParser(Settings settings) {
@@ -78,12 +78,12 @@ public class BoolQueryParser extends BaseQueryParser<BoolQueryBuilder> {
                     shouldClauses.add(query);
                     break;
                 case "filter":
-                    query = parseContext.parseInnerFilterToQueryBuilder();
+                    query = parseContext.parseInnerQueryBuilder();
                     filterClauses.add(query);
                     break;
                 case "must_not":
                 case "mustNot":
-                    query = parseContext.parseInnerFilterToQueryBuilder();
+                    query = parseContext.parseInnerQueryBuilder();
                     mustNotClauses.add(query);
                     break;
                 default:
@@ -101,12 +101,12 @@ public class BoolQueryParser extends BaseQueryParser<BoolQueryBuilder> {
                         shouldClauses.add(query);
                         break;
                     case "filter":
-                        query = parseContext.parseInnerFilterToQueryBuilder();
+                        query = parseContext.parseInnerQueryBuilder();
                         filterClauses.add(query);
                         break;
                     case "must_not":
                     case "mustNot":
-                        query = parseContext.parseInnerFilterToQueryBuilder();
+                        query = parseContext.parseInnerQueryBuilder();
                         mustNotClauses.add(query);
                         break;
                     default:

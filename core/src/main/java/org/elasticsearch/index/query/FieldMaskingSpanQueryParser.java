@@ -21,14 +21,13 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
  * Parser for field_masking_span query
  */
-public class FieldMaskingSpanQueryParser extends BaseQueryParser<FieldMaskingSpanQueryBuilder> {
+public class FieldMaskingSpanQueryParser implements QueryParser<FieldMaskingSpanQueryBuilder> {
 
     @Override
     public String[] names() {

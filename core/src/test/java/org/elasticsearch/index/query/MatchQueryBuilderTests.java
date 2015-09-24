@@ -21,12 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -40,6 +35,7 @@ import java.util.Locale;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
@@ -147,6 +143,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         if (query instanceof BooleanQuery) {
             BooleanQuery bq = (BooleanQuery) query;
+            if (queryBuilder.minimumShouldMatch() != null) {
+                assertThat(bq.getMinimumNumberShouldMatch(), greaterThan(0));
+            }
             if (queryBuilder.analyzer() == null && queryBuilder.value().toString().length() > 0) {
                 assertEquals(bq.clauses().size(), queryBuilder.value().toString().split(" ").length);
             }
@@ -155,13 +154,13 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         if (query instanceof ExtendedCommonTermsQuery) {
             assertTrue(queryBuilder.cutoffFrequency() != null);
             ExtendedCommonTermsQuery ectq = (ExtendedCommonTermsQuery) query;
-            assertEquals((float) queryBuilder.cutoffFrequency(), ectq.getMaxTermFrequency(), Float.MIN_VALUE);
+            assertEquals(queryBuilder.cutoffFrequency(), ectq.getMaxTermFrequency(), Float.MIN_VALUE);
         }
 
         if (query instanceof FuzzyQuery) {
             assertTrue(queryBuilder.fuzziness() != null);
             FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
-            fuzzyQuery.getTerm().equals(new Term(STRING_FIELD_NAME, BytesRefs.toBytesRef(queryBuilder.value())));
+            assertThat(fuzzyQuery.getTerm(), equalTo(new Term(STRING_FIELD_NAME, BytesRefs.toBytesRef(queryBuilder.value()))));
             assertThat(queryBuilder.prefixLength(), equalTo(fuzzyQuery.getPrefixLength()));
             assertThat(queryBuilder.fuzzyTranspositions(), equalTo(fuzzyQuery.getTranspositions()));
         }
@@ -223,6 +222,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testBadAnalyzer() throws IOException {
         MatchQueryBuilder matchQuery = new MatchQueryBuilder("fieldName", "text");
         matchQuery.analyzer("bogusAnalyzer");
-        matchQuery.doToQuery(createShardContext());
+        matchQuery.toQuery(createShardContext());
     }
 }

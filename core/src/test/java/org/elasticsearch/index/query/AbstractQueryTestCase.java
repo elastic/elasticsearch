@@ -404,6 +404,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Serialize the given query builder and asserts that both are equal
      */
+    @SuppressWarnings("unchecked")
     protected QB assertSerialization(QB testQuery) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);

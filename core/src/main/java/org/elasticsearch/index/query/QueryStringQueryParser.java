@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -34,7 +33,7 @@ import java.util.Map;
 /**
  * Parser for query_string query
  */
-public class QueryStringQueryParser extends BaseQueryParser {
+public class QueryStringQueryParser implements QueryParser {
 
     private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("fuzzy_min_sim");
 

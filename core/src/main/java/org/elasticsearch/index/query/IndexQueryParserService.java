@@ -188,22 +188,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
-    public ParsedQuery parse(String source) throws ParsingException, QueryShardException {
-        XContentParser parser = null;
-        try {
-            parser = XContentFactory.xContent(source).createParser(source);
-            return innerParse(cache.get(), parser);
-        } catch (QueryShardException|ParsingException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse [" + source + "]", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
-        }
-    }
-
     public ParsedQuery parse(XContentParser parser) {
         try {
             return innerParse(cache.get(), parser);
@@ -221,7 +205,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         QueryShardContext context = cache.get();
         context.reset(parser);
         try {
-            Query filter = context.parseContext().parseInnerFilter();
+            Query filter = context.parseContext().parseInnerQueryBuilder().toFilter(context);
             if (filter == null) {
                 return null;
             }

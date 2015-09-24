@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class GeoShapeQueryParser extends BaseQueryParser<GeoShapeQueryBuilder> {
+public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
 
     public static final ParseField SHAPE_FIELD = new ParseField("shape");
     public static final ParseField STRATEGY_FIELD = new ParseField("strategy");

@@ -36,7 +36,7 @@ import java.util.List;
  * It also supports a terms lookup mechanism which can be used to fetch the term values from
  * a document in an index.
  */
-public class TermsQueryParser extends BaseQueryParser {
+public class TermsQueryParser implements QueryParser {
 
     private static final ParseField MIN_SHOULD_MATCH_FIELD = new ParseField("min_match", "min_should_match", "minimum_should_match")
             .withAllDeprecated("Use [bool] query instead");

@@ -41,7 +41,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -51,6 +50,9 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
+import static org.hamcrest.Matchers.*;
 
 public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLikeThisQueryBuilder> {
 
@@ -205,7 +207,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                 if (request.doc() != null) {
                     generatedFields = generateFields(randomFields, request.doc().toUtf8());
                 } else {
-                    generatedFields = generateFields(request.selectedFields().toArray(new String[0]), request.id());
+                    generatedFields = generateFields(request.selectedFields().toArray(new String[request.selectedFields().size()]), request.id());
                 }
                 EnumSet<TermVectorsRequest.Flag> flags = EnumSet.of(TermVectorsRequest.Flag.Positions, TermVectorsRequest.Flag.Offsets);
                 response.setFields(generatedFields, request.selectedFields(), flags, generatedFields);
@@ -233,10 +235,10 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     @Override
     protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.likeItems() != null && queryBuilder.likeItems().length > 0) {
-            assertThat(query, Matchers.instanceOf(BooleanQuery.class));
+            assertThat(query, instanceOf(BooleanQuery.class));
         } else {
             // we rely on integration tests for a deeper check here
-            assertThat(query, Matchers.instanceOf(MoreLikeThisQuery.class));
+            assertThat(query, instanceOf(MoreLikeThisQuery.class));
         }
     }
 
@@ -262,8 +264,19 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             queryBuilder.toQuery(createShardContext());
             fail("should have failed with IllegalArgumentException for field: " + unsupportedField);
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), Matchers.containsString("more_like_this doesn't support binary/numeric fields"));
+            assertThat(e.getMessage(), containsString("more_like_this doesn't support binary/numeric fields"));
         }
+    }
+
+    @Test
+    public void testMoreLikeThisBuilder() throws Exception {
+        Query parsedQuery = parseQuery(moreLikeThisQuery(new String[]{"name.first", "name.last"}, new String[]{"something"}, null).minTermFreq(1).maxQueryTerms(12).buildAsBytes()).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
+        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
+        assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
+        assertThat(mltQuery.getLikeText(), equalTo("something"));
+        assertThat(mltQuery.getMinTermFrequency(), equalTo(1));
+        assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
     }
 
     @Test

@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,7 +30,7 @@ import java.util.List;
 /**
  * Parser for dis_max query
  */
-public class DisMaxQueryParser extends BaseQueryParser<DisMaxQueryBuilder> {
+public class DisMaxQueryParser implements QueryParser<DisMaxQueryBuilder> {
 
     @Override
     public String[] names() {

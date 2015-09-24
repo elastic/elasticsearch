@@ -24,6 +24,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.hamcrest.Matchers;
+import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -296,7 +297,37 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testToQueryNumericRangeQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("12~0.2").defaultField(INT_FIELD_NAME).toQuery(createShardContext());
-        assertThat(query, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery fuzzyQuery = (NumericRangeQuery) query;
+        assertThat(fuzzyQuery.getMin().longValue(), equalTo(12l));
+        assertThat(fuzzyQuery.getMax().longValue(), equalTo(12l));
 
+    }
+
+    @Test
+    public void testTimezone() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String queryAsString = "{\n" +
+                "    \"query_string\":{\n" +
+                "        \"time_zone\":\"Europe/Paris\",\n" +
+                "        \"query\":\"" + DATE_FIELD_NAME + ":[2012 TO 2014]\"\n" +
+                "    }\n" +
+                "}";
+        QueryBuilder<?> queryBuilder = parseQuery(queryAsString);
+        assertThat(queryBuilder, instanceOf(QueryStringQueryBuilder.class));
+        QueryStringQueryBuilder queryStringQueryBuilder = (QueryStringQueryBuilder) queryBuilder;
+        assertThat(queryStringQueryBuilder.timeZone(), equalTo(DateTimeZone.forID("Europe/Paris")));
+
+        try {
+            queryAsString = "{\n" +
+                    "    \"query_string\":{\n" +
+                    "        \"time_zone\":\"This timezone does not exist\",\n" +
+                    "        \"query\":\"" + DATE_FIELD_NAME + ":[2012 TO 2014]\"\n" +
+                    "    }\n" +
+                    "}";
+            parseQuery(queryAsString);
+            fail("we expect a ParsingException as we are providing an unknown time_zome");
+        } catch (IllegalArgumentException e) {
+            // We expect this one
+        }
     }
 }

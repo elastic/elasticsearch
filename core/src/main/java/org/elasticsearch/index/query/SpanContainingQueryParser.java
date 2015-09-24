@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -29,7 +28,7 @@ import java.io.IOException;
 /**
  * Parser for span_containing query
  */
-public class SpanContainingQueryParser extends BaseQueryParser<SpanContainingQueryBuilder> {
+public class SpanContainingQueryParser implements QueryParser<SpanContainingQueryBuilder> {
 
     @Override
     public String[] names() {

@@ -22,7 +22,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.xcontent.XContent;
@@ -42,7 +41,7 @@ import static org.elasticsearch.common.Strings.hasLength;
  * In the simplest case, parse template string and variables from the request,
  * compile the template and execute the template against the given variables.
  * */
-public class TemplateQueryParser extends BaseQueryParser<TemplateQueryBuilder> {
+public class TemplateQueryParser implements QueryParser<TemplateQueryBuilder> {
 
     private final static Map<String, ScriptService.ScriptType> parametersToTypes = new HashMap<>();
     static {

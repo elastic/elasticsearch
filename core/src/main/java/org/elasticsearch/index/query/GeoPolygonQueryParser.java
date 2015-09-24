@@ -23,7 +23,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
@@ -43,7 +42,7 @@ import java.util.List;
  * }
  * </pre>
  */
-public class GeoPolygonQueryParser extends BaseQueryParser<GeoPolygonQueryBuilder> {
+public class GeoPolygonQueryParser implements QueryParser<GeoPolygonQueryBuilder> {
 
     public static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
     public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");

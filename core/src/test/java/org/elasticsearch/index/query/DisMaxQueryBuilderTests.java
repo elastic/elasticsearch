@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
 
@@ -112,5 +112,35 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         } catch (IllegalArgumentException e) {
             // expected
         }
+    }
+
+    @Test
+    public void testToQueryInnerPrefixQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String queryAsString = "{\n" +
+                "    \"dis_max\":{\n" +
+                "        \"queries\":[\n" +
+                "            {\n" +
+                "                \"prefix\":{\n" +
+                "                    \"" + STRING_FIELD_NAME + "\":{\n" +
+                "                        \"value\":\"sh\",\n" +
+                "                        \"boost\":1.2\n" +
+                "                    }\n" +
+                "                }\n" +
+                "            }\n" +
+                "        ]\n" +
+                "    }\n" +
+                "}";
+        Query query = parseQuery(queryAsString).toQuery(createShardContext());
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
+
+        List<Query> disjuncts = disjunctionMaxQuery.getDisjuncts();
+        assertThat(disjuncts.size(), equalTo(1));
+
+        PrefixQuery firstQ = (PrefixQuery) disjuncts.get(0);
+        // since age is automatically registered in data, we encode it as numeric
+        assertThat(firstQ.getPrefix(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
+        assertThat((double) firstQ.getBoost(), closeTo(1.2, 0.00001));
     }
 }

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
@@ -60,12 +58,6 @@ public class QueryParseContext {
         }
     }
 
-    //norelease this is still used in BaseQueryParserTemp and FunctionScoreQueryParser, remove if not needed there anymore
-    @Deprecated
-    public QueryShardContext shardContext() {
-        return this.shardContext;
-    }
-
     public XContentParser parser() {
         return this.parser;
     }
@@ -79,37 +71,6 @@ public class QueryParseContext {
 
     public boolean isDeprecatedSetting(String setting) {
         return parseFieldMatcher.match(setting, CACHE) || parseFieldMatcher.match(setting, CACHE_KEY);
-    }
-
-    /**
-     * @deprecated replaced by calls to parseInnerFilterToQueryBuilder() for the resulting queries
-     */
-    @Nullable
-    @Deprecated
-    //norelease should be possible to remove after refactoring all queries
-    public Query parseInnerFilter() throws QueryShardException, IOException {
-        assert this.shardContext != null;
-        QueryBuilder builder = parseInnerFilterToQueryBuilder();
-        Query result = null;
-        if (builder != null) {
-            result = builder.toQuery(this.shardContext);
-        }
-        return result;
-    }
-
-    /**
-     * @deprecated replaced by calls to parseInnerQueryBuilder() for the resulting queries
-     */
-    @Nullable
-    @Deprecated
-    //norelease this method will be removed once all queries are refactored
-    public Query parseInnerQuery() throws IOException, QueryShardException {
-        QueryBuilder builder = parseInnerQueryBuilder();
-        Query result = null;
-        if (builder != null) {
-            result = builder.toQuery(this.shardContext);
-        }
-        return result;
     }
 
     /**
@@ -139,11 +100,7 @@ public class QueryParseContext {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
 
-        QueryParser queryParser = queryParser(queryName);
-        if (queryParser == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No query registered for [" + queryName + "]");
-        }
-        QueryBuilder result = queryParser.fromXContent(this);
+        QueryBuilder result = parseInnerQueryBuilderByName(queryName);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
@@ -151,34 +108,12 @@ public class QueryParseContext {
         return result;
     }
 
-    /**
-     * @return a new QueryBuilder based on the current state of the parser, but does so that the inner query
-     * is parsed to a filter
-     */
-    //norelease setting and checking the isFilter Flag should completely be moved to toQuery/toFilter after query refactoring
-    public QueryBuilder parseInnerFilterToQueryBuilder() throws IOException {
-        final boolean originalIsFilter = this.shardContext.isFilter;
-        try {
-            this.shardContext.isFilter = true;
-            return parseInnerQueryBuilder();
-        } finally {
-            this.shardContext.isFilter = originalIsFilter;
+    public QueryBuilder parseInnerQueryBuilderByName(String queryName) throws IOException {
+        QueryParser queryParser = queryParser(queryName);
+        if (queryParser == null) {
+            throw new ParsingException(parser.getTokenLocation(), "No query registered for [" + queryName + "]");
         }
-    }
-
-    //norelease setting and checking the isFilter Flag should completely be moved to toQuery/toFilter after query refactoring
-    public QueryBuilder parseInnerFilterToQueryBuilder(String queryName) throws IOException {
-        final boolean originalIsFilter = this.shardContext.isFilter;
-        try {
-            this.shardContext.isFilter = true;
-            QueryParser queryParser = queryParser(queryName);
-            if (queryParser == null) {
-                throw new ParsingException(parser.getTokenLocation(), "No query registered for [" + queryName + "]");
-            }
-            return queryParser.fromXContent(this);
-        } finally {
-            this.shardContext.isFilter = originalIsFilter;
-        }
+        return queryParser.fromXContent(this);
     }
 
     public ParseFieldMatcher parseFieldMatcher() {
@@ -189,6 +124,11 @@ public class QueryParseContext {
         this.parser = innerParser;
     }
 
+    /**
+     * Get the query parser for a specific type of query registered under its name
+     * @param name the name of the parser to retrieve
+     * @return the query parser
+     */
     QueryParser queryParser(String name) {
         return indicesQueriesRegistry.queryParsers().get(name);
     }

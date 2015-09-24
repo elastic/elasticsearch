@@ -38,12 +38,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 
 /**
@@ -258,7 +253,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                     }
 
                     // consider shard inactive if it has same translogFileGeneration and no operations for a long time
-                    if (status.translogId == translog.currentFileGeneration() && translog.totalOperations() == 0) {
+                    if (status.translogId == translog.currentFileGeneration() && translog.totalOperations() == status.translogNumberOfOperations) {
                         if (status.timeMS == -1) {
                             // first time we noticed the shard become idle
                             status.timeMS = timeMS;
@@ -282,6 +277,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                         status.timeMS = -1;
                     }
                     status.translogId = translog.currentFileGeneration();
+                    status.translogNumberOfOperations = translog.totalOperations();
 
                     if (status.activeIndexing) {
                         activeShards++;
@@ -376,6 +372,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     private static class ShardIndexingStatus {
         long translogId = -1;
+        long translogNumberOfOperations = -1;
         boolean activeIndexing = true;
         long timeMS = -1; // contains the first time we saw this shard with no operations done on it
     }

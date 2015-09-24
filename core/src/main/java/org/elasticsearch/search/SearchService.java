@@ -73,7 +73,6 @@ import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
@@ -578,10 +577,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, context);
                 BytesReference run = (BytesReference) executable.run();
                 try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
-                    // NOCOMMIT this override the source entirely
                     QueryParseContext queryParseContext = new QueryParseContext(indexService.queryParserService().indicesQueriesRegistry());
                     queryParseContext.reset(parser);
-                    request.source(SearchSourceBuilder.PROTOTYPE.fromXContent(parser, queryParseContext));
+                    parseSource(context, SearchSourceBuilder.PROTOTYPE.fromXContent(parser, queryParseContext));
                 }
             }
             parseSource(context, request.source());

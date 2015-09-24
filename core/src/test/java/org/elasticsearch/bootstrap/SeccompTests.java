@@ -50,7 +50,6 @@ public class SeccompTests extends ESTestCase {
                     at java.lang.ProcessBuilder.start(ProcessBuilder.java:1029)
                     ... 
             */
-            // if we improve the chain to block fork()/vfork(), maybe something else
         }
     }
 }

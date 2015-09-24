@@ -62,6 +62,13 @@ function start_elasticsearch() {
   echo $ES_PID
 }
 
+function start_gc_monitoring() {
+  echo -n "Starting gc monitoring..."
+  jstat -gcutil $ES_PID 500ms > $WORK/gc &
+  # There is no need to explicitly kill jstat because it'll die when Elasticsearch does
+  echo $WORK/gc
+}
+
 function wait_for_elasticsearch() {
   echo -n "Waiting for Elasticsearch to accept http requests..."
   until curl -s localhost:9200 > $WORK/root 2> /dev/null; do
@@ -138,11 +145,11 @@ function swamp_elasticsearch() {
       done
     fi
     echo -n "checking gc..."
-    local JSTAT=$(jstat -gcutil $ES_PID | tail -n 1)
-    echo "$JSTAT"
-    if echo $JSTAT | egrep '100.0.+100.00\s+100.00' > /dev/null; then
+    if tail -n 10000 $WORK/gc | egrep '100.0.+100.00\s+100.00' | head; then
       echo "Successfully filled elasticsearch's heap!"
       break
+    else
+      tail -n1 $WORK/gc
     fi
   done
 }
@@ -169,6 +176,7 @@ function dump_diags() {
 find_es_tar
 reset
 start_elasticsearch
+start_gc_monitoring
 wait_for_elasticsearch
 swamp_elasticsearch
 dump_diags

@@ -64,11 +64,15 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         levelHolders = new ImmutableLevelHolder[ClusterBlockLevel.values().length];
         for (final ClusterBlockLevel level : ClusterBlockLevel.values()) {
             Predicate<ClusterBlock> containsLevel = block -> block.contains(level);
-            Set<ClusterBlock> newGlobal = unmodifiableSet(global.stream().filter(containsLevel).collect(toSet()));
+            Set<ClusterBlock> newGlobal = unmodifiableSet(global.stream()
+                    .filter(containsLevel)
+                    .collect(toSet()));
 
             ImmutableMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
             for (Map.Entry<String, Set<ClusterBlock>> entry : indicesBlocks.entrySet()) {
-                indicesBuilder.put(entry.getKey(), unmodifiableSet(entry.getValue().stream().filter(containsLevel).collect(toSet())));
+                indicesBuilder.put(entry.getKey(), unmodifiableSet(entry.getValue().stream()
+                        .filter(containsLevel)
+                        .collect(toSet())));
             }
 
             levelHolders[level.id()] = new ImmutableLevelHolder(newGlobal, indicesBuilder.build());
@@ -187,7 +191,9 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             return null;
         }
         Function<String, Stream<ClusterBlock>> blocksForIndexAtLevel = index -> blocksForIndex(level, index).stream();
-        Stream<ClusterBlock> blocks = concat(global(level).stream(), Stream.of(indices).flatMap(blocksForIndexAtLevel));
+        Stream<ClusterBlock> blocks = concat(
+                global(level).stream(),
+                Stream.of(indices).flatMap(blocksForIndexAtLevel));
         return new ClusterBlockException(unmodifiableSet(blocks.collect(toSet())));
     }
 

@@ -116,6 +116,8 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
     }
 
     public Set<InjectionPoint> getInjectionPoints() {
-        return unmodifiableSet(memberInjectors.stream().map(SingleMemberInjector::getInjectionPoint).collect(toSet()));
+        return unmodifiableSet(memberInjectors.stream()
+                .map(SingleMemberInjector::getInjectionPoint)
+                .collect(toSet()));
     }
 }

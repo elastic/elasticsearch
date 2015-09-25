@@ -22,6 +22,9 @@ package org.elasticsearch.index.shard;
 import java.nio.charset.StandardCharsets;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -65,11 +68,8 @@ import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.fielddata.FieldDataStats;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
@@ -206,16 +206,15 @@ public class IndexShard extends AbstractIndexShardComponent {
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
                       IndicesQueryCache indicesQueryCache, CodecService codecService,
                       TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService,
-                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, EngineFactory factory,
+                      @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory,
                       ClusterService clusterService, ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) {
         super(shardId, indexSettingsService.getSettings());
         this.codecService = codecService;
         this.warmer = warmer;
-        this.deletionPolicy = deletionPolicy;
+        this.deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
         this.similarityService = similarityService;
         this.wrappingService = wrappingService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
-        Objects.requireNonNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
         this.engineFactory = factory;
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -745,7 +744,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         return luceneVersion == null ? Version.indexCreated(indexSettings).luceneVersion : luceneVersion;
     }
 
-    public SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
+    /**
+     * Creates a new {@link IndexCommit} snapshot form the currently running engine. All resources referenced by this
+     * commit won't be freed until the commit / snapshot is released via {@link #releaseSnapshot(IndexCommit)}.
+     *
+     * @param flushFirst <code>true</code> if the index should first be flushed to disk / a low level lucene commit should be executed
+     */
+    public IndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
         IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
@@ -753,6 +758,15 @@ public class IndexShard extends AbstractIndexShardComponent {
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
+    }
+
+
+    /**
+     * Releases a snapshot taken from {@link #snapshotIndex(boolean)} this must be called to release the resources
+     * referenced by the given snapshot {@link IndexCommit}.
+     */
+    public void releaseSnapshot(IndexCommit snapshot) throws IOException {
+        deletionPolicy.release(snapshot);
     }
 
     /**

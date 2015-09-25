@@ -42,9 +42,8 @@ import java.util.Map;
  * Node information (static, does not change over time).
  */
 public class NodeInfo extends BaseNodeResponse {
-
     @Nullable
-    private ImmutableMap<String, String> serviceAttributes;
+    private Map<String, String> serviceAttributes;
 
     private Version version;
     private Build build;
@@ -119,7 +118,7 @@ public class NodeInfo extends BaseNodeResponse {
      * The service attributes of the node.
      */
     @Nullable
-    public ImmutableMap<String, String> getServiceAttributes() {
+    public Map<String, String> getServiceAttributes() {
         return this.serviceAttributes;
     }
 

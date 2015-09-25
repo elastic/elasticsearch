@@ -122,7 +122,7 @@ class ExpressionSearchScript implements SearchScript {
                 if (value instanceof Number) {
                     specialValue.setValue(((Number)value).doubleValue());
                 } else {
-                    throw new ExpressionScriptExecutionException("Cannot use expression with text variable using " + compiledScript);
+                    throw new ScriptException("Cannot use expression with text variable using " + compiledScript);
                 }
             }
         };

@@ -1,5 +1,24 @@
 === Setting changes
 
+==== Command line flags
+
+Command line flags using single dash notation must be now specified as the first arguments.
+For example if previously using: 
+
+[source,sh]
+---------------
+./elasticsearch --node.name=test_node -Des.path.conf=/opt/elasticsearch/conf/test_node
+---------------
+
+This will now need to be changed to:
+
+[source,sh]
+---------------
+./elasticsearch -Des.path.conf=/opt/elasticsearch/conf/test_node --node.name=test_node 
+---------------
+
+for the flag to take effect.
+
 [[migration-script-settings]]
 ==== Scripting settings
 

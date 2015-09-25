@@ -88,4 +88,19 @@ final class Natives {
         }
         return JNANatives.LOCAL_MLOCKALL;
     }
+    
+    static void trySeccomp() {
+        if (!JNA_AVAILABLE) {
+            logger.warn("cannot install seccomp filters because JNA is not available");
+            return;
+        }
+        JNANatives.trySeccomp();
+    }
+    
+    static boolean isSeccompInstalled() {
+        if (!JNA_AVAILABLE) {
+            return false;
+        }
+        return JNANatives.LOCAL_SECCOMP;
+    }
 }

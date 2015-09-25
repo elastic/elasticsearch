@@ -128,8 +128,10 @@ discovery:
     type: ec2
 ----
 
+You must also set `cloud.aws.region` if you are not using default AWS region. See <<discovery-ec2-usage-region>> for details.
+
 The ec2 discovery is using the same credentials as the rest of the AWS services provided by this plugin (`repositories`).
-See <<discovery-ec2-usage>> for details.
+See <<discovery-ec2-usage>> for details. 
 
 The following are a list of settings (prefixed with `discovery.ec2`) that can further control the discovery:
 

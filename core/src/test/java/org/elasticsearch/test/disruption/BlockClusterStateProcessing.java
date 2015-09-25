@@ -20,7 +20,7 @@ package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
@@ -58,7 +58,12 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
         assert success : "startDisrupting called without waiting on stopDistrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("service_disruption_block", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
+        clusterService.submitStateUpdateTask("service_disruption_block", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+
+            @Override
+            public boolean runOnlyOnMaster() {
+                return false;
+            }
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {

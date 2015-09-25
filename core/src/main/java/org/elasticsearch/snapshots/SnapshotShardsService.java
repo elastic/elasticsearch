@@ -91,7 +91,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
 
     private final Condition shutdownCondition = shutdownLock.newCondition();
 
-    private volatile ImmutableMap<SnapshotId, SnapshotShards> shardSnapshots = ImmutableMap.of();
+    private volatile Map<SnapshotId, SnapshotShards> shardSnapshots = ImmutableMap.of();
 
     private final BlockingQueue<UpdateIndexShardSnapshotStatusRequest> updatedSnapshotStateQueue = ConcurrentCollections.newBlockingQueue();
 
@@ -368,7 +368,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
             if (snapshot.state() == SnapshotsInProgress.State.STARTED || snapshot.state() == SnapshotsInProgress.State.ABORTED) {
                 Map<ShardId, IndexShardSnapshotStatus> localShards = currentSnapshotShards(snapshot.snapshotId());
                 if (localShards != null) {
-                    ImmutableMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> masterShards = snapshot.shards();
+                    Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> masterShards = snapshot.shards();
                     for(Map.Entry<ShardId, IndexShardSnapshotStatus> localShard : localShards.entrySet()) {
                         ShardId shardId = localShard.getKey();
                         IndexShardSnapshotStatus localShardStatus = localShard.getValue();

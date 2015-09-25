@@ -20,7 +20,10 @@ package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -28,13 +31,18 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -639,5 +647,53 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         stage2 = parser.parse(stage2Mapping);
         mergeResult = stage1.merge(stage2.mapping(), false, false);
         assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
+    }
+
+    public void testGeoHashSearch() throws Exception {
+        // create a geo_point mapping with geohash enabled and random (between 1 and 12) geohash precision
+        int precision = randomIntBetween(1, 12);
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("pin").startObject("properties").startObject("location")
+                .field("type", "geo_point").field("geohash", true).field("geohash_precision", precision).field("store", true).endObject()
+                .endObject().endObject().endObject().string();
+
+        // create index and add a test point (dr5regy6rc6z)
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test").addMapping("pin", mapping);
+        mappingRequest.execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().prepareIndex("test", "pin", "1").setSource(jsonBuilder().startObject().startObject("location").field("lat", 40.7143528)
+                .field("lon", -74.0059731).endObject().endObject()).setRefresh(true).execute().actionGet();
+
+        // match all search with geohash field
+        SearchResponse searchResponse = client().prepareSearch().addField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
+        Map<String, SearchHitField> m = searchResponse.getHits().getAt(0).getFields();
+
+        // ensure single geohash was indexed
+        assertEquals("dr5regy6rc6y".substring(0, precision), m.get("location.geohash").value());
+    }
+
+    public void testGeoHashSearchWithPrefix() throws Exception {
+        // create a geo_point mapping with geohash enabled and random (between 1 and 12) geohash precision
+        int precision = randomIntBetween(1, 12);
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("pin").startObject("properties").startObject("location")
+                .field("type", "geo_point").field("geohash_prefix", true).field("geohash_precision", precision).field("store", true)
+                .endObject().endObject().endObject().endObject().string();
+
+        // create index and add a test point (dr5regy6rc6z)
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test").addMapping("pin", mapping);
+        mappingRequest.execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().prepareIndex("test", "pin", "1").setSource(jsonBuilder().startObject().startObject("location").field("lat", 40.7143528)
+                .field("lon", -74.0059731).endObject().endObject()).setRefresh(true).execute().actionGet();
+
+        // match all search with geohash field (includes prefixes)
+        SearchResponse searchResponse = client().prepareSearch().addField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
+        Map<String, SearchHitField> m = searchResponse.getHits().getAt(0).getFields();
+
+        List<Object> hashes = m.get("location.geohash").values();
+
+        final int numHashes = hashes.size();
+        for(int i=0; i<numHashes; ++i) {
+            assertEquals("dr5regy6rc6y".substring(0, numHashes-i), hashes.get(i));
+        }
     }
 }

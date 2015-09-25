@@ -70,7 +70,7 @@ public class DeadlockAnalyzer {
     }
 
 
-    private Set<LinkedHashSet<ThreadInfo>> calculateCycles(ImmutableMap<Long, ThreadInfo> threadInfoMap) {
+    private Set<LinkedHashSet<ThreadInfo>> calculateCycles(Map<Long, ThreadInfo> threadInfoMap) {
         Set<LinkedHashSet<ThreadInfo>> cycles = new HashSet<>();
         for (Map.Entry<Long, ThreadInfo> entry : threadInfoMap.entrySet()) {
             LinkedHashSet<ThreadInfo> cycle = new LinkedHashSet<>();

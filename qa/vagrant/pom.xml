@@ -21,7 +21,7 @@
       <testCommand>sudo bats $BATS/${testScripts}</testCommand>
 
       <allDebBoxes>precise, trusty, vivid, jessie</allDebBoxes>
-      <allRpmBoxes>centos-6, centos-7, oel-7, fedora-22, opensuse-13</allRpmBoxes>
+      <allRpmBoxes>centos-6, centos-7, oel-7, fedora-22, opensuse-13, sles-12</allRpmBoxes>
 
       <defaultDebBoxes>trusty</defaultDebBoxes>
       <defaultRpmBoxes>centos-7</defaultRpmBoxes>
@@ -143,18 +143,6 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>discovery-azure</artifactId>
-                                    <version>${elasticsearch.version}</version>
-                                    <type>zip</type>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>discovery-ec2</artifactId>
-                                    <version>${elasticsearch.version}</version>
-                                    <type>zip</type>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>cloud-gce</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
@@ -167,6 +155,12 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>discovery-azure</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>discovery-ec2</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
@@ -174,6 +168,12 @@
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>discovery-multicast</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>lang-expression</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
                                 </artifactItem>
@@ -198,12 +198,6 @@
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>mapper-size</artifactId>
-                                    <version>${elasticsearch.version}</version>
-                                    <type>zip</type>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>repository-s3</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
                                 </artifactItem>

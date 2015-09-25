@@ -35,16 +35,6 @@ Once the translog hits this size, a flush will happen. Defaults to `512mb`.
 
 After how many operations to flush. Defaults to `unlimited`.
 
-`index.translog.flush_threshold_period`::
-
-How long to wait before triggering a flush regardless of translog size. Defaults to `30m`.
-
-`index.translog.interval`::
-
-How often to check if a flush is needed, randomized between the interval value
-and 2x the interval value. Defaults to `5s`.
-
-
 [float]
 === Translog settings
 

@@ -21,7 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -112,7 +112,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
             for (int i = 0; i < request.indices.length; i++) {
                 indexNames[i] = request.indices[i].index();
             }
-            clusterService.submitStateUpdateTask("allocation dangled indices " + Arrays.toString(indexNames), new ProcessedClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("allocation dangled indices " + Arrays.toString(indexNames), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     if (currentState.blocks().disableStatePersistence()) {

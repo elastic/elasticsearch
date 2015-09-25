@@ -67,7 +67,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     protected final Transport transport;
     protected final ThreadPool threadPool;
 
-    volatile ImmutableMap<String, RequestHandlerRegistry> requestHandlers = ImmutableMap.of();
+    volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     final Object requestHandlerMutex = new Object();
 
     final ConcurrentMapLong<RequestHolder> clientHandlers = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
@@ -171,6 +171,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         transport.start();
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
+            for (Map.Entry<String, BoundTransportAddress> entry : transport.profileBoundAddresses().entrySet()) {
+                logger.info("profile [{}]: {}", entry.getKey(), entry.getValue());
+            }
         }
         boolean setStarted = started.compareAndSet(false, true);
         assert setStarted : "service was already started";

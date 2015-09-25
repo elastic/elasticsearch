@@ -27,28 +27,11 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
-import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
-import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RestoreSource;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.metadata.*;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
@@ -70,36 +53,15 @@ import org.elasticsearch.index.shard.StoreRecoveryService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_UPGRADED;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
 
 /**
@@ -211,7 +173,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
             // Now we can start the actual restore process by adding shards to be recovered in the cluster state
             // and updating cluster metadata (global and index) as needed
-            clusterService.submitStateUpdateTask(request.cause(), new TimeoutClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
                 RestoreInfo restoreInfo = null;
 
                 @Override
@@ -525,7 +487,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         logger.trace("received updated snapshot restore state [{}]", request);
         updatedSnapshotStateQueue.add(request);
 
-        clusterService.submitStateUpdateTask("update snapshot state", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update snapshot state", new ClusterStateUpdateTask() {
             private final List<UpdateIndexShardRestoreStatusRequest> drainedRequests = new ArrayList<>();
             private Map<SnapshotId, Tuple<RestoreInfo, Map<ShardId, ShardRestoreStatus>>> batchedRestoreInfo = null;
 

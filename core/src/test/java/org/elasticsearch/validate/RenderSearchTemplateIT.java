@@ -19,7 +19,7 @@
 
 package org.elasticsearch.validate;
 
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateResponse;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;

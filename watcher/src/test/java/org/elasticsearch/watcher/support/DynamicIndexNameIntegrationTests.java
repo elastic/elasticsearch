@@ -83,11 +83,12 @@ public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegration
         flush();
         refresh();
 
+        String indexNameDateMathExpressions = "<idx-{now/d}>";
         WatcherClient watcherClient = watcherClient();
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch("_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(new SearchRequest("<idx-{now/d}>").types("type"))))
+                        .input(searchInput(new SearchRequest(indexNameDateMathExpressions).types("type"))))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -96,23 +97,24 @@ public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegration
         flush();
         refresh();
 
-        SearchResponse response = searchHistory(searchSource().query(matchQuery("result.input.search.request.indices", indexName)));
+        SearchResponse response = searchHistory(searchSource().query(matchQuery("result.input.search.request.indices", indexNameDateMathExpressions)));
         assertThat(response.getHits().getTotalHits(), is(1L));
     }
 
     @Test
     public void testDynamicIndexSearchTransform() throws Exception {
-        final String indexName = "idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(timeWarp().clock().nowUTC());
+        String indexName = "idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(timeWarp().clock().nowUTC());
         createIndex(indexName);
         index(indexName, "type", "1", "key", "value");
         flush();
         refresh();
 
+        final String indexNameDateMathExpressions = "<idx-{now/d}>";
         WatcherClient watcherClient = watcherClient();
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch("_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .transform(searchTransform(new SearchRequest("<idx-{now/d}>").types("type")))
+                        .transform(searchTransform(new SearchRequest(indexNameDateMathExpressions).types("type")))
                         .addAction("log", loggingAction("heya")))
                         .get();
 
@@ -125,7 +127,7 @@ public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegration
         SearchResponse response = searchWatchRecords(new Callback<SearchRequestBuilder>() {
             @Override
             public void handle(SearchRequestBuilder builder) {
-                builder.setQuery(matchQuery("result.transform.search.request.indices", indexName));
+                builder.setQuery(matchQuery("result.transform.search.request.indices", indexNameDateMathExpressions));
             }
         });
         assertThat(response.getHits().getTotalHits(), is(1L));

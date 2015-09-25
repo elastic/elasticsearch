@@ -12,7 +12,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
@@ -27,25 +26,18 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
 
     protected final ClientProxy client;
     protected final @Nullable TimeValue timeout;
-    private final @Nullable DynamicIndexName[] indexNames;
 
-    public ExecutableSearchTransform(SearchTransform transform, ESLogger logger, ClientProxy client, @Nullable TimeValue defaultTimeout, DynamicIndexName.Parser indexNameParser) {
+    public ExecutableSearchTransform(SearchTransform transform, ESLogger logger, ClientProxy client, @Nullable TimeValue defaultTimeout) {
         super(transform, logger);
         this.client = client;
         this.timeout = transform.getTimeout() != null ? transform.getTimeout() : defaultTimeout;
-        String[] indices = transform.getRequest().indices();
-        this.indexNames = indices != null ? indexNameParser.parse(indices, transform.getDynamicNameTimeZone()) : null;
-    }
-
-    DynamicIndexName[] indexNames() {
-        return indexNames;
     }
 
     @Override
     public SearchTransform.Result execute(WatchExecutionContext ctx, Payload payload) {
         SearchRequest request = null;
         try {
-            request = WatcherUtils.createSearchRequestFromPrototype(transform.getRequest(), indexNames, ctx, payload);
+            request = WatcherUtils.createSearchRequestFromPrototype(transform.getRequest(), ctx, payload);
             SearchResponse resp = client.search(request, timeout);
             return new SearchTransform.Result(request, new Payload.XContent(resp));
         } catch (Exception e) {

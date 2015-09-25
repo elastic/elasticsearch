@@ -12,7 +12,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.input.InputFactory;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
-import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 
 import java.io.IOException;
@@ -23,14 +22,12 @@ import java.io.IOException;
 public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Result, ExecutableSearchInput> {
 
     private final ClientProxy client;
-    private final DynamicIndexName.Parser indexNameParser;
     private final TimeValue defaultTimeout;
 
     @Inject
     public SearchInputFactory(Settings settings, ClientProxy client) {
         super(Loggers.getLogger(ExecutableSimpleInput.class, settings));
         this.client = client;
-        this.indexNameParser = new DynamicIndexName.Parser(settings, "watcher.input.search");
         this.defaultTimeout = settings.getAsTime("watcher.input.search.default_timeout", null);
     }
 
@@ -46,6 +43,6 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
 
     @Override
     public ExecutableSearchInput createExecutable(SearchInput input) {
-        return new ExecutableSearchInput(input, inputLogger, client, defaultTimeout, indexNameParser);
+        return new ExecutableSearchInput(input, inputLogger, client, defaultTimeout);
     }
 }

@@ -64,7 +64,6 @@ import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.watcher.license.LicenseService;
-import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
@@ -149,7 +148,6 @@ public class WatchTests extends ESTestCase {
     private SecretService secretService;
     private LicenseService licenseService;
     private ESLogger logger;
-    private DynamicIndexName.Parser indexNameParser;
     private Settings settings = Settings.EMPTY;
 
     @Before
@@ -164,7 +162,6 @@ public class WatchTests extends ESTestCase {
         licenseService = mock(LicenseService.class);
         authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuthFactory) new BasicAuthFactory(secretService)));
         logger = Loggers.getLogger(WatchTests.class);
-        indexNameParser = new DynamicIndexName.Parser();
     }
 
     @Test
@@ -339,7 +336,7 @@ public class WatchTests extends ESTestCase {
         switch (type) {
             case SearchInput.TYPE:
                 SearchInput searchInput = searchInput(WatcherTestUtils.newInputSearchRequest("idx")).build();
-                return new ExecutableSearchInput(searchInput, logger, client, null, indexNameParser);
+                return new ExecutableSearchInput(searchInput, logger, client, null);
             default:
                 SimpleInput simpleInput = InputBuilders.simpleInput(ImmutableMap.<String, Object>builder().put("_key", "_val")).build();
                 return new ExecutableSimpleInput(simpleInput, logger);
@@ -398,12 +395,12 @@ public class WatchTests extends ESTestCase {
             case ScriptTransform.TYPE:
                 return new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService);
             case SearchTransform.TYPE:
-                return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null, indexNameParser);
+                return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null);
             default: // chain
                 ChainTransform chainTransform = new ChainTransform(Arrays.asList(
                         new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), new ScriptTransform(Script.inline("_script").build())));
                 return new ExecutableChainTransform(chainTransform, logger, Arrays.<ExecutableTransform>asList(
-                        new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null, indexNameParser),
+                        new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null),
                         new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService)));
         }
     }
@@ -430,7 +427,7 @@ public class WatchTests extends ESTestCase {
             DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
             TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(30) : null;
             IndexAction action = new IndexAction("_index", "_type", null, timeout, timeZone);
-            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableIndexAction(action, logger, client, null, indexNameParser)));
+            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableIndexAction(action, logger, client, null)));
         }
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))

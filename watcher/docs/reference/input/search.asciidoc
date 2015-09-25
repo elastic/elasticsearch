@@ -19,7 +19,7 @@ example, to get the message field from the first hit, use `ctx.payload.hits.hits
 |======
 | Name                                          |Required   | Default     | Description
 | `request.search_type`                         | no        | count       | The {ref}/search-request-search-type.html#search-request-search-type[type] of search request to perform. Valid values are: `count`, `dfs_query_and_fetch`, `dfs_query_then_fetch`, `query_and_fetch`, `query_then_fetch`, and `scan`. The Elasticsearch default is `query_then_fetch`.
-| `request.indices`                             | no        | -           | The indices to search. If omitted, all indices are searched, which is the default behaviour in Elasticsearch. <<dynamic-index-names, Dynamic index names>> are supported.
+| `request.indices`                             | no        | -           | The indices to search. If omitted, all indices are searched, which is the default behaviour in Elasticsearch.
 | `request.types`                               | no        | -           | The document types to search for. If omitted, all document types are are searched, which is the default behaviour in Elasticsearch.
 | `request.body`                                | no        | -           | The body of the request. The {ref}/search-request-body.html[request body] follows the same structure you normally send in the body of a REST `_search` request. The body can be static text or include `mustache` <<templates, templates>>.
 | `request.template`                            | no        | -           | The body of the search template. See <<templates, configure templates>> for more information.
@@ -29,7 +29,6 @@ example, to get the message field from the first hit, use `ctx.payload.hits.hits
 | `extract`                                     | no        | -           | A array of JSON keys to extract from the search response and load as the payload. When a search generates a large response, you can use `extract` to select the relevant fields instead of loading the entire response.
 | `timeout`                                     | no        | 30s         | The timeout for waiting for the search api call to return. If no response is returned within this time, the search input times out and fails.
                                                                             This setting overrides the default internal search operations <<default-internal-ops-timeouts, timeouts>>.
-| `dynamic_name_timezone`                       | no        | -           | The time zone to use for resolving the index name based on <<dynamic-index-names, Dynamic Index Names>>. The default time zone also can be <<dynamic-index-name-timezone, configured>> globally.
 |======
 
 You can reference the following variables in the execution context when specifying the request `body`:

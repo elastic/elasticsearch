@@ -24,13 +24,13 @@ import static org.hamcrest.Matchers.*;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class MarvelSettingsTests extends ESIntegTestCase {
 
-    private final TimeValue startUp = randomTimeValue();
-    private final TimeValue interval = randomTimeValue();
-    private final TimeValue indexStatsTimeout = randomTimeValue();
+    private final TimeValue startUp = randomParsedTimeValue();
+    private final TimeValue interval = randomParsedTimeValue();
+    private final TimeValue indexStatsTimeout = randomParsedTimeValue();
     private final String[] indices = randomStringArray();
-    private final TimeValue clusterStateTimeout = randomTimeValue();
-    private final TimeValue clusterStatsTimeout = randomTimeValue();
-    private final TimeValue recoveryTimeout = randomTimeValue();
+    private final TimeValue clusterStateTimeout = randomParsedTimeValue();
+    private final TimeValue clusterStatsTimeout = randomParsedTimeValue();
+    private final TimeValue recoveryTimeout = randomParsedTimeValue();
     private final Boolean recoveryActiveOnly = randomBoolean();
     private final String[] collectors = randomStringArray();
     private final TimeValue licenseGracePeriod = randomExpirationDelay();
@@ -99,7 +99,7 @@ public class MarvelSettingsTests extends ESIntegTestCase {
             Object updated = null;
             Settings.Builder transientSettings = Settings.builder();
             if (setting instanceof MarvelSetting.TimeValueSetting) {
-                updated = randomTimeValue();
+                updated = randomParsedTimeValue();
                 transientSettings.put(setting.getName(), updated);
 
             } else if (setting instanceof MarvelSetting.BooleanSetting) {
@@ -156,7 +156,7 @@ public class MarvelSettingsTests extends ESIntegTestCase {
         return requestBuilder;
     }
 
-    private TimeValue randomTimeValue() {
+    private TimeValue randomParsedTimeValue() {
         return TimeValue.parseTimeValue(randomFrom("30m", "1h", "3h", "5h", "7h", "10h", "1d"), null, getClass().getSimpleName());
     }
 
@@ -171,6 +171,6 @@ public class MarvelSettingsTests extends ESIntegTestCase {
     }
 
     private TimeValue randomExpirationDelay() {
-        return randomBoolean() ? randomTimeValue() : TimeValue.timeValueHours(randomIntBetween(-10, 10) * 24);
+        return randomBoolean() ? randomParsedTimeValue() : TimeValue.timeValueHours(randomIntBetween(-10, 10) * 24);
     }
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.ExecutableInput;
-import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -37,24 +36,17 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
     private final ClientProxy client;
     private final @Nullable TimeValue timeout;
-    private final @Nullable DynamicIndexName[] indexNames;
 
-    public ExecutableSearchInput(SearchInput input, ESLogger logger, ClientProxy client, @Nullable TimeValue defaultTimeout, DynamicIndexName.Parser indexNameParser) {
+    public ExecutableSearchInput(SearchInput input, ESLogger logger, ClientProxy client, @Nullable TimeValue defaultTimeout) {
         super(input, logger);
         this.client = client;
         this.timeout = input.getTimeout() != null ? input.getTimeout() : defaultTimeout;
-        String[] indices = input.getSearchRequest().indices();
-        indexNames =  indices != null ? indexNameParser.parse(indices, input.getDynamicNameTimeZone()) : null;
-    }
-
-    DynamicIndexName[] indexNames() {
-        return indexNames;
     }
 
     public SearchInput.Result execute(WatchExecutionContext ctx) {
         SearchRequest request = null;
         try {
-            request = WatcherUtils.createSearchRequestFromPrototype(input.getSearchRequest(), indexNames, ctx, null);
+            request = WatcherUtils.createSearchRequestFromPrototype(input.getSearchRequest(), ctx, null);
             return doExecute(ctx, request);
         } catch (Exception e) {
             logger.error("failed to execute [{}] input for [{}]", e, SearchInput.TYPE, ctx.watch());

@@ -37,6 +37,21 @@ bin/plugin remove watcher
 === Change List
 
 [float]
+==== 2.0.0-rc1
+
+.Breaking
+* The dynamic index names support has been removed and Elasticsearch's date math index names support should be used instead.
+  The only difference between Watcher's dynamic index names support and Elasticsearch's date math index names support is
+  how timezones are expressed. In Watcher this is done via node settings, in Elasticsearch the timezone is part of the
+  date math index names support. Only if you're using dynamic index names with timezones in Watcher then you need to
+  upgrade your watches after the upgrade, otherwise your watches will work as they did before the upgrade. For example if
+  `watcher.dynamic_indices.time_zone` setting was set to `+01:00` and a watch has the following index name `<logstash-{now/d}>`
+  then after the upgrade you need to update this watch to use the following index name `<logstash-{now/d{YYYY.MM.dd|+01:00}}>`.
+
+.Bug Fixes
+* Fixed url encoding issue in http input and webhook output. The url params were url encoded twice.
+
+[float]
 ==== 2.0.0-beta2
 
 .New Features
@@ -73,7 +88,7 @@ been aligned with the Elasticsearch versioning.
 ==== 1.0.0
 
 .Enhancements
-* Added execution time aware <<dynamic-index-names, dynamic index names>> support to `index`
+* Added execution time aware dynamic index names support to `index`
   action, `search` input, and `search` transform.
 * You must now explicitly specify the unit when configuring any time value. (Numeric-only
   values are no longer supported.)

@@ -423,5 +423,3 @@ name in the `file` field. For example, the following snippet references the scri
     }
   }
 --------------------------------------------------
-
-include::how-watcher-works/dynamic-index-names.asciidoc[]

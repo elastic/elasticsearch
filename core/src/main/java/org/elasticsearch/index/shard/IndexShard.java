@@ -59,7 +59,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
@@ -142,7 +141,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final ShardPercolateService shardPercolateService;
     private final TermVectorsService termVectorsService;
     private final IndexFieldDataService indexFieldDataService;
-    private final IndexService indexService;
     private final ShardSuggestMetric shardSuggestMetric = new ShardSuggestMetric();
     private final ShardBitsetFilterCache shardBitsetFilterCache;
     private final DiscoveryNode localNode;
@@ -205,7 +203,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, StoreRecoveryService storeRecoveryService,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
                       IndicesQueryCache indicesQueryCache, CodecService codecService,
-                      TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService,
+                      TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
                       @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory,
                       ClusterService clusterService, ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) {
         super(shardId, indexSettingsService.getSettings());
@@ -237,7 +235,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.shardPercolateService = new ShardPercolateService(shardId, indexSettings);
         this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryParserService, indexingService, indicesLifecycle, mapperService, indexFieldDataService, shardPercolateService);
         this.indexFieldDataService = indexFieldDataService;
-        this.indexService = indexService;
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         assert clusterService.localNode() != null : "Local node is null lifecycle state is: " + clusterService.lifecycleState();
         this.localNode = clusterService.localNode();
@@ -298,13 +295,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return indexFieldDataService;
     }
 
-    public MapperService mapperService() {
-        return mapperService;
-    }
-
-    public IndexService indexService() {
-        return indexService;
-    }
+    public MapperService mapperService() { return mapperService;}
 
     public ShardSearchStats searchService() {
         return this.searchService;

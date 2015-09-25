@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.codec.CodecService;
@@ -61,14 +60,14 @@ public final class ShadowIndexShard extends IndexShard {
                             IndexQueryParserService queryParserService, IndexCache indexCache,
                             IndexAliasesService indexAliasesService, IndicesQueryCache indicesQueryCache,
                             CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
-                            IndexService indexService, @Nullable IndicesWarmer warmer,
+                            @Nullable IndicesWarmer warmer,
                             SimilarityService similarityService,
                             EngineFactory factory, ClusterService clusterService,
                             ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) throws IOException {
         super(shardId, indexSettingsService, indicesLifecycle, store, storeRecoveryService,
                 threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
                 indicesQueryCache, codecService,
-                termVectorsService, indexFieldDataService, indexService,
+                termVectorsService, indexFieldDataService,
                 warmer, similarityService,
                 factory, clusterService, path, bigArrays, wrappingService);
     }

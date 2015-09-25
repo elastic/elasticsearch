@@ -27,8 +27,6 @@ import org.elasticsearch.index.engine.IndexSearcherWrapper;
 import org.elasticsearch.index.engine.IndexSearcherWrappingService;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.percolator.stats.ShardPercolateService;
-import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 
 /**
  * The {@code IndexShardModule} module is responsible for binding the correct
@@ -69,8 +67,6 @@ public class IndexShardModule extends AbstractModule {
 
         bind(EngineFactory.class).to(engineFactoryImpl);
         bind(StoreRecoveryService.class).asEagerSingleton();
-        bind(ShardPercolateService.class).asEagerSingleton();
-        bind(ShardTermVectorsService.class).asEagerSingleton();
         bind(IndexSearcherWrappingService.class).asEagerSingleton();
         // this injects an empty set in IndexSearcherWrappingService, otherwise guice can't construct IndexSearcherWrappingService
         Multibinder<IndexSearcherWrapper> multibinder

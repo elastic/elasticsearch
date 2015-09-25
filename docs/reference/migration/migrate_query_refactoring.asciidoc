@@ -152,10 +152,10 @@ settings at construction time.
 
 ==== TermsQueryBuilder
 
-Remove the setter for `termsLookup()`, making it only possible to either use a TermsLookUp object or
-individual values at constrution time. Also moving individual settings for the TermsLookUp (lookupIndex,
-lookupType, lookupId, lookupPath) to the separate TermsLookUp class, using construtor only and moving
-checks for validation there.
+Remove the setter for `termsLookup()`, making it only possible to either use a TermsLookup object or
+individual values at construction time. Also moving individual settings for the TermsLookup (lookupIndex,
+lookupType, lookupId, lookupPath) to the separate TermsLookup class, using constructor only and moving
+checks for validation there. Removed `TermsLookupQueryBuilder` in favour of `TermsQueryBuilder`.
 
 ==== FunctionScoreQueryBuilder
 

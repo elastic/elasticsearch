@@ -220,6 +220,15 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     }
 
     /**
+     * @return If the specified string is data math expression then this method returns the resolved expression.
+     */
+    public String resolveDateMathExpression(String dateExpression) {
+        // The data math expression resolver doesn't rely on cluster state or indices options, because
+        // it just resolves the date math to an actual date.
+        return dateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null));
+    }
+
+    /**
      * Iterates through the list of indices and selects the effective list of filtering aliases for the
      * given index.
      * <p>Only aliases with filters are returned. If the indices list contains a non-filtering reference to

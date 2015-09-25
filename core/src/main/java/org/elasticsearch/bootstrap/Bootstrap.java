@@ -27,6 +27,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -40,6 +41,8 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 
@@ -287,7 +290,18 @@ final class Bootstrap {
             if (INSTANCE.node != null) {
                 logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("name"));
             }
-            logger.error("Exception", e);
+            // HACK, it sucks to do this, but we will run users out of disk space otherwise
+            if (e instanceof CreationException) {
+                // guice: log the shortened exc to the log file
+                ByteArrayOutputStream os = new ByteArrayOutputStream();
+                PrintStream ps = new PrintStream(os, false, "UTF-8");
+                new StartupError(e).printStackTrace(ps);
+                ps.flush();
+                logger.error("Guice Exception: {}", os.toString("UTF-8"));
+            } else {
+                // full exception
+                logger.error("Exception", e);
+            }
             // re-enable it if appropriate, so they can see any logging during the shutdown process
             if (foreground) {
                 Loggers.enableConsoleLogging();

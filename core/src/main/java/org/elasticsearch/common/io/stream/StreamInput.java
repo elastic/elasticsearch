@@ -33,6 +33,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -55,7 +57,17 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
 public abstract class StreamInput extends InputStream {
 
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
     private Version version = Version.CURRENT;
+
+    protected StreamInput() {
+        this.namedWriteableRegistry = new NamedWriteableRegistry();
+    }
+
+    protected StreamInput(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
+    }
 
     public Version getVersion() {
         return this.version;
@@ -349,6 +361,13 @@ public abstract class StreamInput extends InputStream {
         return ret;
     }
 
+    public String[] readOptionalStringArray() throws IOException {
+        if (readBoolean()) {
+            return readStringArray();
+        }
+        return null;
+    }
+
     @Nullable
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
@@ -569,6 +588,20 @@ public abstract class StreamInput extends InputStream {
      */
     <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Reads a {@link QueryBuilder} from the current stream
+     */
+    public QueryBuilder readQuery() throws IOException {
+        return readNamedWriteable(QueryBuilder.class);
+    }
+
+    /**
+     * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
+     */
+    public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
+        return readNamedWriteable(ScoreFunctionBuilder.class);
     }
 
     public static StreamInput wrap(BytesReference reference) {

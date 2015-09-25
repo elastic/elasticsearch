@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -42,8 +43,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -187,9 +187,9 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     private Query parseQuery(String type, XContentParser parser) {
         String[] previousTypes = null;
         if (type != null) {
-            QueryParseContext.setTypesWithPrevious(new String[]{type});
+            QueryShardContext.setTypesWithPrevious(new String[]{type});
         }
-        QueryParseContext context = queryParserService.getParseContext();
+        QueryShardContext context = queryParserService.getShardContext();
         try {
             context.reset(parser);
             // This means that fields in the query need to exist in the mapping prior to registering this query
@@ -205,13 +205,13 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
             // if index.percolator.map_unmapped_fields_as_string is set to true, query can contain unmapped fields which will be mapped
             // as an analyzed string.
             context.setAllowUnmappedFields(false);
-            context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString ? true : false);
+            context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
             return queryParserService.parseInnerQuery(context);
         } catch (IOException e) {
-            throw new ParsingException(context, "Failed to parse", e);
+            throw new ParsingException(parser.getTokenLocation(), "Failed to parse", e);
         } finally {
             if (type != null) {
-                QueryParseContext.setTypes(previousTypes);
+                QueryShardContext.setTypes(previousTypes);
             }
             context.reset(null);
         }

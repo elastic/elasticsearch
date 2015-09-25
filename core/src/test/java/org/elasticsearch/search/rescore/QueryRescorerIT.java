@@ -28,11 +28,11 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.script.Script;
@@ -45,22 +45,11 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Comparator;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFourthHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -83,9 +72,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(QueryBuilders.matchAllQuery())
                     .setRescorer(RescoreBuilder.queryRescorer(
-                            QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery())
-                                    .boostMode("replace").add(ScoreFunctionBuilders.weightFactorFunction(100))).setQueryWeight(0.0f).setRescoreQueryWeight(1.0f))
-                    .setRescoreWindow(1).setSize(randomIntBetween(2,10)).execute().actionGet();
+                            QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery(),
+                                    ScoreFunctionBuilders.weightFactorFunction(100)).boostMode(CombineFunction.REPLACE)).setQueryWeight(0.0f).setRescoreQueryWeight(1.0f))
+                    .setRescoreWindow(1).setSize(randomIntBetween(2, 10)).execute().actionGet();
             assertSearchResponse(searchResponse);
             assertFirstHit(searchResponse, hasScore(100.f));
             int numDocsWith100AsAScore = 0;
@@ -116,7 +105,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         ensureYellow();
         refresh();
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                 .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f)).setRescoreQueryWeight(2))
                 .setRescoreWindow(5).execute().actionGet();
 
@@ -126,7 +115,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
 
         searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                 .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "the quick brown").slop(3)))
                 .setRescoreWindow(5).execute().actionGet();
 
@@ -136,7 +125,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertThirdHit(searchResponse, hasId("3"));
 
         searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                 .setRescorer(RescoreBuilder.queryRescorer((QueryBuilders.matchPhraseQuery("field1", "the quick brown"))))
                 .setRescoreWindow(5).execute().actionGet();
 
@@ -179,7 +168,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh("test").execute().actionGet();
         SearchResponse searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
                 .setFrom(0)
                 .setSize(5)
                 .setRescorer(
@@ -194,7 +183,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
                 .setFrom(0)
                 .setSize(5)
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
@@ -211,7 +200,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         // Make sure non-zero from works:
         searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
                 .setFrom(2)
                 .setSize(5)
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
@@ -320,7 +309,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(Operator.OR))
                 .setFrom(0)
             .setSize(5).execute().actionGet();
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
@@ -333,7 +322,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         // Now, penalizing rescore (nothing matches the rescore query):
         searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(Operator.OR))
                 .setFrom(0)
                 .setSize(5)
                 .setRescorer(
@@ -425,7 +414,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     .prepareSearch()
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
-                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
+                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
                     .setFrom(0)
                     .setSize(resultSize)
                     .setRescorer(
@@ -440,7 +429,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             SearchResponse plain = client().prepareSearch()
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
-                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR)).setFrom(0).setSize(resultSize)
+                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR)).setFrom(0).setSize(resultSize)
                     .execute().actionGet();
             
             // check equivalence
@@ -450,7 +439,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     .prepareSearch()
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
-                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
+                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
                     .setFrom(0)
                     .setSize(resultSize)
                     .setRescorer(
@@ -468,7 +457,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     .prepareSearch()
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
-                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
+                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
                     .setFrom(0)
                     .setSize(resultSize)
                     .setRescorer(
@@ -503,7 +492,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             SearchResponse searchResponse = client()
                     .prepareSearch()
                     .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                    .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
+                    .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                     .setRescorer(
                             RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "the quick brown").slop(2).boost(4.0f))
                                     .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f)).setRescoreWindow(5).setExplain(true).execute()
@@ -541,7 +530,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             SearchResponse searchResponse = client()
                     .prepareSearch()
                     .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                    .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
+                    .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                     .setRescorer(innerRescoreQuery).setRescoreWindow(5).setExplain(true).execute()
                     .actionGet();
             assertHitCount(searchResponse, 3);
@@ -564,7 +553,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 searchResponse = client()
                         .prepareSearch()
                         .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                        .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
+                        .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                         .addRescorer(innerRescoreQuery).setRescoreWindow(5)
                         .addRescorer(outerRescoreQuery).setRescoreWindow(10)
                         .setExplain(true).get();
@@ -598,15 +587,12 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         .queryRescorer(
                                 QueryBuilders.boolQuery()
                                         .disableCoord(true)
-                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0]))
-                                                .boostMode(CombineFunction.REPLACE)
-                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("5.0f"))))
-                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1]))
-                                                .boostMode(CombineFunction.REPLACE)
-                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("7.0f"))))
-                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3]))
-                                                .boostMode(CombineFunction.REPLACE)
-                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("0.0f")))))
+                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0]),
+                                                ScoreFunctionBuilders.scriptFunction(new Script("5.0f"))).boostMode(CombineFunction.REPLACE))
+                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1]),
+                                                ScoreFunctionBuilders.scriptFunction(new Script("7.0f"))).boostMode(CombineFunction.REPLACE))
+                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3]),
+                                                ScoreFunctionBuilders.scriptFunction(new Script("0.0f"))).boostMode(CombineFunction.REPLACE)))
                         .setQueryWeight(primaryWeight)
                         .setRescoreQueryWeight(secondaryWeight);
 
@@ -619,22 +605,18 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         .setPreference("test") // ensure we hit the same shards for tie-breaking
                         .setQuery(QueryBuilders.boolQuery()
                                 .disableCoord(true)
-                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0]))
-                                                .boostMode(CombineFunction.REPLACE)
-                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("2.0f"))))
-                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1]))
-                                                .boostMode(CombineFunction.REPLACE)
-                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("3.0f"))))
-                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2]))
-                                                .boostMode(CombineFunction.REPLACE)
-                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("5.0f"))))
-                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3]))
-                                                .boostMode(CombineFunction.REPLACE)
-                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("0.2f")))))
-                        .setFrom(0)
-                        .setSize(10)
-                        .setRescorer(rescoreQuery)
-                        .setRescoreWindow(50).execute().actionGet();
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0]),
+                                        ScoreFunctionBuilders.scriptFunction(new Script("2.0f"))).boostMode(CombineFunction.REPLACE))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1]),
+                                        ScoreFunctionBuilders.scriptFunction(new Script("3.0f"))).boostMode(CombineFunction.REPLACE))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2]),
+                                        ScoreFunctionBuilders.scriptFunction(new Script("5.0f"))).boostMode(CombineFunction.REPLACE))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3]),
+                                        ScoreFunctionBuilders.scriptFunction(new Script("0.2f"))).boostMode(CombineFunction.REPLACE)))
+                                .setFrom(0)
+                                .setSize(10)
+                                .setRescorer(rescoreQuery)
+                                .setRescoreWindow(50).execute().actionGet();
 
                 assertHitCount(rescored, 4);
 
@@ -687,12 +669,11 @@ public class QueryRescorerIT extends ESIntegTestCase {
     public void testMultipleRescores() throws Exception {
         int numDocs = indexRandomNumbers("keyword", 1, true);
         QueryRescorer eightIsGreat = RescoreBuilder.queryRescorer(
-                QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(8))).boostMode(CombineFunction.REPLACE)
-.add(ScoreFunctionBuilders.scriptFunction(new Script("1000.0f")))).setScoreMode(
-                "total");
+                QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(8)),
+                        ScoreFunctionBuilders.scriptFunction(new Script("1000.0f"))).boostMode(CombineFunction.REPLACE)).setScoreMode("total");
         QueryRescorer sevenIsBetter = RescoreBuilder.queryRescorer(
-                QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(7))).boostMode(CombineFunction.REPLACE)
-.add(ScoreFunctionBuilders.scriptFunction(new Script("10000.0f"))))
+                QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(7)),
+                        ScoreFunctionBuilders.scriptFunction(new Script("10000.0f"))).boostMode(CombineFunction.REPLACE))
                 .setScoreMode("total");
 
         // First set the rescore window large enough that both rescores take effect
@@ -709,11 +690,11 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         // Now use one rescore to drag the number we're looking for into the window of another
         QueryRescorer ninetyIsGood = RescoreBuilder.queryRescorer(
-                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*ninety*")).boostMode(CombineFunction.REPLACE)
-                        .add(ScoreFunctionBuilders.scriptFunction(new Script("1000.0f")))).setScoreMode("total");
+                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*ninety*"), ScoreFunctionBuilders.scriptFunction(new Script("1000.0f")))
+                        .boostMode(CombineFunction.REPLACE)).setScoreMode("total");
         QueryRescorer oneToo = RescoreBuilder.queryRescorer(
-                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*one*")).boostMode(CombineFunction.REPLACE)
-                        .add(ScoreFunctionBuilders.scriptFunction(new Script("1000.0f")))).setScoreMode("total");
+                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*one*"), ScoreFunctionBuilders.scriptFunction(new Script("1000.0f")))
+                        .boostMode(CombineFunction.REPLACE)).setScoreMode("total");
         request.clearRescorers().addRescorer(ninetyIsGood).addRescorer(oneToo, 10);
         response = request.setSize(2).get();
         assertFirstHit(response, hasId("91"));

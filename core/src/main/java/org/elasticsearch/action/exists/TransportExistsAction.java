@@ -41,7 +41,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
@@ -166,10 +166,10 @@ public class TransportExistsAction extends TransportBroadcastAction<ExistsReques
             BytesReference source = request.querySource();
             if (source != null && source.length() > 0) {
                 try {
-                    QueryParseContext.setTypes(request.types());
+                    QueryShardContext.setTypes(request.types());
                     context.parsedQuery(indexService.queryParserService().parseQuery(source));
                 } finally {
-                    QueryParseContext.removeTypes();
+                    QueryShardContext.removeTypes();
                 }
             }
             context.preProcess();

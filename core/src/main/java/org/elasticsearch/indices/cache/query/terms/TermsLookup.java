@@ -19,58 +19,173 @@
 
 package org.elasticsearch.indices.cache.query.terms;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+
+import java.io.IOException;
+import java.util.Objects;
 
 /**
+ * Encapsulates the parameters needed to fetch terms.
  */
-public class TermsLookup {
+public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
+    static final TermsLookup PROTOTYPE = new TermsLookup("index", "type", "id", "path");
 
-    private final String index;
+    private String index;
     private final String type;
     private final String id;
-    private final String routing;
     private final String path;
+    private String routing;
 
-    @Nullable
-    private final QueryParseContext queryParseContext;
-
-    public TermsLookup(String index, String type, String id, String routing, String path, @Nullable QueryParseContext queryParseContext) {
+    public TermsLookup(String index, String type, String id, String path) {
+        if (id == null) {
+            throw new IllegalArgumentException("[terms] query lookup element requires specifying the id.");
+        }
+        if (type == null) {
+            throw new IllegalArgumentException("[terms] query lookup element requires specifying the type.");
+        }
+        if (path == null) {
+            throw new IllegalArgumentException("[terms] query lookup element requires specifying the path.");
+        }
         this.index = index;
         this.type = type;
         this.id = id;
-        this.routing = routing;
         this.path = path;
-        this.queryParseContext = queryParseContext;
     }
 
-    public String getIndex() {
+    public String index() {
         return index;
     }
 
-    public String getType() {
+    public TermsLookup index(String index) {
+        this.index = index;
+        return this;
+    }
+
+    public String type() {
         return type;
     }
 
-    public String getId() {
+    public String id() {
         return id;
     }
 
-    public String getRouting() {
-        return this.routing;
-    }
-
-    public String getPath() {
+    public String path() {
         return path;
     }
 
-    @Nullable
-    public QueryParseContext getQueryParseContext() {
-        return queryParseContext;
+    public String routing() {
+        return routing;
+    }
+
+    public TermsLookup routing(String routing) {
+        this.routing = routing;
+        return this;
+    }
+
+    public static TermsLookup parseTermsLookup(XContentParser parser) throws IOException {
+        String index = null;
+        String type = null;
+        String id = null;
+        String path = null;
+        String routing = null;
+        XContentParser.Token token;
+        String currentFieldName = "";
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                switch (currentFieldName) {
+                case "index":
+                    index = parser.textOrNull();
+                    break;
+                case "type":
+                    type = parser.text();
+                    break;
+                case "id":
+                    id = parser.text();
+                    break;
+                case "routing":
+                    routing = parser.textOrNull();
+                    break;
+                case "path":
+                    path = parser.text();
+                    break;
+                default:
+                    throw new ParsingException(parser.getTokenLocation(), "[terms] query does not support [" + currentFieldName
+                            + "] within lookup element");
+                }
+            }
+        }
+        return new TermsLookup(index, type, id, path).routing(routing);
     }
 
     @Override
     public String toString() {
         return index + "/" + type + "/" + id + "/" + path;
+    }
+
+    @Override
+    public TermsLookup readFrom(StreamInput in) throws IOException {
+        String type = in.readString();
+        String id = in.readString();
+        String path = in.readString();
+        String index = in.readOptionalString();
+        TermsLookup termsLookup = new TermsLookup(index, type, id, path);
+        termsLookup.routing = in.readOptionalString();
+        return termsLookup;
+    }
+
+    public static TermsLookup readTermsLookupFrom(StreamInput in) throws IOException {
+        return PROTOTYPE.readFrom(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(type);
+        out.writeString(id);
+        out.writeString(path);
+        out.writeOptionalString(index);
+        out.writeOptionalString(routing);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (index != null) {
+            builder.field("index", index);
+        }
+        builder.field("type", type);
+        builder.field("id", id);
+        builder.field("path", path);
+        if (routing != null) {
+            builder.field("routing", routing);
+        }
+        return builder;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(index, type, id, path, routing);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        TermsLookup other = (TermsLookup) obj;
+        return Objects.equals(index, other.index) &&
+                Objects.equals(type, other.type) &&
+                Objects.equals(id, other.id) &&
+                Objects.equals(path, other.path) &&
+                Objects.equals(routing, other.routing);
     }
 }

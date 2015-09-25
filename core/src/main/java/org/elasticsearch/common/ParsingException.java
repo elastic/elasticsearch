@@ -24,15 +24,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 /**
- *
+ * Exception that can be used when parsing queries with a given {@link QueryParseContext}.
+ * Can contain information about location of the error.
  */
 public class ParsingException extends ElasticsearchException {
 
@@ -40,25 +39,17 @@ public class ParsingException extends ElasticsearchException {
     private final int lineNumber;
     private final int columnNumber;
 
-    public ParsingException(QueryParseContext parseContext, String msg, Object... args) {
-        this(parseContext, msg, null, args);
+    public ParsingException(XContentLocation contentLocation, String msg, Object... args) {
+        this(contentLocation, msg, null, args);
     }
 
-    public ParsingException(QueryParseContext parseContext, String msg, Throwable cause, Object... args) {
-        this(parseContext.index(), parseContext.parser(), msg, cause, args);
-    }
-
-    public ParsingException(Index index, XContentParser parser, String msg, Throwable cause, Object... args) {
+    public ParsingException(XContentLocation contentLocation, String msg, Throwable cause, Object... args) {
         super(msg, cause, args);
-        setIndex(index);
         int lineNumber = UNKNOWN_POSITION;
         int columnNumber = UNKNOWN_POSITION;
-        if (parser != null) {
-            XContentLocation location = parser.getTokenLocation();
-            if (location != null) {
-                lineNumber = location.lineNumber;
-                columnNumber = location.columnNumber;
-            }
+        if (contentLocation != null) {
+            lineNumber = contentLocation.lineNumber;
+            columnNumber = contentLocation.columnNumber;
         }
         this.columnNumber = columnNumber;
         this.lineNumber = lineNumber;
@@ -68,16 +59,21 @@ public class ParsingException extends ElasticsearchException {
      * This constructor is provided for use in unit tests where a
      * {@link QueryParseContext} may not be available
      */
-    public ParsingException(Index index, int line, int col, String msg, Throwable cause) {
+    public ParsingException(int line, int col, String msg, Throwable cause) {
         super(msg, cause);
-        setIndex(index);
         this.lineNumber = line;
         this.columnNumber = col;
     }
 
+    public ParsingException(StreamInput in) throws IOException{
+        super(in);
+        lineNumber = in.readInt();
+        columnNumber = in.readInt();
+    }
+
     /**
      * Line number of the location of the error
-     * 
+     *
      * @return the line number or -1 if unknown
      */
     public int getLineNumber() {
@@ -86,7 +82,7 @@ public class ParsingException extends ElasticsearchException {
 
     /**
      * Column number of the location of the error
-     * 
+     *
      * @return the column number or -1 if unknown
      */
     public int getColumnNumber() {
@@ -113,11 +109,4 @@ public class ParsingException extends ElasticsearchException {
         out.writeInt(lineNumber);
         out.writeInt(columnNumber);
     }
-
-    public ParsingException(StreamInput in) throws IOException{
-        super(in);
-        lineNumber = in.readInt();
-        columnNumber = in.readInt();
-    }
-
 }

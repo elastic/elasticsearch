@@ -170,7 +170,6 @@ public class GeoDistanceSortParser implements SortParser {
 
         final Nested nested;
         if (nestedHelper != null && nestedHelper.getPath() != null) {
-            
             BitSetProducer rootDocumentsFilter = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter());
             Filter innerDocumentsFilter;
             if (nestedHelper.filterFound()) {

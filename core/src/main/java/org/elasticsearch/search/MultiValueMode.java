@@ -23,10 +23,13 @@ package org.elasticsearch.search;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -38,7 +41,7 @@ import java.util.Locale;
 /**
  * Defines what values to pick in the case a document contains multiple values for a particular field.
  */
-public enum MultiValueMode {
+public enum MultiValueMode implements Writeable<MultiValueMode> {
 
     /**
      * Pick the sum of all the values.
@@ -940,5 +943,23 @@ public enum MultiValueMode {
         int count();
         void setDocument(int docId);
         double valueAt(int index);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(this.ordinal());
+    }
+
+    public static MultiValueMode readMultiValueModeFrom(StreamInput in) throws IOException {
+        return MultiValueMode.AVG.readFrom(in);
+    }
+
+    @Override
+    public MultiValueMode readFrom(StreamInput in) throws IOException {
+        int ordinal = in.readVInt();
+        if (ordinal < 0 || ordinal >= values().length) {
+            throw new IOException("Unknown MultiValueMode ordinal [" + ordinal + "]");
+        }
+        return values()[ordinal];
     }
 }

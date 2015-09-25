@@ -1,1 +1,0 @@
-{ "match": { "body": { "query": "fuzzy", "fuzziness": 1, "fuzzy_transpositions": true }} }

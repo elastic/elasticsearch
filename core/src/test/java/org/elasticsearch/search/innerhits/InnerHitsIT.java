@@ -28,7 +28,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
+import org.elasticsearch.index.query.support.QueryInnerHits;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -88,9 +88,9 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         // Inner hits can be defined in two ways: 1) with the query 2) as seperate inner_hit definition
         SearchRequest[] searchRequests = new SearchRequest[]{
-                client().prepareSearch("articles").setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHitBuilder().setName("comment"))).request(),
+                client().prepareSearch("articles").setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHits("comment", null))).request(),
                 client().prepareSearch("articles").setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")))
-                        .addInnerHit("comment", new InnerHitsBuilder.InnerHit().setPath("comments").setQuery(matchQuery("comments.message", "fox"))).request()
+                        .addNestedInnerHits("comment", "comments", new InnerHitsBuilder.InnerHit().setQuery(matchQuery("comments.message", "fox"))).request()
         };
         for (SearchRequest searchRequest : searchRequests) {
             SearchResponse response = client().search(searchRequest).actionGet();
@@ -112,11 +112,11 @@ public class InnerHitsIT extends ESIntegTestCase {
         searchRequests = new SearchRequest[] {
                 client().prepareSearch("articles")
                         .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant")))
-                        .addInnerHit("comment", new InnerHitsBuilder.InnerHit().setPath("comments").setQuery(matchQuery("comments.message", "elephant"))).request(),
+                        .addNestedInnerHits("comment", "comments", new InnerHitsBuilder.InnerHit().setQuery(matchQuery("comments.message", "elephant"))).request(),
                 client().prepareSearch("articles")
-                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant")).innerHit(new QueryInnerHitBuilder().setName("comment"))).request(),
+                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant")).innerHit(new QueryInnerHits("comment", null))).request(),
                 client().prepareSearch("articles")
-                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant")).innerHit(new QueryInnerHitBuilder().setName("comment").addSort("_doc", SortOrder.DESC))).request()
+                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant")).innerHit(new QueryInnerHits("comment", new InnerHitsBuilder.InnerHit().addSort("_doc", SortOrder.DESC)))).request()
         };
         for (SearchRequest searchRequest : searchRequests) {
             SearchResponse response = client().search(searchRequest).actionGet();
@@ -138,24 +138,24 @@ public class InnerHitsIT extends ESIntegTestCase {
             assertThat(innerHits.getAt(2).getNestedIdentity().getField().string(), equalTo("comments"));
             assertThat(innerHits.getAt(2).getNestedIdentity().getOffset(), equalTo(2));
         }
-
+        InnerHitsBuilder.InnerHit innerHit = new InnerHitsBuilder.InnerHit();
+        innerHit.highlightBuilder().field("comments.message");
+        innerHit.setExplain(true);
+        innerHit.addFieldDataField("comments.message");
+        innerHit.addScriptField("script", new Script("doc['comments.message'].value"));
+        innerHit.setSize(1);
         searchRequests = new SearchRequest[] {
                 client().prepareSearch("articles")
                         .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")))
-                        .addInnerHit("comments", new InnerHitsBuilder.InnerHit().setPath("comments")
+                        .addNestedInnerHits("comments", "comments", new InnerHitsBuilder.InnerHit()
                                 .setQuery(matchQuery("comments.message", "fox"))
                                 .addHighlightedField("comments.message")
                                 .setExplain(true)
                                 .addFieldDataField("comments.message")
-                                        .addScriptField("script", new Script("doc['comments.message'].value"))
+                                .addScriptField("script", new Script("doc['comments.message'].value"))
                                 .setSize(1)).request(),
                 client().prepareSearch("articles")
-                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHitBuilder()
-                                .addHighlightedField("comments.message")
-                                .setExplain(true)
-                                .addFieldDataField("comments.message")
-                                                .addScriptField("script", new Script("doc['comments.message'].value"))
-                                .setSize(1))).request()
+                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHits(null, innerHit))).request()
         };
 
         for (SearchRequest searchRequest : searchRequests) {
@@ -201,17 +201,17 @@ public class InnerHitsIT extends ESIntegTestCase {
             searchResponse = client().prepareSearch("idx")
                     .setSize(numDocs)
                     .addSort("_uid", SortOrder.ASC)
-                    .addInnerHit("a", new InnerHitsBuilder.InnerHit().setPath("field1").addSort("_doc", SortOrder.DESC).setSize(size)) // Sort order is DESC, because we reverse the inner objects during indexing!
-                    .addInnerHit("b", new InnerHitsBuilder.InnerHit().setPath("field2").addSort("_doc", SortOrder.DESC).setSize(size))
+                    .addNestedInnerHits("a", "field1", new InnerHitsBuilder.InnerHit().addSort("_doc", SortOrder.DESC).setSize(size)) // Sort order is DESC, because we reverse the inner objects during indexing!
+                    .addNestedInnerHits("b", "field2", new InnerHitsBuilder.InnerHit().addSort("_doc", SortOrder.DESC).setSize(size))
                     .get();
         } else {
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
             if (randomBoolean()) {
-                boolQuery.should(nestedQuery("field1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_doc", SortOrder.DESC).setSize(size)));
-                boolQuery.should(nestedQuery("field2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_doc", SortOrder.DESC).setSize(size)));
+                boolQuery.should(nestedQuery("field1", matchAllQuery()).innerHit(new QueryInnerHits("a", new InnerHitsBuilder.InnerHit().addSort("_doc", SortOrder.DESC).setSize(size))));
+                boolQuery.should(nestedQuery("field2", matchAllQuery()).innerHit(new QueryInnerHits("b", new InnerHitsBuilder.InnerHit().addSort("_doc", SortOrder.DESC).setSize(size))));
             } else {
-                boolQuery.should(constantScoreQuery(nestedQuery("field1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_doc", SortOrder.DESC).setSize(size))));
-                boolQuery.should(constantScoreQuery(nestedQuery("field2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_doc", SortOrder.DESC).setSize(size))));
+                boolQuery.should(constantScoreQuery(nestedQuery("field1", matchAllQuery()).innerHit(new QueryInnerHits("a", new InnerHitsBuilder.InnerHit().addSort("_doc", SortOrder.DESC).setSize(size)))));
+                boolQuery.should(constantScoreQuery(nestedQuery("field2", matchAllQuery()).innerHit(new QueryInnerHits("b", new InnerHitsBuilder.InnerHit().addSort("_doc", SortOrder.DESC).setSize(size)))));
             }
             searchResponse = client().prepareSearch("idx")
                     .setQuery(boolQuery)
@@ -267,10 +267,10 @@ public class InnerHitsIT extends ESIntegTestCase {
         SearchRequest[] searchRequests = new SearchRequest[]{
                 client().prepareSearch("articles")
                         .setQuery(hasChildQuery("comment", matchQuery("message", "fox")))
-                        .addInnerHit("comment", new InnerHitsBuilder.InnerHit().setType("comment").setQuery(matchQuery("message", "fox")))
+                        .addParentChildInnerHits("comment", "comment", new InnerHitsBuilder.InnerHit().setQuery(matchQuery("message", "fox")))
                         .request(),
                 client().prepareSearch("articles")
-                        .setQuery(hasChildQuery("comment", matchQuery("message", "fox")).innerHit(new QueryInnerHitBuilder().setName("comment")))
+                        .setQuery(hasChildQuery("comment", matchQuery("message", "fox")).innerHit(new QueryInnerHits("comment", null)))
                         .request()
         };
         for (SearchRequest searchRequest : searchRequests) {
@@ -293,10 +293,10 @@ public class InnerHitsIT extends ESIntegTestCase {
         searchRequests = new SearchRequest[] {
                 client().prepareSearch("articles")
                         .setQuery(hasChildQuery("comment", matchQuery("message", "elephant")))
-                        .addInnerHit("comment", new InnerHitsBuilder.InnerHit().setType("comment").setQuery(matchQuery("message", "elephant")))
+                        .addParentChildInnerHits("comment", "comment", new InnerHitsBuilder.InnerHit().setQuery(matchQuery("message", "elephant")))
                         .request(),
                 client().prepareSearch("articles")
-                        .setQuery(hasChildQuery("comment", matchQuery("message", "elephant")).innerHit(new QueryInnerHitBuilder()))
+                        .setQuery(hasChildQuery("comment", matchQuery("message", "elephant")).innerHit(new QueryInnerHits()))
                         .request()
         };
         for (SearchRequest searchRequest : searchRequests) {
@@ -316,11 +316,16 @@ public class InnerHitsIT extends ESIntegTestCase {
             assertThat(innerHits.getAt(2).getId(), equalTo("6"));
             assertThat(innerHits.getAt(2).type(), equalTo("comment"));
         }
-
+        InnerHitsBuilder.InnerHit innerHit = new InnerHitsBuilder.InnerHit();
+        innerHit.highlightBuilder().field("message");
+        innerHit.setExplain(true);
+        innerHit.addFieldDataField("message");
+        innerHit.addScriptField("script", new Script("doc['message'].value"));
+        innerHit.setSize(1);
         searchRequests = new SearchRequest[] {
                 client().prepareSearch("articles")
                         .setQuery(hasChildQuery("comment", matchQuery("message", "fox")))
-                        .addInnerHit("comment", new InnerHitsBuilder.InnerHit().setType("comment")
+                        .addParentChildInnerHits("comment", "comment", new InnerHitsBuilder.InnerHit()
                                         .setQuery(matchQuery("message", "fox"))
                                         .addHighlightedField("message")
                                         .setExplain(true)
@@ -328,12 +333,11 @@ public class InnerHitsIT extends ESIntegTestCase {
                                         .addScriptField("script", new Script("doc['message'].value"))
                                         .setSize(1)
                         ).request(),
+
                 client().prepareSearch("articles")
                         .setQuery(
                                 hasChildQuery("comment", matchQuery("message", "fox")).innerHit(
-                                        new QueryInnerHitBuilder().addHighlightedField("message").setExplain(true)
-                                                .addFieldDataField("message").addScriptField("script", new Script("doc['message'].value"))
-                                                .setSize(1))).request() };
+                                        new QueryInnerHits(null, innerHit))).request() };
 
         for (SearchRequest searchRequest : searchRequests) {
             SearchResponse response = client().search(searchRequest).actionGet();
@@ -385,17 +389,17 @@ public class InnerHitsIT extends ESIntegTestCase {
                     .setSize(numDocs)
                     .setTypes("parent")
                     .addSort("_uid", SortOrder.ASC)
-                    .addInnerHit("a", new InnerHitsBuilder.InnerHit().setType("child1").addSort("_uid", SortOrder.ASC).setSize(size))
-                    .addInnerHit("b", new InnerHitsBuilder.InnerHit().setType("child2").addSort("_uid", SortOrder.ASC).setSize(size))
+                    .addParentChildInnerHits("a", "child1", new InnerHitsBuilder.InnerHit().addSort("_uid", SortOrder.ASC).setSize(size))
+                    .addParentChildInnerHits("b", "child2", new InnerHitsBuilder.InnerHit().addSort("_uid", SortOrder.ASC).setSize(size))
                     .get();
         } else {
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
             if (randomBoolean()) {
-                boolQuery.should(hasChildQuery("child1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_uid", SortOrder.ASC).setSize(size)));
-                boolQuery.should(hasChildQuery("child2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_uid", SortOrder.ASC).setSize(size)));
+                boolQuery.should(hasChildQuery("child1", matchAllQuery()).innerHit(new QueryInnerHits("a", new InnerHitsBuilder.InnerHit().addSort("_uid", SortOrder.ASC).setSize(size))));
+                boolQuery.should(hasChildQuery("child2", matchAllQuery()).innerHit(new QueryInnerHits("b", new InnerHitsBuilder.InnerHit().addSort("_uid", SortOrder.ASC).setSize(size))));
             } else {
-                boolQuery.should(constantScoreQuery(hasChildQuery("child1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_uid", SortOrder.ASC).setSize(size))));
-                boolQuery.should(constantScoreQuery(hasChildQuery("child2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_uid", SortOrder.ASC).setSize(size))));
+                boolQuery.should(constantScoreQuery(hasChildQuery("child1", matchAllQuery()).innerHit(new QueryInnerHits("a", new InnerHitsBuilder.InnerHit().addSort("_uid", SortOrder.ASC).setSize(size)))));
+                boolQuery.should(constantScoreQuery(hasChildQuery("child2", matchAllQuery()).innerHit(new QueryInnerHits("b", new InnerHitsBuilder.InnerHit().addSort("_uid", SortOrder.ASC).setSize(size)))));
             }
             searchResponse = client().prepareSearch("idx")
                     .setSize(numDocs)
@@ -447,7 +451,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         ensureGreen("articles");
         try {
             client().prepareSearch("articles")
-                    .addInnerHit("comment", new InnerHitsBuilder.InnerHit())
+                    .addParentChildInnerHits("comment", null, new InnerHitsBuilder.InnerHit())
                     .get();
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("Failed to build"));
@@ -474,7 +478,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .setQuery(
                         boolQuery()
                                 .must(matchQuery("body", "fail2ban"))
-                                .must(hasParentQuery("question", matchAllQuery()).innerHit(new QueryInnerHitBuilder()))
+                                .must(hasParentQuery("question", matchAllQuery()).innerHit(new QueryInnerHits()))
                 ).get();
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -513,10 +517,10 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("articles")
                 .setQuery(hasChildQuery("comment", hasChildQuery("remark", matchQuery("message", "good"))))
-                .addInnerHit("comment",
-                        new InnerHitsBuilder.InnerHit().setType("comment")
+                .addParentChildInnerHits("comment", "comment",
+                        new InnerHitsBuilder.InnerHit()
                                 .setQuery(hasChildQuery("remark", matchQuery("message", "good")))
-                                .addInnerHit("remark", new InnerHitsBuilder.InnerHit().setType("remark").setQuery(matchQuery("message", "good")))
+                                .addParentChildInnerHits("remark", "remark", new InnerHitsBuilder.InnerHit().setQuery(matchQuery("message", "good")))
                 )
                 .get();
 
@@ -537,10 +541,10 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         response = client().prepareSearch("articles")
                 .setQuery(hasChildQuery("comment", hasChildQuery("remark", matchQuery("message", "bad"))))
-                .addInnerHit("comment",
-                        new InnerHitsBuilder.InnerHit().setType("comment")
+                .addParentChildInnerHits("comment", "comment",
+                        new InnerHitsBuilder.InnerHit()
                                 .setQuery(hasChildQuery("remark", matchQuery("message", "bad")))
-                                .addInnerHit("remark", new InnerHitsBuilder.InnerHit().setType("remark").setQuery(matchQuery("message", "bad")))
+                                .addParentChildInnerHits("remark", "remark", new InnerHitsBuilder.InnerHit().setQuery(matchQuery("message", "bad")))
                 )
                 .get();
 
@@ -605,10 +609,9 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("articles")
                 .setQuery(nestedQuery("comments", nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "good"))))
-                .addInnerHit("comment", new InnerHitsBuilder.InnerHit()
-                                .setPath("comments")
+                .addNestedInnerHits("comment", "comments", new InnerHitsBuilder.InnerHit()
                                 .setQuery(nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "good")))
-                                .addInnerHit("remark", new InnerHitsBuilder.InnerHit().setPath("comments.remarks").setQuery(matchQuery("comments.remarks.message", "good")))
+                                .addNestedInnerHits("remark", "comments.remarks", new InnerHitsBuilder.InnerHit().setQuery(matchQuery("comments.remarks.message", "good")))
                 ).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -631,7 +634,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         // Directly refer to the second level:
         response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "bad")).innerHit(new QueryInnerHitBuilder()))
+                .setQuery(nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "bad")).innerHit(new QueryInnerHits()))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -648,10 +651,9 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         response = client().prepareSearch("articles")
                 .setQuery(nestedQuery("comments", nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "bad"))))
-                .addInnerHit("comment", new InnerHitsBuilder.InnerHit()
-                                .setPath("comments")
-                                .setQuery(nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "bad")))
-                                .addInnerHit("remark", new InnerHitsBuilder.InnerHit().setPath("comments.remarks").setQuery(matchQuery("comments.remarks.message", "bad"))))
+                .addNestedInnerHits("comment", "comments", new InnerHitsBuilder.InnerHit()
+                        .setQuery(nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "bad")))
+                        .addNestedInnerHits("remark", "comments.remarks", new InnerHitsBuilder.InnerHit().setQuery(matchQuery("comments.remarks.message", "bad"))))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -686,7 +688,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         indexRandom(true, requests);
 
         SearchResponse response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHitBuilder()))
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHits()))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -724,8 +726,8 @@ public class InnerHitsIT extends ESIntegTestCase {
         indexRandom(true, requests);
 
         SearchResponse response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHitBuilder().field("comments.message")))
-                .get();
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHits(null, new InnerHitsBuilder.InnerHit().field("comments.message"))))
+                        .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
@@ -761,9 +763,10 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .startObject("comments").field("message", "fox eat quick").endObject()
                 .endObject()));
         indexRandom(true, requests);
-
+        InnerHitsBuilder.InnerHit builder = new InnerHitsBuilder.InnerHit();
+        builder.highlightBuilder().field("comments.message");
         SearchResponse response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHitBuilder().addHighlightedField("comments.message")))
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHits(null, builder)))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -782,13 +785,13 @@ public class InnerHitsIT extends ESIntegTestCase {
                         .addMapping("article", jsonBuilder().startObject()
                                         .startObject("_source").field("excludes", new String[]{"comments"}).endObject()
                                         .startObject("properties")
-                                            .startObject("comments")
-                                                .field("type", "nested")
-                                                .startObject("properties")
-                                                    .startObject("message").field("type", "string").field("store", "yes").endObject()
-                                                .endObject()
-                                                .endObject()
-                                            .endObject()
+                                        .startObject("comments")
+                                        .field("type", "nested")
+                                        .startObject("properties")
+                                        .startObject("message").field("type", "string").field("store", "yes").endObject()
+                                        .endObject()
+                                        .endObject()
+                                        .endObject()
                                         .endObject()
                         )
         );
@@ -799,9 +802,11 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .startObject("comments").field("message", "fox eat quick").endObject()
                 .endObject()));
         indexRandom(true, requests);
-
+        InnerHitsBuilder.InnerHit builder = new InnerHitsBuilder.InnerHit();
+        builder.field("comments.message");
+        builder.setFetchSource(true);
         SearchResponse response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHitBuilder().field("comments.message").setFetchSource(true)))
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHits(null, builder)))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -837,10 +842,11 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .startObject("comments").field("message", "fox eat quick").endObject()
                 .endObject()));
         indexRandom(true, requests);
-
+        InnerHitsBuilder.InnerHit builder = new InnerHitsBuilder.InnerHit();
+        builder.highlightBuilder().field("comments.message");
         SearchResponse response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHitBuilder().addHighlightedField("comments.message")))
-                .get();
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHits(null, builder)))
+                        .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
@@ -881,7 +887,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         indexRandom(true, requests);
 
         SearchResponse response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox")).innerHit(new QueryInnerHitBuilder()))
+                .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox")).innerHit(new QueryInnerHits()))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -893,7 +899,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getChild(), nullValue());
 
         response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "bear")).innerHit(new QueryInnerHitBuilder()))
+                .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "bear")).innerHit(new QueryInnerHits()))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -912,7 +918,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject()));
         indexRandom(true, requests);
         response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox")).innerHit(new QueryInnerHitBuilder()))
+                .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox")).innerHit(new QueryInnerHits()))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -928,11 +934,11 @@ public class InnerHitsIT extends ESIntegTestCase {
     public void testRoyals() throws Exception {
         assertAcked(
                 prepareCreate("royals")
-                .addMapping("king")
-                .addMapping("prince", "_parent", "type=king")
-                .addMapping("duke", "_parent", "type=prince")
-                .addMapping("earl", "_parent", "type=duke")
-                .addMapping("baron", "_parent", "type=earl")
+                        .addMapping("king")
+                        .addMapping("prince", "_parent", "type=king")
+                        .addMapping("duke", "_parent", "type=prince")
+                        .addMapping("earl", "_parent", "type=duke")
+                        .addMapping("baron", "_parent", "type=earl")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -951,15 +957,14 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("royals")
                 .setTypes("duke")
-                .addInnerHit("earls", new InnerHitsBuilder.InnerHit()
-                                .setType("earl")
+                .addParentChildInnerHits("earls", "earl", new InnerHitsBuilder.InnerHit()
                                 .addSort(SortBuilders.fieldSort("_uid").order(SortOrder.ASC))
                                 .setSize(4)
-                                .addInnerHit("barons", new InnerHitsBuilder.InnerHit().setType("baron"))
+                                .addParentChildInnerHits("barons", "baron", new InnerHitsBuilder.InnerHit())
                 )
-                .addInnerHit("princes",
-                        new InnerHitsBuilder.InnerHit().setType("prince")
-                        .addInnerHit("kings", new InnerHitsBuilder.InnerHit().setType("king"))
+                .addParentChildInnerHits("princes", "prince",
+                        new InnerHitsBuilder.InnerHit()
+                        .addParentChildInnerHits("kings", "king", new InnerHitsBuilder.InnerHit())
                 )
                 .get();
         assertHitCount(response, 1);
@@ -1067,7 +1072,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                                 .should(termQuery("nested1.n_field1", "n_value1_1").queryName("test1"))
                                 .should(termQuery("nested1.n_field1", "n_value1_3").queryName("test2"))
                                 .should(termQuery("nested1.n_field2", "n_value2_2").queryName("test3"))
-                ).innerHit(new QueryInnerHitBuilder().addSort("nested1.n_field1", SortOrder.ASC)))
+                ).innerHit(new QueryInnerHits(null, new InnerHitsBuilder.InnerHit().addSort("nested1.n_field1", SortOrder.ASC))))
                 .setSize(numDocs)
                 .addSort("field1", SortOrder.ASC)
                 .get();
@@ -1107,7 +1112,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         indexRandom(true, requests);
 
         SearchResponse response = client().prepareSearch("index")
-                .setQuery(hasChildQuery("child", matchQuery("field", "value1").queryName("_name1")).innerHit(new QueryInnerHitBuilder()))
+                .setQuery(hasChildQuery("child", matchQuery("field", "value1").queryName("_name1")).innerHit(new QueryInnerHits()))
                 .addSort("_uid", SortOrder.ASC)
                 .get();
         assertHitCount(response, 2);
@@ -1122,7 +1127,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
 
         response = client().prepareSearch("index")
-                .setQuery(hasChildQuery("child", matchQuery("field", "value2").queryName("_name2")).innerHit(new QueryInnerHitBuilder()))
+                .setQuery(hasChildQuery("child", matchQuery("field", "value2").queryName("_name2")).innerHit(new QueryInnerHits()))
                 .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 1);
@@ -1141,7 +1146,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         indexRandom(true, requests);
 
         SearchResponse response = client().prepareSearch("index1")
-                .setQuery(hasChildQuery("child", matchQuery("field", "value1")).innerHit(new QueryInnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)))
+                .setQuery(hasChildQuery("child", matchQuery("field", "value1")).innerHit(new QueryInnerHits(null, new InnerHitsBuilder.InnerHit().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1))))
                 .addSort("_uid", SortOrder.ASC)
                 .get();
         assertNoFailures(response);
@@ -1159,7 +1164,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         .get();
 
         response = client().prepareSearch("index2")
-                .setQuery(nestedQuery("nested", matchQuery("nested.field", "value1")).innerHit(new QueryInnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)))
+                .setQuery(nestedQuery("nested", matchQuery("nested.field", "value1")).innerHit(new QueryInnerHits(null, new InnerHitsBuilder.InnerHit().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1))))
                 .addSort("_uid", SortOrder.ASC)
                 .get();
         assertNoFailures(response);

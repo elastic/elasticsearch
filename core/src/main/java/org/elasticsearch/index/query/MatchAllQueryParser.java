@@ -19,58 +19,51 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
- *
+ * Parser for match_all query
  */
-public class MatchAllQueryParser implements QueryParser {
-
-    public static final String NAME = "match_all";
-
-    @Inject
-    public MatchAllQueryParser() {
-    }
+public class MatchAllQueryParser implements QueryParser<MatchAllQueryBuilder> {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{MatchAllQueryBuilder.NAME, Strings.toCamelCase(MatchAllQueryBuilder.NAME)};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
+    public MatchAllQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        float boost = 1.0f;
         String currentFieldName = null;
-
         XContentParser.Token token;
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         while (((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != XContentParser.Token.END_ARRAY)) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("boost".equals(currentFieldName)) {
+                if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parseContext, "[match_all] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[match_all] query does not support [" + currentFieldName + "]");
                 }
             }
         }
+        MatchAllQueryBuilder queryBuilder = new MatchAllQueryBuilder();
+        queryBuilder.boost(boost);
+        queryBuilder.queryName(queryName);
+        return queryBuilder;
+    }
 
-        if (boost == 1.0f) {
-            return Queries.newMatchAllQuery();
-        }
-
-        MatchAllDocsQuery query = new MatchAllDocsQuery();
-        query.setBoost(boost);
-        return query;
+    @Override
+    public MatchAllQueryBuilder getBuilderPrototype() {
+        return MatchAllQueryBuilder.PROTOTYPE;
     }
 }

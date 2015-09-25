@@ -19,45 +19,33 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 
 /**
- *
+ * Parser for the term query
  */
-public class TermQueryParser implements QueryParser {
-
-    public static final String NAME = "term";
+public class TermQueryParser implements QueryParser<TermQueryBuilder> {
 
     private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of term query");
     private static final ParseField BOOST_FIELD = new ParseField("boost").withAllDeprecated("boost is not supported in short version of term query");
 
-    @Inject
-    public TermQueryParser() {
-    }
-
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{TermQueryBuilder.NAME};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
+    public TermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String queryName = null;
         String fieldName = null;
         Object value = null;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -68,7 +56,7 @@ public class TermQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // also support a format of "term" : {"field_name" : { ... }}
                 if (fieldName != null) {
-                    throw new ParsingException(parseContext, "[term] query does not support different field names, use [bool] query instead");
+                    throw new ParsingException(parser.getTokenLocation(), "[term] query does not support different field names, use [bool] query instead");
                 }
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -84,7 +72,7 @@ public class TermQueryParser implements QueryParser {
                         } else if ("boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
                         } else {
-                            throw new ParsingException(parseContext, "[term] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(), "[term] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -95,32 +83,26 @@ public class TermQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else {
                     if (fieldName != null) {
-                        throw new ParsingException(parseContext, "[term] query does not support different field names, use [bool] query instead");
+                        throw new ParsingException(parser.getTokenLocation(), "[term] query does not support different field names, use [bool] query instead");
                     }
                     fieldName = currentFieldName;
                     value = parser.objectBytes();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                throw new ParsingException(parseContext, "[term] query does not support array of values");
+                throw new ParsingException(parser.getTokenLocation(), "[term] query does not support array of values");
             }
         }
 
-        if (value == null) {
-            throw new ParsingException(parseContext, "No value specified for term query");
-        }
-
-        Query query = null;
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
-        if (fieldType != null) {
-            query = fieldType.termQuery(value, parseContext);
-        }
-        if (query == null) {
-            query = new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));
-        }
-        query.setBoost(boost);
+        TermQueryBuilder termQuery = new TermQueryBuilder(fieldName, value);
+        termQuery.boost(boost);
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            termQuery.queryName(queryName);
         }
-        return query;
+        return termQuery;
+    }
+
+    @Override
+    public TermQueryBuilder getBuilderPrototype() {
+        return TermQueryBuilder.PROTOTYPE;
     }
 }

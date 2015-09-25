@@ -75,7 +75,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "New York")
                 .startObject("location").field("lat", 40.7143528).field("lon", -74.0059731).endObject()
-                .endObject()), 
+                .endObject()),
         // to NY: 5.286 km
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("name", "Times Square")
@@ -171,7 +171,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         }
 
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoDistanceRangeQuery("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731))
+                .setQuery(geoDistanceRangeQuery("location", 40.7143528, -74.0059731).from("1.0km").to("2.0km"))
                 .execute().actionGet();
         assertHitCount(searchResponse, 2);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
@@ -179,7 +179,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             assertThat(hit.id(), anyOf(equalTo("4"), equalTo("5")));
         }
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoDistanceRangeQuery("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731).optimizeBbox("indexed"))
+                .setQuery(geoDistanceRangeQuery("location", 40.7143528, -74.0059731).from("1.0km").to("2.0km").optimizeBbox("indexed"))
                 .execute().actionGet();
         assertHitCount(searchResponse, 2);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
@@ -188,13 +188,13 @@ public class GeoDistanceIT extends ESIntegTestCase {
         }
 
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoDistanceRangeQuery("location").to("2.0km").point(40.7143528, -74.0059731))
+                .setQuery(geoDistanceRangeQuery("location", 40.7143528, -74.0059731).to("2.0km"))
                 .execute().actionGet();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
 
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoDistanceRangeQuery("location").from("2.0km").point(40.7143528, -74.0059731))
+                .setQuery(geoDistanceRangeQuery("location", 40.7143528, -74.0059731).from("2.0km"))
                 .execute().actionGet();
         assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
@@ -394,7 +394,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         // Doc with missing geo point is first, is consistent with 0.20.x
         assertHitCount(searchResponse, 2);
-        assertOrderedSearchHits(searchResponse, "2", "1");        
+        assertOrderedSearchHits(searchResponse, "2", "1");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5286d, 10d));
     }
@@ -508,7 +508,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .startObject("location").field("lat", 40.7143528).field("lon", -74.0059731).endObject()
                     .endObject()
                 .endArray()
-                .endObject()), 
+                .endObject()),
         client().prepareIndex("companies", "company", "2").setSource(jsonBuilder().startObject()
                 .field("name", "company 2")
                 .startArray("branches")
@@ -641,7 +641,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                 RestStatus.BAD_REQUEST,
                 containsString("sort_mode [sum] isn't supported for sorting by geo distance"));
     }
-    
+
     /**
      * Issue 3073
      */
@@ -681,12 +681,12 @@ public class GeoDistanceIT extends ESIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(QueryBuilders.geoDistanceQuery("pin")
                         .geoDistance(GeoDistance.ARC)
-                        .lat(lat).lon(lon)
+                        .point(lat, lon)
                         .distance("1m"))
                 .execute().actionGet();
 
         assertHitCount(result, 1);
-    } 
+    }
 
     private double randomLon() {
         return randomDouble() * 360 - 180;

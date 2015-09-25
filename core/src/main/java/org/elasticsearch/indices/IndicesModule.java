@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
 import org.elasticsearch.index.query.MoreLikeThisQueryParser;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
@@ -110,6 +111,7 @@ public class IndicesModule extends AbstractModule {
         registerQueryParser(NotQueryParser.class);
         registerQueryParser(ExistsQueryParser.class);
         registerQueryParser(MissingQueryParser.class);
+        registerQueryParser(MatchNoneQueryParser.class);
 
         if (ShapesAvailability.JTS_AVAILABLE) {
             registerQueryParser(GeoShapeQueryParser.class);
@@ -147,6 +149,7 @@ public class IndicesModule extends AbstractModule {
         bind(UpdateHelper.class).asEagerSingleton();
         bind(MetaDataIndexUpgradeService.class).asEagerSingleton();
         bind(IndicesFieldDataCacheListener.class).asEagerSingleton();
+        bind(TermVectorsService.class).asEagerSingleton();
     }
 
     protected void bindQueryParsersExtension() {

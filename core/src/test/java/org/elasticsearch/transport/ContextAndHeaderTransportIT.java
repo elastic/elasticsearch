@@ -54,11 +54,11 @@ import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.TermsLookupQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
@@ -161,7 +161,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
                 .setSource(jsonBuilder().startObject().field("username", "foo").endObject()).get();
         transportClient().admin().indices().prepareRefresh(queryIndex, lookupIndex).get();
 
-        TermsLookupQueryBuilder termsLookupFilterBuilder = QueryBuilders.termsLookupQuery("username").lookupIndex(lookupIndex).lookupType("type").lookupId("1").lookupPath("followers");
+        TermsQueryBuilder termsLookupFilterBuilder = QueryBuilders.termsLookupQuery("username", new TermsLookup(lookupIndex, "type", "1", "followers"));
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(termsLookupFilterBuilder);
 
         SearchResponse searchResponse = transportClient()
@@ -229,8 +229,8 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
                 .get();
         transportClient().admin().indices().prepareRefresh(lookupIndex, queryIndex).get();
 
-        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = QueryBuilders.moreLikeThisQuery("name")
-                .addLikeItem(new Item(lookupIndex, "type", "1"))
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"name"}, null,
+                new Item[] {new Item(lookupIndex, "type", "1")})
                 .minTermFreq(1)
                 .minDocFreq(1);
 

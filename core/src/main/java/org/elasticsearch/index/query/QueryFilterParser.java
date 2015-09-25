@@ -19,29 +19,28 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
-
 import java.io.IOException;
 
+/**
+ * Parser for query filter
+ * @deprecated use any query instead directly, possible since queries and filters are merged.
+ */
 // TODO: remove when https://github.com/elastic/elasticsearch/issues/13326 is fixed
 @Deprecated
-public class QueryFilterParser implements QueryParser {
-
-    public static final String NAME = "query";
-
-    @Inject
-    public QueryFilterParser() {
-    }
+public class QueryFilterParser implements QueryParser<QueryFilterBuilder> {
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{QueryFilterBuilder.NAME};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
-        return parseContext.parseInnerQuery();
+    public QueryFilterBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        return new QueryFilterBuilder(parseContext.parseInnerQueryBuilder());
+    }
+
+    @Override
+    public QueryFilterBuilder getBuilderPrototype() {
+        return QueryFilterBuilder.PROTOTYPE;
     }
 }

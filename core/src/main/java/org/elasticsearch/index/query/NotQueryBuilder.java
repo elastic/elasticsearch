@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -27,29 +31,69 @@ import java.util.Objects;
 /**
  * A filter that matches documents matching boolean combinations of other filters.
  */
-public class NotQueryBuilder extends QueryBuilder {
+public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
+
+    public static final String NAME = "not";
 
     private final QueryBuilder filter;
 
-    private String queryName;
+    static final NotQueryBuilder PROTOTYPE = new NotQueryBuilder(EmptyQueryBuilder.PROTOTYPE);
 
     public NotQueryBuilder(QueryBuilder filter) {
-        this.filter = Objects.requireNonNull(filter);
+        if (filter == null) {
+            throw new IllegalArgumentException("inner filter cannot be null");
+        }
+        this.filter = filter;
     }
 
-    public NotQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    /**
+     * @return the query added to "not".
+     */
+    public QueryBuilder innerQuery() {
+        return this.filter;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NotQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("query");
         filter.toXContent(builder, params);
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        Query luceneQuery = filter.toFilter(context);
+        if (luceneQuery == null) {
+            return null;
+        }
+        return Queries.not(luceneQuery);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(filter);
+    }
+
+    @Override
+    protected boolean doEquals(NotQueryBuilder other) {
+        return Objects.equals(filter, other.filter);
+    }
+
+    @Override
+    protected NotQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        QueryBuilder queryBuilder = in.readQuery();
+        return new NotQueryBuilder(queryBuilder);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(filter);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

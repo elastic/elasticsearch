@@ -90,10 +90,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -690,7 +689,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertTrue(postIndexWithExceptionCalled.get());
     }
 
-
     public void testMaybeFlush() throws Exception {
         createIndex("test", settingsBuilder().put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.REQUEST).build());
         ensureGreen();
@@ -713,11 +711,14 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(0, shard.engine().getTranslog().totalOperations());
         shard.engine().getTranslog().sync();
         long size = shard.engine().getTranslog().sizeInBytes();
+        logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]", shard.engine().getTranslog().sizeInBytes(), shard.engine().getTranslog().totalOperations(), shard.engine().getTranslog().getGeneration());
         client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, 1000)
                 .put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(size, ByteSizeUnit.BYTES))
                 .build()).get();
         client().prepareDelete("test", "test", "2").get();
+        logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]", shard.engine().getTranslog().sizeInBytes(), shard.engine().getTranslog().totalOperations(), shard.engine().getTranslog().getGeneration());
         assertBusy(() -> { // this is async
+            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]", shard.engine().getTranslog().sizeInBytes(), shard.engine().getTranslog().totalOperations(), shard.engine().getTranslog().getGeneration());
             assertFalse(shard.shouldFlush());
         });
         assertEquals(0, shard.engine().getTranslog().totalOperations());

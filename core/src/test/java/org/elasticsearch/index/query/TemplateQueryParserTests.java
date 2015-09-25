@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
@@ -55,6 +56,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.lang.reflect.Proxy;
 
 /**
  * Test parsing and executing a template request.
@@ -63,7 +65,7 @@ import java.io.IOException;
 public class TemplateQueryParserTests extends ESTestCase {
 
     private Injector injector;
-    private QueryParseContext context;
+    private QueryShardContext context;
 
     @Before
     public void setup() throws IOException {
@@ -73,7 +75,11 @@ public class TemplateQueryParserTests extends ESTestCase {
                 .put("name", getClass().getName())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-
+        final Client proxy = (Client) Proxy.newProxyInstance(
+                Client.class.getClassLoader(),
+                new Class[]{Client.class}, (proxy1, method, args) -> {
+                    throw new UnsupportedOperationException("client is just a dummy");
+                });
         Index index = new Index("test");
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
@@ -95,6 +101,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                 new AbstractModule() {
                     @Override
                     protected void configure() {
+                        bind(Client.class).toInstance(proxy); // not needed here
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
@@ -103,7 +110,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         ).createInjector();
 
         IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
-        context = new QueryParseContext(index, queryParserService);
+        context = new QueryShardContext(index, queryParserService);
     }
 
     @Override
@@ -122,7 +129,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         templateSourceParser.nextToken();
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        Query query = parser.parse(context);
+        Query query = parser.fromXContent(context.parseContext()).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 
@@ -134,7 +141,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         context.reset(templateSourceParser);
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        Query query = parser.parse(context);
+        Query query = parser.fromXContent(context.parseContext()).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 
@@ -152,7 +159,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         context.reset(templateSourceParser);
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        parser.parse(context);
+        parser.fromXContent(context.parseContext()).toQuery(context);
     }
 
     @Test
@@ -164,7 +171,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         templateSourceParser.nextToken();
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        Query query = parser.parse(context);
+        Query query = parser.fromXContent(context.parseContext()).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 }

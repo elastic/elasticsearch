@@ -20,6 +20,7 @@ package org.elasticsearch.search.functionscore;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -104,7 +105,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
     public void testScoreAccessWithinScript() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", "body", "type=string", "index",
-                "type=" + randomFrom(new String[] { "short", "float", "long", "integer", "double" })));
+                "type=" + randomFrom("short", "float", "long", "integer", "double")));
         ensureYellow();
 
         int docCount = randomIntBetween(100, 200);
@@ -120,9 +121,10 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         SearchResponse resp = client()
                 .prepareSearch("test")
                 .setQuery(
-                        functionScoreQuery(matchQuery("body", "foo")).add(fieldValueFactorFunction("index").factor(2)).add(
-                                scriptFunction(new Script("log(doc['index'].value + (factor * _score))", ScriptType.INLINE, null, params))))
-                .get();
+                        functionScoreQuery(matchQuery("body", "foo"), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
+                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(new Script("log(doc['index'].value + (factor * _score))", ScriptType.INLINE, null, params)))
+                        })).get();
         assertNoFailures(resp);
         SearchHit firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getScore(), greaterThan(1f));
@@ -131,9 +133,10 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         resp = client()
                 .prepareSearch("test")
                 .setQuery(
-                        functionScoreQuery(matchQuery("body", "foo")).add(fieldValueFactorFunction("index").factor(2)).add(
-                                scriptFunction(new Script("log(doc['index'].value + (factor * _score.intValue()))", ScriptType.INLINE,
-                                        null, params)))).get();
+                        functionScoreQuery(matchQuery("body", "foo"), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
+                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(new Script("log(doc['index'].value + (factor * _score.intValue()))", ScriptType.INLINE, null, params)))
+                        })).get();
         assertNoFailures(resp);
         firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getScore(), greaterThan(1f));
@@ -142,9 +145,10 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         resp = client()
                 .prepareSearch("test")
                 .setQuery(
-                        functionScoreQuery(matchQuery("body", "foo")).add(fieldValueFactorFunction("index").factor(2)).add(
-                                scriptFunction(new Script("log(doc['index'].value + (factor * _score.longValue()))", ScriptType.INLINE,
-                                        null, params)))).get();
+                        functionScoreQuery(matchQuery("body", "foo"), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
+                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(new Script("log(doc['index'].value + (factor * _score.longValue()))", ScriptType.INLINE, null, params)))
+                        })).get();
         assertNoFailures(resp);
         firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getScore(), greaterThan(1f));
@@ -153,9 +157,11 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         resp = client()
                 .prepareSearch("test")
                 .setQuery(
-                        functionScoreQuery(matchQuery("body", "foo")).add(fieldValueFactorFunction("index").factor(2)).add(
-                                scriptFunction(new Script("log(doc['index'].value + (factor * _score.floatValue()))", ScriptType.INLINE,
-                                        null, params)))).get();
+                        functionScoreQuery(matchQuery("body", "foo"), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
+                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(new Script("log(doc['index'].value + (factor * _score.floatValue()))",
+                                        ScriptType.INLINE, null, params)))
+                        })).get();
         assertNoFailures(resp);
         firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getScore(), greaterThan(1f));
@@ -164,9 +170,11 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         resp = client()
                 .prepareSearch("test")
                 .setQuery(
-                        functionScoreQuery(matchQuery("body", "foo")).add(fieldValueFactorFunction("index").factor(2)).add(
-                                scriptFunction(new Script("log(doc['index'].value + (factor * _score.doubleValue()))", ScriptType.INLINE,
-                                        null, params)))).get();
+                        functionScoreQuery(matchQuery("body", "foo"), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
+                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(new Script("log(doc['index'].value + (factor * _score.doubleValue()))",
+                                                ScriptType.INLINE, null, params)))
+                                })).get();
         assertNoFailures(resp);
         firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getScore(), greaterThan(1f));

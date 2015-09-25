@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.query.functionscore.weight;
 
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 
 import java.io.IOException;
@@ -28,7 +31,7 @@ import java.io.IOException;
 /**
  * A query that multiplies the weight to the score.
  */
-public class WeightBuilder extends ScoreFunctionBuilder {
+public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
 
     @Override
     public String getName() {
@@ -37,5 +40,31 @@ public class WeightBuilder extends ScoreFunctionBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+
+    }
+
+    @Override
+    protected WeightBuilder doReadFrom(StreamInput in) throws IOException {
+        return new WeightBuilder();
+    }
+
+    @Override
+    protected boolean doEquals(WeightBuilder functionBuilder) {
+        return true;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return 0;
+    }
+
+    @Override
+    protected ScoreFunction doToFunction(QueryShardContext context) throws IOException {
+        //nothing to do here, weight will be applied by the parent class, no score function
+        return null;
     }
 }

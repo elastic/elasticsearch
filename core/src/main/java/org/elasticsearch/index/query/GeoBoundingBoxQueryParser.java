@@ -19,57 +19,54 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
-import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxQuery;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class GeoBoundingBoxQueryParser implements QueryParser {
+public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQueryBuilder> {
 
     public static final String NAME = "geo_bbox";
 
+    /** Key to refer to the top of the bounding box. */
     public static final String TOP = "top";
+    /** Key to refer to the left of the bounding box. */
     public static final String LEFT = "left";
+    /** Key to refer to the right of the bounding box. */
     public static final String RIGHT = "right";
+    /** Key to refer to the bottom of the bounding box. */
     public static final String BOTTOM = "bottom";
 
+    /** Key to refer to top_left corner of bounding box. */
     public static final String TOP_LEFT = TOP + "_" + LEFT;
-    public static final String TOP_RIGHT = TOP + "_" + RIGHT;
-    public static final String BOTTOM_LEFT = BOTTOM + "_" + LEFT;
+    /** Key to refer to bottom_right corner of bounding box. */
     public static final String BOTTOM_RIGHT = BOTTOM + "_" + RIGHT;
+    /** Key to refer to top_right corner of bounding box. */
+    public static final String TOP_RIGHT = TOP + "_" + RIGHT;
+    /** Key to refer to bottom left corner of bounding box.  */
+    public static final String BOTTOM_LEFT = BOTTOM + "_" + LEFT;
 
+    /** Key to refer to top_left corner of bounding box. */
     public static final String TOPLEFT = "topLeft";
-    public static final String TOPRIGHT = "topRight";
-    public static final String BOTTOMLEFT = "bottomLeft";
+    /** Key to refer to bottom_right corner of bounding box. */
     public static final String BOTTOMRIGHT = "bottomRight";
+    /** Key to refer to top_right corner of bounding box. */
+    public static final String TOPRIGHT = "topRight";
+    /** Key to refer to bottom left corner of bounding box.  */
+    public static final String BOTTOMLEFT = "bottomLeft";
 
     public static final String FIELD = "field";
 
-    @Inject
-    public GeoBoundingBoxQueryParser() {
-    }
-
     @Override
     public String[] names() {
-        return new String[]{NAME, "geoBbox", "geo_bounding_box", "geoBoundingBox"};
+        return new String[]{GeoBoundingBoxQueryBuilder.NAME, "geoBbox", "geo_bounding_box", "geoBoundingBox"};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
+    public GeoBoundingBoxQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -78,16 +75,17 @@ public class GeoBoundingBoxQueryParser implements QueryParser {
         double bottom = Double.NaN;
         double left = Double.NaN;
         double right = Double.NaN;
-        
+
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
-        final boolean indexCreatedBeforeV2_0 = parseContext.indexVersionCreated().before(Version.V_2_0_0);
-        boolean coerce = false;
-        boolean ignoreMalformed = false;
+        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        GeoValidationMethod validationMethod = null;
 
         GeoPoint sparse = new GeoPoint();
-        
+
         String type = "memory";
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -140,74 +138,43 @@ public class GeoBoundingBoxQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
-                } else if ("coerce".equals(currentFieldName) || (indexCreatedBeforeV2_0 && "normalize".equals(currentFieldName))) {
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else if ("coerce".equals(currentFieldName) || ("normalize".equals(currentFieldName))) {
                     coerce = parser.booleanValue();
-                    if (coerce == true) {
+                    if (coerce) {
                         ignoreMalformed = true;
                     }
+                } else if ("validation_method".equals(currentFieldName)) {
+                    validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else if ("type".equals(currentFieldName)) {
                     type = parser.text();
-                } else if ("ignore_malformed".equals(currentFieldName) && coerce == false) {
+                } else if ("ignore_malformed".equals(currentFieldName)) {
                     ignoreMalformed = parser.booleanValue();
                 } else {
-                    throw new ParsingException(parseContext, "failed to parse [{}] query. unexpected field [{}]", NAME, currentFieldName);
+                    throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]", NAME, currentFieldName);
                 }
             }
         }
 
         final GeoPoint topLeft = sparse.reset(top, left);  //just keep the object
         final GeoPoint bottomRight = new GeoPoint(bottom, right);
-
-        // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
-        if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
-            if (topLeft.lat() > 90.0 || topLeft.lat() < -90.0) {
-                throw new ParsingException(parseContext, "illegal latitude value [{}] for [{}]", topLeft.lat(), NAME);
-            }
-            if (topLeft.lon() > 180.0 || topLeft.lon() < -180) {
-                throw new ParsingException(parseContext, "illegal longitude value [{}] for [{}]", topLeft.lon(), NAME);
-            }
-            if (bottomRight.lat() > 90.0 || bottomRight.lat() < -90.0) {
-                throw new ParsingException(parseContext, "illegal latitude value [{}] for [{}]", bottomRight.lat(), NAME);
-            }
-            if (bottomRight.lon() > 180.0 || bottomRight.lon() < -180) {
-                throw new ParsingException(parseContext, "illegal longitude value [{}] for [{}]", bottomRight.lon(), NAME);
-            }
-        }
-
-        if (coerce) {
-            // Special case: if the difference between the left and right is 360 and the right is greater than the left, we are asking for
-            // the complete longitude range so need to set longitude to the complete longditude range
-            boolean completeLonRange = ((right - left) % 360 == 0 && right > left);
-            GeoUtils.normalizePoint(topLeft, true, !completeLonRange);
-            GeoUtils.normalizePoint(bottomRight, true, !completeLonRange);
-            if (completeLonRange) {
-                topLeft.resetLon(-180);
-                bottomRight.resetLon(180);
-            }
-        }
-
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
-        if (fieldType == null) {
-            throw new ParsingException(parseContext, "failed to parse [{}] query. could not find [{}] field [{}]", NAME, GeoPointFieldMapper.CONTENT_TYPE, fieldName);
-        }
-        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new ParsingException(parseContext, "failed to parse [{}] query. field [{}] is expected to be of type [{}], but is of [{}] type instead", NAME, fieldName, GeoPointFieldMapper.CONTENT_TYPE, fieldType.typeName());
-        }
-        GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
-
-        Query filter;
-        if ("indexed".equals(type)) {
-            filter = IndexedGeoBoundingBoxQuery.create(topLeft, bottomRight, geoFieldType);
-        } else if ("memory".equals(type)) {
-            IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
-            filter = new InMemoryGeoBoundingBoxQuery(topLeft, bottomRight, indexFieldData);
+        GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
+        builder.setCorners(topLeft, bottomRight);
+        builder.queryName(queryName);
+        builder.boost(boost);
+        builder.type(GeoExecType.fromString(type));
+        if (validationMethod != null) {
+            // ignore deprecated coerce/ignoreMalformed settings if validationMethod is set
+            builder.setValidationMethod(validationMethod);
         } else {
-            throw new ParsingException(parseContext, "failed to parse [{}] query. geo bounding box type [{}] is not supported. either [indexed] or [memory] are allowed", NAME, type);
+            builder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
         }
+        return builder;
+    }
 
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, filter);
-        }
-        return filter;
-    }    
+    @Override
+    public GeoBoundingBoxQueryBuilder getBuilderPrototype() {
+        return GeoBoundingBoxQueryBuilder.PROTOTYPE;
+    }
 }

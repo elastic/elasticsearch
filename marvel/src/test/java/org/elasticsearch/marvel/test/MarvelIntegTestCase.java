@@ -62,9 +62,8 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 // we do this by default in core, but for marvel this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false);
 
-        if (shieldEnabled) {
-            ShieldSettings.apply(builder);
-        }
+        ShieldSettings.apply(shieldEnabled, builder);
+
         return builder.build();
     }
 
@@ -97,7 +96,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
      * Override and returns {@code false} to force running without shield
      */
     protected boolean enableShield() {
-        return true; //randomBoolean();
+        return randomBoolean();
     }
 
     protected void stopCollection() {
@@ -292,7 +291,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 ;
 
 
-        public static void apply(Settings.Builder builder)  {
+        public static void apply(boolean enabled, Settings.Builder builder)  {
+            if (!enabled) {
+                builder.put("shield.enabled", false);
+                return;
+            }
             try {
                 Path folder = createTempDir().resolve("marvel_shield");
                 Files.createDirectories(folder);

@@ -245,16 +245,16 @@ public class ByteSizeValue implements Streamable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         ByteSizeValue sizeValue = (ByteSizeValue) o;
 
-        if (sizeUnit == sizeValue.sizeUnit) {
-            return size == sizeValue.size;
-        } else {
-            return bytes() == sizeValue.bytes();
-        }
+        return bytes() == sizeValue.bytes();
     }
 
     @Override

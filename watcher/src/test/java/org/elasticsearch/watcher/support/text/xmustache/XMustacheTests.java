@@ -94,14 +94,22 @@ public class XMustacheTests extends ESTestCase {
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
                 new Map[] { ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar") },
-                Arrays.asList(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")),
-                newHashSet(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")));
+                Arrays.asList(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")));
         vars.put("data", data);
         Object output = engine.execute(mustache, vars);
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         BytesReference bytes = (BytesReference) output;
         assertThat(bytes.toUtf8(), equalTo("foo bar"));
+
+        // HashSet iteration order isn't fixed
+        vars.put("data", newHashSet(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")));
+        output = engine.execute(mustache, vars);
+        assertThat(output, notNullValue());
+        assertThat(output, instanceOf(BytesReference.class));
+        bytes = (BytesReference) output;
+        assertThat(bytes.toUtf8(), both(containsString("foo")).and(containsString("bar")));
+
     }
 
     @Test

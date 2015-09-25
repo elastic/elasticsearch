@@ -28,7 +28,6 @@ import org.elasticsearch.marvel.shield.SecuredClient;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
-import static org.elasticsearch.marvel.agent.exporter.http.HttpExporter.MIN_SUPPORTED_TEMPLATE_VERSION;
 import static org.elasticsearch.marvel.agent.exporter.http.HttpExporterUtils.MARVEL_VERSION_FIELD;
 
 /**

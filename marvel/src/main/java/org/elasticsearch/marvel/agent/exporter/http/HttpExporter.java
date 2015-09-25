@@ -65,9 +65,6 @@ public class HttpExporter extends Exporter {
     public static final String SSL_TRUSTSTORE_ALGORITHM_SETTING = SSL_SETTING + ".truststore.algorithm";
     public static final String SSL_HOSTNAME_VERIFICATION_SETTING = SSL_SETTING + ".hostname_verification";
 
-    /** Minimum supported version of the remote template **/
-    public static final Version MIN_SUPPORTED_TEMPLATE_VERSION = Version.V_2_0_0_beta2;
-
     /** Minimum supported version of the remote marvel cluster **/
     public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_2_0_0_beta2;
 

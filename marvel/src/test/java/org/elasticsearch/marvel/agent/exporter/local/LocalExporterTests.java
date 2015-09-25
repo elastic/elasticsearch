@@ -46,7 +46,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.marvel.agent.exporter.http.HttpExporter.MIN_SUPPORTED_TEMPLATE_VERSION;
+import static org.elasticsearch.marvel.agent.exporter.Exporter.MIN_SUPPORTED_TEMPLATE_VERSION;
 import static org.elasticsearch.marvel.agent.exporter.http.HttpExporterUtils.MARVEL_VERSION_FIELD;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;

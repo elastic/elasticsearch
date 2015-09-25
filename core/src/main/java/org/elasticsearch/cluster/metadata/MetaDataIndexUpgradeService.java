@@ -182,11 +182,15 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      */
     private static boolean isSupportedVersion(IndexMetaData indexMetaData) {
         if (indexMetaData.creationVersion().onOrAfter(Version.V_2_0_0_beta1)) {
-            // The index was created with elasticsearch that was using Lucene 4.0
+            // The index was created with elasticsearch that was using Lucene 5.2.1
             return true;
         }
+        if (indexMetaData.getUpgradeVersion().onOrAfter(Version.V_2_0_0_beta1) == false) {
+            // early terminate if we are not upgrade - we don't even need to look at the segment version
+            return false;
+        }
         if (indexMetaData.getMinimumCompatibleVersion() != null &&
-                indexMetaData.getMinimumCompatibleVersion().onOrAfter(org.apache.lucene.util.Version.LUCENE_4_0_0)) {
+                indexMetaData.getMinimumCompatibleVersion().onOrAfter(org.apache.lucene.util.Version.LUCENE_5_0_0)) {
             //The index was upgraded we can work with it
             return true;
         }

@@ -40,7 +40,7 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.termvectors.ShardTermVectorsService;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
@@ -62,7 +62,7 @@ public final class ShadowIndexShard extends IndexShard {
                             ThreadPool threadPool, MapperService mapperService,
                             IndexQueryParserService queryParserService, IndexCache indexCache,
                             IndexAliasesService indexAliasesService, IndicesQueryCache indicesQueryCache,
-                            CodecService codecService, ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
+                            CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
                             IndexService indexService, @Nullable IndicesWarmer warmer,
                             SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
                             EngineFactory factory, ClusterService clusterService,

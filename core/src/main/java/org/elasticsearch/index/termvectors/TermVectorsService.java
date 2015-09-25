@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -42,10 +43,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
@@ -56,27 +54,20 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
 /**
  */
 
-public class ShardTermVectorsService extends AbstractIndexShardComponent {
+public class TermVectorsService  {
 
-    private IndexShard indexShard;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final TransportDfsOnlyAction dfsAction;
 
     @Inject
-    public ShardTermVectorsService(ShardId shardId, @IndexSettings Settings indexSettings, MappingUpdatedAction mappingUpdatedAction, TransportDfsOnlyAction dfsAction) {
-        super(shardId, indexSettings);
+    public TermVectorsService(MappingUpdatedAction mappingUpdatedAction, TransportDfsOnlyAction dfsAction) {
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.dfsAction = dfsAction;
     }
 
-    // sadly, to overcome cyclic dep, we need to do this and inject it ourselves...
-    public ShardTermVectorsService setIndexShard(IndexShard indexShard) {
-        this.indexShard = indexShard;
-        return this;
-    }
 
-    public TermVectorsResponse getTermVectors(TermVectorsRequest request, String concreteIndex) {
-        final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(concreteIndex, request.type(), request.id());
+    public TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request) {
+        final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().index().name(), request.type(), request.id());
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
 
         Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), uidTerm).version(request.version()).versionType(request.versionType()));
@@ -94,7 +85,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
 
         /* handle potential wildcards in fields */
         if (request.selectedFields() != null) {
-            handleFieldWildcards(request);
+            handleFieldWildcards(indexShard, request);
         }
 
         final Engine.Searcher searcher = indexShard.acquireSearcher("term_vector");
@@ -103,7 +94,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
             Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {
-                termVectorsByField = generateTermVectorsFromDoc(request, !docFromTranslog);
+                termVectorsByField = generateTermVectorsFromDoc(indexShard, request, !docFromTranslog);
                 // if no document indexed in shard, take the queried document itself for stats
                 if (topLevelFields == null) {
                     topLevelFields = termVectorsByField;
@@ -122,7 +113,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
                 }
                 // fields without term vectors
                 if (selectedFields != null) {
-                    termVectorsByField = addGeneratedTermVectors(get, termVectorsByField, request, selectedFields);
+                    termVectorsByField = addGeneratedTermVectors(indexShard, get, termVectorsByField, request, selectedFields);
                 }
                 termVectorsResponse.setDocVersion(docIdAndVersion.version);
                 termVectorsResponse.setExists(true);
@@ -158,7 +149,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         return termVectorsResponse;
     }
 
-    private void handleFieldWildcards(TermVectorsRequest request) {
+    private void handleFieldWildcards(IndexShard indexShard, TermVectorsRequest request) {
         Set<String> fieldNames = new HashSet<>();
         for (String pattern : request.selectedFields()) {
             fieldNames.addAll(indexShard.mapperService().simpleMatchToIndexNames(pattern));
@@ -178,7 +169,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         return true;
     }
 
-    private Fields addGeneratedTermVectors(Engine.GetResult get, Fields termVectorsByField, TermVectorsRequest request, Set<String> selectedFields) throws IOException {
+    private Fields addGeneratedTermVectors(IndexShard indexShard, Engine.GetResult get, Fields termVectorsByField, TermVectorsRequest request, Set<String> selectedFields) throws IOException {
         /* only keep valid fields */
         Set<String> validFields = new HashSet<>();
         for (String field : selectedFields) {
@@ -201,7 +192,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         /* generate term vectors from fetched document fields */
         GetResult getResult = indexShard.getService().get(
                 get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null, false);
-        Fields generatedTermVectors = generateTermVectors(getResult.getFields().values(), request.offsets(), request.perFieldAnalyzer(), validFields);
+        Fields generatedTermVectors = generateTermVectors(indexShard, getResult.getFields().values(), request.offsets(), request.perFieldAnalyzer(), validFields);
 
         /* merge with existing Fields */
         if (termVectorsByField == null) {
@@ -211,7 +202,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         }
     }
 
-    private Analyzer getAnalyzerAtField(String field, @Nullable Map<String, String> perFieldAnalyzer) {
+    private Analyzer getAnalyzerAtField(IndexShard indexShard, String field, @Nullable Map<String, String> perFieldAnalyzer) {
         MapperService mapperService = indexShard.mapperService();
         Analyzer analyzer;
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
@@ -235,7 +226,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         return selectedFields;
     }
 
-    private Fields generateTermVectors(Collection<GetField> getFields, boolean withOffsets, @Nullable Map<String, String> perFieldAnalyzer, Set<String> fields)
+    private Fields generateTermVectors(IndexShard indexShard, Collection<GetField> getFields, boolean withOffsets, @Nullable Map<String, String> perFieldAnalyzer, Set<String> fields)
             throws IOException {
         /* store document in memory index */
         MemoryIndex index = new MemoryIndex(withOffsets);
@@ -245,7 +236,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
                 // some fields are returned even when not asked for, eg. _timestamp
                 continue;
             }
-            Analyzer analyzer = getAnalyzerAtField(field, perFieldAnalyzer);
+            Analyzer analyzer = getAnalyzerAtField(indexShard, field, perFieldAnalyzer);
             for (Object text : getField.getValues()) {
                 index.addField(field, text.toString(), analyzer);
             }
@@ -254,9 +245,9 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         return MultiFields.getFields(index.createSearcher().getIndexReader());
     }
 
-    private Fields generateTermVectorsFromDoc(TermVectorsRequest request, boolean doAllFields) throws Throwable {
+    private Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request, boolean doAllFields) throws Throwable {
         // parse the document, at the moment we do update the mapping, just like percolate
-        ParsedDocument parsedDocument = parseDocument(indexShard.shardId().getIndex(), request.type(), request.doc());
+        ParsedDocument parsedDocument = parseDocument(indexShard, indexShard.shardId().getIndex(), request.type(), request.doc());
 
         // select the right fields and generate term vectors
         ParseContext.Document doc = parsedDocument.rootDoc();
@@ -282,10 +273,10 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
             String[] values = doc.getValues(field.name());
             getFields.add(new GetField(field.name(), Arrays.asList((Object[]) values)));
         }
-        return generateTermVectors(getFields, request.offsets(), request.perFieldAnalyzer(), seenFields);
+        return generateTermVectors(indexShard, getFields, request.offsets(), request.perFieldAnalyzer(), seenFields);
     }
 
-    private ParsedDocument parseDocument(String index, String type, BytesReference doc) throws Throwable {
+    private ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc) throws Throwable {
         MapperService mapperService = indexShard.mapperService();
 
         // TODO: make parsing not dynamically create fields not in the original mapping

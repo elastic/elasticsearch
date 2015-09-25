@@ -7,6 +7,7 @@ package org.elasticsearch.marvel;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
@@ -18,7 +19,6 @@ import org.elasticsearch.marvel.agent.exporter.ExporterModule;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.renderer.RendererModule;
 import org.elasticsearch.marvel.agent.settings.MarvelModule;
-import org.elasticsearch.marvel.agent.settings.MarvelSetting;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.license.LicenseService;
@@ -32,6 +32,7 @@ import org.elasticsearch.tribe.TribeService;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 public class MarvelPlugin extends Plugin {
 
@@ -110,9 +111,8 @@ public class MarvelPlugin extends Plugin {
 
     public void onModule(ClusterModule module) {
         Exporters.registerDynamicSettings(module);
-        // MarvelSettingsService
-        for (MarvelSetting setting : MarvelSettings.dynamicSettings()) {
-            module.registerClusterDynamicSetting(setting.dynamicSettingName(), setting.dynamicValidator());
+        for (Map.Entry<String, Validator> setting : MarvelSettings.dynamicSettings().entrySet()) {
+            module.registerClusterDynamicSetting(setting.getKey(), setting.getValue());
         }
     }
 }

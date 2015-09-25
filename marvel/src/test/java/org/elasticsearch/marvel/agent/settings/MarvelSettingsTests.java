@@ -8,16 +8,10 @@ package org.elasticsearch.marvel.agent.settings;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.plugin.LicensePlugin;
-import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
-
-import java.util.Arrays;
-import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
@@ -25,13 +19,13 @@ import static org.hamcrest.Matchers.*;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class MarvelSettingsTests extends MarvelIntegTestCase {
 
-    private final TimeValue startUp = randomParsedTimeValue();
-    private final TimeValue interval = randomParsedTimeValue();
-    private final TimeValue indexStatsTimeout = randomParsedTimeValue();
+    private final TimeValue startUp = newRandomTimeValue();
+    private final TimeValue interval = newRandomTimeValue();
+    private final TimeValue indexStatsTimeout = newRandomTimeValue();
     private final String[] indices = randomStringArray();
-    private final TimeValue clusterStateTimeout = randomParsedTimeValue();
-    private final TimeValue clusterStatsTimeout = randomParsedTimeValue();
-    private final TimeValue recoveryTimeout = randomParsedTimeValue();
+    private final TimeValue clusterStateTimeout = newRandomTimeValue();
+    private final TimeValue clusterStatsTimeout = newRandomTimeValue();
+    private final TimeValue recoveryTimeout = newRandomTimeValue();
     private final Boolean recoveryActiveOnly = randomBoolean();
     private final String[] collectors = randomStringArray();
     private final TimeValue licenseGracePeriod = randomExpirationDelay();
@@ -61,12 +55,7 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
     }
 
     @Test
-    public void testMarvelSettingService() throws Exception {
-        logger.info("--> printing marvel settings values");
-        for (MarvelSetting setting : MarvelSettings.settings()) {
-            logger.info("\t{}", setting);
-        }
-
+    public void testMarvelSettings() throws Exception {
         logger.info("--> testing marvel settings service initialization");
         for (final MarvelSettings marvelSettings : internalCluster().getInstances(MarvelSettings.class)) {
             assertThat(marvelSettings.startUpDelay().millis(), equalTo(startUp.millis()));
@@ -79,31 +68,37 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
             assertThat(marvelSettings.recoveryActiveOnly(), equalTo(recoveryActiveOnly));
             assertArrayEquals(marvelSettings.collectors(), collectors);
             assertThat(marvelSettings.licenseExpirationGracePeriod().millis(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(MarvelSettings.MAX_LICENSE_GRACE_PERIOD.millis())));
-
-            for (final MarvelSetting setting : MarvelSettings.dynamicSettings()) {
-                assertThat(marvelSettings.getSettingValue(setting.getName()), equalTo(setting.getValue()));
-            }
         }
 
         logger.info("--> testing marvel dynamic settings update");
-        for (final MarvelSetting setting : MarvelSettings.dynamicSettings()) {
+        for (String setting : MarvelSettings.dynamicSettings().keySet()) {
             Object updated = null;
             Settings.Builder transientSettings = Settings.builder();
-            if (setting instanceof MarvelSetting.TimeValueSetting) {
-                updated = randomParsedTimeValue();
-                transientSettings.put(setting.getName(), updated);
 
-            } else if (setting instanceof MarvelSetting.BooleanSetting) {
-                updated = randomBoolean();
-                transientSettings.put(setting.getName(), updated);
+            if (setting.endsWith(".*")) {
+                setting = setting.substring(0, setting.lastIndexOf('.'));
+            }
 
-            } else if (setting instanceof MarvelSetting.StringSetting) {
-                updated = randomAsciiOfLength(10);
-                transientSettings.put(setting.getName(), updated);
-
-            } else if (setting instanceof MarvelSetting.StringArraySetting) {
-                updated = randomStringArray();
-                transientSettings.putArray(setting.getName(), (String[]) updated);
+            switch (setting) {
+                case MarvelSettings.INTERVAL:
+                case MarvelSettings.INDEX_STATS_TIMEOUT:
+                case MarvelSettings.INDICES_STATS_TIMEOUT:
+                case MarvelSettings.CLUSTER_STATE_TIMEOUT:
+                case MarvelSettings.CLUSTER_STATS_TIMEOUT:
+                case MarvelSettings.INDEX_RECOVERY_TIMEOUT:
+                    updated = newRandomTimeValue();
+                    transientSettings.put(setting, updated);
+                    break;
+                case MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY:
+                    updated = randomBoolean();
+                    transientSettings.put(setting, updated);
+                    break;
+                case MarvelSettings.INDICES:
+                    updated = randomStringArray();
+                    transientSettings.putArray(setting, (String[]) updated);
+                    break;
+                default:
+                    fail("unknown dynamic setting [" + setting +"]");
             }
 
             logger.info("--> updating {} to value [{}]", setting, updated);
@@ -111,25 +106,28 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
 
             // checking that the value has been correctly updated on all marvel settings services
             final Object expected = updated;
+            final String finalSetting = setting;
             assertBusy(new Runnable() {
                 @Override
                 public void run() {
                     for (final MarvelSettings marvelSettings : internalCluster().getInstances(MarvelSettings.class)) {
-                        MarvelSetting current = marvelSettings.getSetting(setting.getName());
+                        MarvelSetting current = marvelSettings.getSetting(finalSetting);
                         Object value = current.getValue();
 
                         logger.info("--> {} in {}", current, marvelSettings);
-                        if (setting instanceof MarvelSetting.TimeValueSetting) {
+                        if (current instanceof MarvelSetting.TimeValueSetting) {
                             assertThat(((TimeValue) value).millis(), equalTo(((TimeValue) expected).millis()));
 
-                        } else if (setting instanceof MarvelSetting.BooleanSetting) {
+                        } else if (current instanceof MarvelSetting.BooleanSetting) {
                             assertThat((Boolean) value, equalTo((Boolean) expected));
 
-                        } else if (setting instanceof MarvelSetting.StringSetting) {
+                        } else if (current instanceof MarvelSetting.StringSetting) {
                             assertThat((String) value, equalTo((String) expected));
 
-                        } else if (setting instanceof MarvelSetting.StringArraySetting) {
+                        } else if (current instanceof MarvelSetting.StringArraySetting) {
                             assertArrayEquals((String[]) value, (String[]) expected);
+                        } else {
+                            fail("unable to check value for unknown dynamic setting [" + finalSetting + "]");
                         }
                     }
                 }
@@ -147,7 +145,7 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
         return requestBuilder;
     }
 
-    private TimeValue randomParsedTimeValue() {
+    private TimeValue newRandomTimeValue() {
         return TimeValue.parseTimeValue(randomFrom("30m", "1h", "3h", "5h", "7h", "10h", "1d"), null, getClass().getSimpleName());
     }
 
@@ -162,6 +160,6 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
     }
 
     private TimeValue randomExpirationDelay() {
-        return randomBoolean() ? randomParsedTimeValue() : TimeValue.timeValueHours(randomIntBetween(-10, 10) * 24);
+        return randomBoolean() ? newRandomTimeValue() : TimeValue.timeValueHours(randomIntBetween(-10, 10) * 24);
     }
 }

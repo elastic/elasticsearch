@@ -23,9 +23,8 @@ public class MarvelSettingTests extends ESTestCase {
         if (randomBoolean()) {
             defaultValue = randomBoolean();
         }
-        boolean dynamic = randomBoolean();
 
-        MarvelSetting.BooleanSetting setting = MarvelSetting.booleanSetting(name, defaultValue, description, dynamic);
+        MarvelSetting.BooleanSetting setting = MarvelSetting.booleanSetting(name, defaultValue, description);
         assertThat(setting.getName(), equalTo(name));
         assertThat(setting.getDescription(), equalTo(description));
         assertThat(setting.getValue(), equalTo(defaultValue));
@@ -43,11 +42,10 @@ public class MarvelSettingTests extends ESTestCase {
         String description = randomAsciiOfLength(20);
         TimeValue defaultValue = null;
         if (randomBoolean()) {
-            defaultValue = randomParsedTimeValue();
+            defaultValue = newRandomTimeValue();
         }
-        boolean dynamic = randomBoolean();
 
-        MarvelSetting.TimeValueSetting setting = MarvelSetting.timeSetting(name, defaultValue, description, dynamic);
+        MarvelSetting.TimeValueSetting setting = MarvelSetting.timeSetting(name, defaultValue, description);
         assertThat(setting.getName(), equalTo(name));
         assertThat(setting.getDescription(), equalTo(description));
         if (defaultValue == null) {
@@ -59,11 +57,11 @@ public class MarvelSettingTests extends ESTestCase {
         setting.onRefresh(settingsBuilder().put(name, 15000L).build());
         assertThat(setting.getValue().millis(), equalTo(15000L));
 
-        TimeValue updated = randomParsedTimeValue();
+        TimeValue updated = newRandomTimeValue();
         setting.onRefresh(settingsBuilder().put(name, updated.toString()).build());
         assertThat(setting.getValue().millis(), equalTo(updated.millis()));
 
-        updated = randomParsedTimeValue();
+        updated = newRandomTimeValue();
         setting.onRefresh(settingsBuilder().put(name, updated.toString()).build());
         assertThat(setting.getValue().millis(), equalTo(updated.millis()));
     }
@@ -76,9 +74,8 @@ public class MarvelSettingTests extends ESTestCase {
         if (randomBoolean()) {
             defaultValue = randomAsciiOfLength(15);
         }
-        boolean dynamic = randomBoolean();
 
-        MarvelSetting.StringSetting setting = MarvelSetting.stringSetting(name, defaultValue, description, dynamic);
+        MarvelSetting.StringSetting setting = MarvelSetting.stringSetting(name, defaultValue, description);
         assertThat(setting.getName(), equalTo(name));
         assertThat(setting.getDescription(), equalTo(description));
         if (defaultValue == null) {
@@ -107,9 +104,8 @@ public class MarvelSettingTests extends ESTestCase {
         if (randomBoolean()) {
             defaultValue = randomStringArray();
         }
-        boolean dynamic = randomBoolean();
 
-        MarvelSetting.StringArraySetting setting = MarvelSetting.arraySetting(name, defaultValue, description, dynamic);
+        MarvelSetting.StringArraySetting setting = MarvelSetting.arraySetting(name, defaultValue, description);
         assertThat(setting.getName(), equalTo(name));
         assertThat(setting.getDescription(), equalTo(description));
         if (defaultValue == null) {
@@ -130,7 +126,7 @@ public class MarvelSettingTests extends ESTestCase {
         assertArrayEquals(setting.getValue(), updated);
     }
 
-    private TimeValue randomParsedTimeValue() {
+    private TimeValue newRandomTimeValue() {
         return TimeValue.parseTimeValue(randomFrom("10ms", "1.5s", "1.5m", "1.5h", "1.5d", "1000d"), null, getClass().getSimpleName() + ".unit");
     }
 

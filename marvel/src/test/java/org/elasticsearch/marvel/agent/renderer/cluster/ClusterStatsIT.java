@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.renderer.cluster;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
@@ -20,7 +19,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.greaterThan;
 
-@Seed("B3CB5D1CDFA878F7:888A4AA279DFFE81")
 public class ClusterStatsIT extends AbstractRendererTestCase {
 
     @Override

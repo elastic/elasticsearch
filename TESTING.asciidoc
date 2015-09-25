@@ -409,6 +409,12 @@ or run all the boxes:
 mvn -Dtests.vagrant=all -pl qa/vagrant verify
 ---------------------------------------
 
+If you want to run a specific test on several boxes you can do:
+
+---------------------------------------
+mvn -Dtests.vagrant=all -pl qa/vagrant verify -DtestScripts=*tar*.bats
+---------------------------------------
+
 Its important to know that if you ctrl-c any of these `mvn` runs that you'll
 probably leave a VM up. You can terminate it by running:
 

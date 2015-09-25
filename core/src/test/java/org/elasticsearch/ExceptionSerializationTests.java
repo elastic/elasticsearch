@@ -227,13 +227,13 @@ public class ExceptionSerializationTests extends ESTestCase {
         ParsingException ex = serialize(new ParsingException(1, 2, "fobar", null));
         assertNull(ex.getIndex());
         assertEquals(ex.getMessage(), "fobar");
-        assertEquals(ex.getLineNumber(),1);
+        assertEquals(ex.getLineNumber(), 1);
         assertEquals(ex.getColumnNumber(), 2);
 
         ex = serialize(new ParsingException(1, 2, null, null));
         assertNull(ex.getIndex());
         assertNull(ex.getMessage());
-        assertEquals(ex.getLineNumber(),1);
+        assertEquals(ex.getLineNumber(), 1);
         assertEquals(ex.getColumnNumber(), 2);
     }
 
@@ -697,9 +697,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(37, org.elasticsearch.index.mapper.MapperException.class);
         ids.put(38, org.elasticsearch.indices.InvalidTypeNameException.class);
         ids.put(39, org.elasticsearch.snapshots.SnapshotRestoreException.class);
-        ids.put(40, null);
+        ids.put(40, org.elasticsearch.common.ParsingException.class);
         ids.put(41, org.elasticsearch.index.shard.IndexShardClosedException.class);
-        ids.put(42, null);
+        ids.put(42, org.elasticsearch.indices.recovery.RecoverFilesRecoveryException.class);
         ids.put(43, org.elasticsearch.index.translog.TruncatedTranslogException.class);
         ids.put(44, org.elasticsearch.indices.recovery.RecoveryFailedException.class);
         ids.put(45, org.elasticsearch.index.shard.IndexShardRelocatedException.class);
@@ -797,10 +797,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(137, org.elasticsearch.indices.TypeMissingException.class);
         ids.put(138, null);
         ids.put(139, null);
-        ids.put(140, org.elasticsearch.common.ParsingException.class);
-        ids.put(141, org.elasticsearch.indices.recovery.RecoverFilesRecoveryException.class);
-        ids.put(142, org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class);
-        ids.put(143, org.elasticsearch.index.query.QueryShardException.class);
+        ids.put(140, org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class);
+        ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

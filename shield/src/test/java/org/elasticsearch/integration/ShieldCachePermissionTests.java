@@ -10,6 +10,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -77,11 +78,7 @@ public class ShieldCachePermissionTests extends ShieldIntegTestCase {
     @Test
     public void testThatTermsFilterQueryDoesntLeakData() {
         SearchResponse response = client().prepareSearch("data").setTypes("a").setQuery(QueryBuilders.constantScoreQuery(
-                QueryBuilders.termsLookupQuery("token")
-                        .lookupIndex("tokens")
-                        .lookupType("tokens")
-                        .lookupId("1")
-                        .lookupPath("tokens")))
+                QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
                 .execute().actionGet();
         assertThat(response.isTimedOut(), is(false));
         assertThat(response.getHits().hits().length, is(1));
@@ -89,11 +86,7 @@ public class ShieldCachePermissionTests extends ShieldIntegTestCase {
         // Repeat with unauthorized user!!!!
         try {
             response = client().prepareSearch("data").setTypes("a").setQuery(QueryBuilders.constantScoreQuery(
-                    QueryBuilders.termsLookupQuery("token")
-                            .lookupIndex("tokens")
-                            .lookupType("tokens")
-                            .lookupId("1")
-                            .lookupPath("tokens")))
+                    QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
                     .putHeader("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER, new SecuredString("changeme".toCharArray())))
                     .execute().actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());

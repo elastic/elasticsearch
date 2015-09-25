@@ -58,7 +58,7 @@ public class ByteSizeValueTests extends ESTestCase {
     }
 
     public void testEquality() {
-        String[] equalValues = new String[]{"2GB", "2048MB", "2097152KB", "2147483684B"};
+        String[] equalValues = new String[]{"1GB", "1024MB", "1048576KB", "1073741824B"};
         ByteSizeValue value1 = ByteSizeValue.parseBytesSizeValue(randomFrom(equalValues), "equalTest");
         ByteSizeValue value2 = ByteSizeValue.parseBytesSizeValue(randomFrom(equalValues), "equalTest");
         assertThat(value1, equalTo(value2));

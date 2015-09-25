@@ -97,12 +97,19 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
     protected Map<String, QB> getAlternateVersions() {
         HashMap<String, QB> alternateVersions = new HashMap<>();
         QB tempQuery = createTestQueryBuilder();
-        QB testQuery = createQueryBuilder(tempQuery.fieldName(), tempQuery.value());
-        boolean isString = testQuery.value() instanceof String;
-        String value = (isString ? "\"" : "") + testQuery.value() + (isString ? "\"" : "");
+        String fieldName = tempQuery.fieldName();
+        Object value = tempQuery.value();
+        boolean isString = value instanceof String;
+        // random builder rarely generates unicode string, which ca cause problems in contentString below
+        // if not escaped, so we simply default to ascii strings for this special case
+        if (isString) {
+            value = randomAsciiOfLengthBetween(1, 10);
+        }
+        QB testQuery = createQueryBuilder(fieldName, value);
+        String valueInQuery = (isString ? "\"" : "") + testQuery.value() + (isString ? "\"" : "");
         String contentString = "{\n" +
                 "    \"" + testQuery.getName() + "\" : {\n" +
-                "        \"" + testQuery.fieldName() + "\" : " + value + "\n" +
+                "        \"" + testQuery.fieldName() + "\" : " + valueInQuery + "\n" +
                 "    }\n" +
                 "}";
         alternateVersions.put(contentString, testQuery);

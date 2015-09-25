@@ -50,7 +50,6 @@ public class OnDiskScriptIT extends ESIntegTestCase {
         //Set path so ScriptService will pick up the test scripts
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("path.conf", this.getDataPath("config"))
-                .put("script.engine.expression.file.aggs", "off")
                 .put("script.engine.mustache.file.aggs", "off")
                 .put("script.engine.mustache.file.search", "off")
                 .put("script.engine.mustache.file.mapping", "off")

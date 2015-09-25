@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
-import org.apache.lucene.analysis.pattern.PatternTokenizer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;

@@ -31,13 +31,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
-import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableSet;
 
 /**
  */
 public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener, NodeSettingsService.Listener {
-    private static final Set<String> FORBIDDEN_INDEX_SETTINGS = singleton("index.mapper.dynamic");
+    private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
 
     private final ClientProxy client;
     private final ThreadPool threadPool;
@@ -128,7 +127,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             Settings.Builder builder = Settings.builder().put(existingSettings);
             for (Map.Entry<String, String> newSettingsEntry : newSettings.getAsMap().entrySet()) {
                 String name = "index." + newSettingsEntry.getKey();
-                if (FORBIDDEN_INDEX_SETTINGS.contains(name)) {
+                if (FORBIDDEN_INDEX_SETTING.equals(name)) {
                     logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
                     continue;
                 }

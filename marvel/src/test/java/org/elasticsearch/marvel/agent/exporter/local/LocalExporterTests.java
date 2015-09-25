@@ -11,9 +11,15 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMarvelDoc;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryCollector;
@@ -21,6 +27,7 @@ import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
@@ -41,10 +48,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.marvel.agent.exporter.http.HttpExporter.MIN_SUPPORTED_TEMPLATE_VERSION;
 import static org.elasticsearch.marvel.agent.exporter.http.HttpExporterUtils.MARVEL_VERSION_FIELD;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
+import static org.mockito.Mockito.*;
 
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class LocalExporterTests extends MarvelIntegTestCase {
 
     private final static AtomicLong timeStampGenerator = new AtomicLong();
@@ -53,7 +60,6 @@ public class LocalExporterTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-//                .put(MarvelSettings.STARTUP_DELAY, "1h")
                 .build();
     }
 
@@ -140,39 +146,48 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         awaitMarvelTemplateInstalled(Version.CURRENT);
     }
 
-    //TODO needs a rewrite, the `start(ClusterState)` should be unit tested
-//    @Test @AwaitsFix(bugUrl = "LocalExporter#210")
-//    public void testUnsupportedTemplateVersion() throws Exception {
-//        internalCluster().startNode(Settings.builder()
-//                .put("marvel.agent.exporters._local.type", LocalExporter.TYPE)
-//                .build());
-//        ensureGreen();
-//
-//        LocalExporter exporter = getLocalExporter("_local");
-//
-//        Version fakeVersion = randomFrom(Version.V_0_18_0, Version.V_1_0_0, Version.V_1_4_0);
-//        assertFalse(exporter.shouldUpdateTemplate(fakeVersion, Version.CURRENT));
-//
-//        logger.debug("--> creating the marvel template with a fake version [{}]", fakeVersion);
-//        exporter.putTemplate(Settings.builder().put(MARVEL_VERSION_FIELD, fakeVersion.toString()).build());
-//        assertMarvelTemplateInstalled();
-//
-//        assertThat(exporter.templateVersion(), equalTo(fakeVersion));
-//
-//        logger.debug("--> exporting when the marvel template is tool old: no document is exported and the template is not updated");
-//        awaitMarvelDocsCount(is(0L));
-//        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
-//        awaitMarvelDocsCount(is(0L));
-//        assertMarvelTemplateInstalled();
-//
-//        assertThat(exporter.templateVersion(), equalTo(fakeVersion));
-//    }
+    @Test
+    public void testUnsupportedTemplateVersion() throws Exception {
 
-    @Test @TestLogging("marvel.agent:debug")
+        Exporter.Config config = new Exporter.Config("_name", Settings.EMPTY, Settings.builder()
+                .put("type", "local").build());
+        Client client = mock(Client.class);
+
+        ClusterService clusterService = mock(ClusterService.class);
+        boolean master = randomBoolean();
+        DiscoveryNode localNode = mock(DiscoveryNode.class);
+        when(localNode.masterNode()).thenReturn(master);
+        when(clusterService.localNode()).thenReturn(localNode);
+
+        RendererRegistry renderers = mock(RendererRegistry.class);
+
+        LocalExporter exporter = spy(new LocalExporter(config, client, clusterService, renderers));
+
+        // creating a cluster state mock that holds unsupported template version
+        Version unsupportedVersion = randomFrom(Version.V_0_18_0, Version.V_1_0_0, Version.V_1_4_0);
+        IndexTemplateMetaData template = mock(IndexTemplateMetaData.class);
+        when(template.settings()).thenReturn(Settings.builder().put("index.marvel_version", unsupportedVersion.toString()).build());
+        MetaData metaData = mock(MetaData.class);
+        when(metaData.getTemplates()).thenReturn(ImmutableOpenMap.<String, IndexTemplateMetaData>builder().fPut(Exporter.INDEX_TEMPLATE_NAME, template).build());
+        ClusterBlocks blocks = mock(ClusterBlocks.class);
+        when(blocks.hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)).thenReturn(false);
+        ClusterState clusterState = mock(ClusterState.class);
+        when(clusterState.getMetaData()).thenReturn(metaData);
+        when(clusterState.blocks()).thenReturn(blocks);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        assertThat(exporter.start(clusterState), nullValue());
+        verifyZeroInteractions(client);
+        if (master) {
+            verify(exporter, times(1)).installedTemplateVersionMandatesAnUpdate(Version.CURRENT, unsupportedVersion);
+        }
+        verify(exporter, times(1)).installedTemplateVersionIsSufficient(Version.CURRENT, unsupportedVersion);
+    }
+
+    @Test @TestLogging("marvel.agent:trace")
     public void testIndexTimestampFormat() throws Exception {
         long time = System.currentTimeMillis();
-        final String timeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM");
-        String expectedIndexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(time);
+        String timeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM");
 
         internalCluster().startNode(Settings.builder()
                 .put("marvel.agent.exporters._local.type", LocalExporter.TYPE)
@@ -182,32 +197,29 @@ public class LocalExporterTests extends MarvelIntegTestCase {
 
         LocalExporter exporter = getLocalExporter("_local");
 
-        assertThat(exporter.indexNameResolver().resolve(time), equalTo(expectedIndexName));
+        // first lets test that the index resolver works with time
+        String indexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(time);
+        assertThat(exporter.indexNameResolver().resolve(time), equalTo(indexName));
+
+        // now lets test that the index name resolver works with a doc
+        MarvelDoc doc = newRandomMarvelDoc();
+        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
+        assertThat(exporter.indexNameResolver().resolve(doc), equalTo(indexName));
 
         logger.debug("--> exporting a random marvel document");
-        MarvelDoc doc = newRandomMarvelDoc();
         exporter.export(Collections.singletonList(doc));
-        awaitMarvelDocsCount(is(1L));
-        expectedIndexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
-
-        logger.debug("--> check that the index [{}] has the correct timestamp [{}]", timeFormat, expectedIndexName);
-        assertThat(client().admin().indices().prepareExists(expectedIndexName).get().isExists(), is(true));
+        awaitIndexExists(indexName);
 
         logger.debug("--> updates the timestamp");
-        final String newTimeFormat = randomFrom("dd", "dd.MM.YYYY", "dd.MM");
+        timeFormat = randomFrom("dd", "dd.MM.YYYY", "dd.MM");
+        updateClusterSettings(Settings.builder().put("marvel.agent.exporters._local.index.name.time_format", timeFormat));
+        exporter = getLocalExporter("_local"); // we need to get it again.. as it was rebuilt
+        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
+        assertThat(exporter.indexNameResolver().resolve(doc), equalTo(indexName));
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put("marvel.agent.exporters._local.index.name.time_format", newTimeFormat)));
-
-        logger.debug("--> exporting a random marvel document");
-        doc = newRandomMarvelDoc();
+        logger.debug("--> exporting the document again (this time with the the new index name time format [{}], expecting index name [{}]", timeFormat, indexName);
         exporter.export(Collections.singletonList(doc));
-        awaitMarvelDocsCount(is(1L));
-        String newExpectedIndexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
-
-        logger.debug("--> check that the index [{}] has the correct timestamp [{}]", newTimeFormat, newExpectedIndexName);
-        assertThat(exporter.indexNameResolver().resolve(doc.timestamp()), equalTo(newExpectedIndexName));
-        assertTrue(client().admin().indices().prepareExists(newExpectedIndexName).get().isExists());
+        awaitIndexExists(indexName);
     }
 
     private LocalExporter getLocalExporter(String name) throws Exception {

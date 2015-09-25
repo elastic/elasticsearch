@@ -34,7 +34,7 @@ import static org.elasticsearch.marvel.agent.exporter.http.HttpExporterUtils.MAR
 /**
  *
  */
-public class LocalExporter extends Exporter {
+public class LocalExporter extends Exporter implements ClusterStateListener {
 
     public static final String TYPE = "local";
 
@@ -44,18 +44,18 @@ public class LocalExporter extends Exporter {
 
     private volatile LocalBulk bulk;
 
-    public LocalExporter(Exporter.Config config, SecuredClient client, ClusterService clusterService, RendererRegistry renderers) {
+    public LocalExporter(Exporter.Config config, Client client, ClusterService clusterService, RendererRegistry renderers) {
         super(TYPE, config);
         this.client = client;
         this.clusterService = clusterService;
         this.renderers = renderers;
+        bulk = start(clusterService.state());
+        clusterService.add(this);
+    }
 
-        clusterService.add(new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                bulk = start(event.state());
-            }
-        });
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        bulk = start(event.state());
     }
 
     @Override
@@ -65,6 +65,7 @@ public class LocalExporter extends Exporter {
 
     @Override
     public void close() {
+        clusterService.remove(this);
         if (bulk != null) {
             try {
                 bulk.terminate();
@@ -75,7 +76,7 @@ public class LocalExporter extends Exporter {
     }
 
     LocalBulk start(ClusterState clusterState) {
-        if (bulk != null) {
+        if (clusterService.localNode() == null || clusterState == null || bulk != null) {
             return bulk;
         }
 
@@ -101,6 +102,7 @@ public class LocalExporter extends Exporter {
             if (!installedTemplateVersionIsSufficient(Version.CURRENT, installedTemplateVersion)) {
                 logger.debug("exporter cannot start. the currently installed marvel template (version [{}]) is incompatible with the " +
                         "current elasticsearch version [{}]. waiting until the template is updated", installedTemplateVersion, Version.CURRENT);
+                return null;
             }
 
             // ok.. we have a compatible template... we can start
@@ -121,6 +123,15 @@ public class LocalExporter extends Exporter {
             logger.debug("installing new marvel template [{}], replacing [{}]", Version.CURRENT, installedTemplateVersion);
             putTemplate(config.settings().getAsSettings("template.settings"));
             // we'll get that template on the next cluster state update
+            return null;
+        } else if (!installedTemplateVersionIsSufficient(Version.CURRENT, installedTemplateVersion)) {
+            logger.error("marvel template version [{}] is below the minimum compatible version [{}]. "
+                            + "please manually update the marvel template to a more recent version"
+                            + "and delete the current active marvel index (don't forget to back up it first if needed)",
+                    installedTemplateVersion, MIN_SUPPORTED_TEMPLATE_VERSION);
+            // we're not going to do anything with the template.. it's too old, and the schema might
+            // be too different than what this version of marvel/es can work with. For this reason we're
+            // not going to export any data, to avoid mapping conflicts.
             return null;
         }
 
@@ -159,10 +170,6 @@ public class LocalExporter extends Exporter {
         }
         // Never update a very old template
         if (installed.before(MIN_SUPPORTED_TEMPLATE_VERSION)) {
-            logger.error("marvel template version [{}] is below the minimum compatible version [{}]. "
-                            + "please manually update the marvel template to a more recent version"
-                            + "and delete the current active marvel index (don't forget to back up it first if needed)",
-                    installed, MIN_SUPPORTED_TEMPLATE_VERSION);
             return false;
         }
         // Always update a template to the last up-to-date version
@@ -214,14 +221,6 @@ public class LocalExporter extends Exporter {
         } catch (Exception e) {
             throw new IllegalStateException("failed to update marvel index template", e);
         }
-    }
-
-    public enum State {
-        STARTING,
-        STARTED,
-        STOPPING,
-        STOPPED,
-        FAILED
     }
 
     public static class Factory extends Exporter.Factory<LocalExporter> {

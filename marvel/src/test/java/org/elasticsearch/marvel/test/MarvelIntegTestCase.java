@@ -7,6 +7,7 @@ package org.elasticsearch.marvel.test;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -38,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.marvel.agent.exporter.Exporter.INDEX_TEMPLATE_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -167,6 +169,28 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 fail("marvel template should exists");
             }
         }
+    }
+
+    protected void awaitIndexExists(final String... indices) throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertIndicesExists(indices);
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    protected void assertIndicesExists(String... indices) {
+        logger.trace("checking if index exists [{}]", Strings.arrayToCommaDelimitedString(indices));
+        assertThat(client().admin().indices().prepareExists(indices).get().isExists(), is(true));
+    }
+
+    protected void updateClusterSettings(Settings.Builder settings) {
+        updateClusterSettings(settings.build());
+    }
+
+    protected void updateClusterSettings(Settings settings) {
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
     }
 
     protected void securedRefresh() {

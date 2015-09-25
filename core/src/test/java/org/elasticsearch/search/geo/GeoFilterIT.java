@@ -23,6 +23,7 @@ import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
 import com.spatial4j.core.exception.InvalidShapeException;
 import com.spatial4j.core.shape.Shape;
+
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
@@ -43,8 +44,8 @@ import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.GeohashCellQuery;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.BeforeClass;
@@ -56,7 +57,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -65,9 +65,19 @@ import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoHashCellQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  *
@@ -506,34 +516,28 @@ public class GeoFilterIT extends ESIntegTestCase {
 
         expectedCounts.put(geoHashCellQuery("pin", point).neighbors(true).precision(precision), 1L + neighbors.size());
 
-        logger.info("random testing of setting");
 
         List<GeohashCellQuery.Builder> filterBuilders = new ArrayList<>(expectedCounts.keySet());
-        for (int j = filterBuilders.size() * 2 * randomIntBetween(1, 5); j > 0; j--) {
-            Collections.shuffle(filterBuilders, getRandom());
-            for (GeohashCellQuery.Builder builder : filterBuilders) {
-                try {
-                    long expectedCount = expectedCounts.get(builder);
-                    SearchResponse response = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery())
-                            .setPostFilter(builder).setSize((int) expectedCount).get();
-                    assertHitCount(response, expectedCount);
-                    String[] expectedIds = expectedResults.get(builder);
-                    if (expectedIds == null) {
-                        ArrayList<String> ids = new ArrayList<>();
-                        for (SearchHit hit : response.getHits()) {
-                            ids.add(hit.id());
-                        }
-                        expectedResults.put(builder, ids.toArray(Strings.EMPTY_ARRAY));
-                        continue;
+        for (GeohashCellQuery.Builder builder : filterBuilders) {
+            try {
+                long expectedCount = expectedCounts.get(builder);
+                SearchResponse response = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery())
+                        .setPostFilter(builder).setSize((int) expectedCount).get();
+                assertHitCount(response, expectedCount);
+                String[] expectedIds = expectedResults.get(builder);
+                if (expectedIds == null) {
+                    ArrayList<String> ids = new ArrayList<>();
+                    for (SearchHit hit : response.getHits()) {
+                        ids.add(hit.id());
                     }
-
-                    assertSearchHits(response, expectedIds);
-
-                } catch (AssertionError error) {
-                    throw new AssertionError(error.getMessage() + "\n geohash_cell filter:" + builder, error);
+                    expectedResults.put(builder, ids.toArray(Strings.EMPTY_ARRAY));
+                    continue;
                 }
 
+                assertSearchHits(response, expectedIds);
 
+            } catch (AssertionError error) {
+                throw new AssertionError(error.getMessage() + "\n geohash_cell filter:" + builder, error);
             }
         }
         // NORELEASE these should be tested in GeohashCellQueryBuilderTests

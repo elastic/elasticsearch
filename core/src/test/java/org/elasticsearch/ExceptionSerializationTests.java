@@ -20,6 +20,7 @@ package org.elasticsearch;
 
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.util.Constants;
 import org.codehaus.groovy.runtime.typehandling.GroovyCastException;
 import org.elasticsearch.action.FailedNodeException;
@@ -59,12 +60,7 @@ import org.elasticsearch.index.engine.CreateFailedEngineException;
 import org.elasticsearch.index.engine.IndexFailedEngineException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MergeMappingException;
-<<<<<<< HEAD
-import org.elasticsearch.index.query.TestParsingException;
-=======
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.QueryShardException;
->>>>>>> master
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;

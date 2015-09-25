@@ -889,7 +889,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 throw new SearchParseException(context, "failed to parse ext source [" + sSource + "]", location, e);
             }
         }
-        // NOCOMMIT need to work out what to do about term_vectors_fetch (previously handled by TermVectorsFetchParseElement) as this is not available as an option in SearchSourceBuilder
         if (source.version() != null) {
             context.version(source.version());
         }

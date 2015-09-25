@@ -21,8 +21,9 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.SearcherFactory;
+import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -48,7 +49,6 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
-import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
@@ -182,8 +182,7 @@ public class InternalEngine extends Engine {
             }
             translogConfig.setTranslogGeneration(generation);
             if (generation != null && generation.translogUUID == null) {
-                // only upgrade on pre-2.0 indices...
-                Translog.upgradeLegacyTranslog(logger, translogConfig);
+                throw new IndexFormatTooOldException("trasnlog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
         final Translog translog = new Translog(translogConfig);
@@ -510,48 +509,6 @@ public class InternalEngine extends Engine {
             delete.setTranslogLocation(translogLocation);
             indexingService.postDeleteUnderLock(delete);
         }
-    }
-
-    /** @deprecated This was removed, but we keep this API so translog can replay any DBQs on upgrade. */
-    @Deprecated
-    @Override
-    public void delete(DeleteByQuery delete) throws EngineException {
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
-            if (delete.origin() == Operation.Origin.RECOVERY) {
-                // Don't throttle recovery operations
-                innerDelete(delete);
-            } else {
-                try (Releasable r = throttle.acquireThrottle()) {
-                    innerDelete(delete);
-                }
-            }
-        }
-    }
-
-    private void innerDelete(DeleteByQuery delete) throws EngineException {
-        try {
-            Query query = delete.query();
-            if (delete.aliasFilter() != null) {
-                query = new BooleanQuery.Builder()
-                        .add(query, Occur.MUST)
-                        .add(delete.aliasFilter(), Occur.FILTER)
-                        .build();
-            }
-            if (delete.nested()) {
-                query = new IncludeNestedDocsQuery(query, delete.parentFilter());
-            }
-
-            indexWriter.deleteDocuments(query);
-            translog.add(new Translog.DeleteByQuery(delete));
-        } catch (Throwable t) {
-            maybeFailEngine("delete_by_query", t);
-            throw new DeleteByQueryFailedEngineException(shardId, delete, t);
-        }
-
-        // TODO: This is heavy, since we refresh, but we must do this because we don't know which documents were in fact deleted (i.e., our
-        // versionMap isn't updated), so we must force a cutover to a new reader to "see" the deletions:
-        refresh("delete_by_query");
     }
 
     @Override

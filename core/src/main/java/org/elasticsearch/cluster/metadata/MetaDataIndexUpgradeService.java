@@ -165,13 +165,13 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     }
 
     /**
-     * Elasticsearch 2.0 no longer supports indices with pre Lucene v4.0 (Elasticsearch v 0.90.0) segments. All indices
-     * that were created before Elasticsearch v0.90.0 should be upgraded using upgrade plugin before they can
+     * Elasticsearch 3.0 no longer supports indices with pre Lucene v5.0 (Elasticsearch v2.0.0.beta1) segments. All indices
+     * that were created before Elasticsearch v2.0.0.beta1 should be upgraded using upgrade plugin before they can
      * be open by this version of elasticsearch.
      */
     private void checkSupportedVersion(IndexMetaData indexMetaData) {
         if (indexMetaData.getState() == IndexMetaData.State.OPEN && isSupportedVersion(indexMetaData) == false) {
-            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created before v0.90.0 and wasn't upgraded."
+            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created before v2.0.0.beta1 and wasn't upgraded."
                     + " This index should be open using a version before " + Version.CURRENT.minimumCompatibilityVersion()
                     + " and upgraded using the upgrade API.");
         }
@@ -181,7 +181,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Returns true if this index can be supported by the current version of elasticsearch
      */
     private static boolean isSupportedVersion(IndexMetaData indexMetaData) {
-        if (indexMetaData.creationVersion().onOrAfter(Version.V_0_90_0_Beta1)) {
+        if (indexMetaData.creationVersion().onOrAfter(Version.V_2_0_0_beta1)) {
             // The index was created with elasticsearch that was using Lucene 4.0
             return true;
         }

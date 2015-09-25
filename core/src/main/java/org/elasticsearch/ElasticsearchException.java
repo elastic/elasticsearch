@@ -524,7 +524,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         ROUTING_VALIDATION_EXCEPTION(org.elasticsearch.cluster.routing.RoutingValidationException.class, org.elasticsearch.cluster.routing.RoutingValidationException::new, 61),
         NOT_SERIALIZABLE_EXCEPTION_WRAPPER(org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper::new, 62),
         ALIAS_FILTER_PARSING_EXCEPTION(org.elasticsearch.indices.AliasFilterParsingException.class, org.elasticsearch.indices.AliasFilterParsingException::new, 63),
-        DELETE_BY_QUERY_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.DeleteByQueryFailedEngineException.class, org.elasticsearch.index.engine.DeleteByQueryFailedEngineException::new, 64),
+        // 64 was DeleteByQueryFailedEngineException, which was removed in 3.0
         GATEWAY_EXCEPTION(org.elasticsearch.gateway.GatewayException.class, org.elasticsearch.gateway.GatewayException::new, 65),
         INDEX_SHARD_NOT_RECOVERING_EXCEPTION(org.elasticsearch.index.shard.IndexShardNotRecoveringException.class, org.elasticsearch.index.shard.IndexShardNotRecoveringException::new, 66),
         HTTP_EXCEPTION(org.elasticsearch.http.HttpException.class, org.elasticsearch.http.HttpException::new, 67),

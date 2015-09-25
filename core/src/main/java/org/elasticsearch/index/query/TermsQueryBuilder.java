@@ -41,7 +41,10 @@ import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -267,7 +270,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         List<Object> terms;
+        TermsLookup termsLookup = null;
         if (this.termsLookup != null) {
+            termsLookup = new TermsLookup(this.termsLookup);
             if (termsLookup.index() == null) {
                 termsLookup.index(context.index().name());
             }

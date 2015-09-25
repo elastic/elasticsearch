@@ -859,6 +859,36 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, false)); // NORELEASE need to have ignore_exception parsed somewhere
             }
         }
+        if (source.ext() != null) {
+            XContentParser extParser = null;
+            try {
+                extParser = XContentFactory.xContent(source.ext()).createParser(source.ext());
+                XContentParser.Token token = extParser.nextToken();
+                String currentFieldName = null;
+                while ((token = extParser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = extParser.currentName();
+                    } else {
+                        SearchParseElement parseElement = this.elementParsers.get(currentFieldName);
+                        if (parseElement == null) {
+                            throw new SearchParseException(context, "Unknown element [" + currentFieldName + "] in [ext]",
+                                    extParser.getTokenLocation());
+                        } else {
+                            parseElement.parse(extParser, context);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                String sSource = "_na_";
+                try {
+                    sSource = source.toString();
+                } catch (Throwable e1) {
+                    // ignore
+                }
+                XContentLocation location = extParser != null ? extParser.getTokenLocation() : null;
+                throw new SearchParseException(context, "failed to parse ext source [" + sSource + "]", location, e);
+            }
+        }
         // NOCOMMIT need to work out what to do about term_vectors_fetch (previously handled by TermVectorsFetchParseElement) as this is not available as an option in SearchSourceBuilder
         if (source.version() != null) {
             context.version(source.version());

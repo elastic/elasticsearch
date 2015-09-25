@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
@@ -413,6 +414,14 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             // NORELEASE need a random aggregation builder method
             builder.aggregation(AggregationBuilders.avg(randomAsciiOfLengthBetween(5, 20)));
+        }
+        if (true) {
+            // NORELEASE need a method to randomly build content for ext
+            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
+            xContentBuilder.startObject();
+            xContentBuilder.field("term_vectors_fetch", randomAsciiOfLengthBetween(5, 20));
+            xContentBuilder.endObject();
+            builder.ext(xContentBuilder);
         }
         return builder;
     }

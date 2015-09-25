@@ -93,6 +93,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField SUGGEST_FIELD = new ParseField("suggest");
     public static final ParseField RESCORE_FIELD = new ParseField("rescore");
     public static final ParseField STATS_FIELD = new ParseField("stats");
+    public static final ParseField EXT_FIELD = new ParseField("ext");
 
     public static final SearchSourceBuilder PROTOTYPE = new SearchSourceBuilder();
 
@@ -150,6 +151,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     private ObjectFloatHashMap<String> indexBoost = null;
 
     private String[] stats;
+
+    private BytesReference ext = null;
 
     /**
      * Constructs a new search source builder.
@@ -681,6 +684,15 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return stats;
     }
 
+    public SearchSourceBuilder ext(XContentBuilder ext) {
+        this.ext = ext.bytes();
+        return this;
+    }
+
+    public BytesReference ext() {
+        return ext;
+    }
+
     public SearchSourceBuilder fromXContent(XContentParser parser, QueryParseContext context) throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         XContentParser.Token token;
@@ -812,6 +824,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType()).copyCurrentStructure(parser);
                     sorts.add(xContentBuilder.bytes());
                     builder.sorts = sorts;
+                } else if (context.parseFieldMatcher().match(currentFieldName, EXT_FIELD)) {
+                    XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType()).copyCurrentStructure(parser);
+                    builder.ext = xContentBuilder.bytes();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1031,6 +1046,13 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (stats != null) {
             builder.array(STATS_FIELD.getPreferredName(), stats);
         }
+
+        if (ext != null) {
+            builder.field(EXT_FIELD.getPreferredName());
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(ext);
+            parser.nextToken();
+            builder.copyCurrentStructure(parser);
+        }
     }
 
     public static class ScriptField implements Writeable<ScriptField>, ToXContent {
@@ -1184,6 +1206,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         builder.timeoutInMillis = in.readLong();
         builder.trackScores = in.readBoolean();
         builder.version = in.readOptionalBoolean();
+        if (in.readBoolean()) {
+            builder.ext = in.readBytesReference();
+        }
         return builder;
     }
 
@@ -1294,6 +1319,11 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeLong(timeoutInMillis);
         out.writeBoolean(trackScores);
         out.writeOptionalBoolean(version);
+        boolean hasExt = ext != null;
+        out.writeBoolean(hasExt);
+        if (hasExt) {
+            out.writeBytesReference(ext);
+        }
     }
 
     @Override

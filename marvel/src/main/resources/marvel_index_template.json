@@ -1,5 +1,5 @@
 {
-  "template": ".marvel*",
+  "template": ".marvel-es-*",
   "settings": {
     "marvel_version": "${project.version}",
     "index.number_of_shards": 1,

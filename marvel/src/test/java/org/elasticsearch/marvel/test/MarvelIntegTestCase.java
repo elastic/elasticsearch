@@ -14,7 +14,6 @@ import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.AgentService;
-import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -35,7 +34,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.marvel.agent.exporter.Exporter.INDEX_TEMPLATE_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 /**
@@ -134,7 +135,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
             public void run() {
                 assertMarvelDocsCount(matcher, types);
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     protected void assertMarvelDocsCount(Matcher<Long> matcher, String... types) {
@@ -151,21 +152,21 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    protected void assertMarvelTemplateExists() {
-        assertTrue("marvel template shouldn't exists", isTemplateExists(LocalExporter.INDEX_TEMPLATE_NAME));
-    }
-
-    protected void assertMarvelTemplateNotExists() {
-        assertFalse("marvel template should exists", isTemplateExists(LocalExporter.INDEX_TEMPLATE_NAME));
-    }
-
-    private boolean isTemplateExists(String templateName) {
-        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(templateName).get().getIndexTemplates()) {
-            if (template.getName().equals(templateName)) {
-                return true;
+    protected void assertMarvelTemplateInstalled() {
+        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(INDEX_TEMPLATE_NAME).get().getIndexTemplates()) {
+            if (template.getName().equals(INDEX_TEMPLATE_NAME)) {
+                return;
             }
         }
-        return false;
+        fail("marvel template shouldn't exists");
+    }
+
+    protected void assertMarvelTemplateMissing() {
+        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(INDEX_TEMPLATE_NAME).get().getIndexTemplates()) {
+            if (template.getName().equals(INDEX_TEMPLATE_NAME)) {
+                fail("marvel template should exists");
+            }
+        }
     }
 
     protected void securedRefresh() {
@@ -228,12 +229,12 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 "    '*': all\n" +
                 "\n" +
                 "admin:\n" +
-                "  cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
+                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
                 "transport_client:\n" +
                 "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
                 "\n" +
                 "monitor:\n" +
-                "  cluster: monitor_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n"
+                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n"
                 ;
 
 

@@ -8,8 +8,11 @@ package org.elasticsearch.marvel.agent.exporter.local;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMarvelDoc;
@@ -23,6 +26,8 @@ import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.joda.time.format.DateTimeFormat;
 import org.junit.Test;
 
@@ -30,6 +35,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.marvel.agent.exporter.http.HttpExporter.MIN_SUPPORTED_TEMPLATE_VERSION;
@@ -37,7 +44,7 @@ import static org.elasticsearch.marvel.agent.exporter.http.HttpExporterUtils.MAR
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class LocalExporterTests extends MarvelIntegTestCase {
 
     private final static AtomicLong timeStampGenerator = new AtomicLong();
@@ -46,7 +53,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.STARTUP_DELAY, "1h")
+//                .put(MarvelSettings.STARTUP_DELAY, "1h")
                 .build();
     }
 
@@ -91,16 +98,14 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         ensureGreen();
 
         LocalExporter exporter = getLocalExporter("_local");
-        assertTrue(exporter.shouldUpdateTemplate(null, Version.CURRENT));
+        assertTrue(exporter.installedTemplateVersionMandatesAnUpdate(Version.CURRENT, null));
 
-        assertMarvelTemplateNotExists();
+        // lets wait until the marvel template will be installed
+        awaitMarvelTemplateInstalled();
 
-        logger.debug("--> exporting when the marvel template does not exists: template should be created");
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
-        awaitMarvelDocsCount(is(1L));
-        assertMarvelTemplateExists();
+        awaitMarvelDocsCount(greaterThan(0L));
 
-        assertThat(exporter.templateVersion(), equalTo(Version.CURRENT));
+        assertThat(getCurrentlyInstalledTemplateVersion(), is(Version.CURRENT));
     }
 
     @Test
@@ -112,50 +117,58 @@ public class LocalExporterTests extends MarvelIntegTestCase {
 
         LocalExporter exporter = getLocalExporter("_local");
         Version fakeVersion = MIN_SUPPORTED_TEMPLATE_VERSION;
-        assertTrue(exporter.shouldUpdateTemplate(fakeVersion, Version.CURRENT));
+        assertThat(exporter.installedTemplateVersionMandatesAnUpdate(Version.CURRENT, fakeVersion), is(true));
 
-        logger.debug("--> creating the marvel template with a fake version [{}]", fakeVersion);
+        // first, lets wait for the marvel template to be installed
+        awaitMarvelTemplateInstalled();
+
+        // now lets update the template with an old one and then restart the cluster
         exporter.putTemplate(Settings.builder().put(MARVEL_VERSION_FIELD, fakeVersion.toString()).build());
-        assertMarvelTemplateExists();
+        logger.debug("full cluster restart");
+        final CountDownLatch latch = new CountDownLatch(1);
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public void doAfterNodes(int n, Client client) throws Exception {
+                latch.countDown();
+            }
+        });
+        if (!latch.await(30, TimeUnit.SECONDS)) {
+            fail("waited too long (at least 30 seconds) for the cluster to restart");
+        }
 
-        assertThat(exporter.templateVersion(), equalTo(fakeVersion));
-
-        logger.debug("--> exporting when the marvel template must be updated: document is exported and the template is updated");
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
-        awaitMarvelDocsCount(is(1L));
-        assertMarvelTemplateExists();
-
-        assertThat(exporter.templateVersion(), equalTo(Version.CURRENT));
+        // now that the cluster is restarting, lets wait for the new template version to be installed
+        awaitMarvelTemplateInstalled(Version.CURRENT);
     }
 
-    @Test @AwaitsFix(bugUrl = "LocalExporter#210")
-    public void testUnsupportedTemplateVersion() throws Exception {
-        internalCluster().startNode(Settings.builder()
-                .put("marvel.agent.exporters._local.type", LocalExporter.TYPE)
-                .build());
-        ensureGreen();
+    //TODO needs a rewrite, the `start(ClusterState)` should be unit tested
+//    @Test @AwaitsFix(bugUrl = "LocalExporter#210")
+//    public void testUnsupportedTemplateVersion() throws Exception {
+//        internalCluster().startNode(Settings.builder()
+//                .put("marvel.agent.exporters._local.type", LocalExporter.TYPE)
+//                .build());
+//        ensureGreen();
+//
+//        LocalExporter exporter = getLocalExporter("_local");
+//
+//        Version fakeVersion = randomFrom(Version.V_0_18_0, Version.V_1_0_0, Version.V_1_4_0);
+//        assertFalse(exporter.shouldUpdateTemplate(fakeVersion, Version.CURRENT));
+//
+//        logger.debug("--> creating the marvel template with a fake version [{}]", fakeVersion);
+//        exporter.putTemplate(Settings.builder().put(MARVEL_VERSION_FIELD, fakeVersion.toString()).build());
+//        assertMarvelTemplateInstalled();
+//
+//        assertThat(exporter.templateVersion(), equalTo(fakeVersion));
+//
+//        logger.debug("--> exporting when the marvel template is tool old: no document is exported and the template is not updated");
+//        awaitMarvelDocsCount(is(0L));
+//        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+//        awaitMarvelDocsCount(is(0L));
+//        assertMarvelTemplateInstalled();
+//
+//        assertThat(exporter.templateVersion(), equalTo(fakeVersion));
+//    }
 
-        LocalExporter exporter = getLocalExporter("_local");
-
-        Version fakeVersion = randomFrom(Version.V_0_18_0, Version.V_1_0_0, Version.V_1_4_0);
-        assertFalse(exporter.shouldUpdateTemplate(fakeVersion, Version.CURRENT));
-
-        logger.debug("--> creating the marvel template with a fake version [{}]", fakeVersion);
-        exporter.putTemplate(Settings.builder().put(MARVEL_VERSION_FIELD, fakeVersion.toString()).build());
-        assertMarvelTemplateExists();
-
-        assertThat(exporter.templateVersion(), equalTo(fakeVersion));
-
-        logger.debug("--> exporting when the marvel template is tool old: no document is exported and the template is not updated");
-        awaitMarvelDocsCount(is(0L));
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
-        awaitMarvelDocsCount(is(0L));
-        assertMarvelTemplateExists();
-
-        assertThat(exporter.templateVersion(), equalTo(fakeVersion));
-    }
-
-    @Test
+    @Test @TestLogging("marvel.agent:debug")
     public void testIndexTimestampFormat() throws Exception {
         long time = System.currentTimeMillis();
         final String timeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM");
@@ -178,7 +191,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         expectedIndexName = MarvelSettings.MARVEL_INDICES_PREFIX + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
 
         logger.debug("--> check that the index [{}] has the correct timestamp [{}]", timeFormat, expectedIndexName);
-        assertTrue(client().admin().indices().prepareExists(expectedIndexName).get().isExists());
+        assertThat(client().admin().indices().prepareExists(expectedIndexName).get().isExists(), is(true));
 
         logger.debug("--> updates the timestamp");
         final String newTimeFormat = randomFrom("dd", "dd.MM.YYYY", "dd.MM");
@@ -214,4 +227,43 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         }
     }
 
+    private void awaitMarvelTemplateInstalled() throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertMarvelTemplateInstalled();
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void awaitMarvelTemplateInstalled(Version version) throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertMarvelTemplateInstalled(version);
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    protected void assertMarvelTemplateInstalled(Version version) {
+        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(Exporter.INDEX_TEMPLATE_NAME).get().getIndexTemplates()) {
+            if (template.getName().equals(Exporter.INDEX_TEMPLATE_NAME)) {
+                Version templateVersion = LocalExporter.templateVersion(template);
+                if (templateVersion != null && templateVersion.id == version.id) {
+                    return;
+                }
+                fail("did not find marvel template with expected version [" + version + "]. found version [" + templateVersion + "]");
+            }
+        }
+        fail("marvel template could not be found");
+    }
+
+    private Version getCurrentlyInstalledTemplateVersion() {
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(Exporter.INDEX_TEMPLATE_NAME).get();
+        assertThat(response, notNullValue());
+        assertThat(response.getIndexTemplates(), notNullValue());
+        assertThat(response.getIndexTemplates(), hasSize(1));
+        assertThat(response.getIndexTemplates().get(0), notNullValue());
+        return LocalExporter.templateVersion(response.getIndexTemplates().get(0));
+    }
 }

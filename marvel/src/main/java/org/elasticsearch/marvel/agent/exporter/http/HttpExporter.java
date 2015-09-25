@@ -58,9 +58,6 @@ public class HttpExporter extends Exporter {
     // es level timeout used when checking and writing templates (used to speed up tests)
     public static final String TEMPLATE_CHECK_TIMEOUT_SETTING = "index.template.master_timeout";
 
-    // es level timeout used for bulk indexing (used to speed up tests)
-    public static final String BULK_TIMEOUT_SETTING = "bulk.timeout";
-
     public static final String SSL_SETTING = "ssl";
     public static final String SSL_PROTOCOL_SETTING = SSL_SETTING + ".protocol";
     public static final String SSL_TRUSTSTORE_SETTING = SSL_SETTING + ".truststore.path";
@@ -87,7 +84,6 @@ public class HttpExporter extends Exporter {
     final RendererRegistry rendererRegistry;
 
     final @Nullable TimeValue templateCheckTimeout;
-    final @Nullable TimeValue bulkTimeout;
 
     volatile boolean checkedAndUploadedIndexTemplate = false;
     volatile boolean supportedClusterVersion = false;
@@ -121,7 +117,6 @@ public class HttpExporter extends Exporter {
         // TimeValue SHOULD NOT SELECTIVELY CHOOSE WHAT FIELDS TO PARSE BASED ON THEIR NAMES!!!!
         String templateCheckTimeoutValue = config.settings().get(TEMPLATE_CHECK_TIMEOUT_SETTING, null);
         templateCheckTimeout = TimeValue.parseTimeValue(templateCheckTimeoutValue, null, settingFQN(TEMPLATE_CHECK_TIMEOUT_SETTING));
-        bulkTimeout = config.settings().getAsTime(BULK_TIMEOUT_SETTING, null);
 
         keepAliveWorker = new ConnectionKeepAliveWorker();
 

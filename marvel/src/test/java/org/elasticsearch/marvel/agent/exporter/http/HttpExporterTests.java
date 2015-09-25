@@ -124,7 +124,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         exporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
         logger.info("verifying that template has been created");
-        assertMarvelTemplateExists();
+        assertMarvelTemplateInstalled();
     }
 
     @Test
@@ -172,7 +172,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
         logger.info("removing the marvel template");
         assertAcked(client().admin().indices().prepareDeleteTemplate("marvel").get());
-        assertMarvelTemplateNotExists();
+        assertMarvelTemplateMissing();
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                 Settings.builder().putArray("marvel.agent.exporters._http.host", exporter.hosts)).get());
@@ -184,7 +184,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         exporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
         logger.info("verifying that template has been created");
-        assertMarvelTemplateExists();
+        assertMarvelTemplateInstalled();
     }
 
     @Test
@@ -207,11 +207,11 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         exporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
         logger.info("verifying that template has been created");
-        assertMarvelTemplateExists();
+        assertMarvelTemplateInstalled();
 
         logger.info("--> removing the marvel template");
         assertAcked(client().admin().indices().prepareDeleteTemplate("marvel").get());
-        assertMarvelTemplateNotExists();
+        assertMarvelTemplateMissing();
 
         logger.info("--> shutting down target0");
         assertThat(target0.name, is(internalCluster().getMasterName())); // just to be sure it's still the master
@@ -229,7 +229,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
                     fail("failed to export event from node0");
                 }
                 logger.debug("--> checking for template");
-                assertMarvelTemplateExists();
+                assertMarvelTemplateInstalled();
                 logger.debug("--> template exists");
             }
         }, 30, TimeUnit.SECONDS);
@@ -274,7 +274,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         assertTrue(client().admin().indices().prepareExists(expectedMarvelIndex).get().isExists());
 
         logger.info("verifying that template has been created");
-        assertMarvelTemplateExists();
+        assertMarvelTemplateInstalled();
     }
 
     @Test

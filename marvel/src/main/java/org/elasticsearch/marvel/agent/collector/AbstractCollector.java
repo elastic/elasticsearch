@@ -64,13 +64,14 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
     public Collection<MarvelDoc> collect() {
         try {
             if (canCollect()) {
+                logger.trace("collector [{}] - collecting data...", name());
                 return doCollect();
             }
             logger.trace("collector [{}] can not collect data", name());
         } catch (ElasticsearchTimeoutException e) {
             logger.error("collector [{}] timed out when collecting data");
         } catch (Exception e) {
-            logger.error("collector [{}] throws exception when collecting data", e, name());
+            logger.error("collector [{}] - failed collecting data", e, name());
         }
         return null;
     }

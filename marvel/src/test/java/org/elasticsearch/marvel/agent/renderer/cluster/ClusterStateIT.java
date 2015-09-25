@@ -11,7 +11,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
 import org.elasticsearch.marvel.agent.exporter.http.HttpExporterUtils;
 import org.elasticsearch.marvel.agent.renderer.AbstractRendererTestCase;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.search.SearchHit;
 import org.junit.Test;
 
@@ -67,7 +66,7 @@ public class ClusterStateIT extends AbstractRendererTestCase {
         deleteMarvelIndices();
 
         logger.debug("--> checking for template existence");
-        assertMarvelTemplateExists();
+        assertMarvelTemplateInstalled();
         awaitMarvelDocsCount(greaterThan(0L), ClusterStateCollector.TYPE);
 
         logger.debug("--> searching for marvel documents of type [{}]", ClusterStateCollector.TYPE);

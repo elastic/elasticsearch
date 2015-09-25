@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.shield.MarvelSettingsFilter;
 import org.joda.time.format.DateTimeFormat;
@@ -19,18 +21,23 @@ import java.util.Collection;
 public abstract class Exporter  {
 
     public static final String INDEX_NAME_TIME_FORMAT_SETTING = "index.name.time_format";
+    public static final String BULK_TIMEOUT_SETTING = "bulk.timeout";
+
     public static final String DEFAULT_INDEX_NAME_TIME_FORMAT = "YYYY.MM.dd";
+    public static final String INDEX_TEMPLATE_NAME = "marvel";
 
     protected final String type;
     protected final Config config;
     protected final ESLogger logger;
     protected final IndexNameResolver indexNameResolver;
+    protected final @Nullable TimeValue bulkTimeout;
 
     public Exporter(String type, Config config) {
         this.type = type;
         this.config = config;
         this.logger = config.logger(getClass());
         this.indexNameResolver = new DefaultIndexNameResolver(config.settings);
+        bulkTimeout = config.settings().getAsTime(BULK_TIMEOUT_SETTING, null);
     }
 
     public String type() {

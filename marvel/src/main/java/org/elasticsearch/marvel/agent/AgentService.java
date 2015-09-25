@@ -172,13 +172,16 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
                     if (bulk == null) { // exporters are either not ready or faulty
                         continue;
                     }
+//                    long start = System.nanoTime(); //TODO remove
                     try {
                         for (Collector collector : collectors) {
-                            logger.trace("collecting [{}]", collector.name());
                             if (collecting) {
                                 Collection<MarvelDoc> docs = collector.collect();
                                 if (docs != null) {
+                                    logger.trace("bulk [{}] - adding collected docs from [{}] collector", bulk, collector.name());
                                     bulk.add(docs);
+                                } else {
+                                    logger.trace("bulk [{}] - skipping collected docs from [{}] collector", bulk, collector.name());
                                 }
                             }
                             if (closed) {
@@ -187,13 +190,16 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
                             }
                         }
                     } finally {
+//                        long delta = System.nanoTime() - start; TODO remove
+//                        logger.trace("closing bulk [{}] - collection took [{}] seconds", bulk, TimeValue.timeValueNanos(delta).format(PeriodType.seconds()));
                         bulk.close(!closed && collecting);
                     }
 
                 } catch (InterruptedException e) {
+                    logger.trace("interrupted");
                     Thread.currentThread().interrupt();
                 } catch (Throwable t) {
-                    logger.error("Background thread had an uncaught exception:", t);
+                    logger.error("background thread had an uncaught exception", t);
                 } finally {
                     firstRun = false;
                 }

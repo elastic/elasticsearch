@@ -94,7 +94,11 @@ public class LocalBulk extends ExportBulk {
         if (state.get() != State.ACTIVE || requestBuilder == null) {
             return;
         }
+        logger.trace("exporter [{}] - exporting data...", name);
+//        long start = System.nanoTime(); TODO remove
         BulkResponse bulkResponse = requestBuilder.get();
+//        TimeValue time = TimeValue.timeValueNanos(System.nanoTime() - start);
+//        logger.trace("exporter [{}] - data exported, took [{}] seconds", name, time.format(PeriodType.seconds()));
         if (bulkResponse.hasFailures()) {
             throw new ElasticsearchException(bulkResponse.buildFailureMessage());
         }

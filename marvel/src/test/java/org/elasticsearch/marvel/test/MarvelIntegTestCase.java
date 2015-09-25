@@ -35,25 +35,23 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.marvel.agent.exporter.Exporter.INDEX_TEMPLATE_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
 public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
-    protected static Boolean shieldEnabled;
+    protected Boolean shieldEnabled = enableShield();
 
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        if (shieldEnabled == null) {
-            shieldEnabled = enableShield();
-            logger.info("--> shield {}", shieldEnabled ? "enabled" : "disabled");
-        }
+        logger.info("--> shield {}", shieldEnabled ? "enabled" : "disabled");
         return super.buildTestCluster(scope, seed);
     }
 
@@ -160,13 +158,13 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 return;
             }
         }
-        fail("marvel template shouldn't exists");
+        fail("marvel template should exists");
     }
 
     protected void assertMarvelTemplateMissing() {
         for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(INDEX_TEMPLATE_NAME).get().getIndexTemplates()) {
             if (template.getName().equals(INDEX_TEMPLATE_NAME)) {
-                fail("marvel template should exists");
+                fail("marvel template shouldn't exists");
             }
         }
     }
@@ -221,6 +219,38 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Checks if a field exist in a map of values. If the field contains a dot like 'foo.bar'
+     * it checks that 'foo' exists in the map of values and that it points to a sub-map. Then
+     * it recurses to check if 'bar' exists in the sub-map.
+     */
+    protected void assertContains(String field, Map<String, Object> values) {
+        assertNotNull("field name should not be null", field);
+        assertNotNull("values map should not be null", values);
+
+        int point = field.indexOf('.');
+        if (point > -1) {
+            assertThat(point, allOf(greaterThan(0), lessThan(field.length())));
+
+            String segment = field.substring(0, point);
+            assertTrue(Strings.hasText(segment));
+
+            boolean fieldExists = values.containsKey(segment);
+            assertTrue("expecting field [" + segment + "] to be present in marvel document", fieldExists);
+
+            Object value = values.get(segment);
+            String next = field.substring(point + 1);
+            if (next.length() > 0) {
+                assertTrue(value instanceof Map);
+                assertContains(next, (Map<String, Object>) value);
+            } else {
+                assertFalse(value instanceof Map);
+            }
+        } else {
+            assertTrue("expecting field [" + field + "] to be present in marvel document", values.containsKey(field));
+        }
+    }
+
     /** Shield related settings */
 
     public static class ShieldSettings {
@@ -248,7 +278,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, cluster:admin/settings/update, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
+                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/stats, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, cluster:admin/settings/update, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
                 "  indices:\n" +
                 "    '*': all\n" +
                 "\n" +

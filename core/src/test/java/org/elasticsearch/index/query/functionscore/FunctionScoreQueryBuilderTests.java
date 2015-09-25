@@ -35,14 +35,14 @@ import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilde
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -140,16 +140,9 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 functionBuilder = fieldValueFactorFunctionBuilder;
                 break;
             case 2:
-                String script;
-                Map<String, Object> params = null;
-                if (randomBoolean()) {
-                    script = "5 * 2 > param";
-                    params = new HashMap<>();
-                    params.put("param", 1);
-                } else {
-                    script = "5 * 2 > 2";
-                }
-                functionBuilder = new ScriptScoreFunctionBuilder(new Script(script, ScriptService.ScriptType.INLINE, ExpressionScriptEngineService.NAME, params));
+                String script = "5";
+                Map<String, Object> params = Collections.emptyMap();
+                functionBuilder = new ScriptScoreFunctionBuilder(new Script(script, ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, params));
                 break;
             case 3:
                 RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilder();
@@ -420,7 +413,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         String functionScoreQuery = "{\n" +
                 "    \"function_score\": {\n" +
                 "      \"script_score\": {\n" +
-                "        \"script\": \"_index['text']['foo'].tf()\"\n" +
+                "        \"script\": \"5\"\n" +
                 "      },\n" +
                 "      \"weight\": 2\n" +
                 "    }\n" +

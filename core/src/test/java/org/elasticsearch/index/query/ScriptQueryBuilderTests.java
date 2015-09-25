@@ -20,13 +20,13 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -35,16 +35,9 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
 
     @Override
     protected ScriptQueryBuilder doCreateTestQueryBuilder() {
-        String script;
-        Map<String, Object> params = null;
-        if (randomBoolean()) {
-            script = "5 * 2 > param";
-            params = new HashMap<>();
-            params.put("param", 1);
-        } else {
-            script = "5 * 2 > 2";
-        }
-        return new ScriptQueryBuilder(new Script(script, ScriptType.INLINE, ExpressionScriptEngineService.NAME, params));
+        String script = "5";
+        Map<String, Object> params = Collections.emptyMap();
+        return new ScriptQueryBuilder(new Script(script, ScriptType.INLINE, MockScriptEngine.NAME, params));
     }
 
     @Override

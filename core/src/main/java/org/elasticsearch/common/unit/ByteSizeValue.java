@@ -250,10 +250,11 @@ public class ByteSizeValue implements Streamable {
 
         ByteSizeValue sizeValue = (ByteSizeValue) o;
 
-        if (size != sizeValue.size) return false;
-        if (sizeUnit != sizeValue.sizeUnit) return false;
-
-        return true;
+        if (sizeUnit == sizeValue.sizeUnit) {
+            return size == sizeValue.size;
+        } else {
+            return bytes() == sizeValue.bytes();
+        }
     }
 
     @Override

@@ -405,7 +405,7 @@ and `false` respectively.
 {
     "tweet" : {
         "properties" : {
-            "hes_my_special_tweet" : {
+            "has_my_special_tweet" : {
                 "type" : "boolean"
             }
         }

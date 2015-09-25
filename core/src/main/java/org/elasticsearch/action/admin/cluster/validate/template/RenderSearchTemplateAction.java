@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.validate.template;
+package org.elasticsearch.action.admin.cluster.validate.template;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -25,7 +25,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class RenderSearchTemplateAction extends Action<RenderSearchTemplateRequest, RenderSearchTemplateResponse, RenderSearchTemplateRequestBuilder> {
 
     public static final RenderSearchTemplateAction INSTANCE = new RenderSearchTemplateAction();
-    public static final String NAME = "indices:admin/render/template/search";
+    public static final String NAME = "cluster:admin/render/template/search";
 
     public RenderSearchTemplateAction() {
         super(NAME);

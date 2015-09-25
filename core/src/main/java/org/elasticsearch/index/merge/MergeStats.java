@@ -79,13 +79,21 @@ public class MergeStats implements Streamable, ToXContent {
         if (mergeStats == null) {
             return;
         }
+        this.current += mergeStats.current;
+        this.currentNumDocs += mergeStats.currentNumDocs;
+        this.currentSizeInBytes += mergeStats.currentSizeInBytes;
+
+        addTotals(mergeStats);
+    }
+
+    public void addTotals(MergeStats mergeStats) {
+        if (mergeStats == null) {
+            return;
+        }
         this.total += mergeStats.total;
         this.totalTimeInMillis += mergeStats.totalTimeInMillis;
         this.totalNumDocs += mergeStats.totalNumDocs;
         this.totalSizeInBytes += mergeStats.totalSizeInBytes;
-        this.current += mergeStats.current;
-        this.currentNumDocs += mergeStats.currentNumDocs;
-        this.currentSizeInBytes += mergeStats.currentSizeInBytes;
         this.totalStoppedTimeInMillis += mergeStats.totalStoppedTimeInMillis;
         this.totalThrottledTimeInMillis += mergeStats.totalThrottledTimeInMillis;
         if (this.totalBytesPerSecAutoThrottle == Long.MAX_VALUE || mergeStats.totalBytesPerSecAutoThrottle == Long.MAX_VALUE) {

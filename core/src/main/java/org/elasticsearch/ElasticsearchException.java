@@ -454,11 +454,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     enum ElasticsearchExceptionHandle {
-        // each exception gets an ordinal assigned that must never change. While the exception name can
+        // each exception gets an assigned id that must never change. While the exception name can
         // change due to refactorings etc. like renaming we have to keep the ordinal <--> class mapping
         // to deserialize the exception coming from another node or from an corruption marker on
         // a corrupted index.
-        // NOTE: ONLY APPEND TO THE END and NEVER REMOVE EXCEPTIONS IN MINOR VERSIONS
+        // these exceptions can be ordered and removed, but (repeating) the ids must never change
+        // to remove an exception, remove the enum value below, and mark the id as null in ExceptionSerializationTests.testIds.ids
         INDEX_SHARD_SNAPSHOT_FAILED_EXCEPTION(org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException.class, org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException::new, 0),
         DFS_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.dfs.DfsPhaseExecutionException.class, org.elasticsearch.search.dfs.DfsPhaseExecutionException::new, 1),
         EXECUTION_CANCELLED_EXCEPTION(org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException.class, org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException::new, 2),

@@ -47,7 +47,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String RESOURCE_HEADER_TYPE_KEY = "es.resource.type";
     private static final String RESOURCE_HEADER_ID_KEY = "es.resource.id";
 
-    private static final FunctionThatThrowsIOException<StreamInput, ? extends ElasticsearchException>[] ID_TO_SUPPLIER;
+    private static final Map<Integer, FunctionThatThrowsIOException<StreamInput, ? extends ElasticsearchException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
     private final Map<String, List<String>> headers = new HashMap<>();
 
@@ -231,7 +231,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
-        FunctionThatThrowsIOException<StreamInput, ? extends ElasticsearchException> elasticsearchException = ID_TO_SUPPLIER[id];
+        FunctionThatThrowsIOException<StreamInput, ? extends ElasticsearchException> elasticsearchException = ID_TO_SUPPLIER.get(id);
         if (elasticsearchException == null) {
             throw new IllegalStateException("unknown exception for id: " + id);
         }
@@ -613,11 +613,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     static {
         final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> exceptions = Arrays.stream(ElasticsearchExceptionHandle.values()).collect(Collectors.toMap(e -> e.exceptionClass, e -> e));
+        final Map<Integer, FunctionThatThrowsIOException<StreamInput, ? extends ElasticsearchException>> idToSupplier = Arrays.stream(ElasticsearchExceptionHandle.values()).collect(Collectors.toMap(e -> e.id, e -> e.constructor));
 
-        FunctionThatThrowsIOException<StreamInput, ? extends ElasticsearchException>[] idToSupplier = new FunctionThatThrowsIOException[exceptions.size()];
-        exceptions.entrySet().forEach(e -> idToSupplier[e.getValue().id] = e.getValue().constructor);
-
-        ID_TO_SUPPLIER = idToSupplier;
+        ID_TO_SUPPLIER = Collections.unmodifiableMap(idToSupplier);
         CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE = Collections.unmodifiableMap(exceptions);
     }
 

@@ -20,8 +20,8 @@
 package org.elasticsearch.rest.action.admin.indices.validate.template;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateRequest;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateResponse;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequest;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;

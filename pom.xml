@@ -697,6 +697,7 @@
                                     showStatusFailure="true"
                                     showStatusIgnored="true"
                                     showSuiteSummary="true"
+                                    showNumFailures="30"
                                     timestamps="false">
                                 <filtertrace>
                                     <!-- custom filters: we carefully only omit test infra noise here -->

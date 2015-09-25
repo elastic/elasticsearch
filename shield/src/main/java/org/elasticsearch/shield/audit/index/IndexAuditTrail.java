@@ -739,7 +739,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         Settings.Builder builder = Settings.builder();
         for (Map.Entry<String, String> entry : newSettings.getAsMap().entrySet()) {
             String name = "index." + entry.getKey();
-            if (FORBIDDEN_INDEX_SETTING.contains(name)) {
+            if (FORBIDDEN_INDEX_SETTING.equals(name)) {
                 logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
                 continue;
             }

@@ -33,21 +33,12 @@ public class QueryParseContext {
     private static final ParseField CACHE_KEY = new ParseField("_cache_key").withAllDeprecated("Filters are always used as cache keys");
 
     private XContentParser parser;
-    //norelease this flag is also used in the QueryShardContext, we need to make sure we set it there correctly in doToQuery()
     private ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
 
-    //norelease this can eventually be deleted when context() method goes away
-    private final QueryShardContext shardContext;
     private IndicesQueriesRegistry indicesQueriesRegistry;
 
     public QueryParseContext(IndicesQueriesRegistry registry) {
         this.indicesQueriesRegistry = registry;
-        this.shardContext = null;
-    }
-
-    QueryParseContext(QueryShardContext context) {
-        this.shardContext = context;
-        this.indicesQueriesRegistry = context.indexQueryParserService().indicesQueriesRegistry();
     }
 
     public void reset(XContentParser jp) {
@@ -129,7 +120,7 @@ public class QueryParseContext {
      * @param name the name of the parser to retrieve
      * @return the query parser
      */
-    QueryParser queryParser(String name) {
+    private QueryParser queryParser(String name) {
         return indicesQueriesRegistry.queryParsers().get(name);
     }
 }

@@ -61,8 +61,9 @@ public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuild
         DistanceUnit unit = GeoDistanceQueryBuilder.DEFAULT_DISTANCE_UNIT;
         GeoDistance geoDistance = GeoDistanceQueryBuilder.DEFAULT_GEO_DISTANCE;
         String optimizeBbox = GeoDistanceQueryBuilder.DEFAULT_OPTIMIZE_BBOX;
-        boolean coerce = GeoDistanceQueryBuilder.DEFAULT_COERCE;
-        boolean ignoreMalformed = GeoDistanceQueryBuilder.DEFAULT_IGNORE_MALFORMED;
+        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        GeoValidationMethod validationMethod = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -75,6 +76,7 @@ public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuild
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
                 String currentName = parser.currentName();
+                assert currentFieldName != null;
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -125,6 +127,8 @@ public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuild
                     }
                 } else if ("ignore_malformed".equals(currentFieldName)) {
                     ignoreMalformed = parser.booleanValue();
+                } else if ("validation_method".equals(currentFieldName)) {
+                    validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else {
                     point.resetFromString(parser.text());
                     fieldName = currentFieldName;
@@ -143,8 +147,11 @@ public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuild
             qb.distance((String) vDistance, unit);
         }
         qb.point(point);
-        qb.coerce(coerce);
-        qb.ignoreMalformed(ignoreMalformed);
+        if (validationMethod != null) {
+            qb.setValidationMethod(validationMethod);
+        } else {
+            qb.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
+        }
         qb.optimizeBbox(optimizeBbox);
         qb.geoDistance(geoDistance);
         qb.boost(boost);

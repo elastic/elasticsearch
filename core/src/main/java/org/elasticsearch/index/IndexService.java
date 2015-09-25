@@ -59,7 +59,6 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreModule;
-import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
@@ -435,9 +434,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                         logger.debug("[{}] failed to clean plugin shard service [{}]", e, shardId, closeable);
                     }
                 }
-                // now we can close the translog service, we need to close it before the we close the shard
-                // note the that the translog service is not there for shadow replicas
-                closeInjectorOptionalResource(sId, shardInjector, TranslogService.class);
                 // this logic is tricky, we want to close the engine so we rollback the changes done to it
                 // and close the shard so no operations are allowed to it
                 if (indexShard != null) {

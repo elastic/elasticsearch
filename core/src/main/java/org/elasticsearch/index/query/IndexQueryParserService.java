@@ -167,12 +167,16 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
-    public ParsedQuery parse(BytesReference source) {
-        return parse(cache.get(), source);
+    private static ParsedQuery innerParse(QueryShardContext context, QueryBuilder<?> queryBuilder) throws IOException, QueryShardException {
+        Query query = queryBuilder.toQuery(context);
+        if (query == null) {
+            query = Queries.newMatchNoDocsQuery();
+        }
+        return new ParsedQuery(query, context.copyNamedQueries());
     }
 
-    //norelease
-    public ParsedQuery parse(QueryShardContext context, BytesReference source) {
+    public ParsedQuery parse(BytesReference source) {
+        QueryShardContext context = cache.get();
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source).createParser(source);
@@ -200,11 +204,11 @@ public class IndexQueryParserService extends AbstractIndexComponent {
      * Parses an inner filter, returning null if the filter should be ignored.
      */
     @Nullable
-    //norelease
     public ParsedQuery parseInnerFilter(XContentParser parser) throws IOException {
         QueryShardContext context = cache.get();
         context.reset(parser);
         try {
+            context.parseFieldMatcher(parseFieldMatcher);
             Query filter = context.parseContext().parseInnerQueryBuilder().toFilter(context);
             if (filter == null) {
                 return null;
@@ -216,13 +220,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     }
 
     @Nullable
-    public QueryBuilder<?> parseInnerQueryBuilder(QueryParseContext parseContext) throws IOException {
-        parseContext.parseFieldMatcher(parseFieldMatcher);
-        return parseContext.parseInnerQueryBuilder();
-    }
-
-    @Nullable
-    //norelease
     public Query parseInnerQuery(QueryShardContext context) throws IOException {
         Query query = context.parseContext().parseInnerQueryBuilder().toQuery(context);
         if (query == null) {
@@ -279,23 +276,18 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
-    //norelease
     private ParsedQuery innerParse(QueryShardContext context, XContentParser parser) throws IOException, QueryShardException {
         context.reset(parser);
         try {
             context.parseFieldMatcher(parseFieldMatcher);
-            return innerParse(context, context.parseContext().parseInnerQueryBuilder());
-        } finally {
-            context.reset(null);
-        }
-    }
-
-    private static ParsedQuery innerParse(QueryShardContext context, QueryBuilder<?> queryBuilder) throws IOException, QueryShardException {
-        Query query = queryBuilder.toQuery(context);
+            Query query = context.parseContext().parseInnerQueryBuilder().toQuery(context);
         if (query == null) {
             query = Queries.newMatchNoDocsQuery();
         }
         return new ParsedQuery(query, context.copyNamedQueries());
+        } finally {
+            context.reset(null);
+        }
     }
 
     public ParseFieldMatcher parseFieldMatcher() {

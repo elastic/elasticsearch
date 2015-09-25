@@ -89,15 +89,12 @@ public class QueryShardContext {
 
     private final MapperQueryParser queryParser = new MapperQueryParser(this);
 
-    private ParseFieldMatcher parseFieldMatcher;
-
     private boolean allowUnmappedFields;
 
     private boolean mapUnmappedFieldAsString;
 
     private NestedScope nestedScope;
 
-    //norelease this should be possible to remove once query context are completely separated
     private QueryParseContext parseContext;
 
     boolean isFilter;
@@ -106,17 +103,15 @@ public class QueryShardContext {
         this.index = index;
         this.indexVersionCreated = Version.indexCreated(indexQueryParser.indexSettings());
         this.indexQueryParser = indexQueryParser;
-        this.parseContext = new QueryParseContext(this);
+        this.parseContext = new QueryParseContext(indexQueryParser.indicesQueriesRegistry());
     }
 
     public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
-        //norelease ParseFieldMatcher is currently duplicated, this should be cleaned up
-        this.parseFieldMatcher = parseFieldMatcher;
         this.parseContext.parseFieldMatcher(parseFieldMatcher);
     }
 
     public ParseFieldMatcher parseFieldMatcher() {
-        return parseFieldMatcher;
+        return parseContext.parseFieldMatcher();
     }
 
     public void reset() {
@@ -127,7 +122,6 @@ public class QueryShardContext {
         this.nestedScope = new NestedScope();
     }
 
-    //norelease remove parser argument once query contexts are separated
     public void reset(XContentParser jp) {
         this.reset();
         this.parseContext.reset(jp);
@@ -137,7 +131,6 @@ public class QueryShardContext {
         return this.index;
     }
 
-    //norelease we might be able to avoid exposing the service to the outside world once all queries are refactored
     public IndexQueryParserService indexQueryParserService() {
         return indexQueryParser;
     }

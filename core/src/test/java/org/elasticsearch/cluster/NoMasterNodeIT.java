@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -45,12 +46,8 @@ import java.util.HashMap;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -68,7 +65,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 .put("discovery.type", "zen")
                 .put("action.auto_create_index", autoCreateIndex)
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put("discovery.zen.ping_timeout", "200ms")
+                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .put(DiscoverySettings.NO_MASTER_BLOCK, "all")
                 .build();
@@ -221,7 +218,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 .put("discovery.type", "zen")
                 .put("action.auto_create_index", false)
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put("discovery.zen.ping_timeout", "200ms")
+                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .put(DiscoverySettings.NO_MASTER_BLOCK, "write")
                 .build();

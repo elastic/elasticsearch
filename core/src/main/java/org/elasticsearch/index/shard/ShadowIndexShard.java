@@ -108,6 +108,12 @@ public final class ShadowIndexShard extends IndexShard {
         return engineFactory.newReadOnlyEngine(config);
     }
 
+    @Override
+    public boolean shouldFlush() {
+        // we don't need to flush since we don't write - all dominated by the primary
+        return false;
+    }
+
     public boolean allowsPrimaryPromotion() {
         return false;
     }

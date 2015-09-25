@@ -73,7 +73,6 @@ export_elasticsearch_paths() {
     export ESSCRIPTS="$ESCONFIG/scripts"
     export ESDATA="$ESHOME/data"
     export ESLOG="$ESHOME/logs"
-
 }
 
 # Checks that all directories & files are correctly installed

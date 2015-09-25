@@ -100,7 +100,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
     private String hostName;
     private String hostAddress;
     private TransportAddress address;
-    private ImmutableMap<String, String> attributes;
+    private Map<String, String> attributes;
     private Version version = Version.CURRENT;
 
     DiscoveryNode() {
@@ -120,7 +120,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * @param version the version of the node.
      */
     public DiscoveryNode(String nodeId, TransportAddress address, Version version) {
-        this("", nodeId, address, ImmutableMap.<String, String>of(), version);
+        this("", nodeId, address, Collections.emptyMap(), version);
     }
 
     /**
@@ -230,14 +230,14 @@ public class DiscoveryNode implements Streamable, ToXContent {
     /**
      * The node attributes.
      */
-    public ImmutableMap<String, String> attributes() {
+    public Map<String, String> attributes() {
         return this.attributes;
     }
 
     /**
      * The node attributes.
      */
-    public ImmutableMap<String, String> getAttributes() {
+    public Map<String, String> getAttributes() {
         return attributes();
     }
 

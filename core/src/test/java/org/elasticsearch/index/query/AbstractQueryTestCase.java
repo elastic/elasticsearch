@@ -69,7 +69,8 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.*;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -85,13 +86,11 @@ import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -166,7 +165,38 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         bindQueryParsersExtension();
                     }
                 },
-                new ScriptModule(settings),
+                new ScriptModule(settings) {
+                    @Override
+                    protected void configure() {
+                        Settings settings = Settings.builder()
+                                .put("path.home", createTempDir())
+                                // no file watching, so we don't need a ResourceWatcherService
+                                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
+                                .build();
+                        MockScriptEngine mockScriptEngine = new MockScriptEngine();
+                        Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
+                        multibinder.addBinding().toInstance(mockScriptEngine);
+                        try {
+                            Class.forName("com.github.mustachejava.Mustache");
+                        } catch(ClassNotFoundException e) {
+                            throw new IllegalStateException("error while loading mustache", e);
+                        }
+                        MustacheScriptEngineService mustacheScriptEngineService = new MustacheScriptEngineService(settings);
+                        Set<ScriptEngineService> engines = new HashSet<>();
+                        engines.add(mockScriptEngine);
+                        engines.add(mustacheScriptEngineService);
+                        List<ScriptContext.Plugin> customContexts = new ArrayList<>();
+                        bind(ScriptContextRegistry.class).toInstance(new ScriptContextRegistry(customContexts));
+                        try {
+                            ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null, new ScriptContextRegistry(customContexts));
+                            bind(ScriptService.class).toInstance(scriptService);
+                        } catch(IOException e) {
+                            throw new IllegalStateException("error while binding ScriptService", e);
+                        }
+
+
+                    }
+                },
                 new IndexSettingsModule(index, indexSettings),
                 new IndexCacheModule(indexSettings),
                 new AnalysisModule(indexSettings, new IndicesAnalysisService(indexSettings)),
@@ -482,7 +512,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryParseContext} based on the base test index and queryParserService
      */
     protected static QueryParseContext createParseContext() {
-        return createShardContext().parseContext();
+        QueryParseContext queryParseContext = new QueryParseContext(queryParserService.indicesQueriesRegistry());
+        queryParseContext.reset(null);
+        queryParseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
+        return queryParseContext;
     }
 
     /**

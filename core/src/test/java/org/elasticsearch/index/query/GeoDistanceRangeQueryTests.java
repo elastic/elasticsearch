@@ -96,10 +96,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             builder.optimizeBbox(randomFrom("none", "memory", "indexed"));
         }
         if (randomBoolean()) {
-            builder.coerce(randomBoolean());
-        }
-        if (randomBoolean()) {
-            builder.ignoreMalformed(randomBoolean());
+            builder.setValidationMethod(randomFrom(GeoValidationMethod.values()));
         }
         return builder;
     }

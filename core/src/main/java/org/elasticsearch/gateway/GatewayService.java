@@ -214,7 +214,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         @Override
         public void onSuccess(final ClusterState recoveredState) {
             logger.trace("successful state recovery, importing cluster state...");
-            clusterService.submitStateUpdateTask("local-gateway-elected-state", new ProcessedClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("local-gateway-elected-state", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     assert currentState.metaData().indices().isEmpty();

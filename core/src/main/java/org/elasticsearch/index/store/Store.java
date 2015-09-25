@@ -737,7 +737,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
 
-        private final ImmutableMap<String, String> commitUserData;
+        private final Map<String, String> commitUserData;
 
         private final long numDocs;
 

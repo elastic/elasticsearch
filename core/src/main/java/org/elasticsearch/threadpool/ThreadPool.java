@@ -91,7 +91,7 @@ public class ThreadPool extends AbstractComponent {
 
     private volatile ImmutableMap<String, ExecutorHolder> executors;
 
-    private final ImmutableMap<String, Settings> defaultExecutorTypeSettings;
+    private final Map<String, Settings> defaultExecutorTypeSettings;
 
     private final Queue<ExecutorHolder> retiredExecutors = new ConcurrentLinkedQueue<>();
 
@@ -511,8 +511,8 @@ public class ThreadPool extends AbstractComponent {
         public void run() {
             try {
                 runnable.run();
-            } catch (Exception e) {
-                logger.warn("failed to run {}", e, runnable.toString());
+            } catch (Throwable t) {
+                logger.warn("failed to run {}", t, runnable.toString());
             }
         }
 

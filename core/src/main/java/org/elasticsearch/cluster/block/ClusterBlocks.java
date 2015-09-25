@@ -45,11 +45,11 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     private final ImmutableSet<ClusterBlock> global;
 
-    private final ImmutableMap<String, ImmutableSet<ClusterBlock>> indicesBlocks;
+    private final Map<String, ImmutableSet<ClusterBlock>> indicesBlocks;
 
     private final ImmutableLevelHolder[] levelHolders;
 
-    ClusterBlocks(ImmutableSet<ClusterBlock> global, ImmutableMap<String, ImmutableSet<ClusterBlock>> indicesBlocks) {
+    ClusterBlocks(ImmutableSet<ClusterBlock> global, Map<String, ImmutableSet<ClusterBlock>> indicesBlocks) {
         this.global = global;
         this.indicesBlocks = indicesBlocks;
 
@@ -83,7 +83,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return global;
     }
 
-    public ImmutableMap<String, ImmutableSet<ClusterBlock>> indices() {
+    public Map<String, ImmutableSet<ClusterBlock>> indices() {
         return indicesBlocks;
     }
 
@@ -91,7 +91,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return levelHolders[level.id()].global();
     }
 
-    public ImmutableMap<String, ImmutableSet<ClusterBlock>> indices(ClusterBlockLevel level) {
+    public Map<String, ImmutableSet<ClusterBlock>> indices(ClusterBlockLevel level) {
         return levelHolders[level.id()].indices();
     }
 

@@ -1082,4 +1082,18 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         return new WriteResult(new IndexResponse(shardId.getIndex(), request.type(), request.id(), request.version(), created), operation.getTranslogLocation());
     }
+
+    protected final void processAfter(boolean refresh, IndexShard indexShard, Translog.Location location) {
+        if (refresh) {
+            try {
+                indexShard.refresh("refresh_flag_index");
+            } catch (Throwable e) {
+                // ignore
+            }
+        }
+        if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
+            indexShard.sync(location);
+        }
+        indexShard.maybeFlush();
+    }
 }

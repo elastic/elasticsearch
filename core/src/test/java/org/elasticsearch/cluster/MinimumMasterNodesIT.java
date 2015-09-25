@@ -69,7 +69,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put("discovery.zen.ping_timeout", "200ms")
+                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
@@ -182,7 +182,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 3)
-                .put("discovery.zen.ping_timeout", "1s")
+                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "1s")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
@@ -258,7 +258,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     public void dynamicUpdateMinimumMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put("discovery.zen.ping_timeout", "400ms")
+                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "400ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
@@ -317,7 +317,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         int nodeCount = scaledRandomIntBetween(1, 5);
         Settings.Builder settings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put("discovery.zen.ping_timeout", "200ms")
+                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
                 .put("discovery.initial_state_timeout", "500ms");
 
         // set an initial value which is at least quorum to avoid split brains during initial startup
@@ -372,7 +372,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         logger.debug("--> submitting for cluster state to be rejected");
         final ClusterService masterClusterService = internalCluster().clusterService(master);
-        masterClusterService.submitStateUpdateTask("test", new ProcessedClusterStateUpdateTask() {
+        masterClusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 latch.countDown();

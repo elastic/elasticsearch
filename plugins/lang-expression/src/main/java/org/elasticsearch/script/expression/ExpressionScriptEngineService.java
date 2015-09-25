@@ -95,7 +95,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
             // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
             return JavascriptCompiler.compile(script);
         } catch (ParseException e) {
-            throw new ExpressionScriptCompilationException("Failed to parse expression: " + script, e);
+            throw new ScriptException("Failed to parse expression: " + script, e);
         }
     }
 
@@ -127,7 +127,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     if (value instanceof Number) {
                         bindings.add(variable, new DoubleConstValueSource(((Number) value).doubleValue()));
                     } else {
-                        throw new ExpressionScriptCompilationException("Parameter [" + variable + "] must be a numeric type");
+                        throw new ScriptException("Parameter [" + variable + "] must be a numeric type");
                     }
 
                 } else {
@@ -135,10 +135,10 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     String methodname = null;
                     VariableContext[] parts = VariableContext.parse(variable);
                     if (parts[0].text.equals("doc") == false) {
-                        throw new ExpressionScriptCompilationException("Unknown variable [" + parts[0].text + "] in expression");
+                        throw new ScriptException("Unknown variable [" + parts[0].text + "] in expression");
                     }
                     if (parts.length < 2 || parts[1].type != VariableContext.Type.STR_INDEX) {
-                        throw new ExpressionScriptCompilationException("Variable 'doc' in expression must be used with a specific field like: doc['myfield']");
+                        throw new ScriptException("Variable 'doc' in expression must be used with a specific field like: doc['myfield']");
                     } else {
                         fieldname = parts[1].text;
                     }
@@ -146,21 +146,21 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                         if (parts[2].type == VariableContext.Type.METHOD) {
                             methodname = parts[2].text;
                         } else if (parts[2].type != VariableContext.Type.MEMBER || !"value".equals(parts[2].text)) {
-                            throw new ExpressionScriptCompilationException("Only the member variable [value] or member methods may be accessed on a field when not accessing the field directly");
+                            throw new ScriptException("Only the member variable [value] or member methods may be accessed on a field when not accessing the field directly");
                         }
                     }
                     if (parts.length > 3) {
-                        throw new ExpressionScriptCompilationException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
+                        throw new ScriptException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
                     }
 
                     MappedFieldType fieldType = mapper.smartNameFieldType(fieldname);
 
                     if (fieldType == null) {
-                        throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression does not exist in mappings");
+                        throw new ScriptException("Field [" + fieldname + "] used in expression does not exist in mappings");
                     }
                     if (fieldType.isNumeric() == false) {
                         // TODO: more context (which expression?)
-                        throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression must be numeric");
+                        throw new ScriptException("Field [" + fieldname + "] used in expression must be numeric");
                     }
 
                     IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField((NumberFieldMapper.NumberFieldType) fieldType);

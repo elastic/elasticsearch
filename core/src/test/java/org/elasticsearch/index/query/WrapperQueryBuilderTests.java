@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -44,9 +45,9 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
             case 0:
                 return new WrapperQueryBuilder(wrappedQuery.toString());
             case 1:
-                return new WrapperQueryBuilder(wrappedQuery.buildAsBytes().toBytes());
+                return new WrapperQueryBuilder(((ToXContentToBytes)wrappedQuery).buildAsBytes().toBytes());
             case 2:
-                return new WrapperQueryBuilder(wrappedQuery.buildAsBytes());
+                return new WrapperQueryBuilder(((ToXContentToBytes)wrappedQuery).buildAsBytes());
             default:
                 throw new UnsupportedOperationException();
         }

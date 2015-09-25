@@ -96,11 +96,6 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>org.apache.lucene</groupId>
-      <artifactId>lucene-expressions</artifactId>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
       <groupId>com.spatial4j</groupId>
       <artifactId>spatial4j</artifactId>
       <scope>provided</scope>
@@ -315,6 +310,14 @@
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>discovery-multicast</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>lang-expression</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>

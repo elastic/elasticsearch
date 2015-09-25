@@ -84,64 +84,6 @@ public class OnDiskScriptIT extends ESIntegTestCase {
     }
 
     @Test
-    public void testOnDiskScriptsSameNameDifferentLang()  throws ExecutionException, InterruptedException {
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}"));
-        builders.add(client().prepareIndex("test", "scriptTest", "2").setSource("{\"theField\":\"foo 2\"}"));
-        builders.add(client().prepareIndex("test", "scriptTest", "3").setSource("{\"theField\":\"foo 3\"}"));
-        builders.add(client().prepareIndex("test", "scriptTest", "4").setSource("{\"theField\":\"foo 4\"}"));
-        builders.add(client().prepareIndex("test", "scriptTest", "5").setSource("{\"theField\":\"bar\"}"));
-        indexRandom(true, builders);
-
-        SearchResponse searchResponse = client()
-                .prepareSearch()
-                .setSource(
-                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1)
-                                .scriptField("test1", new Script("script1", ScriptType.FILE, null, null))
-                                .scriptField("test2", new Script("script1", ScriptType.FILE, "expression", null))).setIndices("test")
-                .setTypes("scriptTest").get();
-        assertHitCount(searchResponse, 5);
-        assertTrue(searchResponse.getHits().hits().length == 1);
-        SearchHit sh = searchResponse.getHits().getAt(0);
-        assertThat((Integer) sh.field("test1").getValue(), equalTo(2));
-        assertThat((Double) sh.field("test2").getValue(), equalTo(10d));
-    }
-
-    @Test
-    public void testPartiallyDisabledOnDiskScripts() throws ExecutionException, InterruptedException {
-        //test that although aggs are disabled for expression, search scripts work fine
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}"));
-        builders.add(client().prepareIndex("test", "scriptTest", "2").setSource("{\"theField\":\"foo 2\"}"));
-        builders.add(client().prepareIndex("test", "scriptTest", "3").setSource("{\"theField\":\"foo 3\"}"));
-        builders.add(client().prepareIndex("test", "scriptTest", "4").setSource("{\"theField\":\"foo 4\"}"));
-        builders.add(client().prepareIndex("test", "scriptTest", "5").setSource("{\"theField\":\"bar\"}"));
-
-        indexRandom(true, builders);
-
-        try {
-            client().prepareSearch("test")
-                    .setSource(
-                            new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                    new Script("script1", ScriptType.FILE, "expression", null)))).get();
-            fail("aggs script should have been rejected");
-        } catch (Exception e) {
-            assertThat(e.toString(), containsString("scripts of type [file], operation [aggs] and lang [expression] are disabled"));
-        }
-
-        SearchResponse searchResponse = client()
-                .prepareSearch()
-                .setSource(
-                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1)
-                                .scriptField("test1", new Script("script1", ScriptType.FILE, "expression", null))).setIndices("test")
-                .setTypes("scriptTest").get();
-        assertHitCount(searchResponse, 5);
-        assertTrue(searchResponse.getHits().hits().length == 1);
-        SearchHit sh = searchResponse.getHits().getAt(0);
-        assertThat((Double) sh.field("test1").getValue(), equalTo(10d));
-    }
-
-    @Test
     public void testAllOpsDisabledOnDiskScripts() {
         //whether we even compile or cache the on disk scripts doesn't change the end result (the returned error)
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();

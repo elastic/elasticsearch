@@ -170,7 +170,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         final WriteResult<IndexResponse> result = executeIndexRequestOnPrimary(null, request, indexShard);
         final IndexResponse response = result.response;
         final Translog.Location location = result.location;
-        processAfter(request, indexShard, location);
+        processAfter(request.refresh(), indexShard, location);
         return new Tuple<>(response, shardRequest.request);
     }
 
@@ -193,20 +193,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
             throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
         }
         operation.execute(indexShard);
-        processAfter(request, indexShard, operation.getTranslogLocation());
+        processAfter(request.refresh(), indexShard, operation.getTranslogLocation());
     }
 
-    private void processAfter(IndexRequest request, IndexShard indexShard, Translog.Location location) {
-        if (request.refresh()) {
-            try {
-                indexShard.refresh("refresh_flag_index");
-            } catch (Throwable e) {
-                // ignore
-            }
-        }
-
-        if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
-            indexShard.sync(location);
-        }
-    }
 }

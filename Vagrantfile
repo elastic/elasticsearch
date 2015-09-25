@@ -71,13 +71,22 @@ Vagrant.configure(2) do |config|
   config.vm.define "opensuse-13" do |config|
     config.vm.box = "chef/opensuse-13"
     config.vm.box_url = "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_opensuse-13.2-x86_64_chef-provisionerless.box"
-    suse_common config
+    opensuse_common config
+  end
+  # The SLES boxes are not considered to be highest quality, but seem to be sufficient for a test run
+  config.vm.define "sles-12" do |config|
+    config.vm.box = "idar/sles12"
+    sles_common config
   end
   # Switch the default share for the project root from /vagrant to
   # /elasticsearch because /vagrant is confusing when there is a project inside
   # the elasticsearch project called vagrant....
   config.vm.synced_folder ".", "/vagrant", disabled: true
   config.vm.synced_folder ".", "/elasticsearch"
+  config.vm.provider "virtualbox" do |v|
+    # Give the boxes 2GB so they can run our tests if they have to.
+    v.memory = 2048
+  end
   if Vagrant.has_plugin?("vagrant-cachier")
     config.cache.scope = :box
   end
@@ -127,9 +136,7 @@ def deb_common(config, add_openjdk_repository_command, openjdk_list)
       ls /etc/apt/sources.list.d/#{openjdk_list}.list > /dev/null 2>&1 ||
         (echo "Importing java-8 ppa" &&
           #{add_openjdk_repository_command} &&
-          apt-get update -o \
-            Dir::Etc::sourcelist="$(ls /etc/apt/sources.list.d/#{openjdk_list}.list)" \
-            -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0")
+          apt-get update)
 SHELL
   )
 end
@@ -155,12 +162,29 @@ def dnf_common(config)
   end
 end
 
-def suse_common(config)
+def opensuse_common(config)
+  suse_common config, ''
+end
+
+def suse_common(config, extra)
   provision(config,
     update_command: "zypper --non-interactive list-updates",
     update_tracking_file: "/var/cache/zypp/packages/last_update",
     install_command: "zypper --non-interactive --quiet install --no-recommends",
-    java_package: "java-1_8_0-openjdk-devel")
+    java_package: "java-1_8_0-openjdk-devel",
+    extra: extra)
+end
+
+def sles_common(config)
+  extra = <<-SHELL
+    zypper rr systemsmanagement_puppet
+    zypper addrepo -t yast2 http://demeter.uni-regensburg.de/SLES12-x64/DVD1/ dvd1 || true
+    zypper addrepo -t yast2 http://demeter.uni-regensburg.de/SLES12-x64/DVD2/ dvd2 || true
+    zypper addrepo http://download.opensuse.org/repositories/Java:Factory/SLE_12/Java:Factory.repo || true
+    zypper --no-gpg-checks --non-interactive refresh
+    zypper --non-interactive install git-core
+SHELL
+  suse_common config, extra
 end
 
 # Register the main box provisioning script.

@@ -17,19 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.elasticsearch.script.expression;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptModule;
 
-/**
- * An extension interface to {@link org.elasticsearch.cluster.ClusterStateUpdateTask} that allows to associate
- * a timeout.
- */
-abstract public class TimeoutClusterStateUpdateTask extends ProcessedClusterStateUpdateTask {
+public class ExpressionPlugin extends Plugin {
 
-    /**
-     * If the cluster state update task wasn't processed by the provided timeout, call
-     * {@link #onFailure(String, Throwable)}
-     */
-    abstract public TimeValue timeout();
+    @Override
+    public String name() {
+        return "lang-expression";
+    }
+
+    @Override
+    public String description() {
+        return "Lucene expressions integration for Elasticsearch";
+    }
+
+    public void onModule(ScriptModule module) {
+        module.addScriptEngine(ExpressionScriptEngineService.class);
+    }
 }

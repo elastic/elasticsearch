@@ -49,8 +49,8 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
     public static final BlobStoreIndexShardSnapshots PROTO = new BlobStoreIndexShardSnapshots();
 
     private final List<SnapshotFiles> shardSnapshots;
-    private final ImmutableMap<String, FileInfo> files;
-    private final ImmutableMap<String, List<FileInfo>> physicalFiles;
+    private final Map<String, FileInfo> files;
+    private final Map<String, List<FileInfo>> physicalFiles;
 
     public BlobStoreIndexShardSnapshots(List<SnapshotFiles> shardSnapshots) {
         this.shardSnapshots = Collections.unmodifiableList(new ArrayList<>(shardSnapshots));
@@ -108,8 +108,8 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
 
     private BlobStoreIndexShardSnapshots() {
         shardSnapshots = Collections.emptyList();
-        files = ImmutableMap.of();
-        physicalFiles = ImmutableMap.of();
+        files = Collections.emptyMap();
+        physicalFiles = Collections.emptyMap();
     }
 
 

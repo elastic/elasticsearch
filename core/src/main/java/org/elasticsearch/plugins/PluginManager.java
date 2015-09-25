@@ -84,6 +84,7 @@ public class PluginManager {
                     "discovery-azure",
                     "discovery-ec2",
                     "discovery-multicast",
+                    "lang-expression",
                     "lang-javascript",
                     "lang-python",
                     "mapper-murmur3",

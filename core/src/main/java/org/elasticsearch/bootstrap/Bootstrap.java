@@ -79,7 +79,7 @@ final class Bootstrap {
     }
     
     /** initialize native resources */
-    public static void initializeNatives(boolean mlockAll, boolean ctrlHandler) {
+    public static void initializeNatives(boolean mlockAll, boolean seccomp, boolean ctrlHandler) {
         final ESLogger logger = Loggers.getLogger(Bootstrap.class);
         
         // check if the user is running as root, and bail
@@ -89,6 +89,11 @@ final class Bootstrap {
             } else {
                 throw new RuntimeException("don't run elasticsearch as root.");
             }
+        }
+        
+        // enable secure computing mode
+        if (seccomp) {
+            Natives.trySeccomp();
         }
         
         // mlockall if requested
@@ -134,7 +139,8 @@ final class Bootstrap {
 
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
         initializeNatives(settings.getAsBoolean("bootstrap.mlockall", false),
-                settings.getAsBoolean("bootstrap.ctrlhandler", true));
+                          settings.getAsBoolean("bootstrap.seccomp", true),
+                          settings.getAsBoolean("bootstrap.ctrlhandler", true));
 
         // initialize probes before the security manager is installed
         initializeProbes();
@@ -218,6 +224,9 @@ final class Bootstrap {
      * to startup elasticsearch.
      */
     static void init(String[] args) throws Throwable {
+        // Set the system property before anything has a chance to trigger its use
+        System.setProperty("es.logger.prefix", "");
+
         BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
         CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
 
@@ -225,7 +234,6 @@ final class Bootstrap {
             System.exit(status.status());
         }
 
-        System.setProperty("es.logger.prefix", "");
         INSTANCE = new Bootstrap();
 
         boolean foreground = !"false".equals(System.getProperty("es.foreground", System.getProperty("es-foreground")));

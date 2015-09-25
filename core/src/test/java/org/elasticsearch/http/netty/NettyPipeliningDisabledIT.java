@@ -56,7 +56,7 @@ public class NettyPipeliningDisabledIT extends ESIntegTestCase {
         List<String> requests = Arrays.asList("/", "/_nodes/stats", "/", "/_cluster/state", "/", "/_nodes", "/");
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
-        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().boundAddress();
+        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
             Collection<HttpResponse> responses = nettyHttpClient.sendRequests(inetSocketTransportAddress.address(), requests.toArray(new String[]{}));

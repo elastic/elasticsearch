@@ -19,11 +19,10 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.*;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
@@ -35,7 +34,6 @@ import java.util.Locale;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
@@ -144,7 +142,15 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         if (query instanceof BooleanQuery) {
             BooleanQuery bq = (BooleanQuery) query;
             if (queryBuilder.minimumShouldMatch() != null) {
-                assertThat(bq.getMinimumNumberShouldMatch(), greaterThan(0));
+                // calculate expected minimumShouldMatch value
+                int optionalClauses = 0;
+                for (BooleanClause c : bq.clauses()) {
+                    if (c.getOccur() == BooleanClause.Occur.SHOULD) {
+                        optionalClauses++;
+                    }
+                }
+                int msm = Queries.calculateMinShouldMatch(optionalClauses, queryBuilder.minimumShouldMatch());
+                assertThat(bq.getMinimumNumberShouldMatch(), equalTo(msm));
             }
             if (queryBuilder.analyzer() == null && queryBuilder.value().toString().length() > 0) {
                 assertEquals(bq.clauses().size(), queryBuilder.value().toString().split(" ").length);
@@ -160,7 +166,11 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         if (query instanceof FuzzyQuery) {
             assertTrue(queryBuilder.fuzziness() != null);
             FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
-            assertThat(fuzzyQuery.getTerm(), equalTo(new Term(STRING_FIELD_NAME, BytesRefs.toBytesRef(queryBuilder.value()))));
+            // depending on analyzer being set or not we can have term lowercased along the way, so to simplify test we just
+            // compare lowercased terms here
+            String originalTermLc = queryBuilder.value().toString().toLowerCase(Locale.ROOT);
+            String actualTermLc = fuzzyQuery.getTerm().text().toString().toLowerCase(Locale.ROOT);
+            assertThat(actualTermLc, equalTo(originalTermLc));
             assertThat(queryBuilder.prefixLength(), equalTo(fuzzyQuery.getPrefixLength()));
             assertThat(queryBuilder.fuzzyTranspositions(), equalTo(fuzzyQuery.getTranspositions()));
         }

@@ -22,7 +22,9 @@ GET /my_index/groups/_search
 {
     "query": {
         "match_phrase": {
-            "names": "Abraham Lincoln" <1>
+            "names": {
+                "query": "Abraham Lincoln" <1>
+            }
         }
     }
 }
@@ -31,8 +33,10 @@ GET /my_index/groups/_search
 {
     "query": {
         "match_phrase": {
-            "names": "Abraham Lincoln",
-            "slop": 101 <2>
+            "names": {
+                "query": "Abraham Lincoln",
+                "slop": 101 <2>
+            }
         }
     }
 }
@@ -50,7 +54,7 @@ The `position_increment_gap` can be specified in the mapping.  For instance:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "groups": {
       "properties": {
         "names": {
           "type": "string",

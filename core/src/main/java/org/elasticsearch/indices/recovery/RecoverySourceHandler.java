@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
@@ -33,14 +34,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.CancellableThreads.Interruptable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -122,7 +121,7 @@ public class RecoverySourceHandler {
         assert engine.getTranslog() != null : "translog must not be null";
         try (Translog.View translogView = engine.getTranslog().newView()) {
             logger.trace("captured translog id [{}] for recovery", translogView.minTranslogGeneration());
-            final SnapshotIndexCommit phase1Snapshot;
+            final IndexCommit phase1Snapshot;
             try {
                 phase1Snapshot = shard.snapshotIndex(false);
             } catch (Throwable e) {
@@ -135,7 +134,11 @@ public class RecoverySourceHandler {
             } catch (Throwable e) {
                 throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
             } finally {
-                Releasables.closeWhileHandlingException(phase1Snapshot);
+                try {
+                    shard.releaseSnapshot(phase1Snapshot);
+                } catch (IOException ex) {
+                    logger.warn("releasing snapshot caused exception", ex);
+                }
             }
 
             logger.trace("snapshot translog for recovery. current size is [{}]", translogView.totalOperations());
@@ -151,7 +154,7 @@ public class RecoverySourceHandler {
     }
 
     /**
-     * Perform phase1 of the recovery operations. Once this {@link SnapshotIndexCommit}
+     * Perform phase1 of the recovery operations. Once this {@link IndexCommit}
      * snapshot has been performed no commit operations (files being fsync'd)
      * are effectively allowed on this index until all recovery phases are done
      * <p>
@@ -159,7 +162,7 @@ public class RecoverySourceHandler {
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
      */
-    public void phase1(final SnapshotIndexCommit snapshot, final Translog.View translogView) {
+    public void phase1(final IndexCommit snapshot, final Translog.View translogView) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSize = 0;
@@ -176,7 +179,7 @@ public class RecoverySourceHandler {
                 shard.engine().failEngine("recovery", ex);
                 throw ex;
             }
-            for (String name : snapshot.getFiles()) {
+            for (String name : snapshot.getFileNames()) {
                 final StoreFileMetaData md = recoverySourceMetadata.get(name);
                 if (md == null) {
                     logger.info("Snapshot differs from actual index for file: {} meta: {}", name, recoverySourceMetadata.asMap());

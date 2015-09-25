@@ -19,10 +19,7 @@
 
 package org.elasticsearch.index.snapshots.blobstore;
 
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -49,7 +46,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.*;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -150,12 +146,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         this.snapshotRateLimiter = snapshotRateLimiter;
         this.restoreRateLimiter = restoreRateLimiter;
         this.rateLimiterListener = rateLimiterListener;
-        this.snapshotThrottleListener = new RateLimitingInputStream.Listener() {
-            @Override
-            public void onPause(long nanos) {
-                rateLimiterListener.onSnapshotPause(nanos);
-            }
-        };
+        this.snapshotThrottleListener = nanos -> rateLimiterListener.onSnapshotPause(nanos);
         this.compress = compress;
         indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT, BlobStoreIndexShardSnapshot.PROTO, parseFieldMatcher, isCompress());
         indexShardSnapshotLegacyFormat = new LegacyBlobStoreFormat<>(LEGACY_SNAPSHOT_NAME_FORMAT, BlobStoreIndexShardSnapshot.PROTO, parseFieldMatcher);
@@ -166,7 +157,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * {@inheritDoc}
      */
     @Override
-    public void snapshot(SnapshotId snapshotId, ShardId shardId, SnapshotIndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
+    public void snapshot(SnapshotId snapshotId, ShardId shardId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
         SnapshotContext snapshotContext = new SnapshotContext(snapshotId, shardId, snapshotStatus);
         snapshotStatus.startTime(System.currentTimeMillis());
 
@@ -495,7 +486,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         public SnapshotContext(SnapshotId snapshotId, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
             super(snapshotId, Version.CURRENT, shardId);
             IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            store = indexService.shardInjectorSafe(shardId.id()).getInstance(Store.class);
+            store = indexService.shard(shardId.id()).store();
             this.snapshotStatus = snapshotStatus;
 
         }
@@ -505,7 +496,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          *
          * @param snapshotIndexCommit snapshot commit point
          */
-        public void snapshot(SnapshotIndexCommit snapshotIndexCommit) {
+        public void snapshot(IndexCommit snapshotIndexCommit) {
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, repositoryName);
             store.incRef();
             try {
@@ -528,12 +519,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 ArrayList<FileInfo> filesToSnapshot = new ArrayList<>();
                 final Store.MetadataSnapshot metadata;
                 // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
+                final Collection<String> fileNames;
                 try {
                     metadata = store.getMetadata(snapshotIndexCommit);
+                    fileNames = snapshotIndexCommit.getFileNames();
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
                 }
-                for (String fileName : snapshotIndexCommit.getFiles()) {
+                for (String fileName : fileNames) {
                     if (snapshotStatus.aborted()) {
                         logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
                         throw new IndexShardSnapshotFailedException(shardId, "Aborted");
@@ -776,7 +769,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public RestoreContext(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
             super(snapshotId, version, shardId, snapshotShardId);
-            store = indicesService.indexServiceSafe(shardId.getIndex()).shardInjectorSafe(shardId.id()).getInstance(Store.class);
+            store = indicesService.indexServiceSafe(shardId.getIndex()).shard(shardId.id()).store();
             this.recoveryState = recoveryState;
         }
 

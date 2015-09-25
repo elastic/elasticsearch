@@ -51,7 +51,7 @@ public class IntervalScheduleTests extends ESTestCase {
 
     @Test
     public void testParse_String() throws Exception {
-        IntervalSchedule.Interval value = randomTimeValue();
+        IntervalSchedule.Interval value = randomTimeInterval();
         XContentBuilder builder = jsonBuilder().value(value);
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -79,7 +79,7 @@ public class IntervalScheduleTests extends ESTestCase {
         new IntervalSchedule.Parser().parse(parser);
     }
 
-    private static IntervalSchedule.Interval randomTimeValue() {
+    private static IntervalSchedule.Interval randomTimeInterval() {
         IntervalSchedule.Interval.Unit unit = IntervalSchedule.Interval.Unit.values()[randomIntBetween(0, IntervalSchedule.Interval.Unit.values().length - 1)];
         return new IntervalSchedule.Interval(randomIntBetween(1, 100), unit);
     }

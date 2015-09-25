@@ -7,22 +7,26 @@ package org.elasticsearch.marvel.agent.renderer.indices;
 
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.indices.IndicesStatsCollector;
-import org.elasticsearch.marvel.agent.renderer.AbstractRendererTestCase;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.junit.Test;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.greaterThan;
 
-public class IndicesStatsIT extends AbstractRendererTestCase {
+public class IndicesStatsIT extends MarvelIntegTestCase {
 
     @Override
-    protected Collection<String> collectors() {
-        return Collections.singletonList(IndicesStatsCollector.NAME);
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(MarvelSettings.INTERVAL, "3s")
+                .put(MarvelSettings.COLLECTORS, IndicesStatsCollector.NAME)
+                .build();
     }
 
     @Test

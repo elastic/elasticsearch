@@ -54,7 +54,9 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
         for (int i = 0; i < nbDocs; i++) {
             client().prepareIndex("test", "test").setSource("num", i).get();
         }
-        client().admin().indices().prepareRefresh().get();
+
+        securedFlush();
+        securedRefresh();
         assertHitCount(client().prepareCount().get(), nbDocs);
 
         Collection<MarvelDoc> results = newClusterStateCollector().doCollect();

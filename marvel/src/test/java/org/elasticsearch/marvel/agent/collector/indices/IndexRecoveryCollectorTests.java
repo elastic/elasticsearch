@@ -14,7 +14,7 @@ import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.Collection;
@@ -28,7 +28,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 0)
+@ClusterScope(numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
 
     private final boolean activeOnly = false;

@@ -8,15 +8,14 @@ package org.elasticsearch.marvel.agent.renderer.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoCollector;
-import org.elasticsearch.marvel.agent.renderer.AbstractRendererTestCase;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.junit.Test;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -25,15 +24,21 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-public class ClusterInfoIT extends AbstractRendererTestCase {
+public class ClusterInfoIT extends MarvelIntegTestCase {
 
     @Override
-    protected Collection<String> collectors() {
-        return Collections.singletonList(ClusterInfoCollector.NAME);
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(MarvelSettings.INTERVAL, "3s")
+                .put(MarvelSettings.COLLECTORS, ClusterInfoCollector.NAME)
+                .build();
     }
 
     @Test
     public void testClusterInfo() throws Exception {
+        ensureGreen();
+
         final String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
         assertTrue(Strings.hasText(clusterUUID));
 
@@ -64,8 +69,9 @@ public class ClusterInfoIT extends AbstractRendererTestCase {
         Object licensesList = source.get(ClusterInfoRenderer.Fields.LICENSES.underscore().toString());
         assertThat(licensesList, instanceOf(List.class));
 
+        logger.warn("--> checking number of licenses [internal cluster:{}, shield enabled:{}]", isInternalCluster(), shieldEnabled);
         List licenses = (List) licensesList;
-        assertThat(licenses.size(), equalTo(shieldEnabled ? 2 : 1));
+        assertThat(licenses.size(), equalTo(isInternalCluster() && shieldEnabled ? 2 : 1));
 
         Map license = (Map) licenses.iterator().next();
         assertThat(license, instanceOf(Map.class));

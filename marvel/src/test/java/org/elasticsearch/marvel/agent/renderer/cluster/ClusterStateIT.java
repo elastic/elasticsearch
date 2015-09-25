@@ -7,30 +7,36 @@ package org.elasticsearch.marvel.agent.renderer.cluster;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
 import org.elasticsearch.marvel.agent.exporter.http.HttpExporterUtils;
-import org.elasticsearch.marvel.agent.renderer.AbstractRendererTestCase;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.junit.Test;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class ClusterStateIT extends AbstractRendererTestCase {
+public class ClusterStateIT extends MarvelIntegTestCase {
 
     @Override
-    protected Collection<String> collectors() {
-        return Collections.singletonList(ClusterStateCollector.NAME);
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(MarvelSettings.INTERVAL, "3s")
+                .put(MarvelSettings.COLLECTORS, ClusterStateCollector.NAME)
+                .build();
     }
 
     @Test
     public void testClusterState() throws Exception {
+        ensureGreen();
+
         awaitMarvelDocsCount(greaterThan(0L), ClusterStateCollector.TYPE);
 
         logger.debug("--> searching for marvel documents of type [{}]", ClusterStateCollector.TYPE);
@@ -59,6 +65,8 @@ public class ClusterStateIT extends AbstractRendererTestCase {
      */
     @Test
     public void testNoNodesIndexing() throws Exception {
+        ensureGreen();
+
         logger.debug("--> forcing marvel's index template update");
         assertAcked(client().admin().indices().preparePutTemplate("marvel").setSource(HttpExporterUtils.loadDefaultTemplate()).execute().actionGet());
 
@@ -66,8 +74,8 @@ public class ClusterStateIT extends AbstractRendererTestCase {
         deleteMarvelIndices();
 
         logger.debug("--> checking for template existence");
-        assertMarvelTemplateInstalled();
         awaitMarvelDocsCount(greaterThan(0L), ClusterStateCollector.TYPE);
+        assertMarvelTemplateInstalled();
 
         logger.debug("--> searching for marvel documents of type [{}]", ClusterStateCollector.TYPE);
         SearchResponse response = client().prepareSearch().setTypes(ClusterStateCollector.TYPE).get();

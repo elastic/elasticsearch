@@ -48,13 +48,12 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
         return Arrays.asList(LicensePluginForCollectors.class, MarvelPlugin.class);
     }
 
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(Node.HTTP_ENABLED, false)
-                .put(MarvelSettings.INTERVAL, "60m")
+                .put(MarvelSettings.INTERVAL, "-1")
                 .build();
     }
 

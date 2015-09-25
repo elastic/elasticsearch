@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
@@ -84,6 +85,7 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(LicenseService.class, nodeId),
                 internalCluster().getInstance(NodeService.class, nodeId),
                 internalCluster().getInstance(DiscoveryService.class, nodeId),
+                internalCluster().getInstance(NodeEnvironment.class, nodeId),
                 new Provider<DiskThresholdDecider>() {
                     @Override
                     public DiskThresholdDecider get() {

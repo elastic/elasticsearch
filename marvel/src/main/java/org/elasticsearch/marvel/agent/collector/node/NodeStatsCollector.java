@@ -16,6 +16,7 @@ import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
@@ -40,6 +41,7 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
 
     private final NodeService nodeService;
     private final DiscoveryService discoveryService;
+    private final NodeEnvironment nodeEnvironment;
 
     // Use a provider in order to avoid Guice circular injection
     // issues because AllocationDecider is not an interface and cannot be proxied
@@ -47,12 +49,18 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
 
     @Inject
     public NodeStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, LicenseService licenseService,
-                              NodeService nodeService, DiscoveryService discoveryService,
+                              NodeService nodeService, DiscoveryService discoveryService, NodeEnvironment nodeEnvironment,
                               Provider<DiskThresholdDecider> diskThresholdDeciderProvider) {
         super(settings, NAME, clusterService, marvelSettings, licenseService);
         this.nodeService = nodeService;
         this.discoveryService = discoveryService;
+        this.nodeEnvironment = nodeEnvironment;
         this.diskThresholdDeciderProvider = diskThresholdDeciderProvider;
+    }
+
+    @Override
+    protected boolean canCollect() {
+        return super.canCollect() && nodeEnvironment.hasNodeFile();
     }
 
     @Override

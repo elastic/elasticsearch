@@ -5,41 +5,74 @@
  */
 package org.elasticsearch.marvel.agent.renderer.cluster;
 
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodes;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
-import org.elasticsearch.marvel.agent.renderer.AbstractRendererTestCase;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.junit.Test;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class ClusterStatsIT extends AbstractRendererTestCase {
+public class ClusterStatsIT extends MarvelIntegTestCase {
 
     @Override
-    protected Collection<String> collectors() {
-        return Collections.singletonList(ClusterStatsCollector.NAME);
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(MarvelSettings.INTERVAL, "3s")
+                .put(MarvelSettings.COLLECTORS, ClusterStatsCollector.NAME)
+                .build();
     }
 
     @Test
     public void testClusterStats() throws Exception {
-        logger.debug("--> creating some indices so that cluster stats reports data about shards");
+        ensureGreen();
+
+        logger.debug("--> creating some indices so that every data nodes will at leats a shard");
+        ClusterStatsNodes.Counts counts = client().admin().cluster().prepareClusterStats().get().getNodesStats().getCounts();
+        assertThat(counts.getTotal(), greaterThan(0));
+
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            createIndex("test-" + i);
+            assertAcked(prepareCreate("test-" + i).setSettings(Settings.settingsBuilder()
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, counts.getDataOnly() + counts.getMasterData())
+                    .build()));
+            index("test-" + i, "foo", "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         }
 
-        logger.debug("--> wait for cluster stats to report data about shards");
+        securedFlush();
+        securedRefresh();
+
+        logger.debug("--> waiting for cluster stats to report data for each node");
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-                assertNotNull(response.getIndicesStats().getShards());
-                assertThat(response.getIndicesStats().getShards().getTotal(), greaterThan(0));
+                NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+                for (Map.Entry<String, NodeInfo> node : nodesInfoResponse.getNodesMap().entrySet()) {
+                    // Checks that node has shards
+                    ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().setNodesIds(node.getKey()).get();
+                    assertNotNull(clusterStatsResponse.getIndicesStats().getShards());
+                    assertNotNull(clusterStatsResponse.getIndicesStats().getShards());
+                    assertThat(clusterStatsResponse.getIndicesStats().getShards().getTotal(), greaterThan(0));
+
+                    NodesStatsResponse nodeStatsResponse = client().admin().cluster().prepareNodesStats(node.getKey()).setFs(true).get();
+                    for (NodeStats nodeStats : nodeStatsResponse) {
+                        assertThat(nodeStats.getFs().total().getAvailable().bytes(), greaterThan(-1L));
+                    }
+                }
             }
         }, 30L, TimeUnit.SECONDS);
 

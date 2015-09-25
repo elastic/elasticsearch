@@ -7,23 +7,27 @@ package org.elasticsearch.marvel.agent.renderer.indices;
 
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
-import org.elasticsearch.marvel.agent.renderer.AbstractRendererTestCase;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.junit.Test;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.greaterThan;
 
-public class IndexStatsIT extends AbstractRendererTestCase {
+public class IndexStatsIT extends MarvelIntegTestCase {
 
     @Override
-    protected Collection<String> collectors() {
-        return Collections.singletonList(IndexStatsCollector.NAME);
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(MarvelSettings.INTERVAL, "3s")
+                .put(MarvelSettings.COLLECTORS, IndexStatsCollector.NAME)
+                .build();
     }
 
     @Test
@@ -43,6 +47,8 @@ public class IndexStatsIT extends AbstractRendererTestCase {
                 client().prepareIndex("stat" + i, "type1").setSource("num", i).get();
             }
         }
+
+        ensureGreen();
 
         awaitMarvelDocsCount(greaterThan(0L), IndexStatsCollector.TYPE);
 

@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.internal.Annotations;
 import org.elasticsearch.common.inject.internal.BindingImpl;
@@ -35,7 +34,6 @@ import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
 import org.elasticsearch.common.inject.spi.ConvertedConstantBinding;
 import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.ProviderBinding;
 import org.elasticsearch.common.inject.spi.ProviderKeyBinding;
 import org.elasticsearch.common.inject.util.Providers;
@@ -54,6 +52,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 import static org.elasticsearch.common.inject.internal.Annotations.findScopeAnnotation;
 
 /**
@@ -221,7 +221,7 @@ class InjectorImpl implements Injector, Lookups {
 
 
         return new InstanceBindingImpl<>(this, key, SourceProvider.UNKNOWN_SOURCE,
-                factory, ImmutableSet.<InjectionPoint>of(), membersInjector);
+                factory, emptySet(), membersInjector);
     }
 
     /**
@@ -379,7 +379,7 @@ class InjectorImpl implements Injector, Lookups {
 
         @Override
         public Set<Dependency<?>> getDependencies() {
-            return ImmutableSet.<Dependency<?>>of(Dependency.get(getSourceKey()));
+            return singleton(Dependency.get(getSourceKey()));
         }
 
         @Override
@@ -502,7 +502,7 @@ class InjectorImpl implements Injector, Lookups {
         InternalFactory<TypeLiteral<T>> factory = new ConstantFactory<>(
                 Initializables.of(value));
         return new InstanceBindingImpl<>(this, key, SourceProvider.UNKNOWN_SOURCE,
-                factory, ImmutableSet.<InjectionPoint>of(), value);
+                factory, emptySet(), value);
     }
 
     /**

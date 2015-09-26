@@ -17,7 +17,7 @@
 package org.elasticsearch.common.inject.assistedinject;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
@@ -37,9 +37,13 @@ import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.singleton;
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * Provides a factory that combines the caller's arguments with injector-supplied values to
@@ -279,7 +283,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
 
     @Override
     public Set<Dependency<?>> getDependencies() {
-        List<Dependency<?>> dependencies = new ArrayList<>();
+        Set<Dependency<?>> dependencies = new HashSet<>();
         for (AssistedConstructor<?> constructor : factoryMethodToConstructor.values()) {
             for (Parameter parameter : constructor.getAllParameters()) {
                 if (!parameter.isProvidedByFactory()) {
@@ -287,7 +291,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
                 }
             }
         }
-        return ImmutableSet.copyOf(dependencies);
+        return unmodifiableSet(dependencies);
     }
 
     @Override
@@ -334,6 +338,6 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
     }
 
     private static ConfigurationException newConfigurationException(String format, Object... args) {
-        return new ConfigurationException(ImmutableSet.of(new Message(Errors.format(format, args))));
+        return new ConfigurationException(singleton(new Message(Errors.format(format, args))));
     }
 }

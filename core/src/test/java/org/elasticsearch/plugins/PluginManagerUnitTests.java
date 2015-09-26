@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Locale;
 
@@ -94,7 +95,7 @@ public class PluginManagerUnitTests extends ESTestCase {
 
     @Test
     public void testOfficialPluginName() throws IOException {
-        String randomPluginName = randomFrom(PluginManager.OFFICIAL_PLUGINS.asList());
+        String randomPluginName = randomFrom(new ArrayList<>(PluginManager.OFFICIAL_PLUGINS));
         PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(randomPluginName);
         assertThat(handle.name, is(randomPluginName));
 

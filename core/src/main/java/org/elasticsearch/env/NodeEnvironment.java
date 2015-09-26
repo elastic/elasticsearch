@@ -19,10 +19,14 @@
 
 package org.elasticsearch.env;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -42,11 +46,26 @@ import org.elasticsearch.monitor.fs.FsProbe;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * A component that holds all data paths for a single node.
@@ -507,12 +526,11 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Returns all currently lock shards
+     * Returns all currently lock shards.
      */
     public Set<ShardId> lockedShards() {
         synchronized (shardLocks) {
-            ImmutableSet.Builder<ShardId> builder = ImmutableSet.builder();
-            return builder.addAll(shardLocks.keySet()).build();
+            return unmodifiableSet(new HashSet<>(shardLocks.keySet()));
         }
     }
 

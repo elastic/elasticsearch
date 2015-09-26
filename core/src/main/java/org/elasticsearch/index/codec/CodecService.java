@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.codec;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
 import org.apache.lucene.codecs.lucene53.Lucene53Codec;
@@ -32,6 +30,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 
+import java.util.Map;
+
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
  * codec layer that allows to use use-case specific file formats &amp;
@@ -42,7 +42,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 public class CodecService extends AbstractIndexComponent {
 
     private final MapperService mapperService;
-    private final ImmutableMap<String, Codec> codecs;
+    private final Map<String, Codec> codecs;
 
     public final static String DEFAULT_CODEC = "default";
     public final static String BEST_COMPRESSION_CODEC = "best_compression";
@@ -66,9 +66,9 @@ public class CodecService extends AbstractIndexComponent {
             codecs.put(DEFAULT_CODEC, new Lucene53Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene53Codec(Mode.BEST_COMPRESSION));
         } else {
-            codecs.put(DEFAULT_CODEC, 
+            codecs.put(DEFAULT_CODEC,
                     new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
-            codecs.put(BEST_COMPRESSION_CODEC, 
+            codecs.put(BEST_COMPRESSION_CODEC,
                     new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -27,10 +26,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Test;
 
+import java.util.Set;
+
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -39,9 +40,9 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
 
     private final static TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
-    public ImmutableSet<ClusterBlock> waitForNoBlocksOnNode(TimeValue timeout, Client nodeClient) throws InterruptedException {
+    public Set<ClusterBlock> waitForNoBlocksOnNode(TimeValue timeout, Client nodeClient) throws InterruptedException {
         long start = System.currentTimeMillis();
-        ImmutableSet<ClusterBlock> blocks;
+        Set<ClusterBlock> blocks;
         do {
             blocks = nodeClient.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                     .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE);

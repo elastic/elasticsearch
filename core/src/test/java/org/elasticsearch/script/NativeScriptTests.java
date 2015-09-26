@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
@@ -41,6 +40,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -85,7 +85,7 @@ public class NativeScriptTests extends ESTestCase {
         ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, null);
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
-        Set<ScriptEngineService> scriptEngineServices = ImmutableSet.<ScriptEngineService>of(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
+        Set<ScriptEngineService> scriptEngineServices = singleton(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<ScriptContext.Plugin>());
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, scriptContextRegistry);
 

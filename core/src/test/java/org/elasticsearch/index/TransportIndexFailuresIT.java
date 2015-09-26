@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexResponse;
@@ -40,6 +39,7 @@ import org.junit.Test;
 import java.util.Collection;
 import java.util.List;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -118,12 +118,12 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
         TransportService mockTransportService = internalCluster().getInstance(TransportService.class, primaryNode);
         ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(
                 internalCluster().getInstance(Discovery.class, replicaNode).localNode(),
-                ImmutableSet.of(IndexAction.NAME + "[r]")
+                singleton(IndexAction.NAME + "[r]")
         );
         mockTransportService = internalCluster().getInstance(TransportService.class, replicaNode);
         ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(
                 internalCluster().getInstance(Discovery.class, primaryNode).localNode(),
-                ImmutableSet.of(IndexAction.NAME + "[r]")
+                singleton(IndexAction.NAME + "[r]")
         );
 
         logger.info("--> indexing into primary");

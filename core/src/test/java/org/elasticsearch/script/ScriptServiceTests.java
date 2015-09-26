@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
@@ -42,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -75,7 +75,7 @@ public class ScriptServiceTests extends ESTestCase {
                 .put("path.conf", genericConfigFolder)
                 .build();
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
-        scriptEngineServices = ImmutableSet.of(new TestEngineService(), new GroovyScriptEngineService(baseSettings),
+        scriptEngineServices = newHashSet(new TestEngineService(), new GroovyScriptEngineService(baseSettings),
                                                new MustacheScriptEngineService(baseSettings));
         scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(scriptEngineServices);
         //randomly register custom script contexts

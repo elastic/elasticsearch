@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Message;
 
@@ -29,14 +28,13 @@ import java.util.Collection;
  * @author crazybob@google.com (Bob Lee)
  */
 public class CreationException extends RuntimeException {
-
-    private final ImmutableSet<Message> messages;
+    private final Collection<Message> messages;
 
     /**
      * Creates a CreationException containing {@code messages}.
      */
     public CreationException(Collection<Message> messages) {
-        this.messages = ImmutableSet.copyOf(messages);
+        this.messages = messages;
         if (this.messages.isEmpty()) {
             throw new IllegalArgumentException();
         }

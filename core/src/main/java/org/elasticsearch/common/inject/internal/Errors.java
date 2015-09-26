@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.CreationException;
@@ -48,6 +47,9 @@ import java.util.Comparator;
 import java.util.Formatter;
 import java.util.List;
 import java.util.Locale;
+
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableList;
 
 /**
  * A collection of error messages. If this type is passed as a method parameter, the method is
@@ -316,7 +318,7 @@ public final class Errors implements Serializable {
         } else if (throwable instanceof CreationException) {
             return ((CreationException) throwable).getErrorMessages();
         } else {
-            return ImmutableSet.of();
+            return emptySet();
         }
     }
 
@@ -463,7 +465,7 @@ public final class Errors implements Serializable {
             }
         });
 
-        return result;
+        return unmodifiableList(result);
     }
 
     /**

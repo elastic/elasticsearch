@@ -16,14 +16,12 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.InstanceBindingImpl;
 import org.elasticsearch.common.inject.internal.InternalFactory;
 import org.elasticsearch.common.inject.internal.MatcherAndConverter;
 import org.elasticsearch.common.inject.internal.SourceProvider;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.lang.annotation.Annotation;
@@ -34,6 +32,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static java.util.Collections.emptySet;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)
@@ -155,7 +155,8 @@ class InheritingState implements State {
             Key key = entry.getKey();
             BindingImpl<?> binding = (BindingImpl<?>) entry.getValue();
             Object value = binding.getProvider().get();
-            x.put(key, new InstanceBindingImpl<Object>(injector, key, SourceProvider.UNKNOWN_SOURCE, new InternalFactory.Instance(value), ImmutableSet.<InjectionPoint>of(), value));
+            x.put(key, new InstanceBindingImpl<Object>(injector, key, SourceProvider.UNKNOWN_SOURCE, new InternalFactory.Instance(value),
+                    emptySet(), value));
         }
         this.explicitBindingsMutable.clear();
         this.explicitBindingsMutable.putAll(x);

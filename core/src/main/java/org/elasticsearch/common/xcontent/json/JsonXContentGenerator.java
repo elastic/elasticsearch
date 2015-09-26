@@ -20,6 +20,8 @@
 package org.elasticsearch.common.xcontent.json;
 
 import com.fasterxml.jackson.core.io.SerializedString;
+import com.fasterxml.jackson.core.util.DefaultIndenter;
+import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.*;
 
@@ -34,6 +36,8 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     protected final BaseJsonGenerator generator;
     private boolean writeLineFeedAtEnd;
+    private static final SerializedString LF = new SerializedString("\n");
+    private  static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
 
     public JsonXContentGenerator(BaseJsonGenerator generator) {
         this.generator = generator;
@@ -45,8 +49,8 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void usePrettyPrint() {
-        generator.useDefaultPrettyPrinter();
+    public final void usePrettyPrint() {
+        generator.setPrettyPrinter(new DefaultPrettyPrinter().withObjectIndenter(INDENTER));
     }
 
     @Override
@@ -326,6 +330,4 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
         generator.close();
     }
-
-    private static final SerializedString LF = new SerializedString("\n");
 }

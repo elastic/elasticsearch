@@ -6,7 +6,7 @@
 package org.elasticsearch.shield.authz;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -29,6 +29,8 @@ import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
+
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * Represents a permission in the system. There are 3 types of permissions:
@@ -235,6 +237,7 @@ public interface Permission {
                 return privilege;
             }
 
+            @Override
             public boolean check(String action) {
                 return predicate.test(action);
             }
@@ -346,8 +349,8 @@ public interface Permission {
                 // by at least one indices permission group
 
                 SortedMap<String, AliasOrIndex> allAliasesAndIndices = metaData.getAliasAndIndexLookup();
-                Map<String, ImmutableSet.Builder<String>> fieldsBuilder = new HashMap<>();
-                Map<String, ImmutableSet.Builder<BytesReference>> queryBuilder = new HashMap<>();
+                Map<String, Set<String>> rolesFieldsByIndex = new HashMap<>();
+                Map<String, Set<BytesReference>> roleQueriesByIndex = new HashMap<>();
                 Map<String, Boolean> grantedBuilder = new HashMap<>();
 
                 for (String indexOrAlias : requestedIndicesOrAliases) {
@@ -365,20 +368,20 @@ public interface Permission {
                             granted = true;
                             for (String index : concreteIndices) {
                                 if (group.getFields() != null) {
-                                    ImmutableSet.Builder<String> roleFieldsBuilder = fieldsBuilder.get(index);
-                                    if (roleFieldsBuilder == null) {
-                                        roleFieldsBuilder = ImmutableSet.builder();
-                                        fieldsBuilder.put(index, roleFieldsBuilder);
+                                    Set<String> roleFields = rolesFieldsByIndex.get(index);
+                                    if (roleFields == null) {
+                                        roleFields = new HashSet<>();
+                                        rolesFieldsByIndex.put(index, roleFields);
                                     }
-                                    roleFieldsBuilder.addAll(group.getFields());
+                                    roleFields.addAll(group.getFields());
                                 }
                                 if (group.getQuery() != null) {
-                                    ImmutableSet.Builder<BytesReference> roleQueriesBuilder = queryBuilder.get(index);
-                                    if (roleQueriesBuilder == null) {
-                                        roleQueriesBuilder = ImmutableSet.builder();
-                                        queryBuilder.put(index, roleQueriesBuilder);
+                                    Set<BytesReference> roleQueries = roleQueriesByIndex.get(index);
+                                    if (roleQueries == null) {
+                                        roleQueries = new HashSet<>();
+                                        roleQueriesByIndex.put(index, roleQueries);
                                     }
-                                    roleQueriesBuilder.add(group.getQuery());
+                                    roleQueries.add(group.getQuery());
                                 }
                             }
                         }
@@ -396,19 +399,13 @@ public interface Permission {
                 ImmutableMap.Builder<String, IndicesAccessControl.IndexAccessControl> indexPermissions = ImmutableMap.builder();
                 for (Map.Entry<String, Boolean> entry : grantedBuilder.entrySet()) {
                     String index = entry.getKey();
-                    ImmutableSet.Builder<BytesReference> roleQueriesBuilder = queryBuilder.get(index);
-                    ImmutableSet.Builder<String> roleFieldsBuilder = fieldsBuilder.get(index);
-                    final ImmutableSet<String> roleFields;
-                    if (roleFieldsBuilder != null) {
-                        roleFields = roleFieldsBuilder.build();
-                    } else {
-                        roleFields = null;
+                    Set<BytesReference> roleQueries = roleQueriesByIndex.get(index);
+                    if (roleQueries != null) {
+                        roleQueries = unmodifiableSet(roleQueries);
                     }
-                    final ImmutableSet<BytesReference> roleQueries;
-                    if (roleQueriesBuilder != null) {
-                        roleQueries = roleQueriesBuilder.build();
-                    } else {
-                        roleQueries = null;
+                    Set<String> roleFields = rolesFieldsByIndex.get(index);
+                    if (roleFields != null) {
+                        roleFields = unmodifiableSet(roleFields);
                     }
                     indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(entry.getValue(), roleFields, roleQueries));
                 }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz.store;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.audit.logfile.CapturingLogger;
@@ -30,7 +29,17 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.*;
+import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
@@ -250,7 +259,7 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testThatRoleNamesDoesNotResolvePermissions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
-        ImmutableSet<String> roleNames = FileRolesStore.parseFileForRoleNames(path, logger);
+        Set<String> roleNames = FileRolesStore.parseFileForRoleNames(path, logger);
         assertThat(roleNames.size(), is(5));
         assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4"));
 
@@ -261,11 +270,9 @@ public class FileRolesStoreTests extends ESTestCase {
 
     @Test
     public void testReservedRoles() throws Exception {
-        Set<Permission.Global.Role> reservedRoles = ImmutableSet.<Permission.Global.Role>builder()
-                .add(Permission.Global.Role.builder("reserved")
+        Set<Permission.Global.Role> reservedRoles = singleton(Permission.Global.Role.builder("reserved")
                         .cluster(Privilege.Cluster.ALL)
-                        .build())
-                .build();
+                        .build());
 
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
 
@@ -294,11 +301,9 @@ public class FileRolesStoreTests extends ESTestCase {
 
     @Test
     public void testReservedRolesNonExistentRolesFile() throws Exception {
-        Set<Permission.Global.Role> reservedRoles = ImmutableSet.<Permission.Global.Role>builder()
-                .add(Permission.Global.Role.builder("reserved")
+        Set<Permission.Global.Role> reservedRoles = singleton(Permission.Global.Role.builder("reserved")
                         .cluster(Privilege.Cluster.ALL)
-                        .build())
-                .build();
+                        .build());
 
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
 

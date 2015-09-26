@@ -6,8 +6,7 @@
 package org.elasticsearch.watcher.support;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.util.concurrent.MoreExecutors;
+
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -27,20 +26,22 @@ import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.InputStream;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
+import static java.util.Collections.unmodifiableSet;
+
 /**
  */
 public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener, NodeSettingsService.Listener {
-
-    private static final ImmutableSet<String> forbiddenIndexSettings = ImmutableSet.of("index.mapper.dynamic");
+    private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
 
     private final ClientProxy client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final ImmutableSet<TemplateConfig> indexTemplates;
+    private final Set<TemplateConfig> indexTemplates;
 
     private volatile ImmutableMap<String, Settings> customIndexSettings;
 
@@ -51,7 +52,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.indexTemplates = ImmutableSet.copyOf(configs);
+        this.indexTemplates = unmodifiableSet(new HashSet<>(configs));
         clusterService.add(this);
         nodeSettingsService.addListener(this);
 
@@ -126,7 +127,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             Settings.Builder builder = Settings.builder().put(existingSettings);
             for (Map.Entry<String, String> newSettingsEntry : newSettings.getAsMap().entrySet()) {
                 String name = "index." + newSettingsEntry.getKey();
-                if (forbiddenIndexSettings.contains(name)) {
+                if (FORBIDDEN_INDEX_SETTING.equals(name)) {
                     logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
                     continue;
                 }

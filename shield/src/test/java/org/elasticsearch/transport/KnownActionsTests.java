@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.transport;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -25,22 +23,29 @@ import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import static java.util.Collections.unmodifiableSet;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(numClientNodes = 0, numDataNodes = 1)
 public class KnownActionsTests extends ShieldIntegTestCase {
-
-    private static ImmutableSet<String> knownActions;
-    private static ImmutableSet<String> knownHandlers;
-    private static ImmutableSet<String> codeActions;
+    private static Set<String> knownActions;
+    private static Set<String> knownHandlers;
+    private static Set<String> codeActions;
 
     @BeforeClass
     public static void init() throws Exception {
@@ -81,38 +86,26 @@ public class KnownActionsTests extends ShieldIntegTestCase {
         }
     }
 
-    public static ImmutableSet<String> loadKnownActions() {
-        final ImmutableSet.Builder<String> knownActionsBuilder = ImmutableSet.builder();
-        try (InputStream input = KnownActionsTests.class.getResourceAsStream("actions")) {
-            Streams.readAllLines(input, new Callback<String>() {
-                @Override
-                public void handle(String action) {
-                    knownActionsBuilder.add(action);
-                }
-            });
-        } catch (IOException ioe) {
-            throw new IllegalStateException("could not load known actions", ioe);
-        }
-        return knownActionsBuilder.build();
+    public static Set<String> loadKnownActions() {
+        return readSetFromResource("actions");
     }
 
-    public static ImmutableSet<String> loadKnownHandlers() {
-        final ImmutableSet.Builder<String> knownHandlersBuilder = ImmutableSet.builder();
-        try (InputStream input = KnownActionsTests.class.getResourceAsStream("handlers")) {
-            Streams.readAllLines(input, new Callback<String>() {
-                @Override
-                public void handle(String action) {
-                    knownHandlersBuilder.add(action);
-                }
-            });
-        } catch (IOException ioe) {
-            throw new IllegalStateException("could not load known handlers", ioe);
-        }
-        return knownHandlersBuilder.build();
+    public static Set<String> loadKnownHandlers() {
+        return readSetFromResource("handlers");
     }
 
-    private static ImmutableSet<String> loadCodeActions() throws IOException, ReflectiveOperationException, URISyntaxException {
-        ImmutableSet.Builder<String> actions = ImmutableSet.builder();
+    private static Set<String> readSetFromResource(String resource) {
+        Set<String> knownActions = new HashSet<>();
+        try (InputStream input = KnownActionsTests.class.getResourceAsStream(resource)) {
+            Streams.readAllLines(input, action -> knownActions.add(action));
+        } catch (IOException ioe) {
+            throw new IllegalStateException("could not load known " + resource, ioe);
+        }
+        return unmodifiableSet(knownActions);
+    }
+
+    private static Set<String> loadCodeActions() throws IOException, ReflectiveOperationException, URISyntaxException {
+        Set<String> actions = new HashSet<>();
 
         // loading es core actions
         loadActions(collectSubClasses(Action.class, Action.class), actions);
@@ -123,10 +116,10 @@ public class KnownActionsTests extends ShieldIntegTestCase {
         // also loading all actions from the licensing plugin
         loadActions(collectSubClasses(Action.class, LicensePlugin.class), actions);
 
-        return actions.build();
+        return unmodifiableSet(actions);
     }
 
-    private static void loadActions(Collection<Class<?>> clazzes, ImmutableSet.Builder<String> actions) throws ReflectiveOperationException {
+    private static void loadActions(Collection<Class<?>> clazzes, Set<String> actions) throws ReflectiveOperationException {
         for (Class<?> clazz : clazzes) {
             if (!Modifier.isAbstract(clazz.getModifiers())) {
                 Field field = null;
@@ -153,7 +146,7 @@ public class KnownActionsTests extends ShieldIntegTestCase {
         if (codeLocation.toURI().toString().endsWith(".jar")) {
             try {
                 // hack around a bug in the zipfilesystem implementation before java 9,
-                // its checkWritable was incorrect and it won't work without write permissions. 
+                // its checkWritable was incorrect and it won't work without write permissions.
                 // if we add the permission, it will open jars r/w, which is too scary! so copy to a safe r-w location.
                 Path tmp = createTempFile(null, ".jar");
                 try (InputStream in = codeLocation.openStream()) {

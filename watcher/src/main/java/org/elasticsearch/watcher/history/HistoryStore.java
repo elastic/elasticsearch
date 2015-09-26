@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.history;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -33,7 +32,6 @@ public class HistoryStore extends AbstractComponent {
     public static final String DOC_TYPE = "watch_record";
 
     static final DateTimeFormatter indexTimeFormat = DateTimeFormat.forPattern("YYYY.MM.dd");
-    private static final ImmutableSet<String> forbiddenIndexSettings = ImmutableSet.of("index.mapper.dynamic");
 
     private final ClientProxy client;
 

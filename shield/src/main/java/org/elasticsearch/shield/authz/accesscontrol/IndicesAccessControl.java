@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.authz.accesscontrol;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 
@@ -14,6 +12,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * Encapsulates the field and document permissions per concrete index based on the current request.
@@ -52,10 +52,10 @@ public class IndicesAccessControl {
     public static class IndexAccessControl {
 
         private final boolean granted;
-        private final ImmutableSet<String> fields;
-        private final ImmutableSet<BytesReference> queries;
+        private final Set<String> fields;
+        private final Set<BytesReference> queries;
 
-        public IndexAccessControl(boolean granted, ImmutableSet<String> fields, ImmutableSet<BytesReference> queries) {
+        public IndexAccessControl(boolean granted, Set<String> fields, Set<BytesReference> queries) {
             this.granted = granted;
             this.fields = fields;
             this.queries = queries;
@@ -94,27 +94,27 @@ public class IndicesAccessControl {
             // this code is a bit of a pita, but right now we can't just initialize an empty set,
             // because an empty Set means no permissions on fields and
             // <code>null</code> means no field level security
-            ImmutableSet<String> fields = null;
+            Set<String> fields = null;
             if (this.fields != null || other.getFields() != null) {
-                Set<String> _fields = new HashSet<>();
+                fields = new HashSet<>();
                 if (this.fields != null) {
-                    _fields.addAll(this.fields);
+                    fields.addAll(this.fields);
                 }
                 if (other.getFields() != null) {
-                    _fields.addAll(other.getFields());
+                    fields.addAll(other.getFields());
                 }
-                fields = ImmutableSet.copyOf(_fields);
+                fields = unmodifiableSet(fields);
             }
-            ImmutableSet<BytesReference> queries = null;
+            Set<BytesReference> queries = null;
             if (this.queries != null || other.getQueries() != null) {
-                Set<BytesReference> _queries = new HashSet<>();
+                queries = new HashSet<>();
                 if (this.queries != null) {
-                    _queries.addAll(this.queries);
+                    queries.addAll(this.queries);
                 }
                 if (other.getQueries() != null) {
-                    _queries.addAll(other.getQueries());
+                    queries.addAll(other.getQueries());
                 }
-                queries = ImmutableSet.copyOf(_queries);
+                queries = unmodifiableSet(queries);
             }
             return new IndexAccessControl(granted, fields, queries);
         }

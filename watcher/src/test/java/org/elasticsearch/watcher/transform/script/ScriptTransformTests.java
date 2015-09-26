@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.transform.script;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -32,10 +32,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.getScriptServiceProxy;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.simplePayload;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -133,7 +141,7 @@ public class ScriptTransformTests extends ESTestCase {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
         ExecutableScript executable = mock(ExecutableScript.class);
-        Object value = randomFrom("value", 1, new String[] { "value" }, Arrays.asList("value"), ImmutableSet.of("value"));
+        Object value = randomFrom("value", 1, new String[] { "value" }, Arrays.asList("value"), singleton("value"));
         when(executable.run()).thenReturn(value);
         when(service.executable(compiledScript, model)).thenReturn(executable);
 

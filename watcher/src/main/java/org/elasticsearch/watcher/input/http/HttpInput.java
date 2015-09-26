@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.input.http;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -20,8 +19,11 @@ import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
 
 /**
  *
@@ -171,7 +173,7 @@ public class HttpInput implements Input {
     public static class Builder implements Input.Builder<HttpInput> {
 
         private final HttpRequestTemplate request;
-        private final ImmutableSet.Builder<String> extractKeys = ImmutableSet.builder();
+        private final Set<String> extractKeys = new HashSet<>();
         private HttpContentType expectedResponseXContentType = null;
 
         private Builder(HttpRequestTemplate request) {
@@ -184,7 +186,7 @@ public class HttpInput implements Input {
         }
 
         public Builder extractKeys(String... keys) {
-            extractKeys.add(keys);
+            Collections.addAll(extractKeys, keys);
             return this;
         }
 
@@ -195,8 +197,7 @@ public class HttpInput implements Input {
 
         @Override
         public HttpInput build() {
-            ImmutableSet<String> keys = extractKeys.build();
-            return new HttpInput(request, expectedResponseXContentType, keys.isEmpty() ? null : keys);
+            return new HttpInput(request, expectedResponseXContentType, extractKeys.isEmpty() ? null : unmodifiableSet(extractKeys));
         }
     }
 

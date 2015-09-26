@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.watch;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
@@ -16,7 +16,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.actions.*;
+import org.elasticsearch.watcher.actions.ActionFactory;
+import org.elasticsearch.watcher.actions.ActionRegistry;
+import org.elasticsearch.watcher.actions.ActionStatus;
+import org.elasticsearch.watcher.actions.ActionWrapper;
+import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.actions.email.DataAttachment;
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.email.EmailActionFactory;
@@ -92,19 +96,43 @@ import org.elasticsearch.watcher.transform.search.SearchTransformFactory;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerService;
-import org.elasticsearch.watcher.trigger.schedule.*;
-import org.elasticsearch.watcher.trigger.schedule.support.*;
+import org.elasticsearch.watcher.trigger.schedule.CronSchedule;
+import org.elasticsearch.watcher.trigger.schedule.DailySchedule;
+import org.elasticsearch.watcher.trigger.schedule.HourlySchedule;
+import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.watcher.trigger.schedule.MonthlySchedule;
+import org.elasticsearch.watcher.trigger.schedule.Schedule;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleRegistry;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEngine;
+import org.elasticsearch.watcher.trigger.schedule.WeeklySchedule;
+import org.elasticsearch.watcher.trigger.schedule.YearlySchedule;
+import org.elasticsearch.watcher.trigger.schedule.support.DayOfWeek;
+import org.elasticsearch.watcher.trigger.schedule.support.Month;
+import org.elasticsearch.watcher.trigger.schedule.support.MonthTimes;
+import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
+import org.elasticsearch.watcher.trigger.schedule.support.YearTimes;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 
@@ -147,7 +175,7 @@ public class WatchTests extends ESTestCase {
         Trigger trigger = new ScheduleTrigger(schedule);
         ScheduleRegistry scheduleRegistry = registry(schedule);
         TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, clock);
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, ImmutableSet.of(triggerEngine));
+        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
         SecretService secretService = new SecretService.PlainText();
 
         ExecutableInput input = randomInput();
@@ -197,7 +225,7 @@ public class WatchTests extends ESTestCase {
         ClockMock clock = new ClockMock();
         ScheduleRegistry scheduleRegistry = registry(randomSchedule());
         TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, clock);
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, ImmutableSet.of(triggerEngine));
+        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
         SecretService secretService = new SecretService.PlainText();
         ExecutableCondition condition = randomCondition();
         ConditionRegistry conditionRegistry = registry(condition);
@@ -228,7 +256,7 @@ public class WatchTests extends ESTestCase {
         Schedule schedule = randomSchedule();
         ScheduleRegistry scheduleRegistry = registry(schedule);
         TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, ImmutableSet.of(triggerEngine));
+        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
         SecretService secretService = new SecretService.PlainText();
 
         ConditionRegistry conditionRegistry = registry(new ExecutableAlwaysCondition(logger));

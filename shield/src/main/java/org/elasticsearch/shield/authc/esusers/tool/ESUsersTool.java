@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.esusers.tool;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.CheckFileCommand;
@@ -27,7 +26,14 @@ import org.elasticsearch.shield.support.Validation;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -431,7 +437,7 @@ public class ESUsersTool extends CliTool {
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
             Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
-            ImmutableSet<String> knownRoles = loadRoleNames(terminal, settings, env);
+            Set<String> knownRoles = loadRoleNames(terminal, settings, env);
             Path userRolesFilePath = FileUserRolesStore.resolveFile(esusersSettings, env);
             Map<String, String[]> userRoles = FileUserRolesStore.parseFile(userRolesFilePath, null);
             Path userFilePath = FileUserPasswdStore.resolveFile(esusersSettings, env);
@@ -493,7 +499,7 @@ public class ESUsersTool extends CliTool {
         }
     }
 
-    private static ImmutableSet<String> loadRoleNames(Terminal terminal, Settings settings, Environment env) {
+    private static Set<String> loadRoleNames(Terminal terminal, Settings settings, Environment env) {
         Path rolesFile = FileRolesStore.resolveFile(settings, env);
         try {
             return FileRolesStore.parseFileForRoleNames(rolesFile, null);
@@ -520,7 +526,7 @@ public class ESUsersTool extends CliTool {
     }
 
     private static void verifyRoles(Terminal terminal, Settings settings, Environment env, String[] roles) {
-        ImmutableSet<String> knownRoles = loadRoleNames(terminal, settings, env);
+        Set<String> knownRoles = loadRoleNames(terminal, settings, env);
         Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
         if (!unknownRoles.isEmpty()) {
             Path rolesFile = FileRolesStore.resolveFile(settings, env);

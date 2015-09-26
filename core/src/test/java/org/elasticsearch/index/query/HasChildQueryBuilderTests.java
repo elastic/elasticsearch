@@ -196,7 +196,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         // now assert that we actually generate the same JSON
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         queryBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(query, builder.string());
+        assertEquals(query, builder.string().replaceAll("\\r\\n", "\n")); // jackson uses system linefeed - will fail on windows otherwise
     }
 
 }

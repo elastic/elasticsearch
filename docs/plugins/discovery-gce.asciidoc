@@ -1,9 +1,9 @@
-[[cloud-gce]]
-=== GCE Cloud Plugin
+[[discovery-gce]]
+=== GCE Discovery Plugin
 
-The Google Compute Engine Cloud plugin uses the GCE API for unicast discovery.
+The Google Compute Engine Discovery plugin uses the GCE API for unicast discovery.
 
-[[cloud-gce-install]]
+[[discovery-gce-install]]
 [float]
 ==== Installation
 
@@ -11,13 +11,13 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install cloud-gce
+sudo bin/plugin install discovery-gce
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
-[[cloud-gce-remove]]
+[[discovery-gce-remove]]
 [float]
 ==== Removal
 
@@ -25,12 +25,12 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove cloud-gce
+sudo bin/plugin remove discovery-gce
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
 
-[[cloud-gce-usage-discovery]]
+[[discovery-gce-usage]]
 ==== GCE Virtual Machine Discovery
 
 Google Compute Engine VM discovery allows to use the google APIs to perform automatic discovery (similar to multicast
@@ -84,7 +84,7 @@ network.host: _gce_
 network.host: _gce:hostname_
 --------------------------------------------------
 
-[[cloud-gce-usage-discovery-short]]
+[[discovery-gce-usage-short]]
 ===== How to start (short story)
 
 * Create Google Compute Engine instance (with compute rw permissions)
@@ -93,11 +93,11 @@ network.host: _gce:hostname_
 * Modify `elasticsearch.yml` file
 * Start Elasticsearch
 
-[[cloud-gce-usage-discovery-long]]
+[[discovery-gce-usage-long]]
 ==== Setting up GCE Discovery
 
 
-[[cloud-gce-usage-discovery-long-prerequisites]]
+[[discovery-gce-usage-long-prerequisites]]
 ===== Prerequisites
 
 Before starting, you need:
@@ -112,7 +112,8 @@ If you did not set it yet, you can define your default project you will work on:
 gcloud config set project es-cloud
 --------------------------------------------------
 
-[[cloud-gce-usage-discovery-long-login]]
+[[discovery-gce-usage-long-login]]
+===== Login to Google Cloud
 
 If you haven't already, login to Google Cloud
 
@@ -124,7 +125,7 @@ gcloud auth login
 This will open your browser. You will be asked to sign-in to a Google account and
 authorize access to the Google Cloud SDK.
 
-[[cloud-gce-usage-discovery-long-first-instance]]
+[[discovery-gce-usage-long-first-instance]]
 ===== Creating your first instance
 
 
@@ -194,15 +195,15 @@ sudo apt-get install oracle-java8-installer
 sudo dpkg -i elasticsearch-2.0.0.deb
 --------------------------------------------------
 
-[[cloud-gce-usage-discovery-long-install-plugin]]
-===== Install elasticsearch cloud gce plugin
+[[discovery-gce-usage-long-install-plugin]]
+===== Install elasticsearch discovery gce plugin
 
 Install the plugin:
 
 [source,sh]
 --------------------------------------------------
 # Use Plugin Manager to install it
-sudo bin/plugin install cloud-gce
+sudo bin/plugin install discovery-gce
 --------------------------------------------------
 
 Open the `elasticsearch.yml` file:
@@ -256,7 +257,7 @@ discovery.gce: TRACE
 
 
 
-[[cloud-gce-usage-discovery-cloning]]
+[[discovery-gce-usage-cloning]]
 ==== Cloning your existing machine
 
 In order to build a cluster on many nodes, you can clone your configured instance to new nodes.
@@ -287,7 +288,7 @@ gcloud compute images create elasticsearch-2-0-0 --source-uri gs://esimage/e4686
 # and launch the same command from your local machine.
 --------------------------------------------------
 
-[[cloud-gce-usage-discovery-start-new-instances]]
+[[discovery-gce-usage-start-new-instances]]
 ===== Start new instances
 
 As you have now an image, you can create as many instances as you need:
@@ -302,7 +303,7 @@ gcloud compute instances create myesnode2 --image=elasticsearch-2-0-0 \
        --zone europe-west1-a --machine-type f1-micro --scopes=compute-rw
 --------------------------------------------------
 
-[[cloud-gce-usage-discovery-remove-instance]]
+[[discovery-gce-usage-remove-instance]]
 ===== Remove an instance (aka shut it down)
 
 You can use https://cloud.google.com/console[Google Cloud Console] or CLI to manage your instances:
@@ -318,7 +319,7 @@ gcloud compute disks deleted boot-myesnode1 boot-myesnode2  \
        --zone=europe-west1-a
 --------------------------------------------------
 
-[[cloud-gce-usage-discovery-zones]]
+[[discovery-gce-usage-zones]]
 ==== Using GCE zones
 
 `cloud.gce.zone` helps to retrieve instances running in a given zone. It should be one of the
@@ -339,7 +340,7 @@ discovery:
 
 
 
-[[cloud-gce-usage-discovery-tags]]
+[[discovery-gce-usage-tags]]
 ==== Filtering by tags
 
 The GCE discovery can also filter machines to include in the cluster based on tags using `discovery.gce.tags` settings.
@@ -375,13 +376,13 @@ discovery:
             tags: elasticsearch, dev
 --------------------------------------------------
 
-[[cloud-gce-usage-discovery-port]]
+[[discovery-gce-usage-port]]
 ==== Changing default transport port
 
 By default, elasticsearch GCE plugin assumes that you run elasticsearch on 9300 default port.
 But you can specify the port value elasticsearch is meant to use using google compute engine metadata `es_port`:
 
-[[cloud-gce-usage-discovery-port-create]]
+[[discovery-gce-usage-port-create]]
 ===== When creating instance
 
 Add `--metadata es_port=9301` option:
@@ -399,7 +400,7 @@ gcloud compute instances create myesnode2 --image=elasticsearch-1-0-0-RC1 \
        --metadata es_port=9301
 --------------------------------------------------
 
-[[cloud-gce-usage-discovery-port-run]]
+[[discovery-gce-usage-port-run]]
 ===== On a running instance
 
 [source,sh]
@@ -410,10 +411,10 @@ gcloud compute instances add-metadata myesnode1 \
 --------------------------------------------------
 
 
-[[cloud-gce-usage-discovery-tips]]
+[[discovery-gce-usage-tips]]
 ==== GCE Tips
 
-[[cloud-gce-usage-discovery-tips-projectid]]
+[[discovery-gce-usage-tips-projectid]]
 ===== Store project id locally
 
 If you don't want to repeat the project id each time, you can save it in the local gcloud config
@@ -423,7 +424,7 @@ If you don't want to repeat the project id each time, you can save it in the loc
 gcloud config set project es-cloud
 --------------------------------------------------
 
-[[cloud-gce-usage-discovery-tips-permissions]]
+[[discovery-gce-usage-tips-permissions]]
 ===== Machine Permissions
 
 If you have created a machine without the correct permissions, you will see `403 unauthorized` error messages. The only
@@ -472,7 +473,7 @@ Or, you may use the alias:
 --------------------------------------------------
 --
 
-[[cloud-gce-usage-discovery-testing]]
+[[discovery-gce-usage-testing]]
 ==== Testing GCE
 
 Integrations tests in this plugin require working GCE configuration and

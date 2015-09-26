@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.cloud.gce;
+package org.elasticsearch.plugin.discovery.gce;
 
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cloud.gce.GceModule;
@@ -36,26 +36,23 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-/**
- *
- */
-public class CloudGcePlugin extends Plugin {
+public class GceDiscoveryPlugin extends Plugin {
 
     private final Settings settings;
-    protected final ESLogger logger = Loggers.getLogger(CloudGcePlugin.class);
+    protected final ESLogger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
 
-    public CloudGcePlugin(Settings settings) {
+    public GceDiscoveryPlugin(Settings settings) {
         this.settings = settings;
     }
 
     @Override
     public String name() {
-        return "cloud-gce";
+        return "discovery-gce";
     }
 
     @Override
     public String description() {
-        return "Cloud Google Compute Engine Plugin";
+        return "Cloud Google Compute Engine Discovery Plugin";
     }
 
     @Override

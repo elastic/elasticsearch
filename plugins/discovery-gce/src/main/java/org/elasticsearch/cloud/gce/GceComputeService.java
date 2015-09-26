@@ -25,9 +25,6 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import java.io.IOException;
 import java.util.Collection;
 
-/**
- *
- */
 public interface GceComputeService extends LifecycleComponent<GceComputeService> {
     final class Fields {
         public static final String PROJECT = "cloud.gce.project_id";

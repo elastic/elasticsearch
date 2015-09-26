@@ -121,6 +121,10 @@ function that it supports and it's able to parse. The function object can then t
 function through the new `toFunction(QueryShardContext)` method, which returns a lucene function to be executed
 on the data node.
 
+==== Cloud GCE plugin
+
+Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
+
 === Java-API
 
 ==== BoostingQueryBuilder

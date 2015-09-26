@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.gce;
+package org.elasticsearch.discovery.gce;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.plugin.cloud.gce.CloudGcePlugin;
+import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
@@ -30,14 +30,14 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import java.io.IOException;
 import java.util.Collection;
 
-public class CloudGCERestIT extends ESRestTestCase {
+public class DiscoveryGCERestIT extends ESRestTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CloudGcePlugin.class);
+        return pluginList(GceDiscoveryPlugin.class);
     }
 
-    public CloudGCERestIT(@Name("yaml") RestTestCandidate testCandidate) {
+    public DiscoveryGCERestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
     }
 

@@ -48,9 +48,6 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.*;
 
-/**
- *
- */
 public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceComputeService>
     implements GceComputeService {
 

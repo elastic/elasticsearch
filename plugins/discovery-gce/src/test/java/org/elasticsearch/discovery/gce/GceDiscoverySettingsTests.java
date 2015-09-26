@@ -19,9 +19,8 @@
 
 package org.elasticsearch.discovery.gce;
 
-import org.elasticsearch.cloud.gce.GceModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugin.cloud.gce.CloudGcePlugin;
+import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
@@ -34,20 +33,20 @@ public class GceDiscoverySettingsTests extends ESTestCase {
                 .putArray("cloud.gce.zone", "gce_zones_1", "gce_zones_2")
                 .build();
 
-        boolean discoveryReady = CloudGcePlugin.isDiscoveryAlive(settings, logger);
+        boolean discoveryReady = GceDiscoveryPlugin.isDiscoveryAlive(settings, logger);
         assertThat(discoveryReady, is(true));
     }
 
     public void testDiscoveryNotReady() {
         Settings settings = Settings.EMPTY;
-        boolean discoveryReady = CloudGcePlugin.isDiscoveryAlive(settings, logger);
+        boolean discoveryReady = GceDiscoveryPlugin.isDiscoveryAlive(settings, logger);
         assertThat(discoveryReady, is(false));
 
         settings = Settings.builder()
                 .put("discovery.type", "gce")
                 .build();
 
-        discoveryReady = CloudGcePlugin.isDiscoveryAlive(settings, logger);
+        discoveryReady = GceDiscoveryPlugin.isDiscoveryAlive(settings, logger);
         assertThat(discoveryReady, is(false));
 
         settings = Settings.builder()
@@ -55,7 +54,7 @@ public class GceDiscoverySettingsTests extends ESTestCase {
                 .put("cloud.gce.project_id", "gce_id")
                 .build();
 
-        discoveryReady = CloudGcePlugin.isDiscoveryAlive(settings, logger);
+        discoveryReady = GceDiscoveryPlugin.isDiscoveryAlive(settings, logger);
         assertThat(discoveryReady, is(false));
 
 
@@ -64,7 +63,7 @@ public class GceDiscoverySettingsTests extends ESTestCase {
                 .putArray("cloud.gce.zone", "gce_zones_1", "gce_zones_2")
                 .build();
 
-        discoveryReady = CloudGcePlugin.isDiscoveryAlive(settings, logger);
+        discoveryReady = GceDiscoveryPlugin.isDiscoveryAlive(settings, logger);
         assertThat(discoveryReady, is(false));
 
         settings = Settings.builder()
@@ -72,7 +71,7 @@ public class GceDiscoverySettingsTests extends ESTestCase {
                 .putArray("cloud.gce.zone", "gce_zones_1", "gce_zones_2")
                 .build();
 
-        discoveryReady = CloudGcePlugin.isDiscoveryAlive(settings, logger);
+        discoveryReady = GceDiscoveryPlugin.isDiscoveryAlive(settings, logger);
         assertThat(discoveryReady, is(false));
     }
 }

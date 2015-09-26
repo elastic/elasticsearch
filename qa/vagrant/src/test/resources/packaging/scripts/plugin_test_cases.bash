@@ -204,7 +204,7 @@ fi
 }
 
 @test "[$GROUP] install gce plugin" {
-    install_and_check_plugin cloud gce google-api-client-*.jar
+    install_and_check_plugin discovery gce google-api-client-*.jar
 }
 
 @test "[$GROUP] install delete by query plugin" {
@@ -308,7 +308,7 @@ fi
 }
 
 @test "[$GROUP] remove gce plugin" {
-    remove_plugin cloud-gce
+    remove_plugin discovery-gce
 }
 
 @test "[$GROUP] remove delete by query plugin" {

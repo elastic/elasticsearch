@@ -1,6 +1,6 @@
-# Integration tests for Cloud GCE components
+# Integration tests for Discovery GCE components
 #
-"Cloud GCE loaded":
+"Discovery GCE loaded":
     - do:
         cluster.state: {}
 
@@ -10,5 +10,5 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: cloud-gce  }
+    - match:  { nodes.$master.plugins.0.name: discovery-gce  }
     - match:  { nodes.$master.plugins.0.jvm: true  }

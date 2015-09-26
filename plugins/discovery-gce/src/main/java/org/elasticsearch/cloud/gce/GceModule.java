@@ -20,8 +20,6 @@
 package org.elasticsearch.cloud.gce;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 
 public class GceModule extends AbstractModule {
     // pkg private so tests can override with mock

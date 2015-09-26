@@ -59,6 +59,13 @@ if [ -n "$ES_ENV_FILE" ]; then
   fi
 fi
 
+# don't let JAVA_TOOL_OPTIONS slip in (e.g. crazy agents in ubuntu)
+# works around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487
+if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
+    echo "Warning: Ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+    unset JAVA_TOOL_OPTIONS
+fi
+
 if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA=$JAVA_HOME/bin/java
 else

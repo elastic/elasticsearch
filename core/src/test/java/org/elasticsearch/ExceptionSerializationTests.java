@@ -96,10 +96,13 @@ import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ExceptionSerializationTests extends ESTestCase {
 
@@ -230,13 +233,13 @@ public class ExceptionSerializationTests extends ESTestCase {
         ParsingException ex = serialize(new ParsingException(1, 2, "fobar", null));
         assertNull(ex.getIndex());
         assertEquals(ex.getMessage(), "fobar");
-        assertEquals(ex.getLineNumber(),1);
+        assertEquals(ex.getLineNumber(), 1);
         assertEquals(ex.getColumnNumber(), 2);
 
         ex = serialize(new ParsingException(1, 2, null, null));
         assertNull(ex.getIndex());
         assertNull(ex.getMessage());
-        assertEquals(ex.getLineNumber(),1);
+        assertEquals(ex.getLineNumber(), 1);
         assertEquals(ex.getColumnNumber(), 2);
     }
 
@@ -643,5 +646,181 @@ public class ExceptionSerializationTests extends ESTestCase {
         InterruptedException orig = randomBoolean() ? new InterruptedException("boom") : new InterruptedException();
         InterruptedException ex = serialize(orig);
         assertEquals(orig.getMessage(), ex.getMessage());
+    }
+
+    public void testThatIdsArePositive() {
+        for (ElasticsearchException.ElasticsearchExceptionHandle handle : ElasticsearchException.ElasticsearchExceptionHandle.values()) {
+            assertThat("negative id", handle.id, greaterThanOrEqualTo(0));
+        }
+    }
+
+    public void testThatIdsAreUnique() {
+        Set<Integer> ids = new HashSet<>();
+        for (ElasticsearchException.ElasticsearchExceptionHandle handle : ElasticsearchException.ElasticsearchExceptionHandle.values()) {
+            assertTrue("duplicate id", ids.add(handle.id));
+        }
+    }
+
+    public void testIds() {
+        Map<Integer, Class<? extends ElasticsearchException>> ids = new HashMap<>();
+        ids.put(0, org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException.class);
+        ids.put(1, org.elasticsearch.search.dfs.DfsPhaseExecutionException.class);
+        ids.put(2, org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException.class);
+        ids.put(3, org.elasticsearch.discovery.MasterNotDiscoveredException.class);
+        ids.put(4, org.elasticsearch.ElasticsearchSecurityException.class);
+        ids.put(5, org.elasticsearch.index.snapshots.IndexShardRestoreException.class);
+        ids.put(6, org.elasticsearch.indices.IndexClosedException.class);
+        ids.put(7, org.elasticsearch.http.BindHttpException.class);
+        ids.put(8, org.elasticsearch.action.search.ReduceSearchPhaseException.class);
+        ids.put(9, org.elasticsearch.node.NodeClosedException.class);
+        ids.put(10, org.elasticsearch.index.engine.SnapshotFailedEngineException.class);
+        ids.put(11, org.elasticsearch.index.shard.ShardNotFoundException.class);
+        ids.put(12, org.elasticsearch.transport.ConnectTransportException.class);
+        ids.put(13, org.elasticsearch.transport.NotSerializableTransportException.class);
+        ids.put(14, org.elasticsearch.transport.ResponseHandlerFailureTransportException.class);
+        ids.put(15, org.elasticsearch.indices.IndexCreationException.class);
+        ids.put(16, org.elasticsearch.index.IndexNotFoundException.class);
+        ids.put(17, org.elasticsearch.cluster.routing.IllegalShardRoutingStateException.class);
+        ids.put(18, org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException.class);
+        ids.put(19, org.elasticsearch.ResourceNotFoundException.class);
+        ids.put(20, org.elasticsearch.transport.ActionTransportException.class);
+        ids.put(21, org.elasticsearch.ElasticsearchGenerationException.class);
+        ids.put(22, org.elasticsearch.index.engine.CreateFailedEngineException.class);
+        ids.put(23, org.elasticsearch.index.shard.IndexShardStartedException.class);
+        ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
+        ids.put(25, org.elasticsearch.script.ScriptException.class);
+        ids.put(26, org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException.class);
+        ids.put(27, org.elasticsearch.snapshots.SnapshotCreationException.class);
+        ids.put(28, org.elasticsearch.index.engine.DeleteFailedEngineException.class);
+        ids.put(29, org.elasticsearch.index.engine.DocumentMissingException.class);
+        ids.put(30, org.elasticsearch.snapshots.SnapshotException.class);
+        ids.put(31, org.elasticsearch.indices.InvalidAliasNameException.class);
+        ids.put(32, org.elasticsearch.indices.InvalidIndexNameException.class);
+        ids.put(33, org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException.class);
+        ids.put(34, org.elasticsearch.transport.TransportException.class);
+        ids.put(35, org.elasticsearch.ElasticsearchParseException.class);
+        ids.put(36, org.elasticsearch.search.SearchException.class);
+        ids.put(37, org.elasticsearch.index.mapper.MapperException.class);
+        ids.put(38, org.elasticsearch.indices.InvalidTypeNameException.class);
+        ids.put(39, org.elasticsearch.snapshots.SnapshotRestoreException.class);
+        ids.put(40, org.elasticsearch.common.ParsingException.class);
+        ids.put(41, org.elasticsearch.index.shard.IndexShardClosedException.class);
+        ids.put(42, org.elasticsearch.indices.recovery.RecoverFilesRecoveryException.class);
+        ids.put(43, org.elasticsearch.index.translog.TruncatedTranslogException.class);
+        ids.put(44, org.elasticsearch.indices.recovery.RecoveryFailedException.class);
+        ids.put(45, org.elasticsearch.index.shard.IndexShardRelocatedException.class);
+        ids.put(46, org.elasticsearch.transport.NodeShouldNotConnectException.class);
+        ids.put(47, org.elasticsearch.indices.IndexTemplateAlreadyExistsException.class);
+        ids.put(48, org.elasticsearch.index.translog.TranslogCorruptedException.class);
+        ids.put(49, org.elasticsearch.cluster.block.ClusterBlockException.class);
+        ids.put(50, org.elasticsearch.search.fetch.FetchPhaseExecutionException.class);
+        ids.put(51, org.elasticsearch.index.IndexShardAlreadyExistsException.class);
+        ids.put(52, org.elasticsearch.index.engine.VersionConflictEngineException.class);
+        ids.put(53, org.elasticsearch.index.engine.EngineException.class);
+        ids.put(54, org.elasticsearch.index.engine.DocumentAlreadyExistsException.class);
+        ids.put(55, org.elasticsearch.action.NoSuchNodeException.class);
+        ids.put(56, org.elasticsearch.common.settings.SettingsException.class);
+        ids.put(57, org.elasticsearch.indices.IndexTemplateMissingException.class);
+        ids.put(58, org.elasticsearch.transport.SendRequestTransportException.class);
+        ids.put(59, org.elasticsearch.common.util.concurrent.EsRejectedExecutionException.class);
+        ids.put(60, org.elasticsearch.common.lucene.Lucene.EarlyTerminationException.class);
+        ids.put(61, org.elasticsearch.cluster.routing.RoutingValidationException.class);
+        ids.put(62, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class);
+        ids.put(63, org.elasticsearch.indices.AliasFilterParsingException.class);
+        ids.put(64, org.elasticsearch.index.engine.DeleteByQueryFailedEngineException.class);
+        ids.put(65, org.elasticsearch.gateway.GatewayException.class);
+        ids.put(66, org.elasticsearch.index.shard.IndexShardNotRecoveringException.class);
+        ids.put(67, org.elasticsearch.http.HttpException.class);
+        ids.put(68, org.elasticsearch.ElasticsearchException.class);
+        ids.put(69, org.elasticsearch.snapshots.SnapshotMissingException.class);
+        ids.put(70, org.elasticsearch.action.PrimaryMissingActionException.class);
+        ids.put(71, org.elasticsearch.action.FailedNodeException.class);
+        ids.put(72, org.elasticsearch.search.SearchParseException.class);
+        ids.put(73, org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException.class);
+        ids.put(74, org.elasticsearch.common.blobstore.BlobStoreException.class);
+        ids.put(75, org.elasticsearch.cluster.IncompatibleClusterStateVersionException.class);
+        ids.put(76, org.elasticsearch.index.engine.RecoveryEngineException.class);
+        ids.put(77, org.elasticsearch.common.util.concurrent.UncategorizedExecutionException.class);
+        ids.put(78, org.elasticsearch.action.TimestampParsingException.class);
+        ids.put(79, org.elasticsearch.action.RoutingMissingException.class);
+        ids.put(80, org.elasticsearch.index.engine.IndexFailedEngineException.class);
+        ids.put(81, org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class);
+        ids.put(82, org.elasticsearch.repositories.RepositoryException.class);
+        ids.put(83, org.elasticsearch.transport.ReceiveTimeoutTransportException.class);
+        ids.put(84, org.elasticsearch.transport.NodeDisconnectedException.class);
+        ids.put(85, org.elasticsearch.index.AlreadyExpiredException.class);
+        ids.put(86, org.elasticsearch.search.aggregations.AggregationExecutionException.class);
+        ids.put(87, org.elasticsearch.index.mapper.MergeMappingException.class);
+        ids.put(88, org.elasticsearch.indices.InvalidIndexTemplateException.class);
+        ids.put(89, org.elasticsearch.percolator.PercolateException.class);
+        ids.put(90, org.elasticsearch.index.engine.RefreshFailedEngineException.class);
+        ids.put(91, org.elasticsearch.search.aggregations.AggregationInitializationException.class);
+        ids.put(92, org.elasticsearch.indices.recovery.DelayRecoveryException.class);
+        ids.put(93, org.elasticsearch.search.warmer.IndexWarmerMissingException.class);
+        ids.put(94, org.elasticsearch.client.transport.NoNodeAvailableException.class);
+        ids.put(95, org.elasticsearch.script.groovy.GroovyScriptCompilationException.class);
+        ids.put(96, org.elasticsearch.snapshots.InvalidSnapshotNameException.class);
+        ids.put(97, org.elasticsearch.index.shard.IllegalIndexShardStateException.class);
+        ids.put(98, org.elasticsearch.index.snapshots.IndexShardSnapshotException.class);
+        ids.put(99, org.elasticsearch.index.shard.IndexShardNotStartedException.class);
+        ids.put(100, org.elasticsearch.action.search.SearchPhaseExecutionException.class);
+        ids.put(101, org.elasticsearch.transport.ActionNotFoundTransportException.class);
+        ids.put(102, org.elasticsearch.transport.TransportSerializationException.class);
+        ids.put(103, org.elasticsearch.transport.RemoteTransportException.class);
+        ids.put(104, org.elasticsearch.index.engine.EngineCreationFailureException.class);
+        ids.put(105, org.elasticsearch.cluster.routing.RoutingException.class);
+        ids.put(106, org.elasticsearch.index.shard.IndexShardRecoveryException.class);
+        ids.put(107, org.elasticsearch.repositories.RepositoryMissingException.class);
+        ids.put(108, org.elasticsearch.index.percolator.PercolatorException.class);
+        ids.put(109, org.elasticsearch.index.engine.DocumentSourceMissingException.class);
+        ids.put(110, org.elasticsearch.index.engine.FlushNotAllowedEngineException.class);
+        ids.put(111, org.elasticsearch.common.settings.NoClassSettingsException.class);
+        ids.put(112, org.elasticsearch.transport.BindTransportException.class);
+        ids.put(113, org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException.class);
+        ids.put(114, org.elasticsearch.index.shard.IndexShardRecoveringException.class);
+        ids.put(115, org.elasticsearch.index.translog.TranslogException.class);
+        ids.put(116, org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class);
+        ids.put(117, org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnPrimaryException.class);
+        ids.put(118, org.elasticsearch.ElasticsearchTimeoutException.class);
+        ids.put(119, org.elasticsearch.search.query.QueryPhaseExecutionException.class);
+        ids.put(120, org.elasticsearch.repositories.RepositoryVerificationException.class);
+        ids.put(121, org.elasticsearch.search.aggregations.InvalidAggregationPathException.class);
+        ids.put(122, org.elasticsearch.script.groovy.GroovyScriptExecutionException.class);
+        ids.put(123, org.elasticsearch.indices.IndexAlreadyExistsException.class);
+        ids.put(124, org.elasticsearch.script.Script.ScriptParseException.class);
+        ids.put(125, org.elasticsearch.transport.netty.SizeHeaderFrameDecoder.HttpOnTransportException.class);
+        ids.put(126, org.elasticsearch.index.mapper.MapperParsingException.class);
+        ids.put(127, org.elasticsearch.search.SearchContextException.class);
+        ids.put(128, org.elasticsearch.search.builder.SearchSourceBuilderException.class);
+        ids.put(129, org.elasticsearch.index.engine.EngineClosedException.class);
+        ids.put(130, org.elasticsearch.action.NoShardAvailableActionException.class);
+        ids.put(131, org.elasticsearch.action.UnavailableShardsException.class);
+        ids.put(132, org.elasticsearch.index.engine.FlushFailedEngineException.class);
+        ids.put(133, org.elasticsearch.common.breaker.CircuitBreakingException.class);
+        ids.put(134, org.elasticsearch.transport.NodeNotConnectedException.class);
+        ids.put(135, org.elasticsearch.index.mapper.StrictDynamicMappingException.class);
+        ids.put(136, org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException.class);
+        ids.put(137, org.elasticsearch.indices.TypeMissingException.class);
+        ids.put(138, null);
+        ids.put(139, null);
+        ids.put(140, org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class);
+        ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
+
+        Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
+        for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
+            if (entry.getValue() != null) {
+                reverse.put(entry.getValue(), entry.getKey());
+            }
+        }
+
+        for (ElasticsearchException.ElasticsearchExceptionHandle handle : ElasticsearchException.ElasticsearchExceptionHandle.values()) {
+            assertEquals((int)reverse.get(handle.exceptionClass), handle.id);
+        }
+
+        for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
+            if (entry.getValue() != null) {
+                assertEquals((int) entry.getKey(), ElasticsearchException.getId(entry.getValue()));
+            }
+        }
     }
 }

@@ -113,6 +113,14 @@ if [ -z "$ES_CLASSPATH" ]; then
     exit 1
 fi
 
+# don't let JAVA_TOOL_OPTIONS slip in (e.g. crazy agents in ubuntu)
+# works around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487
+if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
+    echo "Warning: Ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+    echo "Please pass JVM parameters via JAVA_OPTS instead"
+    unset JAVA_TOOL_OPTIONS
+fi
+
 # Special-case path variables.
 case `uname` in
     CYGWIN*)

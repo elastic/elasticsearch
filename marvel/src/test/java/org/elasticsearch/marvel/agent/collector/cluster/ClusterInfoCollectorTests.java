@@ -38,7 +38,7 @@ public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
         assertThat(clusterInfoMarvelDoc.getVersion(), equalTo(client().admin().cluster().prepareNodesInfo().get().getNodes()[0].getVersion().toString()));
 
         assertNotNull(clusterInfoMarvelDoc.getLicenses());
-        assertThat(clusterInfoMarvelDoc.getLicenses(), hasSize(1));
+        assertThat(clusterInfoMarvelDoc.getLicenses(), hasSize(isInternalCluster() && shieldEnabled ? 2 : 1));
 
         assertNotNull(clusterInfoMarvelDoc.getClusterStats());
         assertThat(clusterInfoMarvelDoc.getClusterStats().getNodesStats().getCounts().getTotal(), equalTo(internalCluster().getNodeNames().length));

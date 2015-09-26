@@ -22,7 +22,9 @@ package org.elasticsearch.indices.memory;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -67,11 +69,23 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
     }
 
     @Test
-    public void testIndexBufferNotPercent() throws InterruptedException {
-        // #13487: Make sure you can specify non-percent sized index buffer and not hit NPE
-        createNode(Settings.builder().put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "32mb").build());
-        // ... and that it took:
-        assertEquals(32*1024*1024, internalCluster().getInstance(IndexingMemoryController.class).indexingBufferSize().bytes());
+    public void testInactivePushedToShard() throws InterruptedException {
+        createNode(Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, "100ms",
+                IndexingMemoryController.SHARD_INACTIVE_INTERVAL_TIME_SETTING, "100ms",
+                IndexShard.INDEX_REFRESH_INTERVAL, "-1").build());
+
+        // Create two active indices, sharing 32 MB indexing buffer:
+        prepareCreate("test1").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).get();
+
+        ensureGreen();
+
+        index("test1", "type", "1", "f", 1);
+
+        // make shard the shard buffer was set to inactive size
+        final ByteSizeValue inactiveBuffer = EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER;
+        if (awaitBusy(() -> getIWBufferSize("test1") == inactiveBuffer.bytes()) == false) {
+            fail("failed to update shard indexing buffer size for test1 index to [" + inactiveBuffer + "]; got: " + getIWBufferSize("test1"));
+        }
     }
 
     private void createNode(Settings settings) {

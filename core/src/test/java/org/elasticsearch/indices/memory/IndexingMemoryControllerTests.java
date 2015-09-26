@@ -103,7 +103,7 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         }
 
         @Override
-        protected void markShardAsInActive(ShardId shardId) {
+        protected void markShardAsInactive(ShardId shardId) {
             indexingBuffers.put(shardId, INACTIVE);
             translogBuffers.put(shardId, INACTIVE);
         }
@@ -184,6 +184,8 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         // index into both shards, move the clock and see that they are still active
         controller.setTranslog(shard1, randomInt(2), randomInt(2) + 1);
         controller.setTranslog(shard2, randomInt(2) + 1, randomInt(2));
+        // nthe controller doesn't know when the ops happened, so even if this is more
+        // than the inactive time the shard is still marked as active
         controller.incrementTimeSec(10);
         controller.forceCheck();
         controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));

@@ -317,7 +317,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                     continue;
                 }
 
-
                 ShardIndexingStatus status = shardsIndicesStatus.get(shardId);
                 if (status == null) {
                     status = currentStatus;
@@ -326,13 +325,13 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                 } else {
                     final boolean lastActiveIndexing = status.activeIndexing;
                     status.updateWith(currentTimeInNanos(), currentStatus, inactiveTime.nanos());
-                    if (lastActiveIndexing && status.activeIndexing == false) {
+                    if (lastActiveIndexing && (status.activeIndexing == false)) {
                         activeToInactiveIndexingShards.add(shardId);
                         changes.add(ShardStatusChangeType.BECAME_INACTIVE);
                         logger.debug("marking shard {} as inactive (inactive_time[{}]) indexing wise, setting size to [{}]",
                                 shardId,
                                 inactiveTime, EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER);
-                    } else if (lastActiveIndexing == false && status.activeIndexing) {
+                    } else if ((lastActiveIndexing == false) && status.activeIndexing) {
                         changes.add(ShardStatusChangeType.BECAME_ACTIVE);
                         logger.debug("marking shard {} as active indexing wise", shardId);
                     }

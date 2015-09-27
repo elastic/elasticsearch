@@ -1,4 +1,4 @@
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.precommit
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException

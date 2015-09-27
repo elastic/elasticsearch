@@ -1,6 +1,6 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.apache.tools.ant.filters.FixCrLfFilter
-import org.elasticsearch.gradle.DependencyLicensesTask
+import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 
 plugins {
   id "nebula.os-package" version "2.2.6"
@@ -92,7 +92,7 @@ distributions {
           include 'bin/*.bat' 
           filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
         }
-        filter(ReplaceTokens, tokens: hackMavenFiltering(expansions), beginToken : '$', endToken : '}')
+        it.filter(ReplaceTokens, tokens: hackMavenFiltering(expansions), beginToken : '$', endToken : '}')
       }
       from('src/main/resources') {
         include 'bin/*.exe' 

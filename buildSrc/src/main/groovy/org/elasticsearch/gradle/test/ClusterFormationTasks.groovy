@@ -1,5 +1,6 @@
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.test
 
+import org.elasticsearch.gradle.ElasticsearchProperties
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.Project
@@ -17,23 +18,22 @@ class ClusterFormationTasks {
      * Adds dependent tasks to the given task to start a cluster with the given configuration.
      * Also adds a finalize task to stop the cluster.
      */
-    static void addTasks(Task task, ClusterConfiguration config) {
-        addZipConfiguration(task.project)
-        File clusterDir = new File(task.project.buildDir, 'cluster' + File.separator + task.name)
+    static void setup(Project project, Task task, ClusterConfiguration config) {
+        addZipConfiguration(project)
+        File clusterDir = new File(project.buildDir, 'cluster' + File.separator + task.name)
         if (config.numNodes == 1) {
-            addNodeStartupTasks(task, config, clusterDir)
-            addNodeStopTask(task, clusterDir)
+            addNodeStartupTasks(project, task, config, clusterDir)
+            addNodeStopTask(project, task, clusterDir)
         } else {
             for (int i = 0; i < config.numNodes; ++i) {
                 File nodeDir = new File(clusterDir, "node${i}")
-                addNodeStartupTasks(task, config, nodeDir)
-                addNodeStopTask(task, nodeDir)
+                addNodeStartupTasks(project, task, config, nodeDir)
+                addNodeStopTask(project, task, nodeDir)
             }
         }
     }
 
-    static void addNodeStartupTasks(Task task, ClusterConfiguration config, File baseDir) {
-        Project project = task.project
+    static void addNodeStartupTasks(Project project, Task task, ClusterConfiguration config, File baseDir) {
         String clusterName = "${task.path.replace(':', '_').substring(1)}"
         File home = new File(baseDir, "elasticsearch-${ElasticsearchProperties.version}")
         List setupDependsOn = [project.configurations.elasticsearchZip.buildDependencies]
@@ -115,9 +115,9 @@ class ClusterFormationTasks {
         task.dependsOn(start)
     }
 
-    static void addNodeStopTask(Task task, File baseDir) {
+    static void addNodeStopTask(Project project, Task task, File baseDir) {
         LazyPidReader pidFile = new LazyPidReader(pidFile: pidFile(baseDir))
-        Task stop = task.project.tasks.create(name: task.name + '#stop', type: Exec) {
+        Task stop = project.tasks.create(name: task.name + '#stop', type: Exec) {
             executable 'kill'
             args '-9', pidFile
             doLast {

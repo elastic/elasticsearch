@@ -1,3 +1,5 @@
+import com.carrotsearch.gradle.randomizedtesting.RandomizedTestingTask
+import org.elasticsearch.gradle.BuildPlugin
 
 plugins {
   id 'nebula.source-jar' version '4.2.1'
@@ -11,7 +13,7 @@ tasks.withType(Jar) {
 configurations {
   optional // these are used at compile time (and test) but excluded from runtime
   compile.extendsFrom(optional)
-  restSpec // the rest spec is copied independently to the test classes dir
+  restSpec2 // the rest spec is copied independently to the test classes dir
 }
 
 versions << [
@@ -103,22 +105,11 @@ dependencies {
 
   testCompile configurations.optional // optional deps are pulled into tests
 
-  restSpec project(':rest-api-spec') // for rest tests
+  restSpec2 project(':rest-api-spec') // for rest tests
 }
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
-
-/*
-task sourcesJar(type: Jar, dependsOn: classes) {
-  classifier = 'sources'
-  from sourceSets.main.java
-}
-
-artifacts {
-  archives sourcesJar
-}
-*/
 
 forbiddenPatterns {
   exclude '**/*.json'
@@ -126,18 +117,26 @@ forbiddenPatterns {
   exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
 }
 
-task copyRestSpec(type: Copy, dependsOn: configurations.restSpec.buildDependencies) {
-  from zipTree(configurations.restSpec.asPath)
+task copyRestSpec(type: Copy, dependsOn: configurations.restSpec2.buildDependencies) {
+  from zipTree(configurations.restSpec2.asPath)
   into sourceSets.test.output.resourcesDir
 }
+// TODO: remove this once test-the-tester rest tests are moved out of core
+test.dependsOn copyRestSpec
 
-test {
-  dependsOn copyRestSpec
+task integTest(type: RandomizedTestingTask,
+               group: JavaBasePlugin.VERIFICATION_GROUP,
+               description: 'Multi-node tests') {
+  configure(BuildPlugin.commonTestConfig(project))
+  dependsOn = project.test.dependsOn
+  classpath = project.test.classpath
+  testClassesDir = project.test.testClassesDir
+  include '**/*IT.class'
 }
 
 idea {
   module {
     scopes.COMPILE.plus.add(configurations.optional)
-    scopes.TEST.plus.add(configurations.restSpec)
+    scopes.TEST.plus.add(configurations.restSpec2)
   }
 }

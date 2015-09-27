@@ -1,4 +1,4 @@
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.test
 
 import org.gradle.api.InvalidUserDataException
 

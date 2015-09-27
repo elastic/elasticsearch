@@ -17,44 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.test
 
 import com.carrotsearch.gradle.randomizedtesting.RandomizedTestingTask
+import org.elasticsearch.gradle.ElasticsearchProperties
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.plugins.JavaBasePlugin
-import org.gradle.api.tasks.SourceSet
 
-/** A basic elasticsearch build, along with rest integration tests. */
-class RestQAPlugin implements Plugin<Project> {
+/** Configures the build to have a rest integration test.  */
+class RestTestPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
         project.pluginManager.apply('java-base')
-        project.pluginManager.apply('carrotsearch.randomizedtesting')
 
         // remove some unnecessary tasks for a qa test
         project.tasks.removeAll { it.name in ['assemble', 'buildDependents'] }
+
+        // only setup tests to build
         project.sourceSets {
             test
         }
         project.dependencies {
             testCompile "org.elasticsearch:test-framework:${ElasticsearchProperties.version}"
         }
-        Map properties = [
-            name: 'integTest',
-            type: RestIntegTestTask,
-            dependsOn: 'testClasses',
-            group: JavaBasePlugin.VERIFICATION_GROUP,
-            description: 'Runs REST spec QA tests.'
-        ]
-        RandomizedTestingTask integTest = project.tasks.create(properties) {
-            sysProp 'tests.rest.load_packaged', 'false'
+
+        RandomizedTestingTask integTest = RestIntegTestTask.configure(project)
+        RestSpecHack.configureDependencies(project)
+        integTest.configure {
+            classpath = project.sourceSets.test.runtimeClasspath
+            testClassesDir project.sourceSets.test.output.classesDir
         }
-        SourceSet testSourceSet = project.sourceSets.test
-        integTest.classpath = testSourceSet.runtimeClasspath
-        integTest.testClassesDir = testSourceSet.output.classesDir
-        integTest.dependsOn(RestSpecHack.setup(project, false))
-        project.check.dependsOn(integTest)
     }
 }

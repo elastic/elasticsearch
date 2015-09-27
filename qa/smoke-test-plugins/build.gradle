@@ -1,5 +1,5 @@
 
-apply plugin: 'elasticsearch.restqa'
+apply plugin: 'elasticsearch.rest-test'
 
 processTestResources {
   expand('expected.plugin.count': '1')

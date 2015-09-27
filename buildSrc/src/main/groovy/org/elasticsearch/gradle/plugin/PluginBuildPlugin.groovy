@@ -1,9 +1,13 @@
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.plugin
 
 import com.carrotsearch.gradle.randomizedtesting.RandomizedTestingTask
+import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.ElasticsearchProperties
+import org.elasticsearch.gradle.precommit.DependencyLicensesTask
+import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.test.RestSpecHack
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.bundling.Zip
 
@@ -17,16 +21,9 @@ class PluginBuildPlugin extends BuildPlugin {
         super.apply(project)
         // TODO: add target compatibility (java version) to elasticsearch properties and set for the project
         configureDependencies(project)
-        Task copyRestSpec = RestSpecHack.setup(project, false)
-        project.tasks.getByName('test').dependsOn copyRestSpec
-        project.tasks.getByName('integTest').dependsOn copyRestSpec
-
-        // HACK: rest test case should not try to load from the filesystem
-        project.tasks.getByName('integTest').configure {
-            sysProp 'tests.rest.load_packaged', 'false'
-        }
         Task bundle = configureBundleTask(project.tasks)
-        project.integTest {
+        RestIntegTestTask integTest = RestIntegTestTask.configure(project)
+        integTest.configure {
             dependsOn bundle
             cluster {
                 setup {
@@ -41,11 +38,6 @@ class PluginBuildPlugin extends BuildPlugin {
             archives bundle
             'default' bundle
         }
-    }
-
-    @Override
-    Class<? extends RandomizedTestingTask> getIntegTestClass() {
-        return RestIntegTestTask
     }
 
     static void configureDependencies(Project project) {

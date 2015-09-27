@@ -1,5 +1,6 @@
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.plugin
 
+import org.elasticsearch.gradle.ElasticsearchProperties
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.internal.AbstractTask
 import org.gradle.api.tasks.TaskAction

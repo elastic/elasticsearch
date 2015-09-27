@@ -1,4 +1,4 @@
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.plugin
 
 import org.gradle.api.Project
 import org.gradle.api.tasks.Input

@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.test
 
+import org.elasticsearch.gradle.ElasticsearchProperties
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.tasks.Copy
@@ -30,17 +31,25 @@ import org.gradle.api.tasks.Copy
  */
 class RestSpecHack {
     /**
-     * Sets up the task and configuration to copy the rest spec.
-     * @param project The project to add the copy task to
-     * @param includePackagedTests true if the packaged tests should be copied, false otherwise
+     * Sets dependencies needed to copy the rest spec.
+     * @param project The project to add rest spec dependency to
      */
-    static Task setup(Project project, boolean includePackagedTests) {
+    static void configureDependencies(Project project) {
         project.configurations {
             restSpec
         }
         project.dependencies {
             restSpec "org.elasticsearch:rest-api-spec:${ElasticsearchProperties.version}"
         }
+    }
+
+    /**
+     * Creates a task to copy the rest spec files.
+     *
+     * @param project The project to add the copy task to
+     * @param includePackagedTests true if the packaged tests should be copied, false otherwise
+     */
+    static Task configureTask(Project project, boolean includePackagedTests) {
         Map copyRestSpecProps = [
             name: 'copyRestSpec',
             type: Copy,

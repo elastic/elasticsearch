@@ -223,7 +223,8 @@ public class PercolatorIT extends ESIntegTestCase {
         logger.info("--> Percolate doc with no routing");
         PercolateResponse response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type")
-                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject()))
+                .setSize(100)
                 .execute().actionGet();
         assertMatchCount(response, 100l);
         assertThat(response.getMatches(), arrayWithSize(100));
@@ -231,16 +232,18 @@ public class PercolatorIT extends ESIntegTestCase {
         logger.info("--> Percolate doc with routing=0");
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type")
-                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
-                .setRouting("0")
-                .execute().actionGet();
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject()))
+                        .setSize(100)
+                        .setRouting("0")
+                        .execute().actionGet();
         assertMatchCount(response, 50l);
         assertThat(response.getMatches(), arrayWithSize(50));
 
         logger.info("--> Percolate doc with routing=1");
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type")
-                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject()))
+                .setSize(100)
                 .setRouting("1")
                 .execute().actionGet();
         assertMatchCount(response, 50l);
@@ -1081,6 +1084,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("my-index").setDocumentType("my-type")
                 .setOnlyCount(onlyCount)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                .setSize((int) totalQueries)
                 .execute().actionGet();
         assertMatchCount(response, totalQueries);
         if (!onlyCount) {
@@ -1110,6 +1114,7 @@ public class PercolatorIT extends ESIntegTestCase {
                     .setOnlyCount(onlyCount)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
                     .setPercolateQuery(termQuery("level", 1 + randomInt(numLevels - 1)))
+                    .setSize((int) numQueriesPerLevel)
                     .execute().actionGet();
             assertMatchCount(response, numQueriesPerLevel);
             if (!onlyCount) {
@@ -1124,6 +1129,7 @@ public class PercolatorIT extends ESIntegTestCase {
                     .setOnlyCount(onlyCount)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
                     .setPercolateQuery(termQuery("level", 1 + randomInt(numLevels - 1)))
+                    .setSize((int) numQueriesPerLevel)
                     .execute().actionGet();
             assertMatchCount(response, numQueriesPerLevel);
             if (!onlyCount) {
@@ -1262,18 +1268,6 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(response.getMatches()[0].getScore(), equalTo(2f));
         assertThat(response.getMatches()[1].getId().string(), equalTo("1"));
         assertThat(response.getMatches()[1].getScore(), equalTo(1f));
-
-        response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
-                .setSortByScore(true)
-                .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
-                .execute().actionGet();
-        assertThat(response.getCount(), equalTo(0l));
-        assertThat(response.getShardFailures().length, greaterThan(0));
-        for (ShardOperationFailedException failure : response.getShardFailures()) {
-            assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(failure.reason(), containsString("Can't sort if size isn't specified"));
-        }
     }
 
     @Test

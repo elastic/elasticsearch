@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.*;
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.MapperService;
@@ -83,32 +84,27 @@ public class QueryMetadataService {
         }
     }
 
-    public Query createQueryMetadataQuery(Iterable<IndexableField> document, Analyzer indexAnalyzer) throws IOException {
-        BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
-        booleanQuery.add(new TermQuery(new Term(QUERY_METADATA_FIELD_UNKNOWN)), BooleanClause.Occur.SHOULD);
-
-        for (IndexableField field : document) {
-            // Ignore none indexed fields
-            if (field.fieldType().indexOptions() == IndexOptions.NONE) {
-                continue;
-            }
-
+    public Query createQueryMetadataQuery(IndexReader indexReader) throws IOException {
+        List<Term> extractedTerms = new ArrayList<>();
+        extractedTerms.add(new Term(QUERY_METADATA_FIELD_UNKNOWN));
+        Fields fields = MultiFields.getFields(indexReader);
+        for (String field : fields) {
             // Ignore meta fields
-            if (field.name().startsWith("_")) {
+            if (field.startsWith("_")) {
                 continue;
             }
 
-            try (TokenStream stream = field.tokenStream(indexAnalyzer, null)) {
-                TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
-                stream.reset();
-                while (stream.incrementToken()) {
-                    BytesRef term = BytesRef.deepCopyOf(termAtt.getBytesRef());
-                    booleanQuery.add(new TermQuery(new Term(QUERY_METADATA_FIELD_PREFIX + field.name(), term)), BooleanClause.Occur.SHOULD);
-                }
-                stream.end();
+            Terms terms = fields.terms(field);
+            if (terms == null) {
+                continue;
+            }
+
+            TermsEnum tenum = terms.iterator();
+            for (BytesRef term = tenum.next(); term != null ; term = tenum.next()) {
+                extractedTerms.add(new Term(QUERY_METADATA_FIELD_PREFIX + field, BytesRef.deepCopyOf(term)));
             }
         }
-        return booleanQuery.build();
+        return new TermsQuery(extractedTerms);
     }
 
     private static void addField(Term term, List<Field> queryMetaDataFields) {

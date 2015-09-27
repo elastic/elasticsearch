@@ -20,7 +20,10 @@ package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.*;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
@@ -134,31 +137,33 @@ public class QueryMetadataServiceTests extends ESTestCase {
     }
 
     public void testCreateQueryMetadataQuery() throws Exception {
-        Document document = new Document();
-        document.add(new TextField("field1", "the quick brown fox jumps over the lazy dog", Field.Store.NO));
-        document.add(new TextField("field2", "some more text", Field.Store.NO));
-        document.add(new TextField("_field3", "hide me", Field.Store.NO));
-        document.add(new TextField("field4", "123", Field.Store.NO));
+        MemoryIndex memoryIndex = new MemoryIndex(false);
+        memoryIndex.addField("field1", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
+        memoryIndex.addField("field2", "some more text", new WhitespaceAnalyzer());
+        memoryIndex.addField("_field3", "hide me", new WhitespaceAnalyzer());
+        memoryIndex.addField("field4", "123", new WhitespaceAnalyzer());
 
-        Query query = queryMetadataService.createQueryMetadataQuery(document, new WhitespaceAnalyzer());
-        assertThat(query, instanceOf(BooleanQuery.class));
+        IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
+        Query query = queryMetadataService.createQueryMetadataQuery(indexReader);
+        assertThat(query, instanceOf(TermsQuery.class));
 
-        BooleanQuery booleanQuery = (BooleanQuery) query;
-        assertThat(booleanQuery.clauses().size(), equalTo(14));
-        assertClause(booleanQuery, 0, QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN, "");
-        assertClause(booleanQuery, 1, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "the");
-        assertClause(booleanQuery, 2, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "quick");
-        assertClause(booleanQuery, 3, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "brown");
-        assertClause(booleanQuery, 4, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "fox");
-        assertClause(booleanQuery, 5, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "jumps");
-        assertClause(booleanQuery, 6, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "over");
+        // no easy way to get to the terms in TermsQuery,
+        // if there a less then 16 terms then it gets rewritten to bq and then we can easily check the terms
+        BooleanQuery booleanQuery = (BooleanQuery) ((ConstantScoreQuery) query.rewrite(indexReader)).getQuery();
+        assertThat(booleanQuery.clauses().size(), equalTo(13));
+        assertClause(booleanQuery, 0, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "brown");
+        assertClause(booleanQuery, 1, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "dog");
+        assertClause(booleanQuery, 2, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "fox");
+        assertClause(booleanQuery, 3, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "jumps");
+        assertClause(booleanQuery, 4, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "lazy");
+        assertClause(booleanQuery, 5, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "over");
+        assertClause(booleanQuery, 6, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "quick");
         assertClause(booleanQuery, 7, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "the");
-        assertClause(booleanQuery, 8, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "lazy");
-        assertClause(booleanQuery, 9, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "dog");
-        assertClause(booleanQuery, 10, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "some");
-        assertClause(booleanQuery, 11, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "more");
-        assertClause(booleanQuery, 12, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "text");
-        assertClause(booleanQuery, 13, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field4", "123");
+        assertClause(booleanQuery, 8, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "more");
+        assertClause(booleanQuery, 9, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "some");
+        assertClause(booleanQuery, 10, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "text");
+        assertClause(booleanQuery, 11, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field4", "123");
+        assertClause(booleanQuery, 12, QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN, "");
     }
 
     private void assertClause(BooleanQuery booleanQuery, int i, String expectedField, String expectedValue) {

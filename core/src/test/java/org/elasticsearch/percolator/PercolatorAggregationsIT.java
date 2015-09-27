@@ -54,7 +54,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
 
     @Test
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
-    public void testFacetsAndAggregations() throws Exception {
+    public void testAggregations() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string", "field2", "type=string"));
         ensureGreen();
 
@@ -79,8 +79,11 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
 
         for (int i = 0; i < numQueries; i++) {
             String value = values[i % numUniqueQueries];
-            PercolateRequestBuilder percolateRequestBuilder = client().preparePercolate().setIndices("test").setDocumentType("type")
-                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()));
+            PercolateRequestBuilder percolateRequestBuilder = client().preparePercolate()
+                    .setIndices("test")
+                    .setDocumentType("type")
+                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()))
+                    .setSize(numQueries);
 
             SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
             percolateRequestBuilder.addAggregation(AggregationBuilders.terms("a").field("field2").collectMode(aggCollectionMode));
@@ -142,8 +145,11 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
 
         for (int i = 0; i < numQueries; i++) {
             String value = values[i % numUniqueQueries];
-            PercolateRequestBuilder percolateRequestBuilder = client().preparePercolate().setIndices("test").setDocumentType("type")
-                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()));
+            PercolateRequestBuilder percolateRequestBuilder = client().preparePercolate()
+                    .setIndices("test")
+                    .setDocumentType("type")
+                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()))
+                    .setSize(numQueries);
 
             SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
             percolateRequestBuilder.addAggregation(AggregationBuilders.terms("a").field("field2").collectMode(aggCollectionMode));
@@ -220,8 +226,11 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
 
         for (int i = 0; i < numQueries; i++) {
             String value = "value0";
-            PercolateRequestBuilder percolateRequestBuilder = client().preparePercolate().setIndices("test").setDocumentType("type")
-                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()));
+            PercolateRequestBuilder percolateRequestBuilder = client().preparePercolate()
+                    .setIndices("test")
+                    .setDocumentType("type")
+                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()))
+                    .setSize(numQueries);
 
             SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
             percolateRequestBuilder.addAggregation(AggregationBuilders.terms("terms").field("field2").collectMode(aggCollectionMode)

@@ -61,8 +61,8 @@ public class PercolateShardResponse extends BroadcastShardResponse {
         hls = new ArrayList<>();
     }
 
-    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, float[] scores, PercolateContext context, ShardId shardId) {
-        super(shardId);
+    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, float[] scores, PercolateContext context) {
+        super(new ShardId(context.shardTarget().getIndex(), context.shardTarget().getShardId()));
         this.matches = matches;
         this.hls = hls;
         this.count = count;
@@ -78,20 +78,20 @@ public class PercolateShardResponse extends BroadcastShardResponse {
         }
     }
 
-    public PercolateShardResponse(BytesRef[] matches, long count, float[] scores, PercolateContext context, ShardId shardId) {
-        this(matches, EMPTY_HL, count, scores, context, shardId);
+    public PercolateShardResponse(BytesRef[] matches, long count, float[] scores, PercolateContext context) {
+        this(matches, EMPTY_HL, count, scores, context);
     }
 
-    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, PercolateContext context, ShardId shardId) {
-        this(matches, hls, count, EMPTY_SCORES, context, shardId);
+    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, PercolateContext context) {
+        this(matches, hls, count, EMPTY_SCORES, context);
     }
 
-    public PercolateShardResponse(long count, PercolateContext context, ShardId shardId) {
-        this(EMPTY_MATCHES, EMPTY_HL, count, EMPTY_SCORES, context, shardId);
+    public PercolateShardResponse(long count, PercolateContext context) {
+        this(EMPTY_MATCHES, EMPTY_HL, count, EMPTY_SCORES, context);
     }
 
-    public PercolateShardResponse(PercolateContext context, ShardId shardId) {
-        this(EMPTY_MATCHES, EMPTY_HL, 0, EMPTY_SCORES, context, shardId);
+    public PercolateShardResponse(PercolateContext context) {
+        this(EMPTY_MATCHES, EMPTY_HL, 0, EMPTY_SCORES, context);
     }
 
     public BytesRef[] matches() {

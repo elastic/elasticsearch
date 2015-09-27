@@ -90,9 +90,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class PercolateContext extends SearchContext {
 
-    public boolean limit;
-    private int size;
-    public boolean doSort;
+    private int size = 10;
     public byte percolatorTypeId;
     private boolean trackScores;
 
@@ -539,7 +537,6 @@ public class PercolateContext extends SearchContext {
     @Override
     public SearchContext size(int size) {
         this.size = size;
-        this.limit = true;
         return this;
     }
 

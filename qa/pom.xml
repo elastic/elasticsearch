@@ -304,6 +304,7 @@
         <module>shield-core-rest-tests</module>
         <module>smoke-test-watcher-with-shield</module>
         <module>smoke-test-watcher-with-groovy</module>
+        <module>smoke-test-found-license-with-shield-and-watcher</module>
         <module>shield-example-realm</module>
         <module>shield-tribe-node-tests</module>
         <module>shield-client-tests</module>

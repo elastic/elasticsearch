@@ -6,6 +6,8 @@
 package org.elasticsearch.marvel.agent.exporter.http;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
+import org.elasticsearch.marvel.support.VersionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -17,6 +19,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.MARVEL_VERSION_FIELD;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 
@@ -24,17 +27,17 @@ public class HttpExporterUtilsTests extends ESTestCase {
 
     @Test
     public void testLoadTemplate() {
-        byte[] template = HttpExporterUtils.loadDefaultTemplate();
+        byte[] template = MarvelTemplateUtils.loadDefaultTemplate();
         assertNotNull(template);
         assertThat(template.length, Matchers.greaterThan(0));
     }
 
     @Test
     public void testParseTemplateVersionFromByteArrayTemplate() throws IOException {
-        byte[] template = HttpExporterUtils.loadDefaultTemplate();
+        byte[] template = MarvelTemplateUtils.loadDefaultTemplate();
         assertNotNull(template);
 
-        Version version = HttpExporterUtils.parseTemplateVersion(template);
+        Version version = MarvelTemplateUtils.parseTemplateVersion(template);
         assertNotNull(version);
     }
 
@@ -49,22 +52,22 @@ public class HttpExporterUtilsTests extends ESTestCase {
         templates.add("{  \"template\": \".marvel*\",  \"settings\": {    \"marvel_version\": \"2.0.0-beta1-SNAPSHOT\", \"index.number_of_shards\": 1 } }");
 
         for (String template : templates) {
-            Version version = HttpExporterUtils.parseTemplateVersion(template);
+            Version version = MarvelTemplateUtils.parseTemplateVersion(template);
             assertNotNull(version);
         }
 
-        Version version = HttpExporterUtils.parseTemplateVersion("{\"marvel.index_format\": \"7\"}");
+        Version version = MarvelTemplateUtils.parseTemplateVersion("{\"marvel.index_format\": \"7\"}");
         assertNull(version);
     }
 
     @Test
     public void testParseVersion() throws IOException {
-        assertNotNull(HttpExporterUtils.parseVersion(HttpExporterUtils.MARVEL_VERSION_FIELD, "{\"marvel_version\": \"2.0.0-beta1\"}"));
-        assertNotNull(HttpExporterUtils.parseVersion(HttpExporterUtils.MARVEL_VERSION_FIELD, "{\"marvel_version\": \"2.0.0\"}"));
-        assertNotNull(HttpExporterUtils.parseVersion(HttpExporterUtils.MARVEL_VERSION_FIELD, "{\"marvel_version\": \"1.5.2\"}"));
-        assertNotNull(HttpExporterUtils.parseVersion(HttpExporterUtils.MARVEL_VERSION_FIELD, "{  \"template\": \".marvel*\",  \"settings\": {    \"marvel_version\": \"2.0.0-beta1-SNAPSHOT\", \"index.number_of_shards\": 1 } }"));
-        assertNull(HttpExporterUtils.parseVersion(HttpExporterUtils.MARVEL_VERSION_FIELD, "{\"marvel.index_format\": \"7\"}"));
-        assertNull(HttpExporterUtils.parseVersion(HttpExporterUtils.MARVEL_VERSION_FIELD + "unkown", "{\"marvel_version\": \"1.5.2\"}"));
+        assertNotNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{\"marvel_version\": \"2.0.0-beta1\"}"));
+        assertNotNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{\"marvel_version\": \"2.0.0\"}"));
+        assertNotNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{\"marvel_version\": \"1.5.2\"}"));
+        assertNotNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{  \"template\": \".marvel*\",  \"settings\": {    \"marvel_version\": \"2.0.0-beta1-SNAPSHOT\", \"index.number_of_shards\": 1 } }"));
+        assertNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD, "{\"marvel.index_format\": \"7\"}"));
+        assertNull(VersionUtils.parseVersion(MARVEL_VERSION_FIELD + "unkown", "{\"marvel_version\": \"1.5.2\"}"));
     }
 
 

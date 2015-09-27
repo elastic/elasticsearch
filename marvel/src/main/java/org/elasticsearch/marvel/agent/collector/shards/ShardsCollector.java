@@ -40,8 +40,8 @@ public class ShardsCollector extends AbstractCollector<ShardsCollector> {
     }
 
     @Override
-    protected boolean canCollect() {
-        return super.canCollect() && isLocalNodeMaster();
+    protected boolean shouldCollect() {
+        return super.shouldCollect() && isLocalNodeMaster();
     }
 
     @Override

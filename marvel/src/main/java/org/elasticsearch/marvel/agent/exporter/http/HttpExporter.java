@@ -24,10 +24,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.shield.MarvelSettingsFilter;
+import org.elasticsearch.marvel.support.VersionUtils;
 
 import javax.net.ssl.*;
 import java.io.*;
@@ -121,7 +123,7 @@ public class HttpExporter extends Exporter {
         hostnameVerification = config.settings().getAsBoolean(SSL_HOSTNAME_VERIFICATION_SETTING, true);
 
         // Checks that the built-in template is versioned
-        templateVersion = HttpExporterUtils.parseTemplateVersion(HttpExporterUtils.loadDefaultTemplate());
+        templateVersion = MarvelTemplateUtils.parseTemplateVersion(MarvelTemplateUtils.loadDefaultTemplate());
         if (templateVersion == null) {
             throw new IllegalStateException("unable to find built-in template version");
         }
@@ -354,7 +356,7 @@ public class HttpExporter extends Exporter {
             try (InputStream is = connection.getInputStream()) {
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
                 Streams.copy(is, out);
-                return HttpExporterUtils.parseElasticsearchVersion(out.toByteArray());
+                return VersionUtils.parseVersion(out.toByteArray());
             }
         } catch (IOException e) {
             throw new ElasticsearchException("failed to verify the remote cluster version on host [" + host + "]:\n" + e.getMessage());
@@ -408,7 +410,7 @@ public class HttpExporter extends Exporter {
                     return false;
                 }
 
-                Version remoteVersion = HttpExporterUtils.parseTemplateVersion(remoteTemplate);
+                Version remoteVersion = MarvelTemplateUtils.parseTemplateVersion(remoteTemplate);
                 logger.debug("detected existing remote template in version [{}] on host [{}]", remoteVersion, host);
 
                 if (remoteVersion == null) {
@@ -461,7 +463,7 @@ public class HttpExporter extends Exporter {
                 }
 
                 logger.debug("loading marvel pre-configured template");
-                byte[] template = HttpExporterUtils.loadDefaultTemplate();
+                byte[] template = MarvelTemplateUtils.loadDefaultTemplate();
 
                 // Uploads the template and closes the outputstream
                 Streams.copy(template, connection.getOutputStream());

@@ -6,7 +6,9 @@
 package org.elasticsearch.marvel.agent.exporter;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +28,6 @@ public abstract class Exporter  {
 
     public static final Version MIN_SUPPORTED_TEMPLATE_VERSION = Version.V_2_0_0_beta2;
     public static final String DEFAULT_INDEX_NAME_TIME_FORMAT = "YYYY.MM.dd";
-    public static final String INDEX_TEMPLATE_NAME = "marvel";
 
     protected final String type;
     protected final Config config;

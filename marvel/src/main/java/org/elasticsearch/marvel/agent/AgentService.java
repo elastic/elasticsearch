@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -172,13 +173,15 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
                     if (bulk == null) { // exporters are either not ready or faulty
                         continue;
                     }
-//                    long start = System.nanoTime(); //TODO remove
                     try {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("collecting data - collectors [{}]", Strings.collectionToCommaDelimitedString(collectors));
+                        }
                         for (Collector collector : collectors) {
                             if (collecting) {
                                 Collection<MarvelDoc> docs = collector.collect();
                                 if (docs != null) {
-                                    logger.trace("bulk [{}] - adding collected docs from [{}] collector", bulk, collector.name());
+                                    logger.trace("bulk [{}] - adding [{}] collected docs from [{}] collector", bulk, docs.size(), collector.name());
                                     bulk.add(docs);
                                 } else {
                                     logger.trace("bulk [{}] - skipping collected docs from [{}] collector", bulk, collector.name());
@@ -190,8 +193,6 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
                             }
                         }
                     } finally {
-//                        long delta = System.nanoTime() - start; TODO remove
-//                        logger.trace("closing bulk [{}] - collection took [{}] seconds", bulk, TimeValue.timeValueNanos(delta).format(PeriodType.seconds()));
                         bulk.close(!closed && collecting);
                     }
 

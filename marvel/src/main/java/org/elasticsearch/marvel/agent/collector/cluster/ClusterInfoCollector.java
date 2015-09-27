@@ -50,7 +50,7 @@ public class ClusterInfoCollector extends AbstractCollector<ClusterInfoMarvelDoc
     }
 
     @Override
-    protected boolean canCollect() {
+    protected boolean shouldCollect() {
         // This collector can always collect data on the master node
         return isLocalNodeMaster();
     }

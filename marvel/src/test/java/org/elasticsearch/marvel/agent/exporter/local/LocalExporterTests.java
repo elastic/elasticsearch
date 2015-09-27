@@ -27,6 +27,7 @@ import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
@@ -47,7 +48,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.marvel.agent.exporter.Exporter.MIN_SUPPORTED_TEMPLATE_VERSION;
-import static org.elasticsearch.marvel.agent.exporter.http.HttpExporterUtils.MARVEL_VERSION_FIELD;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;
 
@@ -129,7 +129,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         awaitMarvelTemplateInstalled();
 
         // now lets update the template with an old one and then restart the cluster
-        exporter.putTemplate(Settings.builder().put(MARVEL_VERSION_FIELD, fakeVersion.toString()).build());
+        exporter.putTemplate(Settings.builder().put(MarvelTemplateUtils.MARVEL_VERSION_FIELD, fakeVersion.toString()).build());
         logger.debug("full cluster restart");
         final CountDownLatch latch = new CountDownLatch(1);
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
@@ -168,7 +168,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         IndexTemplateMetaData template = mock(IndexTemplateMetaData.class);
         when(template.settings()).thenReturn(Settings.builder().put("index.marvel_version", unsupportedVersion.toString()).build());
         MetaData metaData = mock(MetaData.class);
-        when(metaData.getTemplates()).thenReturn(ImmutableOpenMap.<String, IndexTemplateMetaData>builder().fPut(Exporter.INDEX_TEMPLATE_NAME, template).build());
+        when(metaData.getTemplates()).thenReturn(ImmutableOpenMap.<String, IndexTemplateMetaData>builder().fPut(MarvelTemplateUtils.INDEX_TEMPLATE_NAME, template).build());
         ClusterBlocks blocks = mock(ClusterBlocks.class);
         when(blocks.hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)).thenReturn(false);
         ClusterState clusterState = mock(ClusterState.class);
@@ -176,7 +176,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         when(clusterState.blocks()).thenReturn(blocks);
         when(clusterService.state()).thenReturn(clusterState);
 
-        assertThat(exporter.start(clusterState), nullValue());
+        assertThat(exporter.resolveBulk(clusterState, null), nullValue());
         verifyZeroInteractions(client);
         if (master) {
             verify(exporter, times(1)).installedTemplateVersionMandatesAnUpdate(Version.CURRENT, unsupportedVersion);
@@ -239,43 +239,14 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         }
     }
 
-    private void awaitMarvelTemplateInstalled() throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertMarvelTemplateInstalled();
-            }
-        }, 30, TimeUnit.SECONDS);
-    }
 
-    private void awaitMarvelTemplateInstalled(Version version) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertMarvelTemplateInstalled(version);
-            }
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    protected void assertMarvelTemplateInstalled(Version version) {
-        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(Exporter.INDEX_TEMPLATE_NAME).get().getIndexTemplates()) {
-            if (template.getName().equals(Exporter.INDEX_TEMPLATE_NAME)) {
-                Version templateVersion = LocalExporter.templateVersion(template);
-                if (templateVersion != null && templateVersion.id == version.id) {
-                    return;
-                }
-                fail("did not find marvel template with expected version [" + version + "]. found version [" + templateVersion + "]");
-            }
-        }
-        fail("marvel template could not be found");
-    }
 
     private Version getCurrentlyInstalledTemplateVersion() {
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(Exporter.INDEX_TEMPLATE_NAME).get();
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(MarvelTemplateUtils.INDEX_TEMPLATE_NAME).get();
         assertThat(response, notNullValue());
         assertThat(response.getIndexTemplates(), notNullValue());
         assertThat(response.getIndexTemplates(), hasSize(1));
         assertThat(response.getIndexTemplates().get(0), notNullValue());
-        return LocalExporter.templateVersion(response.getIndexTemplates().get(0));
+        return MarvelTemplateUtils.templateVersion(response.getIndexTemplates().get(0));
     }
 }

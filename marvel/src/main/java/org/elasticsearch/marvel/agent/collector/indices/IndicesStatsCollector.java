@@ -39,8 +39,8 @@ public class IndicesStatsCollector extends AbstractCollector<IndicesStatsCollect
     }
 
     @Override
-    protected boolean canCollect() {
-        return super.canCollect() && isLocalNodeMaster();
+    protected boolean shouldCollect() {
+        return super.shouldCollect() && isLocalNodeMaster();
     }
 
     @Override

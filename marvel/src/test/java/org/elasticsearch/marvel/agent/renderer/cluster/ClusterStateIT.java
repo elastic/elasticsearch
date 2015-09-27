@@ -10,7 +10,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
-import org.elasticsearch.marvel.agent.exporter.http.HttpExporterUtils;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
@@ -68,7 +68,7 @@ public class ClusterStateIT extends MarvelIntegTestCase {
         ensureGreen();
 
         logger.debug("--> forcing marvel's index template update");
-        assertAcked(client().admin().indices().preparePutTemplate("marvel").setSource(HttpExporterUtils.loadDefaultTemplate()).execute().actionGet());
+        assertAcked(client().admin().indices().preparePutTemplate("marvel").setSource(MarvelTemplateUtils.loadDefaultTemplate()).execute().actionGet());
 
         logger.debug("--> deleting all marvel indices");
         deleteMarvelIndices();

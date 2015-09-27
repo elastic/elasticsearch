@@ -6,7 +6,12 @@
 package org.elasticsearch.marvel.test;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -15,6 +20,7 @@ import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.AgentService;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -33,12 +39,9 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.marvel.agent.exporter.Exporter.INDEX_TEMPLATE_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
@@ -53,6 +56,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         logger.info("--> shield {}", shieldEnabled ? "enabled" : "disabled");
         return super.buildTestCluster(scope, seed);
+    }
+
+    @Override
+    protected Set<String> excludeTemplates() {
+        return Collections.singleton(MarvelTemplateUtils.INDEX_TEMPLATE_NAME);
     }
 
     @Override
@@ -114,15 +122,12 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     protected void deleteMarvelIndices() {
         if (shieldEnabled) {
             try {
-                assertAcked(client().admin().indices().prepareDelete(MarvelSettings.MARVEL_INDICES_PREFIX + "*"));
-            } catch (Exception e) {
+                assertAcked(client().admin().indices().prepareDelete(".marvel-es-*"));
+            } catch (IndexNotFoundException e) {
                 // if shield couldn't resolve any marvel index, it'll throw index not found exception.
-                if (!(e instanceof IndexNotFoundException)) {
-                    throw e;
-                }
             }
         } else {
-            assertAcked(client().admin().indices().prepareDelete(MarvelSettings.MARVEL_INDICES_PREFIX + "*"));
+            assertAcked(client().admin().indices().prepareDelete(".marvel-es-*"));
         }
     }
 
@@ -137,10 +142,23 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    protected void ensureMarvelIndicesGreen() {
+        if (shieldEnabled) {
+            try {
+                ensureGreen(".marvel-es-*");
+            } catch (IndexNotFoundException e) {
+                // might happen with shield...
+            }
+        } else {
+            ensureGreen(".marvel-es-*");
+        }
+    }
+
     protected void assertMarvelDocsCount(Matcher<Long> matcher, String... types) {
         try {
             long count = client().prepareCount(MarvelSettings.MARVEL_INDICES_PREFIX + "*")
                     .setTypes(types).get().getCount();
+            logger.trace("--> searched for [{}] documents, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
             assertThat(count, matcher);
         } catch (IndexNotFoundException e) {
             if (shieldEnabled) {
@@ -152,20 +170,57 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void assertMarvelTemplateInstalled() {
-        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(INDEX_TEMPLATE_NAME).get().getIndexTemplates()) {
-            if (template.getName().equals(INDEX_TEMPLATE_NAME)) {
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+        if (clusterStateResponse != null) {
+            ClusterState state = clusterStateResponse.getState();
+            MetaData md = state.getMetaData();
+        }
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        for (IndexTemplateMetaData template : response.getIndexTemplates()) {
+            if (template.getName().equals(MarvelTemplateUtils.INDEX_TEMPLATE_NAME)) {
                 return;
             }
         }
-        fail("marvel template should exists");
+        fail("marvel template should exist");
     }
 
     protected void assertMarvelTemplateMissing() {
-        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(INDEX_TEMPLATE_NAME).get().getIndexTemplates()) {
-            if (template.getName().equals(INDEX_TEMPLATE_NAME)) {
-                fail("marvel template shouldn't exists");
+        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(MarvelTemplateUtils.INDEX_TEMPLATE_NAME).get().getIndexTemplates()) {
+            if (template.getName().equals(MarvelTemplateUtils.INDEX_TEMPLATE_NAME)) {
+                fail("marvel template shouldn't exist");
             }
         }
+    }
+
+    protected void awaitMarvelTemplateInstalled() throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertMarvelTemplateInstalled();
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    protected void awaitMarvelTemplateInstalled(Version version) throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertMarvelTemplateInstalled(version);
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    protected void assertMarvelTemplateInstalled(Version version) {
+        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(MarvelTemplateUtils.INDEX_TEMPLATE_NAME).get().getIndexTemplates()) {
+            if (template.getName().equals(MarvelTemplateUtils.INDEX_TEMPLATE_NAME)) {
+                Version templateVersion = MarvelTemplateUtils.templateVersion(template);
+                if (templateVersion != null && templateVersion.id == version.id) {
+                    return;
+                }
+                fail("did not find marvel template with expected version [" + version + "]. found version [" + templateVersion + "]");
+            }
+        }
+        fail("marvel template could not be found");
     }
 
     protected void awaitIndexExists(final String... indices) throws Exception {
@@ -194,10 +249,8 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         if (shieldEnabled) {
             try {
                 refresh();
-            } catch (Exception e) {
-                if (!(e instanceof IndexNotFoundException)) {
-                    throw e;
-                }
+            } catch (IndexNotFoundException e) {
+                // with shield we might get that if wildcards were resolved to no indices
             }
         } else {
             refresh();
@@ -208,13 +261,23 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         if (shieldEnabled) {
             try {
                 flush(indices);
-            } catch (Exception e) {
-                if (!(e instanceof IndexNotFoundException)) {
-                    throw e;
-                }
+            } catch (IndexNotFoundException e) {
+                // with shield we might get that if wildcards were resolved to no indices
             }
         } else {
             flush(indices);
+        }
+    }
+
+    protected void securedEnsureGreen(String... indices) {
+        if (shieldEnabled) {
+            try {
+                ensureGreen(indices);
+            } catch (IndexNotFoundException e) {
+                // with shield we might get that if wildcards were resolved to no indices
+            }
+        } else {
+            ensureGreen(indices);
         }
     }
 

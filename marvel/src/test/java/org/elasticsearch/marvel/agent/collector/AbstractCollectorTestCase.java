@@ -74,14 +74,14 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
 
     protected void assertCanCollect(AbstractCollector collector) {
         assertNotNull(collector);
-        assertTrue("collector [" + collector.name() + "] should be able to collect data", collector.canCollect());
+        assertTrue("collector [" + collector.name() + "] should be able to collect data", collector.shouldCollect());
         Collection results = collector.collect();
         assertNotNull(results);
     }
 
     protected void assertCannotCollect(AbstractCollector collector) {
         assertNotNull(collector);
-        assertFalse("collector [" + collector.name() + "] should not be able to collect data", collector.canCollect());
+        assertFalse("collector [" + collector.name() + "] should not be able to collect data", collector.shouldCollect());
         Collection results = collector.collect();
         assertTrue(results == null || results.isEmpty());
     }

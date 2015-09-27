@@ -13,8 +13,8 @@ compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 integTest {
   cluster {
-    sysProp 'es.script.inline', 'on'
-    sysProp 'es.script.indexed', 'on'
+    systemProperty 'es.script.inline', 'on'
+    systemProperty 'es.script.indexed', 'on'
   }
 }
 

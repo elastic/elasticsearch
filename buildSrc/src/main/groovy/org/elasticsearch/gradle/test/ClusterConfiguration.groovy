@@ -1,7 +1,6 @@
 package org.elasticsearch.gradle.test
 
 import org.gradle.api.tasks.Input
-import org.gradle.util.ConfigureUtil
 
 /** Configuration for an elasticsearch cluster, used for integration tests. */
 class ClusterConfiguration {
@@ -15,17 +14,22 @@ class ClusterConfiguration {
     @Input
     int transportPort = 9500
 
-    ClusterSetupConfiguration setupConfig = new ClusterSetupConfiguration()
+    Map<String, String> systemProperties = new HashMap<>()
 
     @Input
-    void setup(Closure closure) {
-        ConfigureUtil.configure(closure, setupConfig)
+    void systemProperty(String property, String value) {
+        systemProperties.put(property, value)
     }
 
-    Map<String, String> sysProps = new HashMap<>()
+    LinkedHashMap<String, String[]> setupCommands = new LinkedHashMap<>()
 
     @Input
-    void sysProp(String property, String value) {
-        sysProps.put(property, value)
+    void plugin(String name, File file) {
+        setupCommands.put(name, ['bin/plugin', 'install', "file://${file}"])
+    }
+
+    @Input
+    void setupCommand(String name, String[] args) {
+        setupCommands.put(name, args)
     }
 }

@@ -1,6 +1,6 @@
-import org.apache.tools.ant.filters.ReplaceTokens
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
+import org.elasticsearch.gradle.MavenFilteringHack
 
 plugins {
   id "nebula.os-package" version "2.2.6"
@@ -19,14 +19,6 @@ artifacts.add('default', distZip)
 artifacts {
   archives buildDeb
   archives buildRpm
-}
-
-// HACK: we can simply change the replace pattern to work with groovy or ant pattern
-// this allows doing replacement between '$' and '}' below, so ${foobar} is replaced
-Map hackMavenFiltering(Map expansions) {
-  return expansions.collectEntries() {
-    key, value -> ["{${key}".toString(), value.toString()]
-  }
 }
 
 Map expansions = [
@@ -92,7 +84,7 @@ distributions {
           include 'bin/*.bat' 
           filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
         }
-        it.filter(ReplaceTokens, tokens: hackMavenFiltering(expansions), beginToken : '$', endToken : '}')
+        MavenFilteringHack.filter(it, expansions)
       }
       from('src/main/resources') {
         include 'bin/*.exe' 

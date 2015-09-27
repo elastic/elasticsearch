@@ -63,7 +63,7 @@ class RandomizedTestingTask extends DefaultTask {
     ListenersConfiguration listenersConfig = new ListenersConfiguration(task: this)
 
     List<String> jvmArgs = new ArrayList<>()
-    Map<String, String> sysProps = new HashMap<>()
+    Map<String, String> systemProperties = new HashMap<>()
 
     RandomizedTestingTask() {
         outputs.upToDateWhen {false} // randomized tests are never up to date
@@ -84,31 +84,8 @@ class RandomizedTestingTask extends DefaultTask {
         jvmArgs.add(argument)
     }
 
-    void sysProps(Map<String, String> newProps) {
-        sysProps.putAll(newProps)
-    }
-
-    void sysProp(String property, String value) {
-        sysProps.put(property, value)
-    }
-
-    void copySysProp(String property) {
-        String value = System.getProperty(property)
-        if (value != null) {
-            sysProps.put(property, value)
-        }
-    }
-
-    void copySysProp(String property, String defaultValue) {
-        sysProps.put(System.getProperty(property, defaultValue))
-    }
-
-    void copySysPropPrefix(String prefix) {
-        for (String property : System.properties.keySet()) {
-            if (property.startsWith(prefix)) {
-                copySysProp(property)
-            }
-        }
+    void systemProperty(String property, String value) {
+        systemProperties.put(property, value)
     }
 
     void include(String... includes) {
@@ -226,7 +203,7 @@ class RandomizedTestingTask extends DefaultTask {
                     exclude(name: excludePattern)
                 }
             }
-            for (Map.Entry<String, String> prop : sysProps) {
+            for (Map.Entry<String, String> prop : systemProperties) {
                 sysproperty key: prop.getKey(), value: prop.getValue()
             }
             makeListeners()

@@ -26,9 +26,7 @@ class PluginBuildPlugin extends BuildPlugin {
         integTest.configure {
             dependsOn bundle
             cluster {
-                setup {
-                    run name: "installPlugin", args: ['bin/plugin', 'install', "file://${bundle.outputs.files.singleFile}"]
-                }
+                plugin 'installPlugin', bundle.outputs.files.singleFile
             }
         }
         configureDependencyLicenses(project)

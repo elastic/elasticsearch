@@ -18,5 +18,5 @@ compileJava.options.compilerArgs << '-Xlint:-deprecation,-rawtypes'
 
 test {
   // this is needed for insecure plugins, remove if possible!
-  sysProp 'tests.artifact', project.name 
+  systemProperty 'tests.artifact', project.name 
 }

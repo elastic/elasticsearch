@@ -53,16 +53,20 @@ class BuildPlugin implements Plugin<Project> {
             jvmArg '-XX:HeapDumpPath=' + heapdumpDir
 
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
-            sysProp 'java.io.tmpdir', './temp'
-            sysProp 'java.awt.headless', 'true'
-            sysProp 'tests.maven', 'true' // TODO: rename this once we've switched to gradle!
-            sysProp 'tests.task', path
-            sysProp 'tests.security.manager', 'true'
+            systemProperty 'java.io.tmpdir', './temp'
+            systemProperty 'java.awt.headless', 'true'
+            systemProperty 'tests.maven', 'true' // TODO: rename this once we've switched to gradle!
+            systemProperty 'tests.task', path
+            systemProperty 'tests.security.manager', 'true'
             // default test sysprop values
-            sysProp 'tests.ifNoTests', 'fail'
-            sysProp 'es.logger.level', 'WARN'
-            copySysPropPrefix 'tests.'
-            copySysPropPrefix 'es.'
+            systemProperty 'tests.ifNoTests', 'fail'
+            systemProperty 'es.logger.level', 'WARN'
+            for (Map.Entry<String, String> property : System.properties.entrySet()) {
+                if (property.getKey().startsWith('tests.') ||
+                    property.getKey().startsWith('es.')) {
+                    systemProperty property.getKey(), property.getValue()
+                }
+            }
 
             // System assertions (-esa) are disabled for now because of what looks like a
             // JDK bug triggered by Groovy on JDK7. We should look at re-enabling system

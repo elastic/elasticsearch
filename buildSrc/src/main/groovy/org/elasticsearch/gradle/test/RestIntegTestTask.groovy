@@ -31,7 +31,7 @@ class RestIntegTestTask extends RandomizedTestingTask {
         integTest.configure(BuildPlugin.commonTestConfig(project))
         integTest.configure {
             include '**/*IT.class'
-            sysProp 'tests.rest.load_packaged', 'false'
+            systemProperty 'tests.rest.load_packaged', 'false'
         }
         RandomizedTestingTask test = project.tasks.findByName('test')
         if (test != null) {
@@ -56,7 +56,7 @@ class RestIntegTestTask extends RandomizedTestingTask {
             ClusterFormationTasks.setup(project, this, clusterConfig)
             configure {
                 parallelism '1'
-                sysProp 'tests.cluster', "localhost:${clusterConfig.transportPort}"
+                systemProperty 'tests.cluster', "localhost:${clusterConfig.transportPort}"
             }
         }
     }

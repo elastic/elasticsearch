@@ -51,7 +51,7 @@ class ClusterFormationTasks {
             logger.info("Configuring ${configFile}")
             configFile.setText("cluster.name: ${clusterName}", 'UTF-8')
         }
-        for (Map.Entry<String, String> command : config.setupConfig.commands.entrySet()) {
+        for (Map.Entry<String, String> command : config.setupCommands.entrySet()) {
             Task nextSetup = project.tasks.create(name: "${task.name}#${command.getKey()}", type: Exec, dependsOn: setup) {
                 workingDir home
                 executable 'sh'
@@ -85,7 +85,7 @@ class ClusterFormationTasks {
                 "-Des.path.repo=${home}/repo",
                 "-Des.path.shared_data=${home}/../",
             ]
-            esArgs.addAll(config.sysProps.collect {key, value -> "-D${key}=${value}"})
+            esArgs.addAll(config.systemProperties.collect {key, value -> "-D${key}=${value}"})
             args esArgs
             errorOutput = new ByteArrayOutputStream()
             doLast {

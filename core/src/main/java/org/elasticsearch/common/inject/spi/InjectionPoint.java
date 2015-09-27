@@ -16,8 +16,6 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Key;

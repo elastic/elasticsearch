@@ -30,6 +30,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
@@ -105,6 +106,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
     private RateLimitingInputStream.Listener snapshotThrottleListener;
 
+    private RateLimitingInputStream.Listener restoreThrottleListener;
+
     private boolean compress;
 
     private final ParseFieldMatcher parseFieldMatcher;
@@ -162,6 +165,12 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             @Override
             public void onPause(long nanos) {
                 rateLimiterListener.onSnapshotPause(nanos);
+            }
+        };
+        this.restoreThrottleListener = new RateLimitingInputStream.Listener() {
+            @Override
+            public void onPause(long nanos) {
+                rateLimiterListener.onRestorePause(nanos);
             }
         };
         this.compress = compress;
@@ -907,16 +916,20 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         private void restoreFile(final FileInfo fileInfo) throws IOException {
             boolean success = false;
-            try (InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
+
+            try (InputStream partSliceStream = new PartSliceStream(blobContainer, fileInfo)) {
+                final InputStream stream;
+                if (restoreRateLimiter == null) {
+                    stream = partSliceStream;
+                } else {
+                    stream = new RateLimitingInputStream(partSliceStream, restoreRateLimiter, restoreThrottleListener);
+                }
                 try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                     final byte[] buffer = new byte[BUFFER_SIZE];
                     int length;
                     while ((length = stream.read(buffer)) > 0) {
                         indexOutput.writeBytes(buffer, 0, length);
                         recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.name(), length);
-                        if (restoreRateLimiter != null) {
-                            rateLimiterListener.onRestorePause(restoreRateLimiter.pause(length));
-                        }
                     }
                     Store.verify(indexOutput);
                     indexOutput.close();

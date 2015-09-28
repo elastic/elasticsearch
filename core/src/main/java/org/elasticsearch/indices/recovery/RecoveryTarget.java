@@ -130,8 +130,17 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
 
     }
 
+    protected void retryRecovery(final RecoveryStatus recoveryStatus, final Throwable reason, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
+        logger.trace("will retry recovery with id [{}] in [{}]", reason, recoveryStatus.recoveryId(), retryAfter);
+        retryRecovery(recoveryStatus, retryAfter, currentRequest);
+    }
+    
     protected void retryRecovery(final RecoveryStatus recoveryStatus, final String reason, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
-        logger.trace("will retrying recovery with id [{}] in [{}] (reason [{}])", recoveryStatus.recoveryId(), retryAfter, reason);
+        logger.trace("will retry recovery with id [{}] in [{}] (reason [{}])", recoveryStatus.recoveryId(), retryAfter, reason);
+        retryRecovery(recoveryStatus, retryAfter, currentRequest);
+    }
+    
+    private void retryRecovery(final RecoveryStatus recoveryStatus, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
         try {
             recoveryStatus.resetRecovery();
         } catch (Throwable e) {
@@ -224,7 +233,7 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
             }
 
             if (cause instanceof DelayRecoveryException) {
-                retryRecovery(recoveryStatus, cause.getMessage(), recoverySettings.retryDelayStateSync(), request);
+                retryRecovery(recoveryStatus, cause, recoverySettings.retryDelayStateSync(), request);
                 return;
             }
 

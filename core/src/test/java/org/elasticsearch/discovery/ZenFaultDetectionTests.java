@@ -193,7 +193,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
         masterFD.addListener(new MasterFaultDetection.Listener() {
 
             @Override
-            public void onMasterFailure(DiscoveryNode masterNode, String reason) {
+            public void onMasterFailure(DiscoveryNode masterNode, Throwable cause, String reason) {
                 failureNode[0] = masterNode;
                 failureReason[0] = reason;
                 notified.countDown();

@@ -35,6 +35,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
@@ -82,6 +83,7 @@ import java.util.Set;
 @SuppressCodecs("*") // requires custom completion postings format
 @ClusterScope(randomDynamicTemplates = false)
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // timeout the suite after 40min and fail the test.
+@TestLogging("test.rest.client.http:DEBUG")
 public abstract class ESRestTestCase extends ESIntegTestCase {
 
     /**
@@ -158,7 +160,7 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
             .put("node.testattr", "test")
             .put(super.nodeSettings(nodeOrdinal)).build();
     }
-    
+
     public static Iterable<Object[]> createParameters(int id, int count) throws IOException, RestTestParseException {
         TestGroup testGroup = Rest.class.getAnnotation(TestGroup.class);
         String sysProperty = TestGroup.Utilities.getSysProperty(Rest.class);
@@ -217,7 +219,7 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
 
         return testCandidates;
     }
-    
+
     private static boolean mustExecute(String test, int id, int count) {
         int hash = (int) (Math.abs((long)test.hashCode()) % count);
         return hash == id;
@@ -239,13 +241,13 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
     @SuppressForbidden(reason = "proper use of URL, hack around a JDK bug")
     static FileSystem getFileSystem() throws IOException {
         // REST suite handling is currently complicated, with lots of filtering and so on
-        // For now, to work embedded in a jar, return a ZipFileSystem over the jar contents. 
+        // For now, to work embedded in a jar, return a ZipFileSystem over the jar contents.
         URL codeLocation = FileUtils.class.getProtectionDomain().getCodeSource().getLocation();
         boolean loadPackaged = RandomizedTest.systemPropertyAsBoolean(REST_LOAD_PACKAGED_TESTS, true);
         if (codeLocation.getFile().endsWith(".jar") && loadPackaged) {
             try {
                 // hack around a bug in the zipfilesystem implementation before java 9,
-                // its checkWritable was incorrect and it won't work without write permissions. 
+                // its checkWritable was incorrect and it won't work without write permissions.
                 // if we add the permission, it will open jars r/w, which is too scary! so copy to a safe r-w location.
                 Path tmp = Files.createTempFile(null, ".jar");
                 try (InputStream in = codeLocation.openStream()) {

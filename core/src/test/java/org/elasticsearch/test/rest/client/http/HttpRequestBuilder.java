@@ -36,6 +36,7 @@ import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -132,19 +133,27 @@ public class HttpRequestBuilder {
 
     public HttpResponse execute() throws IOException {
         HttpUriRequest httpUriRequest = buildRequest();
-        if (logger.isTraceEnabled()) {
-            StringBuilder stringBuilder = new StringBuilder(httpUriRequest.getMethod()).append(" ").append(httpUriRequest.getURI());
-            if (Strings.hasLength(body)) {
-                stringBuilder.append("\n").append(body);
-            }
-            logger.trace("sending request \n{}", stringBuilder.toString());
+        // The logs here are designed to be aligned for quick visual scanning:
+        // [2015-09-28 12:17:17,528][DEBUG][test.rest.client.http    ]  sending    GET http://127.0.0.1:19300/_alias/test_alias
+        // [2015-09-28 12:17:17,533][DEBUG][test.rest.client.http    ] received    200 {"test_index":{"aliases":{"test_alias":{}}}}
+        if (logger.isDebugEnabled()) {
+            // %6s is just big enough for DELETE
+            logger.debug(String.format(Locale.ROOT, "%8s %6s %s %s", "sending", httpUriRequest.getMethod(), httpUriRequest.getURI(),
+                Strings.hasLength(body) ? body : ""));
         }
         for (Map.Entry<String, String> entry : this.headers.entrySet()) {
             httpUriRequest.addHeader(entry.getKey(), entry.getValue());
         }
         try (CloseableHttpResponse closeableHttpResponse = httpClient.execute(httpUriRequest)) {
             HttpResponse httpResponse = new HttpResponse(httpUriRequest, closeableHttpResponse);
-            logger.trace("got response \n{}\n{}", closeableHttpResponse, httpResponse.hasBody() ? httpResponse.getBody() : "");
+            if (logger.isDebugEnabled()) {
+                logger.debug(String.format(Locale.ROOT, "%8s %6s %s", "received",
+                    closeableHttpResponse.getStatusLine().getStatusCode(),
+                    httpResponse.hasBody() ? httpResponse.getBody() : ""));
+                if (logger.isTraceEnabled()) {
+                    logger.trace("with headers: {}", (Object) closeableHttpResponse.getAllHeaders());
+                }
+            }
             return httpResponse;
         }
     }

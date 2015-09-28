@@ -165,8 +165,12 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         this.interval = settings.getAsTime(SHARD_INACTIVE_INTERVAL_TIME_SETTING, TimeValue.timeValueSeconds(30));
 
         this.statusChecker = new ShardsIndicesStatusChecker();
-        logger.debug("using index_buffer_size [{}], with min_shard_index_buffer_size [{}], max_shard_index_buffer_size [{}], shard_inactive_time [{}]", this.indexingBuffer, this.minShardIndexBufferSize, this.maxShardIndexBufferSize, this.inactiveTime);
-
+        logger.debug("using indexing buffer size [{}], with {} [{}], {} [{}], {} [{}], {} [{}]",
+                this.indexingBuffer,
+                MIN_SHARD_INDEX_BUFFER_SIZE_SETTING, this.minShardIndexBufferSize,
+                MAX_SHARD_INDEX_BUFFER_SIZE_SETTING, this.maxShardIndexBufferSize,
+                SHARD_INACTIVE_TIME_SETTING, this.inactiveTime,
+                SHARD_INACTIVE_INTERVAL_TIME_SETTING, this.interval);
     }
 
     @Override

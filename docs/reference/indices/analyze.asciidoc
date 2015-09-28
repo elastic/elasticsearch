@@ -51,6 +51,18 @@ curl -XGET 'localhost:9200/_analyze' -d '
 
 deprecated[5.0.0, Use `filter`/`token_filter`/`char_filter` instead of `filters`/`token_filters`/`char_filters`]
 
+Custom tokenizers, token filters, and character filters can be specified in the request body as follows:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_analyze' -d '
+{
+  "tokenizer" : "whitespace",
+  "filter" : ["lowercase", {"type": "stop", "stopwords": ["a", "is", "this"]}],
+  "text" : "this is a test"
+}'
+--------------------------------------------------
+
 It can also run against a specific index:
 
 [source,js]

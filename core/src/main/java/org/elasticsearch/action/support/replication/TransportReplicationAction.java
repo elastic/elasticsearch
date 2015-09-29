@@ -42,7 +42,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -481,7 +484,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                             // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
                             if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
                                     retryPrimaryException(exp)) {
-                                internalRequest.request().setCanHaveDuplicates();
                                 // we already marked it as started when we executed it (removed the listener) so pass false
                                 // to re-add to the cluster listener
                                 logger.trace("received an error from node the primary was assigned to ({}), scheduling a retry", exp.getMessage());
@@ -581,7 +583,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 logger.trace("operation completed on primary [{}]", primary);
                 replicationPhase = new ReplicationPhase(shardsIt, primaryResponse.v2(), primaryResponse.v1(), observer, primary, internalRequest, listener, indexShardReference);
             } catch (Throwable e) {
-                internalRequest.request.setCanHaveDuplicates();
                 // shard has not been allocated yet, retry it here
                 if (retryPrimaryException(e)) {
                     logger.trace("had an error while performing operation on primary ({}), scheduling a retry.", e.getMessage());
@@ -762,14 +763,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         numberOfPendingShardInstances++;
                     }
                 }
-                internalRequest.request().setCanHaveDuplicates(); // safe side, cluster state changed, we might have dups
             } else {
                 shardIt = originalShardIt;
                 shardIt.reset();
                 while ((shard = shardIt.nextOrNull()) != null) {
-                    if (shard.state() != ShardRoutingState.STARTED) {
-                        replicaRequest.setCanHaveDuplicates();
-                    }
                     if (shard.unassigned()) {
                         numberOfUnassignedOrIgnoredReplicas++;
                     } else if (shard.primary()) {
@@ -1042,16 +1039,12 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     private final Engine.IndexingOperation prepareIndexOperationOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) {
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).index(request.index()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
-        boolean canHaveDuplicates = request.canHaveDuplicates();
-        if (shardRequest != null) {
-            canHaveDuplicates |= shardRequest.canHaveDuplicates();
-        }
         if (request.opType() == IndexRequest.OpType.INDEX) {
-            return indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY, canHaveDuplicates);
+            return indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
         } else {
             assert request.opType() == IndexRequest.OpType.CREATE : request.opType();
             return indexShard.prepareCreate(sourceToParse,
-                    request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY, canHaveDuplicates, canHaveDuplicates);
+                    request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
         }
     }
 

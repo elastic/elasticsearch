@@ -29,7 +29,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -173,8 +172,9 @@ public class TranslogTests extends ESTestCase {
             validPathString = false;
             string = randomRealisticUnicodeOfCodepointLength(randomIntBetween(min, max));
             try {
-                translogDir.resolve(string);
-                validPathString = true;
+                final Path resolved = translogDir.resolve(string);
+                // some strings (like '/' , '..') do not refer to a file, which we this method should return
+                validPathString = resolved.getFileName() != null;
             } catch (InvalidPathException ex) {
                 // some FS don't like our random file names -- let's just skip these random choices
             }

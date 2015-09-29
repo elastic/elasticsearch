@@ -48,7 +48,6 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
     protected String index;
 
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
-    private volatile boolean canHaveDuplicates = false;
 
     public ReplicationRequest() {
 
@@ -77,17 +76,6 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
         this.timeout = request.timeout();
         this.index = request.index();
         this.consistencyLevel = request.consistencyLevel();
-    }
-
-    void setCanHaveDuplicates() {
-        this.canHaveDuplicates = true;
-    }
-
-    /**
-     * Is this request can potentially be dup on a single shard.
-     */
-    public boolean canHaveDuplicates() {
-        return canHaveDuplicates;
     }
 
     /**
@@ -171,8 +159,6 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readString();
-        canHaveDuplicates = in.readBoolean();
-        // no need to serialize threaded* parameters, since they only matter locally
     }
 
     @Override
@@ -182,7 +168,6 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeString(index);
-        out.writeBoolean(canHaveDuplicates);
     }
 
     public T setShardId(ShardId shardId) {

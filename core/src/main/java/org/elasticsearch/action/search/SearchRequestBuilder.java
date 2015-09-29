@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -41,6 +40,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * A search action request builder.
@@ -241,6 +241,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * The stats groups this request will be aggregated under.
      */
     public SearchRequestBuilder setStats(String... statsGroups) {
+        sourceBuilder().stats(Arrays.asList(statsGroups));
+        return this;
+    }
+
+    /**
+     * The stats groups this request will be aggregated under.
+     */
+    public SearchRequestBuilder setStats(List<String> statsGroups) {
         sourceBuilder().stats(statsGroups);
         return this;
     }

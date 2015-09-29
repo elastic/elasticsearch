@@ -153,7 +153,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return indicesQueriesRegistry;
     }
 
-    //norelease this needs to go away
     public ParsedQuery parse(QueryBuilder<?> queryBuilder) {
         QueryShardContext context = cache.get();
         context.reset();

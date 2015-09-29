@@ -53,7 +53,6 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -84,6 +83,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField FIELDDATA_FIELDS_FIELD = new ParseField("fielddata_fields");
     public static final ParseField SCRIPT_FIELDS_FIELD = new ParseField("script_fields");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
+    public static final ParseField IGNORE_FAILURE_FIELD = new ParseField("ignore_failure");
     public static final ParseField SORT_FIELD = new ParseField("sort");
     public static final ParseField TRACK_SCORES_FIELD = new ParseField("track_scores");
     public static final ParseField INDICES_BOOST_FIELD = new ParseField("indices_boost");
@@ -150,7 +150,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private ObjectFloatHashMap<String> indexBoost = null;
 
-    private String[] stats;
+    private List<String> stats;
 
     private BytesReference ext = null;
 
@@ -630,10 +630,23 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      *            The script
      */
     public SearchSourceBuilder scriptField(String name, Script script) {
+        scriptField(name, script, false);
+        return this;
+    }
+
+    /**
+     * Adds a script field under the given name with the provided script.
+     *
+     * @param name
+     *            The name of the field
+     * @param script
+     *            The script
+     */
+    public SearchSourceBuilder scriptField(String name, Script script, boolean ignoreFailure) {
         if (scriptFields == null) {
             scriptFields = new ArrayList<>();
         }
-        scriptFields.add(new ScriptField(name, script));
+        scriptFields.add(new ScriptField(name, script, ignoreFailure));
         return this;
     }
 
@@ -672,7 +685,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * The stats groups this request will be aggregated under.
      */
-    public SearchSourceBuilder stats(String... statsGroups) {
+    public SearchSourceBuilder stats(List<String> statsGroups) {
         this.stats = statsGroups;
         return this;
     }
@@ -680,7 +693,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * The stats groups this request will be aggregated under.
      */
-    public String[] stats() {
+    public List<String> stats() {
         return stats;
     }
 
@@ -748,21 +761,23 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         String scriptFieldName = parser.currentName();
                         token = parser.nextToken();
                         if (token == XContentParser.Token.START_OBJECT) {
+                            Script script = null;
+                            boolean ignoreFailure = false;
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
                                     if (context.parseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
-                                        scriptFields
-                                                .add(new ScriptField(scriptFieldName, Script.parse(parser, context.parseFieldMatcher())));
+                                        script = Script.parse(parser, context.parseFieldMatcher());
+                                    } else if (context.parseFieldMatcher().match(currentFieldName, IGNORE_FAILURE_FIELD)) {
+                                        ignoreFailure = parser.booleanValue();
                                     } else {
                                         throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
                                                 + "].", parser.getTokenLocation());
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if (context.parseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
-                                        scriptFields
-                                                .add(new ScriptField(scriptFieldName, Script.parse(parser, context.parseFieldMatcher())));
+                                        script = Script.parse(parser, context.parseFieldMatcher());
                                     } else {
                                         throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
                                                 + "].", parser.getTokenLocation());
@@ -772,6 +787,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                             + "].", parser.getTokenLocation());
                                 }
                             }
+                            scriptFields.add(new ScriptField(scriptFieldName, script, ignoreFailure));
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] in ["
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
@@ -879,7 +895,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
-                    builder.stats = stats.toArray(new String[stats.size()]);
+                    builder.stats = stats;
                 } else if (context.parseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
                     FetchSourceContext fetchSourceContext = FetchSourceContext.parse(parser, context);
                     builder.fetchSourceContext = fetchSourceContext;
@@ -966,9 +982,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (scriptFields != null) {
             builder.startObject(SCRIPT_FIELDS_FIELD.getPreferredName());
             for (ScriptField scriptField : scriptFields) {
-                builder.startObject(scriptField.fieldName());
-                builder.field("script", scriptField.script());
-                builder.endObject();
+                scriptField.toXContent(builder, params);
             }
             builder.endObject();
         }
@@ -1044,7 +1058,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
         if (stats != null) {
-            builder.array(STATS_FIELD.getPreferredName(), stats);
+            builder.field(STATS_FIELD.getPreferredName(), stats);
         }
 
         if (ext != null) {
@@ -1059,12 +1073,18 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         public static final ScriptField PROTOTYPE = new ScriptField(null, null);
 
+        private final boolean ignoreFailure;
         private final String fieldName;
         private final Script script;
 
         private ScriptField(String fieldName, Script script) {
+            this(fieldName, script, false);
+        }
+
+        private ScriptField(String fieldName, Script script, boolean ignoreFailure) {
             this.fieldName = fieldName;
             this.script = script;
+            this.ignoreFailure = ignoreFailure;
         }
 
         public String fieldName() {
@@ -1075,28 +1095,34 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             return script;
         }
 
+        public boolean ignoreFailure() {
+            return ignoreFailure;
+        }
+
         @Override
         public ScriptField readFrom(StreamInput in) throws IOException {
-            return new ScriptField(in.readString(), Script.readScript(in));
+            return new ScriptField(in.readString(), Script.readScript(in), in.readBoolean());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(fieldName);
             script.writeTo(out);
+            out.writeBoolean(ignoreFailure);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(fieldName);
             builder.field(SCRIPT_FIELD.getPreferredName(), script);
+            builder.field(IGNORE_FAILURE_FIELD.getPreferredName(), ignoreFailure);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(fieldName, script);
+            return Objects.hash(fieldName, script, ignoreFailure);
         }
 
         @Override
@@ -1108,7 +1134,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 return false;
             }
             ScriptField other = (ScriptField) obj;
-            return Objects.equals(fieldName, other.fieldName) && Objects.equals(script, other.script);
+            return Objects.equals(fieldName, other.fieldName)
+                    && Objects.equals(script, other.script)
+                    && Objects.equals(ignoreFailure, other.ignoreFailure);
         }
     }
 
@@ -1197,7 +1225,12 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.sorts = sorts;
         }
         if (in.readBoolean()) {
-            builder.stats = in.readStringArray();
+            int size = in.readVInt();
+            List<String> stats = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                stats.add(in.readString());
+            }
+            builder.stats = stats;
         }
         if (in.readBoolean()) {
             builder.suggestBuilder = in.readBytesReference();
@@ -1308,7 +1341,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         boolean hasStats = stats != null;
         out.writeBoolean(hasStats);
         if (hasStats) {
-            out.writeStringArray(stats);
+            out.writeVInt(stats.size());
+            for (String stat : stats) {
+                out.writeString(stat);
+            }
         }
         boolean hasSuggestBuilder = suggestBuilder != null;
         out.writeBoolean(hasSuggestBuilder);
@@ -1330,7 +1366,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public int hashCode() {
         return Objects.hash(aggregations, defaultRescoreWindowSize, explain, fetchSourceContext, fieldDataFields, fieldNames, from,
                 highlightBuilder, indexBoost, innerHitsBuilder, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,
-                size, sorts, Arrays.hashCode(stats), suggestBuilder, terminateAfter, timeoutInMillis, trackScores, version);
+                size, sorts, stats, suggestBuilder, terminateAfter, timeoutInMillis, trackScores, version);
     }
 
     @Override
@@ -1359,7 +1395,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(scriptFields, other.scriptFields)
                 && Objects.equals(size, other.size)
                 && Objects.equals(sorts, other.sorts)
-                && Objects.deepEquals(stats, other.stats)
+                && Objects.equals(stats, other.stats)
                 && Objects.equals(suggestBuilder, other.suggestBuilder)
                 && Objects.equals(terminateAfter, other.terminateAfter)
                 && Objects.equals(timeoutInMillis, other.timeoutInMillis)

@@ -50,6 +50,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -262,7 +263,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         String sStats = request.param("stats");
         if (sStats != null) {
-            searchSourceBuilder.stats(Strings.splitStringByCommaToArray(sStats));
+            searchSourceBuilder.stats(Arrays.asList(Strings.splitStringByCommaToArray(sStats)));
             modified = true;
         }
 

@@ -105,7 +105,6 @@ import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -856,7 +855,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
                 SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH);
-                context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, false)); // NORELEASE need to have ignore_exception parsed somewhere
+                context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }
         if (source.ext() != null) {
@@ -893,7 +892,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             context.version(source.version());
         }
         if (source.stats() != null) {
-            context.groupStats(Arrays.asList(source.stats())); // NORELEASE stats should be a list in SearchSourceBuilder
+            context.groupStats(source.stats());
         }
     }
 

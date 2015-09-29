@@ -294,7 +294,11 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             int scriptFieldsSize = randomInt(25);
             for (int i = 0; i < scriptFieldsSize; i++) {
-                builder.scriptField(randomAsciiOfLengthBetween(5, 50), new Script("foo"));
+                if (randomBoolean()) {
+                    builder.scriptField(randomAsciiOfLengthBetween(5, 50), new Script("foo"), randomBoolean());
+                } else {
+                    builder.scriptField(randomAsciiOfLengthBetween(5, 50), new Script("foo"));
+                }
             }
         }
         if (randomBoolean()) {
@@ -333,9 +337,10 @@ public class NewSearchSourceBuilderTests extends ESTestCase {
             builder.fetchSource(fetchSourceContext);
         }
         if (randomBoolean()) {
-            String[] statsGroups = new String[randomIntBetween(0, 20)];
-            for (int i = 0; i < statsGroups.length; i++) {
-                statsGroups[i] = randomAsciiOfLengthBetween(5, 20);
+            int size = randomIntBetween(0, 20);
+            List<String> statsGroups = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                statsGroups.add(randomAsciiOfLengthBetween(5, 20));
             }
             builder.stats(statsGroups);
         }

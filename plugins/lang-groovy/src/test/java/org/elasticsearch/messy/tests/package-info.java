@@ -24,7 +24,7 @@
  * with these tests, they are temporarily moved here to the groovy
  * plugin's tests, but that is likely not where they belong. Please 
  * help by cleaning them up and we can remove this package!
- * <p>
+ *
  * <ul>
  *   <li>If the test is actually testing groovy specifically, move to 
  *       the org.elasticsearch.script.groovy tests package of this plugin</li>

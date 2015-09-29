@@ -28,7 +28,7 @@ import org.elasticsearch.script.NativeScriptFactory;
 
 /**
  * Implementation of the native script that checks that the field exists and contains a prime number.
- * <p/>
+ * <p>
  * The native script has to implement {@link org.elasticsearch.script.SearchScript} interface. But the
  * {@link org.elasticsearch.script.AbstractSearchScript} class can be used to simplify the implementation.
  */
@@ -89,9 +89,10 @@ public class IsPrimeSearchScript extends AbstractSearchScript {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Object run() {
         // First we get field using doc lookup
-        ScriptDocValues docValue = (ScriptDocValues) doc().get(fieldName);
+        ScriptDocValues<Long> docValue = (ScriptDocValues<Long>) doc().get(fieldName);
         // Check if field exists
         if (docValue != null && !docValue.isEmpty()) {
             try {

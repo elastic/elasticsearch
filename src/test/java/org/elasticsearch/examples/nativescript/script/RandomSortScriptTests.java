@@ -27,6 +27,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.junit.Test;
 
@@ -46,7 +48,7 @@ public class RandomSortScriptTests extends AbstractSearchScriptTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type", mapping));
 
-        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         
         // Index 100 records (0..99)
         for (int i = 0; i < 100; i++) {
@@ -64,7 +66,7 @@ public class RandomSortScriptTests extends AbstractSearchScriptTestCase {
                 .setQuery(matchAllQuery())
                 .addField("name")
                 .setSize(10)
-                .addSort(SortBuilders.scriptSort("random", "number").lang("native").setParams(MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()))
+                .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()), "number"))
                 .execute().actionGet();
         
         assertNoFailures(searchResponse);
@@ -84,7 +86,7 @@ public class RandomSortScriptTests extends AbstractSearchScriptTestCase {
                 .setQuery(matchAllQuery())
                 .addField("name")
                 .setSize(10)
-                .addSort(SortBuilders.scriptSort("random", "number").lang("native").setParams(MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()))
+                .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()), "number"))
                 .execute().actionGet();
         
         assertNoFailures(searchResponse);
@@ -99,7 +101,7 @@ public class RandomSortScriptTests extends AbstractSearchScriptTestCase {
                 .setQuery(matchAllQuery())
                 .addField("name")
                 .setSize(10)
-                .addSort(SortBuilders.scriptSort("random", "number").lang("native"))
+                .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", null), "number"))
                 .execute().actionGet();
         
         assertNoFailures(searchResponse);

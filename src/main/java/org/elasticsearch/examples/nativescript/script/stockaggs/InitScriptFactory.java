@@ -32,6 +32,7 @@ public class InitScriptFactory implements NativeScriptFactory {
     public static final String TRANSACTIONS_FIELD = "transactions";
 
     @Override
+    @SuppressWarnings("unchecked")
     public ExecutableScript newScript(final @Nullable Map<String, Object> params) {
         return new AbstractExecutableScript() {
             @Override

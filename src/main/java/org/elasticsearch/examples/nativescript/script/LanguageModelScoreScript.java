@@ -81,6 +81,7 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
      *            terms that a scored are placed in this parameter. Initialize
      *            them here.
      */
+    @SuppressWarnings("unchecked")
     private LanguageModelScoreScript(Map<String, Object> params) {
         params.entrySet();
         // get the terms
@@ -97,6 +98,7 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Object run() {
         try {
             double score = 0.0;
@@ -109,7 +111,7 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
              * http://www.elasticsearch.org/guide
              * /en/elasticsearch/reference/current/mapping-core-types.html)
              */
-            ScriptDocValues docValues = (ScriptDocValues) doc().get(docLengthField);
+            ScriptDocValues<Long> docValues = (ScriptDocValues<Long>) doc().get(docLengthField);
             if (docValues == null || !docValues.isEmpty()) {
                 long L_d = ((ScriptDocValues.Longs) docValues).getValue();
                 for (int i = 0; i < terms.size(); i++) {

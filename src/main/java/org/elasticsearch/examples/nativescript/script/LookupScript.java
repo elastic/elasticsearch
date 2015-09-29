@@ -71,7 +71,7 @@ public class LookupScript extends AbstractSearchScript {
             // Setup lookup cache
             ByteSizeValue size = settings.getAsBytesSize("examples.nativescript.lookup.size", null);
             TimeValue expire = settings.getAsTime("expire", null);
-            CacheBuilder cacheBuilder = CacheBuilder.newBuilder();
+            CacheBuilder<Object, Object> cacheBuilder = CacheBuilder.newBuilder();
             if (size != null) {
                 cacheBuilder.maximumSize(size.bytes());
             }
@@ -139,9 +139,10 @@ public class LookupScript extends AbstractSearchScript {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Object run() {
         // First we get field using doc lookup
-        ScriptDocValues docValue = (ScriptDocValues) doc().get(field);
+        ScriptDocValues<String> docValue = (ScriptDocValues<String>) doc().get(field);
         // This is not very efficient
         // Check if field exists
         if (docValue != null && !docValue.isEmpty()) {

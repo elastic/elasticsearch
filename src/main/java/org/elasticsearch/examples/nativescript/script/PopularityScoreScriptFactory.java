@@ -28,7 +28,7 @@ import java.util.Map;
 
 /**
  * Factory for the script that boosts score of a record based on a value of  the record's field.
- * <p/>
+ * <p>
  * This native script demonstrates how to write native custom scores scripts.
  */
 public class PopularityScoreScriptFactory implements NativeScriptFactory {
@@ -73,9 +73,10 @@ public class PopularityScoreScriptFactory implements NativeScriptFactory {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public float runAsFloat() {
             try {
-                ScriptDocValues docValue = (ScriptDocValues) doc().get(field);
+                ScriptDocValues<Long> docValue = (ScriptDocValues<Long>) doc().get(field);
                 if (docValue != null && !docValue.isEmpty()) {
                     ScriptDocValues.Longs fieldData = (ScriptDocValues.Longs) docValue;
                     double boost = 1 + Math.log10(fieldData.getValue() + 1);

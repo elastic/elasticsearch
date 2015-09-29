@@ -72,7 +72,7 @@ public class IsPrimeSearchScriptTests extends AbstractSearchScriptTestCase {
 
         indexRandom(true, indexBuilders);
 
-        Map<String, Object> params = new HashMap();
+        Map<String, Object> params = new HashMap<>();
         params.put("field", "number");
         // Retrieve first 10 prime records
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -92,7 +92,7 @@ public class IsPrimeSearchScriptTests extends AbstractSearchScriptTestCase {
             assertThat(searchResponse.getHits().getAt(i).field("name").getValue().toString(), equalTo("rec " + PRIMES_10[i]));
         }
 
-        params = new HashMap();
+        params = new HashMap<>();
         params.put("field", "number");
         params.put("certainty", 0);
         // Check certainty parameter - with certainty == 0, it should return all numbers, but only if numbers are present

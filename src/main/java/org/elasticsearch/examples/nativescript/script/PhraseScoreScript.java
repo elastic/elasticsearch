@@ -79,6 +79,7 @@ public class PhraseScoreScript extends AbstractSearchScript {
      *            terms that a scored are placed in this parameter. Initialize
      *            them here.
      */
+    @SuppressWarnings("unchecked")
     private PhraseScoreScript(Map<String, Object> params) {
         params.entrySet();
         // get the terms

@@ -14,6 +14,7 @@
 
 package org.elasticsearch.examples.nativescript.script;
 
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -32,6 +33,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -64,24 +66,22 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         initData();
 
         // initialize parameters for script
-        Map<String, Object> params = new HashMap<String, Object>();
+        Map<String, Object> params = new HashMap<>();
         params.put("field", field);
         params.put("terms", searchTerms);
 
         // Retrieve records and see if they scored 0.0
         SearchResponse searchResponse = client()
                 .prepareSearch("test")
-                .setQuery(
-                        QueryBuilders.functionScoreQuery()
-                                .add(ScoreFunctionBuilders.scriptFunction(new Script(TFIDFScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))
-                                .boostMode(CombineFunction.REPLACE.getName())).setSize(numDocs).execute().actionGet();
+                .setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery(), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(new Script(TFIDFScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))})
+                        .boostMode(CombineFunction.REPLACE)).setSize(numDocs).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
         SearchHit[] hits = searchResponse.getHits().hits();
         for (int i = 0; i < numDocs; i++) {
             assertThat(hits[i].getId(), equalTo(Integer.toString(numDocs - i - 1)));
         }
-
     }
 
     @Test
@@ -90,7 +90,7 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         initData();
 
         // initialize parameters for script
-        Map<String, Object> params = new HashMap<String, Object>();
+        Map<String, Object> params = new HashMap<>();
         params.put("field", field);
         params.put("terms", searchTerms);
         params.put("weights", weights);
@@ -98,10 +98,9 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         // Retrieve records and see if they scored 0.0
         SearchResponse searchResponse = client()
                 .prepareSearch("test")
-                .setQuery(
-                        QueryBuilders.functionScoreQuery()
-                                .add(ScoreFunctionBuilders.scriptFunction(new Script(CosineSimilarityScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))
-                                .boostMode(CombineFunction.REPLACE.getName())).setSize(numDocs).execute().actionGet();
+                .setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery(), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(new Script(CosineSimilarityScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))})
+                        .boostMode(CombineFunction.REPLACE)).setSize(numDocs).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
         SearchHit[] hits = searchResponse.getHits().hits();
@@ -116,17 +115,17 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         initData();
 
         // initialize parameters for script
-        Map<String, Object> params = new HashMap<String, Object>();
+        Map<String, Object> params = new HashMap<>();
         params.put("field", field);
         params.put("terms", searchTerms);
 
         // Retrieve records and see if they scored 0.0
         SearchResponse searchResponse = client()
                 .prepareSearch("test")
-                .setQuery(
-                        QueryBuilders.functionScoreQuery()
-                                .add(ScoreFunctionBuilders.scriptFunction(new Script(PhraseScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))
-                                .boostMode(CombineFunction.REPLACE.getName())).setSize(numDocs).execute().actionGet();
+                .setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery(), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(
+                                new Script(PhraseScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))})
+                        .boostMode(CombineFunction.REPLACE)).setSize(numDocs).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
         SearchHit[] hits = searchResponse.getHits().hits();
@@ -142,7 +141,7 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         initData();
 
         // initialize parameters for script
-        Map<String, Object> params = new HashMap<String, Object>();
+        Map<String, Object> params = new HashMap<>();
         params.put("field", field);
         params.put("terms", searchTerms);
         params.put("word_count_field", wordCountField);
@@ -151,10 +150,9 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         // Retrieve records and see if they scored 0.0
         SearchResponse searchResponse = client()
                 .prepareSearch("test")
-                .setQuery(
-                        QueryBuilders.functionScoreQuery()
-                                .add(ScoreFunctionBuilders.scriptFunction(new Script(LanguageModelScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))
-                                .boostMode(CombineFunction.REPLACE.getName())).setSize(numDocs).execute().actionGet();
+                .setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery(), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(new Script(LanguageModelScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))})
+                        .boostMode(CombineFunction.REPLACE)).setSize(numDocs).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
         SearchHit[] hits = searchResponse.getHits().hits();
@@ -171,7 +169,7 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
                 .field("format", "doc_values").endObject().endObject().endObject().endObject().endObject().endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type", mapping));
 
-        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         // Index numDocs records (0..99)
         for (int i = 0; i < numDocs; i++) {
             indexBuilders.add(client().prepareIndex("test", "type", Integer.toString(i))

@@ -78,6 +78,7 @@ public class TFIDFScoreScript extends AbstractSearchScript {
      *            terms that a scored are placed in this parameter. Initialize
      *            them here.
      */
+    @SuppressWarnings("unchecked")
     private TFIDFScoreScript(Map<String, Object> params) {
         params.entrySet();
         // get the terms

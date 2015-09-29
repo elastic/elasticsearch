@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
 
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ScriptException;
 
 import org.elasticsearch.common.Nullable;
@@ -81,8 +80,8 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
      * @param params
      *            terms that a scored are placed in this parameter. Initialize
      *            them here.
-     * @throws ScriptException 
      */
+    @SuppressWarnings("unchecked")
     private CosineSimilarityScoreScript(Map<String, Object> params) throws ScriptException {
         params.entrySet();
         // get the terms

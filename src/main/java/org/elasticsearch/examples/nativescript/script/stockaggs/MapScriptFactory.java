@@ -25,12 +25,13 @@ import java.util.Map;
 
 /**
  * Map script from https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-scripted-metric-aggregation.html
- * <p/>
+ * <p>
  * if (doc['type'].value == \"sale\") { _agg.transactions.add(doc['amount'].value) } else {_agg.transactions.add(-1 * doc['amount'].value)}
  */
 public class MapScriptFactory implements NativeScriptFactory {
 
     @Override
+    @SuppressWarnings("unchecked")
     public ExecutableScript newScript(final @Nullable Map<String, Object> params) {
         Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
         ArrayList<Long> transactions = (ArrayList<Long>) agg.get(InitScriptFactory.TRANSACTIONS_FIELD);

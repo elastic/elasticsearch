@@ -31,6 +31,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -79,9 +81,9 @@ public class PopularityScoreScriptTests extends AbstractSearchScriptTestCase {
         Map<String, Object> params = MapBuilder.<String, Object>newMapBuilder().put("field", "number").map();
         // Retrieve first 10 hits
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchQuery("name", "rec"))
-                        .boostMode(CombineFunction.REPLACE)
-                        .add(ScoreFunctionBuilders.scriptFunction(new Script("popularity", ScriptService.ScriptType.INLINE, "native", params))))
+                .setQuery(QueryBuilders.functionScoreQuery(matchQuery("name", "rec"), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(new Script("popularity", ScriptService.ScriptType.INLINE, "native", params)))})
+                        .boostMode(CombineFunction.REPLACE))
                 .setSize(10)
                 .addField("name")
                 .execute().actionGet();

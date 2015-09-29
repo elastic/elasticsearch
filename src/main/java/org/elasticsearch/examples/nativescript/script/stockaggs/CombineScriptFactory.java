@@ -24,12 +24,13 @@ import java.util.Map;
 
 /**
  * Combine script from https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-scripted-metric-aggregation.html
- * <p/>
+ * <p>
  * profit = 0; for (t in _agg.transactions) { profit += t }; return profit
  */
 public class CombineScriptFactory implements NativeScriptFactory {
 
     @Override
+    @SuppressWarnings("unchecked")
     public ExecutableScript newScript(final @Nullable Map<String, Object> params) {
         Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
         final ArrayList<Long> transactions = (ArrayList<Long>) agg.get(InitScriptFactory.TRANSACTIONS_FIELD);

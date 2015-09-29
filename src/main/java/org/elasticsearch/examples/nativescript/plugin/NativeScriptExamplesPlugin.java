@@ -38,7 +38,7 @@ public class NativeScriptExamplesPlugin extends Plugin {
 
     /**
      * The name of the plugin.
-     * <p/>
+     * <p>
      * This name will be used by elasticsearch in the log file to refer to this plugin.
      *
      * @return plugin name.

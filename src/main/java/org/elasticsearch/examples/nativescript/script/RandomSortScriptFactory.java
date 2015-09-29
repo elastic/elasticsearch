@@ -32,7 +32,7 @@ import java.util.Random;
 /**
  * This script demonstrates how native scripts can be used to create custom sort order.
  * Since sort operation is expecting float parameter, the {@link AbstractFloatSearchScript} can be used.
- * <p/>
+ * <p>
  * The script accepts one optional parameter salt. If parameter is specified, a pseudo random sort order is used.
  * Otherwise, a random sort order is used.
  */

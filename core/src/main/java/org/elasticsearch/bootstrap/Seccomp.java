@@ -34,6 +34,7 @@ import org.elasticsearch.common.logging.Loggers;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -344,7 +345,7 @@ final class Seccomp {
 
         // write rules to a temporary file, which will be passed to sandbox_init()
         Path rules = Files.createTempFile(tmpFile, "es", "sb");
-        Files.write(rules, Collections.singleton(SANDBOX_RULES));
+        Files.write(rules, Collections.singleton(SANDBOX_RULES), StandardCharsets.UTF_8);
 
         boolean success = false;
         try {

@@ -92,7 +92,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
                 for (Message message : e.getErrorMessages()) {
                     binder.addError(message);
                 }
-                injectionPoints = unmodifiableSet(new HashSet<>(e.getPartialValue()));
+                injectionPoints = unmodifiableSet(new HashSet<InjectionPoint>(e.getPartialValue()));
             }
         } else {
             binder.addError(BINDING_TO_NULL);
@@ -117,7 +117,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
             for (Message message : e.getErrorMessages()) {
                 binder.addError(message);
             }
-            injectionPoints = unmodifiableSet(new HashSet<>(e.getPartialValue()));
+            injectionPoints = unmodifiableSet(new HashSet<InjectionPoint>(e.getPartialValue()));
         }
 
         BindingImpl<T> base = getBinding();

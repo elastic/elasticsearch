@@ -96,6 +96,7 @@ public class PluginManager {
             "discovery-ec2",
             "discovery-multicast",
             "lang-expression",
+            "lang-groovy",
             "lang-javascript",
             "lang-python",
             "mapper-murmur3",

@@ -21,8 +21,6 @@ package org.elasticsearch.discovery.gce;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
-import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -37,6 +35,8 @@ import org.elasticsearch.transport.TransportService;
  *
  */
 public class GceDiscovery extends ZenDiscovery {
+
+    public static final String GCE = "gce";
 
     @Inject
     public GceDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,

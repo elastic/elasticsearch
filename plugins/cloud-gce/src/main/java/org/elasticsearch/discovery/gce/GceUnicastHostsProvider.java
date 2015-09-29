@@ -83,10 +83,6 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         this.project = settings.get(Fields.PROJECT);
         this.zones = settings.getAsArray(Fields.ZONE);
 
-        // Check that we have all needed properties
-        checkProperty(Fields.PROJECT, project);
-        checkProperty(Fields.ZONE, zones);
-
         this.tags = settings.getAsArray(Fields.TAGS);
         if (logger.isDebugEnabled()) {
             logger.debug("using tags {}", Arrays.asList(this.tags));
@@ -249,17 +245,5 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         logger.debug("using dynamic discovery nodes {}", cachedDiscoNodes);
 
         return cachedDiscoNodes;
-    }
-
-    private void checkProperty(String name, String value) {
-        if (!Strings.hasText(value)) {
-            logger.warn("{} is not set.", name);
-        }
-    }
-
-    private void checkProperty(String name, String[] values) {
-        if (values == null || values.length == 0) {
-            logger.warn("{} is not set.", name);
-        }
     }
 }

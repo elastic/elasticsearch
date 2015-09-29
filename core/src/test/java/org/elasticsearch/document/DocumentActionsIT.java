@@ -222,7 +222,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[3].getId(), equalTo("1"));
 
         assertThat(bulkResponse.getItems()[4].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[4].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.getItems()[4].getOpType(), equalTo("index"));
         assertThat(bulkResponse.getItems()[4].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[4].getType(), equalTo("type1"));
 

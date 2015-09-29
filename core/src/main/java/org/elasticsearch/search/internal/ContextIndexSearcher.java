@@ -44,7 +44,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         super(searcher.reader());
         in = searcher.searcher();
         setSimilarity(searcher.searcher().getSimilarity(true));
-        setQueryCache(searchContext.indexShard().indexService().cache().query());
+        setQueryCache(searchContext.getQueryCache());
         setQueryCachingPolicy(searchContext.indexShard().getQueryCachingPolicy());
     }
 

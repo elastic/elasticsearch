@@ -17,16 +17,24 @@ class PluginBuildPlugin extends BuildPlugin {
         super.apply(project)
         // TODO: add target compatibility (java version) to elasticsearch properties and set for the project
         configureDependencies(project)
-        Task bundle = configureBundleTask(project)
-        RestIntegTestTask integTest = RestIntegTestTask.configure(project)
+        // this afterEvaluate must happen before the afterEvaluate added by integTest configure,
+        // so that the file name resolution for installing the plugin will be setup
         project.afterEvaluate {
-            integTest.configure {
-                dependsOn bundle
+            project.jar.configure {
+                baseName project.pluginProperties.extension.name
+            }
+            project.bundlePlugin.configure {
+                baseName project.pluginProperties.extension.name
+            }
+            project.integTest.configure {
+                dependsOn project.bundlePlugin
                 cluster {
-                    plugin 'installPlugin', bundle.outputs.files.singleFile
+                    plugin 'installPlugin', project.bundlePlugin.outputs.files.singleFile
                 }
             }
         }
+        Task bundle = configureBundleTask(project)
+        RestIntegTestTask.configure(project)
         project.configurations.archives.artifacts.removeAll { it.archiveTask.is project.jar }
         project.configurations.runtime.artifacts.removeAll { it.archiveTask.is project.jar }
         project.artifacts {
@@ -65,14 +73,6 @@ class PluginBuildPlugin extends BuildPlugin {
             }
         }
         project.assemble.dependsOn(bundle)
-        project.afterEvaluate {
-            project.jar.configure {
-                baseName buildProperties.extension.name
-            }
-            bundle.configure {
-                baseName buildProperties.extension.name
-            }
-        }
         return bundle
     }
 }

@@ -412,13 +412,6 @@
             </dependency>
 
             <dependency>
-                <groupId>org.codehaus.groovy</groupId>
-                <artifactId>groovy-all</artifactId>
-                <version>2.4.4</version>
-                <classifier>indy</classifier>
-            </dependency>
-
-            <dependency>
                 <groupId>log4j</groupId>
                 <artifactId>log4j</artifactId>
                 <version>${log4j.version}</version>

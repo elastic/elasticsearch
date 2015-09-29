@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -47,7 +46,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 // TODO: this needs to be a base test class, and all scripting engines extend it
 public class ScriptModesTests extends ESTestCase {
     private static final Set<String> ALL_LANGS = unmodifiableSet(
-            newHashSet(GroovyScriptEngineService.NAME, MustacheScriptEngineService.NAME, "custom", "test"));
+            newHashSet(MustacheScriptEngineService.NAME, "custom", "test"));
 
     static final String[] ENABLE_VALUES = new String[]{"on", "true", "yes", "1"};
     static final String[] DISABLE_VALUES = new String[]{"off", "false", "no", "0"};
@@ -75,7 +74,6 @@ public class ScriptModesTests extends ESTestCase {
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
         scriptEngines = buildScriptEnginesByLangMap(newHashSet(
-                new GroovyScriptEngineService(Settings.EMPTY),
                 new MustacheScriptEngineService(Settings.EMPTY),
                 //add the native engine just to make sure it gets filtered out
                 new NativeScriptEngineService(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
@@ -96,8 +94,8 @@ public class ScriptModesTests extends ESTestCase {
     public void assertAllSettingsWereChecked() {
         if (assertScriptModesNonNull) {
             assertThat(scriptModes, notNullValue());
-            //4 is the number of engines (native excluded), custom is counted twice though as it's associated with two different names
-            int numberOfSettings = 4 * ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
+            //3 is the number of engines (native excluded), custom is counted twice though as it's associated with two different names
+            int numberOfSettings = 3 * ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
             assertThat(scriptModes.scriptModes.size(), equalTo(numberOfSettings));
             if (assertAllSettingsWereChecked) {
                 assertThat(checkedSettings.size(), equalTo(numberOfSettings));
@@ -191,22 +189,6 @@ public class ScriptModesTests extends ESTestCase {
         ScriptContext[] complementOf = complementOf(scriptContext);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE, ScriptType.INDEXED}, complementOf);
         assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INLINE}, complementOf);
-    }
-
-    @Test
-    public void testEngineSpecificSettings() {
-        Settings.Builder builder = Settings.builder()
-                .put(specificEngineOpSettings(GroovyScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.MAPPING), randomFrom(DISABLE_VALUES))
-                .put(specificEngineOpSettings(GroovyScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.UPDATE), randomFrom(DISABLE_VALUES));
-        Set<String> groovyLangSet = singleton(GroovyScriptEngineService.NAME);
-        Set<String> allButGroovyLangSet = new HashSet<>(ALL_LANGS);
-        allButGroovyLangSet.remove(GroovyScriptEngineService.NAME);
-        this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, builder.build());
-        assertScriptModes(ScriptMode.OFF, groovyLangSet, new ScriptType[]{ScriptType.INLINE}, ScriptContext.Standard.MAPPING, ScriptContext.Standard.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, groovyLangSet, new ScriptType[]{ScriptType.INLINE}, complementOf(ScriptContext.Standard.MAPPING, ScriptContext.Standard.UPDATE));
-        assertScriptModesAllOps(ScriptMode.SANDBOX, allButGroovyLangSet, ScriptType.INLINE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
-        assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
     }
 
     @Test

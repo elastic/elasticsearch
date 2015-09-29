@@ -37,7 +37,7 @@ import java.io.IOException;
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.percolator.PercolatorIT.convertFromTextArray;
+import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
 import static org.hamcrest.Matchers.*;

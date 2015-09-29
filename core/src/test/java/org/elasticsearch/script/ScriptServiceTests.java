@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -75,7 +74,7 @@ public class ScriptServiceTests extends ESTestCase {
                 .put("path.conf", genericConfigFolder)
                 .build();
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
-        scriptEngineServices = newHashSet(new TestEngineService(), new GroovyScriptEngineService(baseSettings),
+        scriptEngineServices = newHashSet(new TestEngineService(), 
                                                new MustacheScriptEngineService(baseSettings));
         scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(scriptEngineServices);
         //randomly register custom script contexts
@@ -156,21 +155,6 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     @Test
-    public void testScriptsSameNameDifferentLanguage() throws IOException {
-        ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
-        buildScriptService(Settings.EMPTY);
-        createFileScripts("groovy", "test");
-        CompiledScript groovyScript = scriptService.compile(
-                new Script("file_script", ScriptType.FILE, GroovyScriptEngineService.NAME, null), randomFrom(scriptContexts),
-                contextAndHeaders);
-        assertThat(groovyScript.lang(), equalTo(GroovyScriptEngineService.NAME));
-        CompiledScript expressionScript = scriptService.compile(new Script("file_script", ScriptType.FILE, "test",
- null), randomFrom(new ScriptContext[] { ScriptContext.Standard.AGGS,
-                ScriptContext.Standard.SEARCH }), contextAndHeaders);
-        assertThat(expressionScript.lang(), equalTo("test"));
-    }
-
-    @Test
     public void testInlineScriptCompiledOnceCache() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -222,10 +206,6 @@ public class ScriptServiceTests extends ESTestCase {
         createFileScripts("groovy", "mustache", "test");
 
         for (ScriptContext scriptContext : scriptContexts) {
-            //groovy is not sandboxed, only file scripts are enabled by default
-            assertCompileRejected(GroovyScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext, contextAndHeaders);
-            assertCompileRejected(GroovyScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext, contextAndHeaders);
-            assertCompileAccepted(GroovyScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptContext, contextAndHeaders);
             //mustache engine is sandboxed, all scripts are enabled by default
             assertCompileAccepted(MustacheScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext, contextAndHeaders);
             assertCompileAccepted(MustacheScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext, contextAndHeaders);

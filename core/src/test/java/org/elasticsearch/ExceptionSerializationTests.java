@@ -22,7 +22,6 @@ import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParseException;
 
 import org.apache.lucene.util.Constants;
-import org.codehaus.groovy.runtime.typehandling.GroovyCastException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
@@ -573,7 +572,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
         Throwable[] unknowns = new Throwable[] {
                 new JsonParseException("foobar", new JsonLocation(new Object(), 1,2,3,4)),
-                new GroovyCastException("boom boom boom"),
+                new ClassCastException("boom boom boom"),
                 new IOException("booom")
         };
         for (Throwable t : unknowns) {
@@ -758,7 +757,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(92, org.elasticsearch.indices.recovery.DelayRecoveryException.class);
         ids.put(93, org.elasticsearch.search.warmer.IndexWarmerMissingException.class);
         ids.put(94, org.elasticsearch.client.transport.NoNodeAvailableException.class);
-        ids.put(95, org.elasticsearch.script.groovy.GroovyScriptCompilationException.class);
+        ids.put(95, null);
         ids.put(96, org.elasticsearch.snapshots.InvalidSnapshotNameException.class);
         ids.put(97, org.elasticsearch.index.shard.IllegalIndexShardStateException.class);
         ids.put(98, org.elasticsearch.index.snapshots.IndexShardSnapshotException.class);
@@ -785,7 +784,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(119, org.elasticsearch.search.query.QueryPhaseExecutionException.class);
         ids.put(120, org.elasticsearch.repositories.RepositoryVerificationException.class);
         ids.put(121, org.elasticsearch.search.aggregations.InvalidAggregationPathException.class);
-        ids.put(122, org.elasticsearch.script.groovy.GroovyScriptExecutionException.class);
+        ids.put(122, null);
         ids.put(123, org.elasticsearch.indices.IndexAlreadyExistsException.class);
         ids.put(124, org.elasticsearch.script.Script.ScriptParseException.class);
         ids.put(125, org.elasticsearch.transport.netty.SizeHeaderFrameDecoder.HttpOnTransportException.class);

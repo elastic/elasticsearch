@@ -43,6 +43,8 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.text.ParseException;
 import java.util.Calendar;
 import java.util.Map;
@@ -91,12 +93,18 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
     @Override
     public Object compile(String script) {
-        try {
-            // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
-            return JavascriptCompiler.compile(script);
-        } catch (ParseException e) {
-            throw new ScriptException("Failed to parse expression: " + script, e);
-        }
+        // classloader created here
+        return AccessController.doPrivileged(new PrivilegedAction<Expression>() {
+            @Override
+            public Expression run() {
+                try {
+                    // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
+                    return JavascriptCompiler.compile(script);
+                } catch (ParseException e) {
+                    throw new ScriptException("Failed to parse expression: " + script, e);
+                }
+            }
+        });
     }
 
     @Override

@@ -43,4 +43,16 @@ public class ShardRoutingHelper {
     public static void initialize(ShardRouting routing, String nodeId, long expectedSize) {
         routing.initialize(nodeId, expectedSize);
     }
+
+    public static void reinit(ShardRouting routing) {
+        routing.reinitializeShard();
+    }
+
+    public static void moveToUnassigned(ShardRouting routing, UnassignedInfo info) {
+        routing.moveToUnassigned(info);
+    }
+
+    public static ShardRouting newWithRestoreSource(ShardRouting routing, RestoreSource restoreSource) {
+        return new ShardRouting(routing.index(), routing.shardId().id(), routing.currentNodeId(), routing.relocatingNodeId(), restoreSource, routing.primary(), routing.state(), routing.version(), routing.unassignedInfo(), routing.allocationId(), true, routing.getExpectedShardSize());
+    }
 }

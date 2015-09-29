@@ -195,6 +195,10 @@ fi
     install_and_check_plugin lang expression
 }
 
+@test "[$GROUP] install lang-groovy plugin" {
+    install_and_check_plugin lang groovy
+}
+
 @test "[$GROUP] install javascript plugin" {
     install_and_check_plugin lang javascript rhino-*.jar
 }
@@ -293,6 +297,10 @@ fi
 
 @test "[$GROUP] remove lang-expression plugin" {
     remove_plugin lang-expression
+}
+
+@test "[$GROUP] remove lang-groovy plugin" {
+    remove_plugin lang-groovy
 }
 
 @test "[$GROUP] remove javascript plugin" {

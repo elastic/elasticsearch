@@ -32,16 +32,13 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -52,17 +49,14 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardRecoveryException;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.shard.StoreRecoveryService;
+import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -91,6 +85,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     // a list of shards that failed during recovery
     // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
     private final ConcurrentMap<ShardId, FailedShard> failedShards = ConcurrentCollections.newConcurrentMap();
+    private final RestoreService restoreService;
+    private final RepositoriesService repositoriesService;
 
     static class FailedShard {
         public final long version;
@@ -112,7 +108,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                                       ThreadPool threadPool, RecoveryTarget recoveryTarget,
                                       ShardStateAction shardStateAction,
                                       NodeIndexDeletedAction nodeIndexDeletedAction,
-                                      NodeMappingRefreshAction nodeMappingRefreshAction) {
+                                      NodeMappingRefreshAction nodeMappingRefreshAction, RepositoriesService repositoriesService, RestoreService restoreService) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -121,7 +117,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.shardStateAction = shardStateAction;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
-
+        this.restoreService = restoreService;
+        this.repositoriesService = repositoriesService;
         this.sendRefreshMapping = this.settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
     }
 
@@ -675,18 +672,33 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 handleRecoveryFailure(indexService, shardRouting, true, e);
             }
         } else {
-            indexService.shard(shardId).recoverFromStore(shardRouting, new StoreRecoveryService.RecoveryListener() {
-                @Override
-                public void onRecoveryDone() {
-                    shardStateAction.shardStarted(shardRouting, indexMetaData.getIndexUUID(), "after recovery from store");
-                }
-
-                @Override
-                public void onIgnoreRecovery(String reason) {
-                }
-
-                @Override
-                public void onRecoveryFailed(IndexShardRecoveryException e) {
+            threadPool.generic().execute(() -> {
+                final RestoreSource restoreSource = shardRouting.restoreSource();
+                try {
+                    final boolean success;
+                    final IndexShard shard = indexService.shard(shardId);
+                    if (restoreSource == null) {
+                        // recover from filesystem store
+                        success = shard.recoverFromStore(shardRouting);
+                    } else {
+                        // restore
+                        final IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(restoreSource.snapshotId().getRepository());
+                        try {
+                            success = shard.restoreFromRepository(shardRouting, indexShardRepository);
+                        } catch (Throwable t) {
+                            if (Lucene.isCorruptionException(t)) {
+                                restoreService.failRestore(restoreSource.snapshotId(), shard.shardId());
+                            }
+                            throw t;
+                        }
+                        if (success) {
+                            restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), shard.shardId());
+                        }
+                    }
+                    if (success) {
+                        shardStateAction.shardStarted(shardRouting, indexMetaData.getIndexUUID(), "after recovery from store");
+                    }
+                } catch (Throwable e) {
                     handleRecoveryFailure(indexService, shardRouting, true, e);
                 }
             });

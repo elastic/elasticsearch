@@ -435,7 +435,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Allows to override boost assertions for queries that don't have the default behaviour
      */
     protected void assertBoost(QB queryBuilder, Query query) throws IOException {
-        assertThat(query.getBoost(), equalTo(queryBuilder.boost()));
+        // workaround https://bugs.openjdk.java.net/browse/JDK-8056984
+        float boost = queryBuilder.boost();
+        assertThat(query.getBoost(), equalTo(boost));
     }
 
     /**

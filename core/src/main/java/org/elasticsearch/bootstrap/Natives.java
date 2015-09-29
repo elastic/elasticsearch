@@ -22,6 +22,8 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
+import java.nio.file.Path;
+
 /**
  * The Natives class is a wrapper class that checks if the classes necessary for calling native methods are available on
  * startup. If they are not available, this class will avoid calling code that loads these classes.
@@ -89,12 +91,12 @@ final class Natives {
         return JNANatives.LOCAL_MLOCKALL;
     }
     
-    static void trySeccomp() {
+    static void trySeccomp(Path tmpFile) {
         if (!JNA_AVAILABLE) {
-            logger.warn("cannot install seccomp filters because JNA is not available");
+            logger.warn("cannot install syscall filters because JNA is not available");
             return;
         }
-        JNANatives.trySeccomp();
+        JNANatives.trySeccomp(tmpFile);
     }
     
     static boolean isSeccompInstalled() {

@@ -1,0 +1,17 @@
+
+esplugin {
+  description 'Lucene expressions integration for Elasticsearch'
+  classname 'org.elasticsearch.script.expression.ExpressionPlugin'
+}
+
+dependencies {
+  compile "org.apache.lucene:lucene-expressions:${versions.lucene}"
+}
+
+dependencyLicenses {
+  mapping from: /lucene-.*/, to: 'lucene'
+}
+
+compileJava.options.compilerArgs << '-Xlint:-rawtypes'
+compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
+

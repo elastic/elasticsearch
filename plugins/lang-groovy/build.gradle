@@ -1,0 +1,19 @@
+
+esplugin {
+  description 'Groovy scripting integration for Elasticsearch'
+  classname 'org.elasticsearch.script.groovy.GroovyPlugin'
+}
+
+dependencies {
+  compile 'org.codehaus.groovy:groovy-all:2.4.4:indy'
+}
+
+compileJava.options.compilerArgs << '-Xlint:-rawtypes,-unchecked,-cast,-deprecation'
+compileTestJava.options.compilerArgs << '-Xlint:-rawtypes,-unchecked,-cast,-deprecation'
+
+integTest {
+  cluster {
+    systemProperty 'es.script.inline', 'on'
+    systemProperty 'es.script.indexed', 'on'
+  }
+}

@@ -17,7 +17,7 @@ configurations {
 }
 
 versions << [
-  jackson:  '2.5.3',
+  jackson:  '2.6.2',
   log4j:    '1.2.17',
   slf4j:    '1.6.2'
 ]
@@ -70,10 +70,6 @@ dependencies {
   // lucene spatial
   optional 'com.spatial4j:spatial4j:0.4.1'
   optional 'com.vividsolutions:jts:1.13'
-
-  // scripting
-  optional 'org.codehaus.groovy:groovy-all:2.4.4:indy'
-  optional "org.apache.lucene:lucene-expressions:${versions.lucene}"
 
   // templating
   optional('com.github.spullara.mustache.java:compiler:0.8.13') {

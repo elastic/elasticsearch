@@ -21,7 +21,7 @@ import java.util.regex.Pattern
 class DependencyLicensesTask extends DefaultTask {
     static final String SHA_EXTENSION = '.sha1'
 
-    static Task addToProject(Project project, Closure closure) {
+    static Task configure(Project project, Closure closure) {
         DependencyLicensesTask task = project.tasks.create(type: DependencyLicensesTask, name: 'dependencyLicenses')
         UpdateShasTask update = project.tasks.create(type: UpdateShasTask, name: 'updateShas')
         update.parentTask = task

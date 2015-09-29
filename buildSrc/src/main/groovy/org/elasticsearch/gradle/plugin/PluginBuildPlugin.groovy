@@ -18,7 +18,7 @@ class PluginBuildPlugin extends BuildPlugin {
         super.apply(project)
         // TODO: add target compatibility (java version) to elasticsearch properties and set for the project
         configureDependencies(project)
-        Task bundle = configureBundleTask(project.tasks)
+        Task bundle = configureBundleTask(project)
         RestIntegTestTask integTest = RestIntegTestTask.configure(project)
         integTest.configure {
             dependsOn bundle
@@ -48,12 +48,11 @@ class PluginBuildPlugin extends BuildPlugin {
         }
     }
 
-    static Task configureBundleTask(TaskContainer tasks) {
-        Task jar = tasks.getByName('jar')
-        Task buildProperties = tasks.create(name: 'pluginProperties', type: PluginPropertiesTask)
-        Task bundle = tasks.create(name: 'bundlePlugin', type: Zip, dependsOn: [jar, buildProperties])
+    static Task configureBundleTask(Project project) {
+        PluginPropertiesTask buildProperties = project.tasks.create(name: 'pluginProperties', type: PluginPropertiesTask)
+        Task bundle = project.tasks.create(name: 'bundlePlugin', type: Zip, dependsOn: [project.jar, buildProperties])
         bundle.configure {
-            from jar
+            from project.jar
             from buildProperties
             from bundle.project.configurations.runtime - bundle.project.configurations.provided
             from('src/main') {
@@ -64,7 +63,15 @@ class PluginBuildPlugin extends BuildPlugin {
                 include '_site/**'
             }
         }
-        tasks.getByName('assemble').dependsOn(bundle)
+        project.assemble.dependsOn(bundle)
+        project.afterEvaluate {
+            project.jar.configure {
+                baseName buildProperties.extension.name
+            }
+            bundle.configure {
+                baseName buildProperties.extension.name
+            }
+        }
         return bundle
     }
 }

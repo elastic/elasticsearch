@@ -49,7 +49,7 @@ CopySpec libFiles = copySpec {
 // TODO: dependency checks should really be when building the jar itself, which would remove the need
 // for this hackery and instead we can do this inside the BuildPlugin
 //task check() {}
-DependencyLicensesTask.addToProject(project) {
+DependencyLicensesTask.configure(project) {
   dependsOn = [deps.buildDependencies]
   dependencies = deps
   mapping from: /lucene-.*/, to: 'lucene'

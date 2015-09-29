@@ -167,6 +167,11 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     @Override
     public Object compile(String script) {
         try {
+            // we reuse classloader, so do a security check just in case.
+            SecurityManager sm = System.getSecurityManager();
+            if (sm != null) {
+                sm.checkPermission(new SpecialPermission());
+            }
             return loader.parseClass(script, Hashing.sha1().hashString(script, StandardCharsets.UTF_8).toString());
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {

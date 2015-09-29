@@ -38,8 +38,6 @@ class AttachmentSettingsPlugin implements Plugin<Settings> {
             settings.include('elasticsearch:core')
             settings.include('elasticsearch:test-framework')
             settings.include('elasticsearch:distribution')
-            // set project name back, since including elasticsearch overwrote it
-            settings.rootProject.name = 'x-plugins'
         }
     }
 }

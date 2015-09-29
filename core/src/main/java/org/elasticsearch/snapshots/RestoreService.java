@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,10 +31,9 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
-import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -90,6 +89,7 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
@@ -101,6 +101,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_C
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_UPGRADED;
 import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  * Service responsible for restoring snapshots
@@ -128,22 +129,26 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
     public static final String UPDATE_RESTORE_ACTION_NAME = "internal:cluster/snapshot/update_restore";
 
-    private static final ImmutableSet<String> UNMODIFIABLE_SETTINGS = ImmutableSet.of(
+    private static final Set<String> UNMODIFIABLE_SETTINGS = unmodifiableSet(newHashSet(
             SETTING_NUMBER_OF_SHARDS,
             SETTING_VERSION_CREATED,
             SETTING_LEGACY_ROUTING_HASH_FUNCTION,
             SETTING_LEGACY_ROUTING_USE_TYPE,
             SETTING_INDEX_UUID,
-            SETTING_CREATION_DATE);
+            SETTING_CREATION_DATE));
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
-    private static final ImmutableSet<String> UNREMOVABLE_SETTINGS = ImmutableSet.<String>builder()
-            .addAll(UNMODIFIABLE_SETTINGS)
-            .add(SETTING_NUMBER_OF_REPLICAS)
-            .add(SETTING_AUTO_EXPAND_REPLICAS)
-            .add(SETTING_VERSION_UPGRADED)
-            .add(SETTING_VERSION_MINIMUM_COMPATIBLE)
-            .build();
+    private static final Set<String> UNREMOVABLE_SETTINGS;
+
+    static {
+        Set<String> unremovable = new HashSet<>(UNMODIFIABLE_SETTINGS.size() + 4);
+        unremovable.addAll(UNMODIFIABLE_SETTINGS);
+        unremovable.add(SETTING_NUMBER_OF_REPLICAS);
+        unremovable.add(SETTING_AUTO_EXPAND_REPLICAS);
+        unremovable.add(SETTING_VERSION_UPGRADED);
+        unremovable.add(SETTING_VERSION_MINIMUM_COMPATIBLE);
+        UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
+    }
 
     private final ClusterService clusterService;
 
@@ -211,7 +216,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
             // Now we can start the actual restore process by adding shards to be recovered in the cluster state
             // and updating cluster metadata (global and index) as needed
-            clusterService.submitStateUpdateTask(request.cause(), new TimeoutClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
                 RestoreInfo restoreInfo = null;
 
                 @Override
@@ -525,7 +530,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         logger.trace("received updated snapshot restore state [{}]", request);
         updatedSnapshotStateQueue.add(request);
 
-        clusterService.submitStateUpdateTask("update snapshot state", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update snapshot state", new ClusterStateUpdateTask() {
             private final List<UpdateIndexShardRestoreStatusRequest> drainedRequests = new ArrayList<>();
             private Map<SnapshotId, Tuple<RestoreInfo, Map<ShardId, ShardRestoreStatus>>> batchedRestoreInfo = null;
 

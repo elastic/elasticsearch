@@ -21,7 +21,7 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,11 +45,11 @@ public final class DiffableUtils {
     }
 
     /**
-     * Calculates diff between two ImmutableMaps of Diffable objects
+     * Calculates diff between two Maps of Diffable objects.
      */
-    public static <T extends Diffable<T>> Diff<ImmutableMap<String, T>> diff(ImmutableMap<String, T> before, ImmutableMap<String, T> after) {
+    public static <T extends Diffable<T>> Diff<Map<String, T>> diff(Map<String, T> before, Map<String, T> after) {
         assert after != null && before != null;
-        return new ImmutableMapDiff<>(before, after);
+        return new JdkMapDiff<>(before, after);
     }
 
     /**
@@ -60,10 +60,10 @@ public final class DiffableUtils {
     }
 
     /**
-     * Loads an object that represents difference between two ImmutableMaps
+     * Loads an object that represents difference between two Maps.
      */
-    public static <T extends Diffable<T>> Diff<ImmutableMap<String, T>> readImmutableMapDiff(StreamInput in, KeyedReader<T> keyedReader) throws IOException {
-        return new ImmutableMapDiff<>(in, keyedReader);
+    public static <T extends Diffable<T>> Diff<Map<String, T>> readJdkMapDiff(StreamInput in, KeyedReader<T> keyedReader) throws IOException {
+        return new JdkMapDiff<>(in, keyedReader);
     }
 
     /**
@@ -74,10 +74,10 @@ public final class DiffableUtils {
     }
 
     /**
-     * Loads an object that represents difference between two ImmutableMaps
+     * Loads an object that represents difference between two Maps.
      */
-    public static <T extends Diffable<T>> Diff<ImmutableMap<String, T>> readImmutableMapDiff(StreamInput in, T proto) throws IOException {
-        return new ImmutableMapDiff<>(in, new PrototypeReader<>(proto));
+    public static <T extends Diffable<T>> Diff<Map<String, T>> readJdkMapDiff(StreamInput in, T proto) throws IOException {
+        return new JdkMapDiff<>(in, new PrototypeReader<>(proto));
     }
 
     /**
@@ -121,24 +121,24 @@ public final class DiffableUtils {
     }
 
     /**
-     * Represents differences between two ImmutableMaps of diffable objects
+     * Represents differences between two Maps of Diffable objects.
      *
      * @param <T> the diffable object
      */
-    private static class ImmutableMapDiff<T extends Diffable<T>> extends MapDiff<T, ImmutableMap<String, T>> {
+    private static class JdkMapDiff<T extends Diffable<T>> extends MapDiff<T, Map<String, T>> {
 
-        protected ImmutableMapDiff(StreamInput in, KeyedReader<T> reader) throws IOException {
+        protected JdkMapDiff(StreamInput in, KeyedReader<T> reader) throws IOException {
             super(in, reader);
         }
 
-        public ImmutableMapDiff(ImmutableMap<String, T> before, ImmutableMap<String, T> after) {
+        public JdkMapDiff(Map<String, T> before, Map<String, T> after) {
             assert after != null && before != null;
             for (String key : before.keySet()) {
                 if (!after.containsKey(key)) {
                     deletes.add(key);
                 }
             }
-            for (ImmutableMap.Entry<String, T> partIter : after.entrySet()) {
+            for (Map.Entry<String, T> partIter : after.entrySet()) {
                 T beforePart = before.get(partIter.getKey());
                 if (beforePart == null) {
                     adds.put(partIter.getKey(), partIter.getValue());
@@ -149,8 +149,8 @@ public final class DiffableUtils {
         }
 
         @Override
-        public ImmutableMap<String, T> apply(ImmutableMap<String, T> map) {
-            HashMap<String, T> builder = new HashMap<>();
+        public Map<String, T> apply(Map<String, T> map) {
+            Map<String, T> builder = new HashMap<>();
             builder.putAll(map);
 
             for (String part : deletes) {
@@ -164,7 +164,7 @@ public final class DiffableUtils {
             for (Map.Entry<String, T> additon : adds.entrySet()) {
                 builder.put(additon.getKey(), additon.getValue());
             }
-            return ImmutableMap.copyOf(builder);
+            return builder;
         }
     }
 

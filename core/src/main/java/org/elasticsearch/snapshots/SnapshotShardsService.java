@@ -20,6 +20,7 @@
 package org.elasticsearch.snapshots;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.SnapshotFailedEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -91,7 +91,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
 
     private final Condition shutdownCondition = shutdownLock.newCondition();
 
-    private volatile ImmutableMap<SnapshotId, SnapshotShards> shardSnapshots = ImmutableMap.of();
+    private volatile Map<SnapshotId, SnapshotShards> shardSnapshots = ImmutableMap.of();
 
     private final BlockingQueue<UpdateIndexShardSnapshotStatusRequest> updatedSnapshotStateQueue = ConcurrentCollections.newBlockingQueue();
 
@@ -335,7 +335,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
 
         try {
             // we flush first to make sure we get the latest writes snapshotted
-            SnapshotIndexCommit snapshotIndexCommit = indexShard.snapshotIndex(true);
+            IndexCommit snapshotIndexCommit = indexShard.snapshotIndex(true);
             try {
                 indexShardRepository.snapshot(snapshotId, shardId, snapshotIndexCommit, snapshotStatus);
                 if (logger.isDebugEnabled()) {
@@ -345,7 +345,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                     logger.debug(sb.toString());
                 }
             } finally {
-                snapshotIndexCommit.close();
+                indexShard.releaseSnapshot(snapshotIndexCommit);
             }
         } catch (SnapshotFailedEngineException e) {
             throw e;
@@ -368,7 +368,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
             if (snapshot.state() == SnapshotsInProgress.State.STARTED || snapshot.state() == SnapshotsInProgress.State.ABORTED) {
                 Map<ShardId, IndexShardSnapshotStatus> localShards = currentSnapshotShards(snapshot.snapshotId());
                 if (localShards != null) {
-                    ImmutableMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> masterShards = snapshot.shards();
+                    Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> masterShards = snapshot.shards();
                     for(Map.Entry<ShardId, IndexShardSnapshotStatus> localShard : localShards.entrySet()) {
                         ShardId shardId = localShard.getKey();
                         IndexShardSnapshotStatus localShardStatus = localShard.getValue();

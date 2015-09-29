@@ -22,6 +22,7 @@ package org.elasticsearch.search.scroll;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,9 +43,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -501,11 +500,8 @@ public class SearchScrollIT extends ESIntegTestCase {
     @Test
     public void testParseSearchScrollRequestWithInvalidJsonThrowsException() throws Exception {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
-            .value("invalid_json").endObject().bytes();
-
         try {
-            RestSearchScrollAction.buildFromContent(invalidContent, searchScrollRequest);
+            RestSearchScrollAction.buildFromContent(new BytesArray("{invalid_json}"), searchScrollRequest);
             fail("expected parseContent failure");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -542,12 +538,10 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     @Test
     public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
-        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
-            .value("invalid_json").endObject().bytes();
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
 
         try {
-            RestClearScrollAction.buildFromContent(invalidContent, clearScrollRequest);
+            RestClearScrollAction.buildFromContent(new BytesArray("{invalid_json}"), clearScrollRequest);
             fail("expected parseContent failure");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));

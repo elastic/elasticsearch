@@ -23,8 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.TestParsingException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -34,10 +33,7 @@ import org.junit.Test;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -142,17 +138,17 @@ public class BytesRestResponseTests extends ESTestCase {
     public void testConvert() throws IOException {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new DetailedExceptionRestChannel(request);
-        ShardSearchFailure failure = new ShardSearchFailure(new TestParsingException(new Index("foo"), "foobar", null),
+        ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
                 new SearchShardTarget("node_1", "foo", 1));
-        ShardSearchFailure failure1 = new ShardSearchFailure(new TestParsingException(new Index("foo"), "foobar", null),
+        ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
                 new SearchShardTarget("node_1", "foo", 2));
         SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",  new ShardSearchFailure[] {failure, failure1});
         BytesRestResponse response = new BytesRestResponse(channel, new RemoteTransportException("foo", ex));
         String text = response.content().toUtf8();
-        String expected = "{\"error\":{\"root_cause\":[{\"type\":\"test_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}],\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"test_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}}]},\"status\":400}";
+        String expected = "{\"error\":{\"root_cause\":[{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}],\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}]},\"status\":400}";
         assertEquals(expected.trim(), text.trim());
         String stackTrace = ExceptionsHelper.stackTrace(ex);
-        assertTrue(stackTrace.contains("Caused by: [foo] TestParsingException[foobar]"));
+        assertTrue(stackTrace.contains("Caused by: ParsingException[foobar]"));
     }
 
     public static class WithHeadersException extends ElasticsearchException {

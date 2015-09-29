@@ -19,47 +19,34 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
 /**
- *
+ * Parser for wildcard query
  */
-public class WildcardQueryParser implements QueryParser {
-
-    public static final String NAME = "wildcard";
-
-    @Inject
-    public WildcardQueryParser() {
-    }
+public class WildcardQueryParser implements QueryParser<WildcardQueryBuilder> {
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{WildcardQueryBuilder.NAME};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
+    public WildcardQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parseContext, "[wildcard] query malformed, no field");
+            throw new ParsingException(parser.getTokenLocation(), "[wildcard] query malformed, no field");
         }
         String fieldName = parser.currentName();
-        String rewriteMethod = null;
+        String rewrite = null;
 
         String value = null;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -75,11 +62,11 @@ public class WildcardQueryParser implements QueryParser {
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if ("rewrite".equals(currentFieldName)) {
-                        rewriteMethod = parser.textOrNull();
+                        rewrite = parser.textOrNull();
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new ParsingException(parseContext, "[wildcard] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "[wildcard] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -90,24 +77,16 @@ public class WildcardQueryParser implements QueryParser {
         }
 
         if (value == null) {
-            throw new ParsingException(parseContext, "No value specified for prefix query");
+            throw new ParsingException(parser.getTokenLocation(), "No value specified for prefix query");
         }
+        return new WildcardQueryBuilder(fieldName, value)
+                .rewrite(rewrite)
+                .boost(boost)
+                .queryName(queryName);
+    }
 
-        BytesRef valueBytes;
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
-        if (fieldType != null) {
-            fieldName = fieldType.names().indexName();
-            valueBytes = fieldType.indexedValueForSearch(value);
-        } else {
-            valueBytes = new BytesRef(value);
-        }
-
-        WildcardQuery wildcardQuery = new WildcardQuery(new Term(fieldName, valueBytes));
-        QueryParsers.setRewriteMethod(wildcardQuery, parseContext.parseFieldMatcher(), rewriteMethod);
-        wildcardQuery.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, wildcardQuery);
-        }
-        return wildcardQuery;
+    @Override
+    public WildcardQueryBuilder getBuilderPrototype() {
+        return WildcardQueryBuilder.PROTOTYPE;
     }
 }

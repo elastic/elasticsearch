@@ -19,40 +19,30 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanWithinQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
- * Parser for {@link SpanWithinQuery}
+ * Parser for span_within query
  */
-public class SpanWithinQueryParser implements QueryParser {
-
-    public static final String NAME = "span_within";
-
-    @Inject
-    public SpanWithinQueryParser() {
-    }
+public class SpanWithinQueryParser implements QueryParser<SpanWithinQueryBuilder> {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{SpanWithinQueryBuilder.NAME, Strings.toCamelCase(SpanWithinQueryBuilder.NAME)};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
+    public SpanWithinQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
-        SpanQuery big = null;
-        SpanQuery little = null;
+        SpanQueryBuilder big = null;
+        SpanQueryBuilder little = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -61,43 +51,43 @@ public class SpanWithinQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("big".equals(currentFieldName)) {
-                    Query query = parseContext.parseInnerQuery();
-                    if (query instanceof SpanQuery == false) {
-                        throw new ParsingException(parseContext, "span_within [big] must be of type span query");
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (query instanceof SpanQueryBuilder == false) {
+                        throw new ParsingException(parser.getTokenLocation(), "span_within [big] must be of type span query");
                     }
-                    big = (SpanQuery) query;
+                    big = (SpanQueryBuilder) query;
                 } else if ("little".equals(currentFieldName)) {
-                    Query query = parseContext.parseInnerQuery();
-                    if (query instanceof SpanQuery == false) {
-                        throw new ParsingException(parseContext, "span_within [little] must be of type span query");
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (query instanceof SpanQueryBuilder == false) {
+                        throw new ParsingException(parser.getTokenLocation(), "span_within [little] must be of type span query");
                     }
-                    little = (SpanQuery) query;
+                    little = (SpanQueryBuilder) query;
                 } else {
-                    throw new ParsingException(parseContext, "[span_within] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[span_within] query does not support [" + currentFieldName + "]");
                 }
             } else if ("boost".equals(currentFieldName)) {
                 boost = parser.floatValue();
             } else if ("_name".equals(currentFieldName)) {
                 queryName = parser.text();
             } else {
-                throw new ParsingException(parseContext, "[span_within] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[span_within] query does not support [" + currentFieldName + "]");
             }
-        }        
-        
-        if (big == null) {
-            throw new ParsingException(parseContext, "span_within must include [big]");
-        }
-        if (little == null) {
-            throw new ParsingException(parseContext, "span_within must include [little]");
         }
 
-        Query query = new SpanWithinQuery(big, little);
-        if (boost != 1.0F) {
-            query.setBoost(boost);
+        if (big == null) {
+            throw new ParsingException(parser.getTokenLocation(), "span_within must include [big]");
         }
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+        if (little == null) {
+            throw new ParsingException(parser.getTokenLocation(), "span_within must include [little]");
         }
+
+        SpanWithinQueryBuilder query = new SpanWithinQueryBuilder(big, little);
+        query.boost(boost).queryName(queryName);
         return query;
+    }
+
+    @Override
+    public SpanWithinQueryBuilder getBuilderPrototype() {
+        return SpanWithinQueryBuilder.PROTOTYPE;
     }
 }

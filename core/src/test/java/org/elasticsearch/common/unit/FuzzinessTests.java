@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.common.unit;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -162,4 +164,29 @@ public class FuzzinessTests extends ESTestCase {
         }
     }
 
+    @Test
+    public void testSerialization() throws IOException {
+        Fuzziness fuzziness = Fuzziness.AUTO;
+        Fuzziness deserializedFuzziness = doSerializeRoundtrip(fuzziness);
+        assertEquals(fuzziness, deserializedFuzziness);
+
+        fuzziness = Fuzziness.fromEdits(randomIntBetween(0, 2));
+        deserializedFuzziness = doSerializeRoundtrip(fuzziness);
+        assertEquals(fuzziness, deserializedFuzziness);
+    }
+
+    @Test
+    public void testSerializationAuto() throws IOException {
+        Fuzziness fuzziness = Fuzziness.AUTO;
+        Fuzziness deserializedFuzziness = doSerializeRoundtrip(fuzziness);
+        assertEquals(fuzziness, deserializedFuzziness);
+        assertEquals(fuzziness.asInt(), deserializedFuzziness.asInt());
+    }
+
+    private static Fuzziness doSerializeRoundtrip(Fuzziness in) throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        in.writeTo(output);
+        StreamInput streamInput = StreamInput.wrap(output.bytes());
+        return Fuzziness.readFuzzinessFrom(streamInput);
+    }
 }

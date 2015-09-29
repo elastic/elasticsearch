@@ -32,9 +32,9 @@ import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParse
 
 public interface DecayFunction {
 
-    public double evaluate(double value, double scale);
+    double evaluate(double value, double scale);
 
-    public Explanation explainFunction(String valueString, double value, double scale);
+    Explanation explainFunction(String valueString, double value, double scale);
 
     /**
      * The final scale parameter is computed from the scale parameter given by
@@ -49,6 +49,5 @@ public interface DecayFunction {
      *            the value which decay function should take once the distance
      *            reaches this scale
      * */
-    public double processScale(double scale, double decay);
-
+    double processScale(double scale, double decay);
 }

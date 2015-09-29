@@ -434,9 +434,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         }
 
         SearchResponse world = client().prepareSearch().addField("pin").setQuery(
-                geoBoundingBoxQuery("pin")
-                        .topLeft(90, -179.99999)
-                        .bottomRight(-90, 179.99999)
+                geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999)
         ).execute().actionGet();
 
         assertHitCount(world, 53);

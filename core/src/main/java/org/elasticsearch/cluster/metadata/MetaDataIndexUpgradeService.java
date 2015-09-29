@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -40,6 +40,9 @@ import org.elasticsearch.script.ScriptService;
 
 import java.util.Locale;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  * This service is responsible for upgrading legacy index metadata to the current version
@@ -217,7 +220,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     }
 
     /** All known byte-sized settings for an index. */
-    public static final Set<String> INDEX_BYTES_SIZE_SETTINGS = ImmutableSet.of(
+    public static final Set<String> INDEX_BYTES_SIZE_SETTINGS = unmodifiableSet(newHashSet(
                                     "index.merge.policy.floor_segment",
                                     "index.merge.policy.max_merged_segment",
                                     "index.merge.policy.max_merge_size",
@@ -227,10 +230,10 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                                     "index.store.throttle.max_bytes_per_sec",
                                     "index.translog.flush_threshold_size",
                                     "index.translog.fs.buffer_size",
-                                    "index.version_map_size");
+                                    "index.version_map_size"));
 
     /** All known time settings for an index. */
-    public static final Set<String> INDEX_TIME_SETTINGS = ImmutableSet.of(
+    public static final Set<String> INDEX_TIME_SETTINGS = unmodifiableSet(newHashSet(
                                     "index.gateway.wait_for_mapping_update_post_recovery",
                                     "index.shard.wait_for_mapping_update_post_recovery",
                                     "index.gc_deletes",
@@ -252,7 +255,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                                     "index.translog.flush_threshold_period",
                                     "index.translog.interval",
                                     "index.translog.sync_interval",
-                                    UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING);
+                                    UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING));
 
     /**
      * Elasticsearch 2.0 requires units on byte/memory and time settings; this method adds the default unit to any such settings that are

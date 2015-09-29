@@ -19,7 +19,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -38,7 +38,14 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * Allows to asynchronously fetch shard related data from other nodes for allocation, without blocking
@@ -73,6 +80,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         this.action = (List<BaseNodesResponse<T>, T>) action;
     }
 
+    @Override
     public synchronized void close() {
         this.closed = true;
     }
@@ -119,7 +127,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
         // if we are still fetching, return null to indicate it
         if (hasAnyNodeFetching(cache) == true) {
-            return new FetchResult<>(shardId, null, ImmutableSet.<String>of(), ImmutableSet.<String>of());
+            return new FetchResult<>(shardId, null, emptySet(), emptySet());
         } else {
             // nothing to fetch, yay, build the return value
             Map<DiscoveryNode, T> fetchData = new HashMap<>();
@@ -143,7 +151,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                     }
                 }
             }
-            Set<String> allIgnoreNodes = ImmutableSet.copyOf(nodesToIgnore);
+            Set<String> allIgnoreNodes = unmodifiableSet(new HashSet<>(nodesToIgnore));
             // clear the nodes to ignore, we had a successful run in fetching everything we can
             // we need to try them if another full run is needed
             nodesToIgnore.clear();

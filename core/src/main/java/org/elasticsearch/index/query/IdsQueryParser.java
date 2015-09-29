@@ -19,48 +19,36 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 /**
- *
+ * Parser for ids query
  */
-public class IdsQueryParser implements QueryParser {
-
-    public static final String NAME = "ids";
-
-    @Inject
-    public IdsQueryParser() {
-    }
+public class IdsQueryParser implements QueryParser<IdsQueryBuilder> {
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{IdsQueryBuilder.NAME};
     }
 
+    /**
+     * @return a QueryBuilder representation of the query passed in as XContent in the parse context
+     */
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
+    public IdsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-
-        List<BytesRef> ids = new ArrayList<>();
-        Collection<String> types = null;
-        String currentFieldName = null;
-        float boost = 1.0f;
+        List<String> ids = new ArrayList<>();
+        List<String> types = new ArrayList<>();
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
+
+        String currentFieldName = null;
         XContentParser.Token token;
         boolean idsProvided = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -72,27 +60,26 @@ public class IdsQueryParser implements QueryParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if ((token == XContentParser.Token.VALUE_STRING) ||
                                 (token == XContentParser.Token.VALUE_NUMBER)) {
-                            BytesRef value = parser.utf8BytesOrNull();
-                            if (value == null) {
-                                throw new ParsingException(parseContext, "No value specified for term filter");
+                            String id = parser.textOrNull();
+                            if (id == null) {
+                                throw new ParsingException(parser.getTokenLocation(), "No value specified for term filter");
                             }
-                            ids.add(value);
+                            ids.add(id);
                         } else {
-                            throw new ParsingException(parseContext, "Illegal value for id, expecting a string or number, got: "
+                            throw new ParsingException(parser.getTokenLocation(), "Illegal value for id, expecting a string or number, got: "
                                     + token);
                         }
                     }
                 } else if ("types".equals(currentFieldName) || "type".equals(currentFieldName)) {
-                    types = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
-                            throw new ParsingException(parseContext, "No type specified for term filter");
+                            throw new ParsingException(parser.getTokenLocation(), "No type specified for term filter");
                         }
                         types.add(value);
                     }
                 } else {
-                    throw new ParsingException(parseContext, "[ids] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[ids] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
@@ -102,30 +89,22 @@ public class IdsQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[ids] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[ids] query does not support [" + currentFieldName + "]");
                 }
             }
         }
-
         if (!idsProvided) {
-            throw new ParsingException(parseContext, "[ids] query, no ids values provided");
+            throw new ParsingException(parser.getTokenLocation(), "[ids] query, no ids values provided");
         }
 
-        if (ids.isEmpty()) {
-            return Queries.newMatchNoDocsQuery();
-        }
-
-        if (types == null || types.isEmpty()) {
-            types = parseContext.queryTypes();
-        } else if (types.size() == 1 && Iterables.getFirst(types, null).equals("_all")) {
-            types = parseContext.mapperService().types();
-        }
-
-        TermsQuery query = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(types, ids));
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
+        IdsQueryBuilder query = new IdsQueryBuilder(types.toArray(new String[types.size()]));
+        query.addIds(ids.toArray(new String[ids.size()]));
+        query.boost(boost).queryName(queryName);
         return query;
+    }
+
+    @Override
+    public IdsQueryBuilder getBuilderPrototype() {
+        return IdsQueryBuilder.PROTOTYPE;
     }
 }

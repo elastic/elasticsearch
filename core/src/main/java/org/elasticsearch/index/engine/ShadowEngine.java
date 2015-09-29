@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -209,9 +209,11 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
+    public IndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
         throw new UnsupportedOperationException("Can not take snapshot from a shadow engine");
     }
+
+
 
     @Override
     protected SearcherManager getSearcherManager() {

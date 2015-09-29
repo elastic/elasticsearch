@@ -20,7 +20,6 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -81,7 +80,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
             try {
                 IndexService indexService = indicesService.indexServiceSafe(request.index());
                 IndexShard indexShard = indexService.shardSafe(shardId.id());
-                TermVectorsResponse termVectorsResponse = indexShard.termVectorsService().getTermVectors(termVectorsRequest, shardId.getIndex());
+                TermVectorsResponse termVectorsResponse = indexShard.getTermVectors(termVectorsRequest);
                 termVectorsResponse.updateTookInMillis(termVectorsRequest.startTime());
                 response.add(request.locations.get(i), termVectorsResponse);
             } catch (Throwable t) {

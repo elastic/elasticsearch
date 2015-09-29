@@ -41,7 +41,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class DiffableTests extends ESTestCase {
 
     @Test
-    public void testImmutableMapDiff() throws IOException {
+    public void testJdkMapDiff() throws IOException {
         ImmutableMap.Builder<String, TestDiffable> builder = ImmutableMap.builder();
         builder.put("foo", new TestDiffable("1"));
         builder.put("bar", new TestDiffable("2"));
@@ -57,7 +57,7 @@ public class DiffableTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         diff.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes());
-        ImmutableMap<String, TestDiffable> serialized = DiffableUtils.readImmutableMapDiff(in, TestDiffable.PROTO).apply(before);
+        Map<String, TestDiffable> serialized = DiffableUtils.readJdkMapDiff(in, TestDiffable.PROTO).apply(before);
         assertThat(serialized.size(), equalTo(3));
         assertThat(serialized.get("foo").value(), equalTo("1"));
         assertThat(serialized.get("baz").value(), equalTo("4"));

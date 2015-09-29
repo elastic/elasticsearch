@@ -41,8 +41,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.concurrent.*;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -275,15 +275,14 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
         try {
             final UpdateTask task = new UpdateTask(source, priority, updateTask);
-            if (updateTask instanceof TimeoutClusterStateUpdateTask) {
-                final TimeoutClusterStateUpdateTask timeoutUpdateTask = (TimeoutClusterStateUpdateTask) updateTask;
-                updateTasksExecutor.execute(task, threadPool.scheduler(), timeoutUpdateTask.timeout(), new Runnable() {
+            if (updateTask.timeout() != null) {
+                updateTasksExecutor.execute(task, threadPool.scheduler(), updateTask.timeout(), new Runnable() {
                     @Override
                     public void run() {
                         threadPool.generic().execute(new Runnable() {
                             @Override
                             public void run() {
-                                timeoutUpdateTask.onFailure(task.source(), new ProcessClusterEventTimeoutException(timeoutUpdateTask.timeout(), task.source()));
+                                updateTask.onFailure(task.source(), new ProcessClusterEventTimeoutException(updateTask.timeout(), task.source()));
                             }
                         });
                     }
@@ -401,9 +400,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     //no need to wait for ack if nothing changed, the update can be counted as acknowledged
                     ((AckedClusterStateUpdateTask) updateTask).onAllNodesAcked(null);
                 }
-                if (updateTask instanceof ProcessedClusterStateUpdateTask) {
-                    ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
-                }
+                updateTask.clusterStateProcessed(source, previousClusterState, newClusterState);
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)));
                 logger.debug("processing [{}]: took {} no change in cluster_state", source, executionTime);
                 warnAboutSlowTaskIfNeeded(executionTime, source);
@@ -526,9 +523,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     }
                 }
 
-                if (updateTask instanceof ProcessedClusterStateUpdateTask) {
-                    ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
-                }
+                updateTask.clusterStateProcessed(source, previousClusterState, newClusterState);
 
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)));
                 logger.debug("processing [{}]: took {} done applying updated cluster_state (version: {}, uuid: {})", source, executionTime, newClusterState.version(), newClusterState.stateUUID());

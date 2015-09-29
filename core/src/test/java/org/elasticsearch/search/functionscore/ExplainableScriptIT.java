@@ -24,14 +24,10 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.AbstractDoubleSearchScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ExplainableSearchScript;
-import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.script.Script;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -49,7 +45,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -79,9 +74,9 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         ensureYellow();
         SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("text", "text")).add(
+                                functionScoreQuery(termQuery("text", "text"),
                                         scriptFunction(new Script("native_explainable_script", ScriptType.INLINE, "native", null)))
-                                        .boostMode("replace")))).actionGet();
+                                        .boostMode(CombineFunction.REPLACE)))).actionGet();
 
         ElasticsearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();

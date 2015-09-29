@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.ActionFilters;
@@ -52,6 +53,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.CollectionUtils.newLinkedList;
@@ -105,7 +107,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             }
         }
 
-        MapBuilder<String, ImmutableMap<String, FieldMappingMetaData>> typeMappings = new MapBuilder<>();
+        MapBuilder<String, Map<String, FieldMappingMetaData>> typeMappings = new MapBuilder<>();
         for (String type : typeIntersection) {
             DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
             ImmutableMap<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(documentMapper, request);

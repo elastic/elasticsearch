@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.LeafReaderContext;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  *
@@ -46,4 +47,23 @@ public abstract class ScoreFunction {
      * @return {@code true} if scores are needed.
      */
     public abstract boolean needsScores();
+
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        ScoreFunction other = (ScoreFunction) obj;
+        return Objects.equals(scoreCombiner, other.scoreCombiner) &&
+                doEquals(other);
+    }
+
+    /**
+     * Indicates whether some other {@link ScoreFunction} object of the same type is "equal to" this one.
+     */
+    protected abstract boolean doEquals(ScoreFunction other);
 }

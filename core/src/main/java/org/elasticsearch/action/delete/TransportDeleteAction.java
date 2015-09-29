@@ -138,8 +138,7 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
         request.version(delete.version());
 
         assert request.versionType().validateVersionForWrites(request.version());
-
-        processAfter(request, indexShard, delete.getTranslogLocation());
+        processAfter(request.refresh(), indexShard, delete.getTranslogLocation());
 
         DeleteResponse response = new DeleteResponse(shardRequest.shardId.getIndex(), request.type(), request.id(), delete.version(), delete.found());
         return new Tuple<>(response, shardRequest.request);
@@ -151,26 +150,12 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
 
         indexShard.delete(delete);
-        processAfter(request, indexShard, delete.getTranslogLocation());
+        processAfter(request.refresh(), indexShard, delete.getTranslogLocation());
     }
 
     @Override
     protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
         return clusterService.operationRouting()
                 .deleteShards(clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing());
-    }
-
-    private void processAfter(DeleteRequest request, IndexShard indexShard, Translog.Location location) {
-        if (request.refresh()) {
-            try {
-                indexShard.refresh("refresh_flag_delete");
-            } catch (Throwable e) {
-                // ignore
-            }
-        }
-
-        if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
-            indexShard.sync(location);
-        }
     }
 }

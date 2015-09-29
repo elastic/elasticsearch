@@ -21,7 +21,6 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.*;
@@ -130,7 +129,7 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
         try {
             fieldParser.parser.parse(parser, value, context);
         } catch (Exception ex) {
-            throw new ParsingException(new Index("_na_"), parser, "[" + name  + "] failed to parse field [" + currentFieldName + "]", ex);
+            throw new ParsingException(parser.getTokenLocation(), "[" + name  + "] failed to parse field [" + currentFieldName + "]", ex);
         }
     }
 
@@ -172,7 +171,7 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
         try {
             return parse(parser, valueSupplier.get(), context);
         } catch (IOException e) {
-            throw new ParsingException(new Index("_na_"), parser, "[" + name  + "] failed to parse object", e);
+            throw new ParsingException(parser.getTokenLocation(), "[" + name  + "] failed to parse object", e);
         }
     }
 

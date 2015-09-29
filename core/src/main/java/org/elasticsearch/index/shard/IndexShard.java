@@ -22,6 +22,9 @@ package org.elasticsearch.index.shard;
 import java.nio.charset.StandardCharsets;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -32,6 +35,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -46,10 +51,12 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexService;
@@ -61,8 +68,6 @@ import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -89,7 +94,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
-import org.elasticsearch.index.termvectors.ShardTermVectorsService;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -113,6 +118,7 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class IndexShard extends AbstractIndexShardComponent {
@@ -134,7 +140,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final ShardFieldData shardFieldData;
     private final PercolatorQueriesRegistry percolatorQueriesRegistry;
     private final ShardPercolateService shardPercolateService;
-    private final ShardTermVectorsService termVectorsService;
+    private final TermVectorsService termVectorsService;
     private final IndexFieldDataService indexFieldDataService;
     private final IndexService indexService;
     private final ShardSuggestMetric shardSuggestMetric = new ShardSuggestMetric();
@@ -175,12 +181,20 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final ShardEngineFailListener failedEngineListener = new ShardEngineFailListener();
     private volatile boolean flushOnClose = true;
+    private volatile int flushThresholdOperations;
+    private volatile ByteSizeValue flushThresholdSize;
+    private volatile boolean disableFlush;
 
     /**
      * Index setting to control if a flush is executed before engine is closed
      * This setting is realtime updateable.
      */
     public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
+    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS = "index.translog.flush_threshold_ops";
+    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
+    public static final String INDEX_TRANSLOG_DISABLE_FLUSH = "index.translog.disable_flush";
+
+
     private final ShardPath path;
 
     private final IndexShardOperationCounter indexShardOperationCounter;
@@ -190,18 +204,17 @@ public class IndexShard extends AbstractIndexShardComponent {
     @Inject
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, StoreRecoveryService storeRecoveryService,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
-                      IndicesQueryCache indicesQueryCache, ShardPercolateService shardPercolateService, CodecService codecService,
-                      ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService,
-                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, EngineFactory factory,
+                      IndicesQueryCache indicesQueryCache, CodecService codecService,
+                      TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService,
+                      @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory,
                       ClusterService clusterService, ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) {
         super(shardId, indexSettingsService.getSettings());
         this.codecService = codecService;
         this.warmer = warmer;
-        this.deletionPolicy = deletionPolicy;
+        this.deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
         this.similarityService = similarityService;
         this.wrappingService = wrappingService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
-        Objects.requireNonNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
         this.engineFactory = factory;
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -215,14 +228,14 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indexAliasesService = indexAliasesService;
         this.indexingService = new ShardIndexingService(shardId, indexSettings);
         this.getService = new ShardGetService(this, mapperService);
-        this.termVectorsService = termVectorsService.setIndexShard(this);
+        this.termVectorsService = termVectorsService;
         this.searchService = new ShardSearchStats(indexSettings);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.indicesQueryCache = indicesQueryCache;
         this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
         this.shardFieldData = new ShardFieldData();
+        this.shardPercolateService = new ShardPercolateService(shardId, indexSettings);
         this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryParserService, indexingService, indicesLifecycle, mapperService, indexFieldDataService, shardPercolateService);
-        this.shardPercolateService = shardPercolateService;
         this.indexFieldDataService = indexFieldDataService;
         this.indexService = indexService;
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
@@ -250,8 +263,10 @@ public class IndexShard extends AbstractIndexShardComponent {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
+        this.flushThresholdOperations = indexSettings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, indexSettings.getAsInt("index.translog.flush_threshold", Integer.MAX_VALUE));
+        this.flushThresholdSize = indexSettings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
+        this.disableFlush = indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
-
     }
 
     public Store store() {
@@ -269,10 +284,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public ShardGetService getService() {
         return this.getService;
-    }
-
-    public ShardTermVectorsService termVectorsService() {
-        return termVectorsService;
     }
 
     public ShardSuggestMetric getSuggestMetric() {
@@ -623,6 +634,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         return segmentsStats;
     }
 
+    public TermVectorsResponse getTermVectors(TermVectorsRequest request) {
+        return this.termVectorsService.getTermVectors(this, request);
+    }
+
     public WarmerStats warmerStats() {
         return shardWarmerService.stats();
     }
@@ -729,7 +744,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         return luceneVersion == null ? Version.indexCreated(indexSettings).luceneVersion : luceneVersion;
     }
 
-    public SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
+    /**
+     * Creates a new {@link IndexCommit} snapshot form the currently running engine. All resources referenced by this
+     * commit won't be freed until the commit / snapshot is released via {@link #releaseSnapshot(IndexCommit)}.
+     *
+     * @param flushFirst <code>true</code> if the index should first be flushed to disk / a low level lucene commit should be executed
+     */
+    public IndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
         IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
@@ -737,6 +758,15 @@ public class IndexShard extends AbstractIndexShardComponent {
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
+    }
+
+
+    /**
+     * Releases a snapshot taken from {@link #snapshotIndex(boolean)} this must be called to release the resources
+     * referenced by the given snapshot {@link IndexCommit}.
+     */
+    public void releaseSnapshot(IndexCommit snapshot) throws IOException {
+        deletionPolicy.release(snapshot);
     }
 
     /**
@@ -1050,6 +1080,25 @@ public class IndexShard extends AbstractIndexShardComponent {
         storeRecoveryService.recover(this, shouldExist, recoveryListener);
     }
 
+    /**
+     * Returns <code>true</code> iff this shard needs to be flushed due to too many translog operation or a too large transaction log.
+     * Otherwise <code>false</code>.
+     */
+    boolean shouldFlush() {
+        if (disableFlush == false) {
+            Engine engine = engineUnsafe();
+            if (engine != null) {
+                try {
+                    Translog translog = engine.getTranslog();
+                    return translog.totalOperations() > flushThresholdOperations || translog.sizeInBytes() > flushThresholdSize.bytes();
+                } catch (AlreadyClosedException ex) {
+                    // that's fine we are already close - no need to flush
+                }
+            }
+        }
+        return false;
+    }
+
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
@@ -1058,6 +1107,22 @@ public class IndexShard extends AbstractIndexShardComponent {
                 if (state() == IndexShardState.CLOSED) { // no need to update anything if we are closed
                     return;
                 }
+                int flushThresholdOperations = settings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, IndexShard.this.flushThresholdOperations);
+                if (flushThresholdOperations != IndexShard.this.flushThresholdOperations) {
+                    logger.info("updating flush_threshold_ops from [{}] to [{}]", IndexShard.this.flushThresholdOperations, flushThresholdOperations);
+                    IndexShard.this.flushThresholdOperations = flushThresholdOperations;
+                }
+                ByteSizeValue flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, IndexShard.this.flushThresholdSize);
+                if (!flushThresholdSize.equals(IndexShard.this.flushThresholdSize)) {
+                    logger.info("updating flush_threshold_size from [{}] to [{}]", IndexShard.this.flushThresholdSize, flushThresholdSize);
+                    IndexShard.this.flushThresholdSize = flushThresholdSize;
+                }
+                boolean disableFlush = settings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, IndexShard.this.disableFlush);
+                if (disableFlush != IndexShard.this.disableFlush) {
+                    logger.info("updating disable_flush from [{}] to [{}]", IndexShard.this.disableFlush, disableFlush);
+                    IndexShard.this.disableFlush = disableFlush;
+                }
+
                 final EngineConfig config = engineConfig;
                 final boolean flushOnClose = settings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, IndexShard.this.flushOnClose);
                 if (flushOnClose != IndexShard.this.flushOnClose) {
@@ -1437,4 +1502,48 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
+    private final AtomicBoolean asyncFlushRunning = new AtomicBoolean();
+
+    /**
+     * Schedules a flush if needed but won't schedule more than one flush concurrently. The flush will be executed on the
+     * Flush thread-pool asynchronously.
+     * @return <code>true</code> if a new flush is scheduled otherwise <code>false</code>.
+     */
+    public boolean maybeFlush() {
+        if (shouldFlush()) {
+            if (asyncFlushRunning.compareAndSet(false, true)) { // we can't use a lock here since we "release" in a different thread
+                if (shouldFlush() == false) {
+                    // we have to check again since otherwise there is a race when a thread passes
+                    // the first shouldFlush() check next to another thread which flushes fast enough
+                    // to finish before the current thread could flip the asyncFlushRunning flag.
+                    // in that situation we have an extra unexpected flush.
+                    asyncFlushRunning.compareAndSet(true, false);
+                } else {
+                    logger.debug("submitting async flush request");
+                    final AbstractRunnable abstractRunnable = new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Throwable t) {
+                            if (state != IndexShardState.CLOSED) {
+                                logger.warn("failed to flush index", t);
+                            }
+                        }
+
+                        @Override
+                        protected void doRun() throws Exception {
+                            flush(new FlushRequest());
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            asyncFlushRunning.compareAndSet(true, false);
+                            maybeFlush(); // fire a flush up again if we have filled up the limits such that shouldFlush() returns true
+                        }
+                    };
+                    threadPool.executor(ThreadPool.Names.FLUSH).execute(abstractRunnable);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 }

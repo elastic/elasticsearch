@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.percolator;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
@@ -26,6 +27,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
@@ -35,7 +37,7 @@ import java.io.IOException;
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.percolator.PercolatorIT.convertFromTextArray;
+import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
 import static org.hamcrest.Matchers.*;
@@ -360,7 +362,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         ensureGreen("nestedindex");
 
         client().prepareIndex("nestedindex", PercolatorService.TYPE_NAME, "Q").setSource(jsonBuilder().startObject()
-                .field("query", QueryBuilders.nestedQuery("employee", QueryBuilders.matchQuery("employee.name", "virginia potts").operator(MatchQueryBuilder.Operator.AND)).scoreMode("avg")).endObject()).get();
+                .field("query", QueryBuilders.nestedQuery("employee", QueryBuilders.matchQuery("employee.name", "virginia potts").operator(Operator.AND)).scoreMode(ScoreMode.Avg)).endObject()).get();
 
         refresh();
 

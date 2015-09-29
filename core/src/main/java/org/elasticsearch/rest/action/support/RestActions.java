@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
@@ -97,13 +98,7 @@ public class RestActions {
         queryBuilder.lenient(request.paramAsBoolean("lenient", null));
         String defaultOperator = request.param("default_operator");
         if (defaultOperator != null) {
-            if ("OR".equals(defaultOperator)) {
-                queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.OR);
-            } else if ("AND".equals(defaultOperator)) {
-                queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
-            } else {
-                throw new IllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
-            }
+            queryBuilder.defaultOperator(Operator.fromString(defaultOperator));
         }
         return new QuerySourceBuilder().setQuery(queryBuilder);
     }

@@ -60,8 +60,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
-import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.*;
@@ -231,14 +229,9 @@ public class InternalEngineTests extends ESTestCase {
         return new Translog(translogConfig);
     }
 
-    protected IndexDeletionPolicy createIndexDeletionPolicy() {
-        return new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS);
-    }
-
     protected SnapshotDeletionPolicy createSnapshotDeletionPolicy() {
-        return new SnapshotDeletionPolicy(createIndexDeletionPolicy());
+        return new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
     }
-
 
     protected InternalEngine createEngine(Store store, Path translogPath, IndexSearcherWrapper... wrappers) {
         return createEngine(defaultSettings, store, translogPath, new MergeSchedulerConfig(defaultSettings), newMergePolicy(), wrappers);

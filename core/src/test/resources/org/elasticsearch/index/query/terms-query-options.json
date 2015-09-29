@@ -1,8 +1,0 @@
-{
-    "terms":{
-        "name.first":["shay", "test", "elasticsearch"],
-        "disable_coord":true,
-        "boost":2.0,
-        "min_should_match":2
-    }
-}

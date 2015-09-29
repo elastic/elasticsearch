@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.closeTo;

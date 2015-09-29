@@ -304,7 +304,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             assert preVersionTypes[requestIndex] != null;
         }
 
-        processAfter(request, indexShard, location);
+        processAfter(request.refresh(), indexShard, location);
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
         BulkItemRequest[] items = request.items();
         for (int i = 0; i < items.length; i++) {
@@ -500,21 +500,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             }
         }
 
-       processAfter(request, indexShard, location);
-    }
-
-    private void processAfter(BulkShardRequest request, IndexShard indexShard, Translog.Location location) {
-        if (request.refresh()) {
-            try {
-                indexShard.refresh("refresh_flag_bulk");
-            } catch (Throwable e) {
-                // ignore
-            }
-        }
-
-        if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
-            indexShard.sync(location);
-        }
+       processAfter(request.refresh(), indexShard, location);
     }
 
     private void applyVersion(BulkItemRequest item, long version, VersionType versionType) {

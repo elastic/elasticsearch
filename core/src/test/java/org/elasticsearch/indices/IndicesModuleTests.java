@@ -20,13 +20,9 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.index.query.TermQueryParser;
+import org.elasticsearch.index.query.*;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,8 +35,14 @@ public class IndicesModuleTests extends ModuleTestCase {
         public String[] names() {
             return new String[] {"fake-query-parser"};
         }
+
         @Override
-        public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
+        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+            return null;
+        }
+
+        @Override
+        public QueryBuilder getBuilderPrototype() {
             return null;
         }
     }

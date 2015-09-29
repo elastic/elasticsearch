@@ -157,7 +157,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         // We should have information about this shard from the shard:
                         TransportNodesSnapshotsStatus.NodeSnapshotStatus nodeStatus = nodeSnapshotStatusMap.get(status.nodeId());
                         if (nodeStatus != null) {
-                            ImmutableMap<ShardId, SnapshotIndexShardStatus> shardStatues = nodeStatus.status().get(entry.snapshotId());
+                            Map<ShardId, SnapshotIndexShardStatus> shardStatues = nodeStatus.status().get(entry.snapshotId());
                             if (shardStatues != null) {
                                 SnapshotIndexShardStatus shardStatus = shardStatues.get(shardEntry.getKey());
                                 if (shardStatus != null) {
@@ -204,7 +204,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     Snapshot snapshot = snapshotsService.snapshot(snapshotId);
                     List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                     if (snapshot.state().completed()) {
-                        ImmutableMap<ShardId, IndexShardSnapshotStatus> shardStatues = snapshotsService.snapshotShards(snapshotId);
+                        Map<ShardId, IndexShardSnapshotStatus> shardStatues = snapshotsService.snapshotShards(snapshotId);
                         for (ImmutableMap.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatues.entrySet()) {
                             shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), shardStatus.getValue()));
                         }

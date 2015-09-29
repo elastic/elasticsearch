@@ -105,11 +105,6 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-expressions</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>com.spatial4j</groupId>
             <artifactId>spatial4j</artifactId>
             <scope>provided</scope>
@@ -185,12 +180,6 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>org.codehaus.groovy</groupId>
-            <artifactId>groovy-all</artifactId>
-            <classifier>indy</classifier>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
             <scope>provided</scope>
@@ -242,6 +231,9 @@
                     <!-- used in plugin REST tests -->
                     <include>api/index.json</include>
                     <include>api/get.json</include>
+                    <include>api/get_script.json</include>
+                    <include>api/put_script.json</include>
+                    <include>api/delete_script.json</include>
                     <include>api/update.json</include>
                     <include>api/search.json</include>
                     <include>api/indices.analyze.json</include>
@@ -401,6 +393,8 @@
         <module>discovery-azure</module>
         <module>discovery-ec2</module>
         <module>discovery-multicast</module>
+        <module>lang-expression</module>
+        <module>lang-groovy</module>
         <module>lang-javascript</module>
         <module>lang-python</module>
         <module>mapper-murmur3</module>

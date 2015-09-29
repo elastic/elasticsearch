@@ -25,6 +25,7 @@ import org.junit.Test;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -33,7 +34,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class PathTrieTests extends ESTestCase {
 
-    @Test
     public void testPath() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("/a/b/c", "walla");
@@ -61,14 +61,12 @@ public class PathTrieTests extends ESTestCase {
         assertThat(params.get("docId"), equalTo("12"));
     }
 
-    @Test
     public void testEmptyPath() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("/", "walla");
         assertThat(trie.retrieve(""), equalTo("walla"));
     }
 
-    @Test
     public void testDifferentNamesOnDifferentPath() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("/a/{type}", "test1");
@@ -83,7 +81,6 @@ public class PathTrieTests extends ESTestCase {
         assertThat(params.get("name"), equalTo("testX"));
     }
 
-    @Test
     public void testSameNameOnDifferentPath() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("/a/c/{name}", "test1");
@@ -98,7 +95,6 @@ public class PathTrieTests extends ESTestCase {
         assertThat(params.get("name"), equalTo("testX"));
     }
 
-    @Test
     public void testPreferNonWildcardExecution() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("{test}", "test1");
@@ -115,7 +111,6 @@ public class PathTrieTests extends ESTestCase {
         assertThat(trie.retrieve("/v/x/c", params), equalTo("test6"));
     }
 
-    @Test
     public void testSamePathConcreteResolution() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("{x}/{y}/{z}", "test1");
@@ -132,7 +127,6 @@ public class PathTrieTests extends ESTestCase {
         assertThat(params.get("k"), equalTo("c"));
     }
 
-    @Test
     public void testNamedWildcardAndLookupWithWildcard() {
         PathTrie<String> trie = new PathTrie<>();
         trie.insert("x/{test}", "test1");
@@ -161,4 +155,25 @@ public class PathTrieTests extends ESTestCase {
         assertThat(trie.retrieve("a/*/_endpoint", params), equalTo("test5"));
         assertThat(params.get("test"), equalTo("*"));
     }
+
+    public void testSplitPath() {
+        PathTrie<String> trie = new PathTrie<>();
+        assertThat(trie.splitPath("/a/"), arrayContaining("a"));
+        assertThat(trie.splitPath("/a/b"),arrayContaining("a", "b"));
+        assertThat(trie.splitPath("/a/b/c"), arrayContaining("a", "b", "c"));
+        assertThat(trie.splitPath("/a/b/<c/d>"), arrayContaining("a", "b", "<c/d>"));
+        assertThat(trie.splitPath("/a/b/<c/d>/d"), arrayContaining("a", "b", "<c/d>", "d"));
+
+        assertThat(trie.splitPath("/<logstash-{now}>/_search"), arrayContaining("<logstash-{now}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/d}>/_search"), arrayContaining("<logstash-{now/d}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM}}>/_search"), arrayContaining("<logstash-{now/M{YYYY.MM}}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM}}>/_search"), arrayContaining("<logstash-{now/M{YYYY.MM}}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM|UTC}}>/log/_search"), arrayContaining("<logstash-{now/M{YYYY.MM|UTC}}>", "log", "_search"));
+
+        assertThat(trie.splitPath("/<logstash-{now/M}>,<logstash-{now/M-1M}>/_search"), arrayContaining("<logstash-{now/M}>,<logstash-{now/M-1M}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/M}>,<logstash-{now/M-1M}>/_search"), arrayContaining("<logstash-{now/M}>,<logstash-{now/M-1M}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM}}>,<logstash-{now/M-1M{YYYY.MM}}>/_search"), arrayContaining("<logstash-{now/M{YYYY.MM}}>,<logstash-{now/M-1M{YYYY.MM}}>", "_search"));
+        assertThat(trie.splitPath("/<logstash-{now/M{YYYY.MM|UTC}}>,<logstash-{now/M-1M{YYYY.MM|UTC}}>/_search"), arrayContaining("<logstash-{now/M{YYYY.MM|UTC}}>,<logstash-{now/M-1M{YYYY.MM|UTC}}>", "_search"));
+    }
+
 }

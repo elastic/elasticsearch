@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -100,7 +100,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
     private void deleteIndex(final Request request, final Listener userListener, Semaphore mdLock) {
         final DeleteIndexListener listener = new DeleteIndexListener(mdLock, userListener);
-        clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", Priority.URGENT, new ClusterStateUpdateTask() {
 
             @Override
             public TimeValue timeout() {

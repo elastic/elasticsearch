@@ -49,7 +49,10 @@ import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
@@ -286,28 +289,28 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
                         .endObject().endObject()));
         ensureSearchable("test", "shapes");
 
-        GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", "1", "type", ShapeRelation.INTERSECTS)
+        GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", "1", "type").relation(ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
                 .indexedShapePath("location");
         SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
-        filter = QueryBuilders.geoShapeQuery("location", "1", "type", ShapeRelation.INTERSECTS)
+        filter = QueryBuilders.geoShapeQuery("location", "1", "type").relation(ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
                 .indexedShapePath("1.location");
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
-        filter = QueryBuilders.geoShapeQuery("location", "1", "type", ShapeRelation.INTERSECTS)
+        filter = QueryBuilders.geoShapeQuery("location", "1", "type").relation(ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
                 .indexedShapePath("1.2.location");
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
-        filter = QueryBuilders.geoShapeQuery("location", "1", "type", ShapeRelation.INTERSECTS)
+        filter = QueryBuilders.geoShapeQuery("location", "1", "type").relation(ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
                 .indexedShapePath("1.2.3.location");
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
@@ -360,7 +363,8 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
         ShapeBuilder filterShape = (gcb.getShapeAt(randomIntBetween(0, gcb.numShapes() - 1)));
 
-        GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", filterShape, ShapeRelation.INTERSECTS);
+        GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", filterShape);
+        filter.relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
@@ -399,19 +403,30 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
                 .setSource(docSource));
         ensureSearchable("test");
 
-        GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", ShapeBuilder.newGeometryCollection().polygon(ShapeBuilder.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0).point(99.0, -1.0)), ShapeRelation.INTERSECTS);
+        GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery(
+                "location",
+                ShapeBuilder.newGeometryCollection()
+                        .polygon(
+                                ShapeBuilder.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0)
+                                        .point(99.0, -1.0))).relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
-        filter = QueryBuilders.geoShapeQuery("location", ShapeBuilder.newGeometryCollection().polygon(ShapeBuilder.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0).point(199.0, -11.0)), ShapeRelation.INTERSECTS);
+        filter = QueryBuilders.geoShapeQuery(
+                "location",
+                ShapeBuilder.newGeometryCollection().polygon(
+                        ShapeBuilder.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0)
+                                .point(199.0, -11.0))).relation(ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 0);
         filter = QueryBuilders.geoShapeQuery("location", ShapeBuilder.newGeometryCollection()
                 .polygon(ShapeBuilder.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0).point(99.0, -1.0))
-                .polygon(ShapeBuilder.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0).point(199.0, -11.0)), ShapeRelation.INTERSECTS);
+                        .polygon(
+                                ShapeBuilder.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0)
+                                        .point(199.0, -11.0))).relation(ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);

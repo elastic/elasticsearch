@@ -19,48 +19,34 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
 /**
- *
+ * Parser for prefix query
  */
-public class PrefixQueryParser implements QueryParser {
-
-    public static final String NAME = "prefix";
+public class PrefixQueryParser implements QueryParser<PrefixQueryBuilder> {
 
     private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of prefix query");
 
-    @Inject
-    public PrefixQueryParser() {
-    }
-
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{PrefixQueryBuilder.NAME};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
+    public PrefixQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = parser.currentName();
-        String rewriteMethod = null;
-        String queryName = null;
-
         String value = null;
-        float boost = 1.0f;
+        String rewrite = null;
+
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -81,9 +67,9 @@ public class PrefixQueryParser implements QueryParser {
                         } else if ("boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
                         } else if ("rewrite".equals(currentFieldName)) {
-                            rewriteMethod = parser.textOrNull();
+                            rewrite = parser.textOrNull();
                         } else {
-                            throw new ParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(), "[regexp] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -98,27 +84,16 @@ public class PrefixQueryParser implements QueryParser {
         }
 
         if (value == null) {
-            throw new ParsingException(parseContext, "No value specified for prefix query");
+            throw new ParsingException(parser.getTokenLocation(), "No value specified for prefix query");
         }
+        return new PrefixQueryBuilder(fieldName, value)
+                .rewrite(rewrite)
+                .boost(boost)
+                .queryName(queryName);
+    }
 
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), rewriteMethod, null);
-
-        Query query = null;
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
-        if (fieldType != null) {
-            query = fieldType.prefixQuery(value, method, parseContext);
-        }
-        if (query == null) {
-            PrefixQuery prefixQuery = new PrefixQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));
-            if (method != null) {
-                prefixQuery.setRewriteMethod(method);
-            }
-            query = prefixQuery;
-        }
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return  query;
+    @Override
+    public PrefixQueryBuilder getBuilderPrototype() {
+        return PrefixQueryBuilder.PROTOTYPE;
     }
 }

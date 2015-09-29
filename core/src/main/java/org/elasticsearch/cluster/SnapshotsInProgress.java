@@ -38,6 +38,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
+
 /**
  * Meta data about snapshots that are currently executing
  */
@@ -67,12 +69,12 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
         private final State state;
         private final SnapshotId snapshotId;
         private final boolean includeGlobalState;
-        private final ImmutableMap<ShardId, ShardSnapshotStatus> shards;
+        private final Map<ShardId, ShardSnapshotStatus> shards;
         private final List<String> indices;
-        private final ImmutableMap<String, List<ShardId>> waitingIndices;
+        private final Map<String, List<ShardId>> waitingIndices;
         private final long startTime;
 
-        public Entry(SnapshotId snapshotId, boolean includeGlobalState, State state, List<String> indices, long startTime, ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
+        public Entry(SnapshotId snapshotId, boolean includeGlobalState, State state, List<String> indices, long startTime, Map<ShardId, ShardSnapshotStatus> shards) {
             this.state = state;
             this.snapshotId = snapshotId;
             this.includeGlobalState = includeGlobalState;
@@ -82,16 +84,16 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
                 this.shards = ImmutableMap.of();
                 this.waitingIndices = ImmutableMap.of();
             } else {
-                this.shards = shards;
+                this.shards = unmodifiableMap(shards);
                 this.waitingIndices = findWaitingIndices(shards);
             }
         }
 
-        public Entry(Entry entry, State state, ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
+        public Entry(Entry entry, State state, Map<ShardId, ShardSnapshotStatus> shards) {
             this(entry.snapshotId, entry.includeGlobalState, state, entry.indices, entry.startTime, shards);
         }
 
-        public Entry(Entry entry, ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
+        public Entry(Entry entry, Map<ShardId, ShardSnapshotStatus> shards) {
             this(entry, entry.state, shards);
         }
 
@@ -99,7 +101,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             return this.snapshotId;
         }
 
-        public ImmutableMap<ShardId, ShardSnapshotStatus> shards() {
+        public Map<ShardId, ShardSnapshotStatus> shards() {
             return this.shards;
         }
 
@@ -111,7 +113,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             return indices;
         }
 
-        public ImmutableMap<String, List<ShardId>> waitingIndices() {
+        public Map<String, List<ShardId>> waitingIndices() {
             return waitingIndices;
         }
 
@@ -153,7 +155,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             return result;
         }
 
-        private ImmutableMap<String, List<ShardId>> findWaitingIndices(ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
+        private ImmutableMap<String, List<ShardId>> findWaitingIndices(Map<ShardId, ShardSnapshotStatus> shards) {
             Map<String, List<ShardId>> waitingIndicesMap = new HashMap<>();
             for (ImmutableMap.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
                 if (entry.getValue().state() == State.WAITING) {

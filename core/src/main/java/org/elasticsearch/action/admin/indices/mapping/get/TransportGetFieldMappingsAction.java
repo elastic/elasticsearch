@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -88,7 +88,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     }
 
     private GetFieldMappingsResponse merge(AtomicReferenceArray<Object> indexResponses) {
-        MapBuilder<String, ImmutableMap<String, ImmutableMap<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mergedResponses = MapBuilder.newMapBuilder();
+        MapBuilder<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mergedResponses = MapBuilder.newMapBuilder();
         for (int i = 0; i < indexResponses.length(); i++) {
             Object element = indexResponses.get(i);
             if (element instanceof GetFieldMappingsResponse) {

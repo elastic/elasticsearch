@@ -40,8 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
-import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -185,14 +183,9 @@ public class ShadowEngineTests extends ESTestCase {
         return new Store(shardId, EMPTY_SETTINGS, directoryService, new DummyShardLock(shardId));
     }
 
-    protected IndexDeletionPolicy createIndexDeletionPolicy() {
-        return new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS);
-    }
-
     protected SnapshotDeletionPolicy createSnapshotDeletionPolicy() {
-        return new SnapshotDeletionPolicy(createIndexDeletionPolicy());
+        return new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
     }
-
 
     protected ShadowEngine createShadowEngine(Store store) {
         return createShadowEngine(defaultSettings, store);

@@ -19,6 +19,11 @@
 
 package org.elasticsearch.common.geo;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.XGeoHashUtils;
@@ -27,11 +32,14 @@ import org.apache.lucene.util.XGeoUtils;
 /**
  *
  */
-public final class GeoPoint {
+public final class GeoPoint implements Writeable<GeoPoint> {
 
     private double lat;
     private double lon;
     private final static double TOLERANCE = XGeoUtils.TOLERANCE;
+    
+    // for serialization purposes
+    private static final GeoPoint PROTOTYPE = new GeoPoint(Double.NaN, Double.NaN);
 
     public GeoPoint() {
     }
@@ -49,6 +57,10 @@ public final class GeoPoint {
     public GeoPoint(double lat, double lon) {
         this.lat = lat;
         this.lon = lon;
+    }
+
+    public GeoPoint(GeoPoint template) {
+        this(template.getLat(), template.getLon());
     }
 
     public GeoPoint reset(double lat, double lon) {
@@ -152,8 +164,7 @@ public final class GeoPoint {
     }
 
     public static GeoPoint parseFromLatLon(String latLon) {
-        GeoPoint point = new GeoPoint();
-        point.resetFromString(latLon);
+        GeoPoint point = new GeoPoint(latLon);
         return point;
     }
 
@@ -167,5 +178,22 @@ public final class GeoPoint {
 
     public static GeoPoint fromIndexLong(long indexLong) {
         return new GeoPoint().resetFromIndexHash(indexLong);
+    }
+
+    @Override
+    public GeoPoint readFrom(StreamInput in) throws IOException {
+        double lat = in.readDouble();
+        double lon = in.readDouble();
+        return new GeoPoint(lat, lon);
+    }
+
+    public static GeoPoint readGeoPointFrom(StreamInput in) throws IOException {
+        return PROTOTYPE.readFrom(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeDouble(lat);
+        out.writeDouble(lon);
     }
 }

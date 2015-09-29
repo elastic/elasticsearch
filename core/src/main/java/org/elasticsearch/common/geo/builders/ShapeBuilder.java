@@ -27,6 +27,7 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ import java.util.*;
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc 
  */
-public abstract class ShapeBuilder implements ToXContent {
+public abstract class ShapeBuilder extends ToXContentToBytes {
 
     protected static final ESLogger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
 
@@ -208,16 +208,6 @@ public abstract class ShapeBuilder implements ToXContent {
      * @return a new {@link EnvelopeBuilder}
      */
     public static EnvelopeBuilder newEnvelope(Orientation orientation) { return new EnvelopeBuilder(orientation); }
-
-    @Override
-    public String toString() {
-        try {
-            XContentBuilder xcontent = JsonXContent.contentBuilder();
-            return toXContent(xcontent, EMPTY_PARAMS).prettyPrint().string();
-        } catch (IOException e) {
-            return super.toString();
-        }
-    }
 
     /**
      * Create a new Shape from this builder. Since calling this method could change the

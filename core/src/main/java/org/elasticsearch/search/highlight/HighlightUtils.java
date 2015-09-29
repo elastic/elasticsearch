@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
@@ -31,6 +30,8 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+
+import static java.util.Collections.singleton;
 
 public final class HighlightUtils {
 
@@ -47,7 +48,7 @@ public final class HighlightUtils {
         boolean forceSource = searchContext.highlight().forceSource(field);
         List<Object> textsToHighlight;
         if (!forceSource && mapper.fieldType().stored()) {
-            CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(ImmutableSet.of(mapper.fieldType().names().indexName()), false);
+            CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(mapper.fieldType().names().indexName()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
             textsToHighlight = fieldVisitor.fields().get(mapper.fieldType().names().indexName());
             if (textsToHighlight == null) {

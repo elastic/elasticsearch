@@ -24,13 +24,18 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
 
+import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -39,7 +44,7 @@ import java.util.Map;
 public abstract class QueryBuilders {
 
     /**
-     * A query that match on all documents.
+     * A query that matches on all documents.
      */
     public static MatchAllQueryBuilder matchAllQuery() {
         return new MatchAllQueryBuilder();
@@ -52,17 +57,17 @@ public abstract class QueryBuilders {
      * @param text The query text (to be analyzed).
      */
     public static MatchQueryBuilder matchQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.BOOLEAN);
+        return new MatchQueryBuilder(name, text).type(MatchQuery.Type.BOOLEAN);
     }
 
     /**
      * Creates a common query for the provided field name and text.
      *
-     * @param name The field name.
+     * @param fieldName The field name.
      * @param text The query text (to be analyzed).
      */
-    public static CommonTermsQueryBuilder commonTermsQuery(String name, Object text) {
-        return new CommonTermsQueryBuilder(name, text);
+    public static CommonTermsQueryBuilder commonTermsQuery(String fieldName, Object text) {
+        return new CommonTermsQueryBuilder(fieldName, text);
     }
 
     /**
@@ -82,7 +87,7 @@ public abstract class QueryBuilders {
      * @param text The query text (to be analyzed).
      */
     public static MatchQueryBuilder matchPhraseQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.PHRASE);
+        return new MatchQueryBuilder(name, text).type(MatchQuery.Type.PHRASE);
     }
 
     /**
@@ -92,7 +97,7 @@ public abstract class QueryBuilders {
      * @param text The query text (to be analyzed).
      */
     public static MatchQueryBuilder matchPhrasePrefixQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.PHRASE_PREFIX);
+        return new MatchQueryBuilder(name, text).type(MatchQuery.Type.PHRASE_PREFIX);
     }
 
     /**
@@ -276,8 +281,8 @@ public abstract class QueryBuilders {
      * Unlike the "NOT" clause, this still selects documents that contain undesirable terms,
      * but reduces their overall score:
      */
-    public static BoostingQueryBuilder boostingQuery() {
-        return new BoostingQueryBuilder();
+    public static BoostingQueryBuilder boostingQuery(QueryBuilder positiveQuery, QueryBuilder negativeQuery) {
+        return new BoostingQueryBuilder(positiveQuery, negativeQuery);
     }
 
     /**
@@ -311,26 +316,33 @@ public abstract class QueryBuilders {
         return new SpanFirstQueryBuilder(match, end);
     }
 
-    public static SpanNearQueryBuilder spanNearQuery() {
-        return new SpanNearQueryBuilder();
+    public static SpanNearQueryBuilder spanNearQuery(SpanQueryBuilder initialClause, int slop) {
+        return new SpanNearQueryBuilder(initialClause, slop);
     }
 
-    public static SpanNotQueryBuilder spanNotQuery() {
-        return new SpanNotQueryBuilder();
+    public static SpanNotQueryBuilder spanNotQuery(SpanQueryBuilder include, SpanQueryBuilder exclude) {
+        return new SpanNotQueryBuilder(include, exclude);
     }
 
-    public static SpanOrQueryBuilder spanOrQuery() {
-        return new SpanOrQueryBuilder();
+    public static SpanOrQueryBuilder spanOrQuery(SpanQueryBuilder initialClause) {
+        return new SpanOrQueryBuilder(initialClause);
     }
 
-    /** Creates a new {@code span_within} builder. */
-    public static SpanWithinQueryBuilder spanWithinQuery() {
-        return new SpanWithinQueryBuilder();
+    /** Creates a new {@code span_within} builder.
+    * @param big the big clause, it must enclose {@code little} for a match.
+    * @param little the little clause, it must be contained within {@code big} for a match.
+    */
+    public static SpanWithinQueryBuilder spanWithinQuery(SpanQueryBuilder big, SpanQueryBuilder little) {
+        return new SpanWithinQueryBuilder(big, little);
     }
 
-    /** Creates a new {@code span_containing} builder. */
-    public static SpanContainingQueryBuilder spanContainingQuery() {
-        return new SpanContainingQueryBuilder();
+    /**
+     * Creates a new {@code span_containing} builder.
+     * @param big the big clause, it must enclose {@code little} for a match.
+     * @param little the little clause, it must be contained within {@code big} for a match.
+     */
+    public static SpanContainingQueryBuilder spanContainingQuery(SpanQueryBuilder big, SpanQueryBuilder little) {
+        return new SpanContainingQueryBuilder(big, little);
     }
 
     /**
@@ -361,19 +373,34 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A query that allows to define a custom scoring function.
+     * A function_score query with no functions.
      *
      * @param queryBuilder The query to custom score
+     * @return the function score query
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder) {
         return new FunctionScoreQueryBuilder(queryBuilder);
     }
 
     /**
-     * A query that allows to define a custom scoring function.
+     * A query that allows to define a custom scoring function
+     *
+     * @param queryBuilder The query to custom score
+     * @param filterFunctionBuilders the filters and functions to execute
+     * @return the function score query
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery() {
-        return new FunctionScoreQueryBuilder();
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+        return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
+    }
+
+    /**
+     * A query that allows to define a custom scoring function
+     *
+     * @param filterFunctionBuilders the filters and functions to execute
+     * @return the function score query
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+        return new FunctionScoreQueryBuilder(filterFunctionBuilders);
     }
 
     /**
@@ -392,25 +419,47 @@ public abstract class QueryBuilders {
      * @param function     The function builder used to custom score
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder function) {
-        return (new FunctionScoreQueryBuilder(queryBuilder)).add(function);
+        return (new FunctionScoreQueryBuilder(queryBuilder, function));
     }
 
     /**
-     * A more like this query that finds documents that are "like" the provided {@link MoreLikeThisQueryBuilder#likeText(String)}
+     * A more like this query that finds documents that are "like" the provided texts or documents
      * which is checked against the fields the query is constructed with.
      *
-     * @param fields The fields to run the query against
+     * @param fields the field names that will be used when generating the 'More Like This' query.
+     * @param likeTexts the text to use when generating the 'More Like This' query.
+     * @param likeItems the documents to use when generating the 'More Like This' query.
      */
-    public static MoreLikeThisQueryBuilder moreLikeThisQuery(String... fields) {
-        return new MoreLikeThisQueryBuilder(fields);
+    public static MoreLikeThisQueryBuilder moreLikeThisQuery(String[] fields, String[] likeTexts, Item[] likeItems) {
+        return new MoreLikeThisQueryBuilder(fields, likeTexts, likeItems);
     }
 
     /**
-     * A more like this query that finds documents that are "like" the provided {@link MoreLikeThisQueryBuilder#likeText(String)}
+     * A more like this query that finds documents that are "like" the provided texts or documents
      * which is checked against the "_all" field.
+     * @param likeTexts the text to use when generating the 'More Like This' query.
+     * @param likeItems the documents to use when generating the 'More Like This' query.
      */
-    public static MoreLikeThisQueryBuilder moreLikeThisQuery() {
-        return new MoreLikeThisQueryBuilder();
+    public static MoreLikeThisQueryBuilder moreLikeThisQuery(String[] likeTexts, Item[] likeItems) {
+        return moreLikeThisQuery(null, likeTexts, likeItems);
+    }
+
+    /**
+     * A more like this query that finds documents that are "like" the provided texts
+     * which is checked against the "_all" field.
+     * @param likeTexts the text to use when generating the 'More Like This' query.
+     */
+    public static MoreLikeThisQueryBuilder moreLikeThisQuery(String[] likeTexts) {
+        return moreLikeThisQuery(null, likeTexts, null);
+    }
+
+    /**
+     * A more like this query that finds documents that are "like" the provided documents
+     * which is checked against the "_all" field.
+     * @param likeItems the documents to use when generating the 'More Like This' query.
+     */
+    public static MoreLikeThisQueryBuilder moreLikeThisQuery(Item[] likeItems) {
+        return moreLikeThisQuery(null, null, likeItems);
     }
 
     /**
@@ -534,19 +583,8 @@ public abstract class QueryBuilders {
     /**
      * A Query builder which allows building a query thanks to a JSON string or binary data.
      */
-    public static WrapperQueryBuilder wrapperQuery(byte[] source, int offset, int length) {
-        return new WrapperQueryBuilder(source, offset, length);
-    }
-
-    /**
-     * Query that matches Documents based on the relationship between the given shape and
-     * indexed shapes
-     *
-     * @param name  The shape field name
-     * @param shape Shape to use in the Query
-     */
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) {
-        return new GeoShapeQueryBuilder(name, shape);
+    public static WrapperQueryBuilder wrapperQuery(byte[] source) {
+        return new WrapperQueryBuilder(source);
     }
 
     /**
@@ -578,11 +616,10 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A terms lookup filter for the provided field name. A lookup terms filter can
-     * extract the terms to filter by from another doc in an index.
+     * A terms query that can extract the terms from another doc in an index.
      */
-    public static TermsLookupQueryBuilder termsLookupQuery(String name) {
-        return new TermsLookupQueryBuilder(name);
+    public static TermsQueryBuilder termsLookupQuery(String name, TermsLookup termsLookup) {
+        return new TermsQueryBuilder(name, termsLookup);
     }
 
     /**
@@ -608,9 +645,31 @@ public abstract class QueryBuilders {
      * A filter to filter based on a specific range from a specific geo location / point.
      *
      * @param name The location field name.
+     * @param point The point
      */
-    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name) {
-        return new GeoDistanceRangeQueryBuilder(name);
+    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, GeoPoint point) {
+        return new GeoDistanceRangeQueryBuilder(name, point);
+    }
+
+    /**
+     * A filter to filter based on a specific range from a specific geo location / point.
+     *
+     * @param name The location field name.
+     * @param geohash The point as geohash
+     */
+    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, String geohash) {
+        return new GeoDistanceRangeQueryBuilder(name, geohash);
+    }
+
+    /**
+     * A filter to filter based on a specific range from a specific geo location / point.
+     *
+     * @param name The location field name.
+     * @param lat The points latitude
+     * @param lon The points longitude
+     */
+    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, double lat, double lon) {
+        return new GeoDistanceRangeQueryBuilder(name, lat, lon);
     }
 
     /**
@@ -620,17 +679,6 @@ public abstract class QueryBuilders {
      */
     public static GeoBoundingBoxQueryBuilder geoBoundingBoxQuery(String name) {
         return new GeoBoundingBoxQueryBuilder(name);
-    }
-
-    /**
-     * A filter based on a bounding box defined by geohash. The field this filter is applied to
-     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
-     * to work.
-     *
-     * @param name The geo point field name.
-     */
-    public static GeohashCellQuery.Builder geoHashCellQuery(String name) {
-        return new GeohashCellQuery.Builder(name);
     }
 
     /**
@@ -669,14 +717,14 @@ public abstract class QueryBuilders {
     public static GeohashCellQuery.Builder geoHashCellQuery(String name, String geohash, boolean neighbors) {
         return new GeohashCellQuery.Builder(name, geohash, neighbors);
     }
-    
+
     /**
      * A filter to filter based on a polygon defined by a set of locations  / points.
      *
      * @param name The location field name.
      */
-    public static GeoPolygonQueryBuilder geoPolygonQuery(String name) {
-        return new GeoPolygonQueryBuilder(name);
+    public static GeoPolygonQueryBuilder geoPolygonQuery(String name, List<GeoPoint> points) {
+        return new GeoPolygonQueryBuilder(name, points);
     }
 
     /**
@@ -684,18 +732,13 @@ public abstract class QueryBuilders {
      *
      * @param name  The shape field name
      * @param shape Shape to use in the filter
-     * @param relation relation of the shapes
      */
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape, ShapeRelation relation) {
-        return new GeoShapeQueryBuilder(name, shape, relation);
-    }
-
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId, String indexedShapeType, ShapeRelation relation) {
-        return new GeoShapeQueryBuilder(name, indexedShapeId, indexedShapeType, relation);
+    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) throws IOException {
+        return new GeoShapeQueryBuilder(name, shape);
     }
 
     public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId, String indexedShapeType) {
-        return geoShapeQuery(name, indexedShapeId, indexedShapeType, null);
+        return new GeoShapeQueryBuilder(name, indexedShapeId, indexedShapeType);
     }
 
     /**
@@ -704,12 +747,16 @@ public abstract class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
-    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder shape) {
-        return geoShapeQuery(name, shape, ShapeRelation.INTERSECTS);
+    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.INTERSECTS);
+        return builder;
     }
 
     public static GeoShapeQueryBuilder geoIntersectionQuery(String name, String indexedShapeId, String indexedShapeType) {
-        return geoShapeQuery(name, indexedShapeId, indexedShapeType, ShapeRelation.INTERSECTS);
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
+        builder.relation(ShapeRelation.INTERSECTS);
+        return builder;
     }
 
     /**
@@ -718,12 +765,16 @@ public abstract class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
-    public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder shape) {
-        return geoShapeQuery(name, shape, ShapeRelation.WITHIN);
+    public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.WITHIN);
+        return builder;
     }
 
     public static GeoShapeQueryBuilder geoWithinQuery(String name, String indexedShapeId, String indexedShapeType) {
-        return geoShapeQuery(name, indexedShapeId, indexedShapeType, ShapeRelation.WITHIN);
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
+        builder.relation(ShapeRelation.WITHIN);
+        return builder;
     }
 
     /**
@@ -732,12 +783,16 @@ public abstract class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
-    public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder shape) {
-        return geoShapeQuery(name, shape, ShapeRelation.DISJOINT);
+    public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.DISJOINT);
+        return builder;
     }
 
     public static GeoShapeQueryBuilder geoDisjointQuery(String name, String indexedShapeId, String indexedShapeType) {
-        return geoShapeQuery(name, indexedShapeId, indexedShapeType, ShapeRelation.DISJOINT);
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
+        builder.relation(ShapeRelation.DISJOINT);
+        return builder;
     }
 
     /**
@@ -751,11 +806,23 @@ public abstract class QueryBuilders {
 
     /**
      * A filter to filter only documents where a field does not exists in them.
-     *
-     * @param name The name of the field
+     * @param name the field to query
      */
     public static MissingQueryBuilder missingQuery(String name) {
-        return new MissingQueryBuilder(name);
+        return missingQuery(name, MissingQueryBuilder.DEFAULT_NULL_VALUE, MissingQueryBuilder.DEFAULT_EXISTENCE_VALUE);
+    }
+
+    /**
+     * A filter to filter only documents where a field does not exists in them.
+     * @param name the field to query
+     * @param nullValue should the missing filter automatically include fields with null value configured in the
+     * mappings. Defaults to <tt>false</tt>.
+     * @param existence should the missing filter include documents where the field doesn't exist in the docs.
+     * Defaults to <tt>true</tt>.
+     * @throws IllegalArgumentException when both <tt>existence</tt> and <tt>nullValue</tt> are set to false
+     */
+    public static MissingQueryBuilder missingQuery(String name, boolean nullValue, boolean existence) {
+        return new MissingQueryBuilder(name, nullValue, existence);
     }
 
     public static NotQueryBuilder notQuery(QueryBuilder filter) {

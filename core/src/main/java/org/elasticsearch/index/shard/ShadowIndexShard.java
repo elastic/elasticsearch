@@ -27,7 +27,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.engine.IndexSearcherWrappingService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -35,12 +34,11 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.termvectors.ShardTermVectorsService;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
@@ -62,17 +60,16 @@ public final class ShadowIndexShard extends IndexShard {
                             ThreadPool threadPool, MapperService mapperService,
                             IndexQueryParserService queryParserService, IndexCache indexCache,
                             IndexAliasesService indexAliasesService, IndicesQueryCache indicesQueryCache,
-                            ShardPercolateService shardPercolateService, CodecService codecService,
-                            ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
+                            CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
                             IndexService indexService, @Nullable IndicesWarmer warmer,
-                            SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
+                            SimilarityService similarityService,
                             EngineFactory factory, ClusterService clusterService,
                             ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) throws IOException {
         super(shardId, indexSettingsService, indicesLifecycle, store, storeRecoveryService,
                 threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
-                indicesQueryCache, shardPercolateService, codecService,
+                indicesQueryCache, codecService,
                 termVectorsService, indexFieldDataService, indexService,
-                warmer, deletionPolicy, similarityService,
+                warmer, similarityService,
                 factory, clusterService, path, bigArrays, wrappingService);
     }
 
@@ -106,6 +103,12 @@ public final class ShadowIndexShard extends IndexShard {
         assert skipInitialTranslogRecovery : "can not recover from gateway";
         config.setCreate(false); // hardcoded - we always expect an index to be present
         return engineFactory.newReadOnlyEngine(config);
+    }
+
+    @Override
+    public boolean shouldFlush() {
+        // we don't need to flush since we don't write - all dominated by the primary
+        return false;
     }
 
     public boolean allowsPrimaryPromotion() {

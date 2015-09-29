@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterState
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
@@ -43,14 +43,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.percolator.PercolatorService;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 /**
  * Service responsible for submitting mapping changes
  */
@@ -301,7 +294,7 @@ public class MetaDataMappingService extends AbstractComponent {
             insertOrder = ++refreshOrUpdateInsertOrder;
             refreshOrUpdateQueue.add(new RefreshTask(index, indexUUID, types));
         }
-        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", Priority.HIGH, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             private volatile List<MappingTask> allTasks;
 
             @Override

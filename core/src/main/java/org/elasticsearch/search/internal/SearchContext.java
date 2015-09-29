@@ -41,7 +41,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -70,12 +70,12 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
 
     public static void setCurrent(SearchContext value) {
         current.set(value);
-        QueryParseContext.setTypes(value.types());
+        QueryShardContext.setTypes(value.types());
     }
 
     public static void removeCurrent() {
         current.remove();
-        QueryParseContext.removeTypes();
+        QueryShardContext.removeTypes();
     }
 
     public static SearchContext current() {

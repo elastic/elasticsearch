@@ -101,11 +101,11 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
-import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
@@ -496,19 +496,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static Settings.Builder setRandomIndexTranslogSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, RandomInts.randomIntBetween(random, 1, 10000));
+            builder.put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, RandomInts.randomIntBetween(random, 1, 10000));
         }
         if (random.nextBoolean()) {
-            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
+            builder.put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
         }
         if (random.nextBoolean()) {
-            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD, TimeValue.timeValueMinutes(RandomInts.randomIntBetween(random, 1, 60)));
-        }
-        if (random.nextBoolean()) {
-            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_INTERVAL, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 1, 10000)));
-        }
-        if (random.nextBoolean()) {
-            builder.put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, random.nextBoolean());
+            builder.put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, random.nextBoolean());
         }
         if (random.nextBoolean()) {
             builder.put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, RandomPicks.randomFrom(random, Translog.Durabilty.values()));
@@ -1444,13 +1438,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Disables translog flushing for the specified index */
     public static void disableTranslogFlush(String index) {
-        Settings settings = Settings.builder().put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true).build();
+        Settings settings = Settings.builder().put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, true).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
     /** Enables translog flushing for the specified index */
     public static void enableTranslogFlush(String index) {
-        Settings settings = Settings.builder().put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, false).build();
+        Settings settings = Settings.builder().put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, false).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 

@@ -149,7 +149,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
         ClusterState clusterState = admin().cluster().prepareState().get().getState();
         IndexMetaData indexMd = clusterState.metaData().index("test");
-        assertThat(indexMd.aliases().get("alias1").filter().string(), equalTo("{\"term\":{\"user\":\"kimchy\"}}"));
+        assertThat(indexMd.aliases().get("alias1").filter().string(), equalTo("{\"term\":{\"user\":{\"value\":\"kimchy\",\"boost\":1.0}}}"));
 
     }
 
@@ -411,8 +411,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(client().prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(1L));
     }
 
-    
-    
+
+
     @Test
     public void testDeleteAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2]");
@@ -432,17 +432,17 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .addAlias("test2", "aliasToTests")
                 .addAlias("test2", "foos", termQuery("name", "foo"))
                 .addAlias("test2", "tests", termQuery("name", "test")));
-        
-        String[] indices = {"test1", "test2"}; 
+
+        String[] indices = {"test1", "test2"};
         String[] aliases = {"aliasToTest1", "foos", "bars", "tests", "aliasToTest2", "aliasToTests"};
-        
+
         admin().indices().prepareAliases().removeAlias(indices, aliases).get();
-        
+
         AliasesExistResponse response = admin().indices().prepareAliasesExist(aliases).get();
         assertThat(response.exists(), equalTo(false));
     }
 
-    
+
     @Test
     public void testWaitForAliasCreationMultipleShards() throws Exception {
         logger.info("--> creating index [test]");
@@ -530,16 +530,16 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         logger.info("--> verify that filter was updated");
         AliasMetaData aliasMetaData = ((AliasOrIndex.Alias) internalCluster().clusterService().state().metaData().getAliasAndIndexLookup().get("alias1")).getFirstAliasMetaData();
-        assertThat(aliasMetaData.getFilter().toString(), equalTo("{\"term\":{\"name\":\"bar\"}}"));
+        assertThat(aliasMetaData.getFilter().toString(), equalTo("{\"term\":{\"name\":{\"value\":\"bar\",\"boost\":1.0}}}"));
 
         logger.info("--> deleting alias1");
         stopWatch.start();
         assertAcked((admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout)));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
-        
+
     }
-    
+
     @Test(expected = AliasesNotFoundException.class)
     public void testIndicesRemoveNonExistingAliasResponds404() throws Exception {
         logger.info("--> creating index [test]");

@@ -26,23 +26,31 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.util.Map;
+import java.util.Set;
 
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.client.Requests.updateSettingsRequest;
-import com.google.common.collect.ImmutableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  *
  */
 public class RestUpdateSettingsAction extends BaseRestHandler {
-
-    private static final ImmutableSet<String> VALUES_TO_EXCLUDE = ImmutableSet.<String>builder()
-            .add("pretty").add("timeout").add("master_timeout").add("index")
-            .add("expand_wildcards").add("ignore_unavailable").add("allow_no_indices")
-            .build();
+    private static final Set<String> VALUES_TO_EXCLUDE = unmodifiableSet(newHashSet(
+            "pretty",
+            "timeout",
+            "master_timeout",
+            "index",
+            "expand_wildcards",
+            "ignore_unavailable",
+            "allow_no_indices"));
 
     @Inject
     public RestUpdateSettingsAction(Settings settings, RestController controller, Client client) {

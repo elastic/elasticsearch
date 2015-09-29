@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -28,26 +27,26 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.Reader;
+import java.util.Set;
 
-/**
- *
- */
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
+
 public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
-
-    private final ImmutableSet<String> escapedTags;
+    private final Set<String> escapedTags;
 
     @Inject
     public HtmlStripCharFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
         String[] escapedTags = settings.getAsArray("escaped_tags");
         if (escapedTags.length > 0) {
-            this.escapedTags = ImmutableSet.copyOf(escapedTags);
+            this.escapedTags = unmodifiableSet(newHashSet(escapedTags));
         } else {
             this.escapedTags = null;
         }
     }
 
-    public ImmutableSet<String> escapedTags() {
+    public Set<String> escapedTags() {
         return escapedTags;
     }
 

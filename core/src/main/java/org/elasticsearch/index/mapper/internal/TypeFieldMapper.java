@@ -43,7 +43,7 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -137,7 +137,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        public Query termQuery(Object value, @Nullable QueryShardContext context) {
             if (indexOptions() == IndexOptions.NONE) {
                 return new ConstantScoreQuery(new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value)))));
             }

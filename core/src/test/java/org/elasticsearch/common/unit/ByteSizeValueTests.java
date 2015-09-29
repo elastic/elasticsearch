@@ -57,6 +57,13 @@ public class ByteSizeValueTests extends ESTestCase {
         assertThat(ByteSizeUnit.PB.toPB(10), is(new ByteSizeValue(10, ByteSizeUnit.PB).pb()));
     }
 
+    public void testEquality() {
+        String[] equalValues = new String[]{"1GB", "1024MB", "1048576KB", "1073741824B"};
+        ByteSizeValue value1 = ByteSizeValue.parseBytesSizeValue(randomFrom(equalValues), "equalTest");
+        ByteSizeValue value2 = ByteSizeValue.parseBytesSizeValue(randomFrom(equalValues), "equalTest");
+        assertThat(value1, equalTo(value2));
+    }
+
     @Test
     public void testToString() {
         assertThat("10b", is(new ByteSizeValue(10, ByteSizeUnit.BYTES).toString()));

@@ -19,7 +19,6 @@
 package org.elasticsearch.validate;
 
 import java.nio.charset.StandardCharsets;
-
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -236,7 +236,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 containsString("+field:pidgin (field:huge field:brown)"), true);
         assertExplanation(QueryBuilders.commonTermsQuery("field", "the brown").analyzer("stop"),
                 containsString("field:brown"), true);
-        
+
         // match queries with cutoff frequency
         assertExplanation(QueryBuilders.matchQuery("field", "huge brown pidgin").cutoffFrequency(1),
                 containsString("+field:pidgin (field:huge field:brown)"), true);
@@ -250,10 +250,10 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 containsString("field:jumps^0.75"), true);
 
         // more like this queries
-        assertExplanation(QueryBuilders.moreLikeThisQuery("field").ids("1")
+        assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, null, MoreLikeThisQueryBuilder.ids("1"))
                         .include(true).minTermFreq(1).minDocFreq(1).maxQueryTerms(2),
                 containsString("field:huge field:pidgin"), true);
-        assertExplanation(QueryBuilders.moreLikeThisQuery("field").like("the huge pidgin")
+        assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, new String[] {"the huge pidgin"}, null)
                         .minTermFreq(1).minDocFreq(1).maxQueryTerms(2),
                 containsString("field:huge field:pidgin"), true);
     }
@@ -276,11 +276,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareValidateQuery("test").setSource(new BytesArray("{\"query\": {\"term\" : { \"user\" : \"kimchy\" }}, \"foo\": \"bar\"}")).get().isValid(), equalTo(false));
     }
 
-    private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher) {
-        assertExplanation(queryBuilder, matcher, false);
-    }
-
-    private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {
+    private static void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
                 .setTypes("type1")
                 .setQuery(queryBuilder)

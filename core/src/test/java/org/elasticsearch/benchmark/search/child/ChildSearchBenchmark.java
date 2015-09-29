@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.benchmark.search.child;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -281,12 +282,12 @@ public class ChildSearchBenchmark {
         System.out.println("--> Running has_child query with score type");
         // run parent child score query
         for (int j = 0; j < QUERY_WARMUP; j++) {
-            client.prepareSearch(indexName).setQuery(hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue())).scoreMode("max")).execute().actionGet();
+            client.prepareSearch(indexName).setQuery(hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue())).scoreMode(ScoreMode.Max)).execute().actionGet();
         }
 
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue())).scoreMode("max")).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue())).scoreMode(ScoreMode.Max)).execute().actionGet();
             if (j % 10 == 0) {
                 System.out.println("--> hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "]");
             }
@@ -296,7 +297,7 @@ public class ChildSearchBenchmark {
         
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasChildQuery("child", matchAllQuery()).scoreMode("max")).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasChildQuery("child", matchAllQuery()).scoreMode(ScoreMode.Max)).execute().actionGet();
             if (j % 10 == 0) {
                 System.out.println("--> hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "]");
             }
@@ -307,12 +308,12 @@ public class ChildSearchBenchmark {
         System.out.println("--> Running has_parent query with score type");
         // run parent child score query
         for (int j = 0; j < QUERY_WARMUP; j++) {
-            client.prepareSearch(indexName).setQuery(hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue())).scoreMode("score")).execute().actionGet();
+            client.prepareSearch(indexName).setQuery(hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue())).score(true)).execute().actionGet();
         }
 
         totalQueryTime = 0;
         for (int j = 1; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue())).scoreMode("score")).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue())).score(true)).execute().actionGet();
             if (j % 10 == 0) {
                 System.out.println("--> hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "]");
             }
@@ -322,7 +323,7 @@ public class ChildSearchBenchmark {
 
         totalQueryTime = 0;
         for (int j = 1; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasParentQuery("parent", matchAllQuery()).scoreMode("score")).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasParentQuery("parent", matchAllQuery()).score(true)).execute().actionGet();
             if (j % 10 == 0) {
                 System.out.println("--> hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "]");
             }

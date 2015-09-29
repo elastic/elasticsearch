@@ -19,68 +19,51 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.search.join.ToParentBlockJoinQuery;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
-import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
-
+import org.elasticsearch.index.query.support.QueryInnerHits;
 import java.io.IOException;
 
-public class NestedQueryParser implements QueryParser {
+public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
 
-    public static final String NAME = "nested";
     private static final ParseField FILTER_FIELD = new ParseField("filter").withAllDeprecated("query");
-
-    private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
-
-    @Inject
-    public NestedQueryParser(InnerHitsQueryParserHelper innerHitsQueryParserHelper) {
-        this.innerHitsQueryParserHelper = innerHitsQueryParserHelper;
-    }
+    private static final NestedQueryBuilder PROTOTYPE = new NestedQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{NestedQueryBuilder.NAME, Strings.toCamelCase(NestedQueryBuilder.NAME)};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, ParsingException {
+    public NestedQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        final ToBlockJoinQueryBuilder builder = new ToBlockJoinQueryBuilder(parseContext);
-
-        float boost = 1.0f;
-        ScoreMode scoreMode = ScoreMode.Avg;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        ScoreMode scoreMode = NestedQueryBuilder.DEFAULT_SCORE_MODE;
         String queryName = null;
-
+        QueryBuilder query = null;
+        String path = null;
         String currentFieldName = null;
+        QueryInnerHits queryInnerHits = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
-                    builder.query();
+                    query = parseContext.parseInnerQueryBuilder();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, FILTER_FIELD)) {
-                    builder.filter();
+                    query = parseContext.parseInnerQueryBuilder();
                 } else if ("inner_hits".equals(currentFieldName)) {
-                    builder.setInnerHits(innerHitsQueryParserHelper.parse(parseContext));
+                    queryInnerHits = new QueryInnerHits(parser);
                 } else {
-                    throw new ParsingException(parseContext, "[nested] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("path".equals(currentFieldName)) {
-                    builder.setPath(parser.text());
+                    path = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
@@ -96,73 +79,20 @@ public class NestedQueryParser implements QueryParser {
                     } else if ("none".equals(sScoreMode)) {
                         scoreMode = ScoreMode.None;
                     } else {
-                        throw new ParsingException(parseContext, "illegal score_mode for nested query [" + sScoreMode + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "illegal score_mode for nested query [" + sScoreMode + "]");
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parseContext, "[nested] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");
                 }
             }
         }
-
-        builder.setScoreMode(scoreMode);
-        ToParentBlockJoinQuery joinQuery = builder.build();
-        if (joinQuery != null) {
-            joinQuery.setBoost(boost);
-            if (queryName != null) {
-                parseContext.addNamedQuery(queryName, joinQuery);
-            }
-        }
-        return joinQuery;
+        return new NestedQueryBuilder(path, query, scoreMode, queryInnerHits).queryName(queryName).boost(boost);
     }
 
-    public static class ToBlockJoinQueryBuilder extends NestedInnerQueryParseSupport {
-
-        private ScoreMode scoreMode;
-        private InnerHitsSubSearchContext innerHits;
-
-        public ToBlockJoinQueryBuilder(QueryParseContext parseContext) throws IOException {
-            super(parseContext);
-        }
-
-        public void setScoreMode(ScoreMode scoreMode) {
-            this.scoreMode = scoreMode;
-        }
-
-        public void setInnerHits(InnerHitsSubSearchContext innerHits) {
-            this.innerHits = innerHits;
-        }
-
-        @Nullable
-        public ToParentBlockJoinQuery build() throws IOException {
-            Query innerQuery;
-            if (queryFound) {
-                innerQuery = getInnerQuery();
-            } else if (filterFound) {
-                Query innerFilter = getInnerFilter();
-                if (innerFilter != null) {
-                    innerQuery = new ConstantScoreQuery(getInnerFilter());
-                } else {
-                    innerQuery = null;
-                }
-            } else {
-                throw new ParsingException(parseContext, "[nested] requires either 'query' or 'filter' field");
-            }
-
-            if (innerHits != null) {
-                ParsedQuery parsedQuery = new ParsedQuery(innerQuery, parseContext.copyNamedQueries());
-                InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, getParentObjectMapper(), nestedObjectMapper);
-                String name = innerHits.getName() != null ? innerHits.getName() : path;
-                parseContext.addInnerHits(name, nestedInnerHits);
-            }
-
-            if (innerQuery != null) {
-                return new ToParentBlockJoinQuery(Queries.filtered(innerQuery, childFilter), parentFilter, scoreMode);
-            } else {
-                return null;
-            }
-        }
-
+    @Override
+    public NestedQueryBuilder getBuilderPrototype() {
+        return PROTOTYPE;
     }
 }

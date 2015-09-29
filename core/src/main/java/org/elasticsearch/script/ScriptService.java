@@ -58,8 +58,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.TemplateQueryParser;
-import org.elasticsearch.script.expression.ExpressionScriptEngineService;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -89,7 +87,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     public static final int SCRIPT_CACHE_SIZE_DEFAULT = 100;
     public static final String SCRIPT_CACHE_EXPIRE_SETTING = "script.cache.expire";
     public static final String SCRIPT_INDEX = ".scripts";
-    public static final String DEFAULT_LANG = GroovyScriptEngineService.NAME;
+    public static final String DEFAULT_LANG = "groovy";
     public static final String SCRIPT_AUTO_RELOAD_ENABLED_SETTING = "script.auto_reload_enabled";
 
     private final String defaultLang;
@@ -245,8 +243,9 @@ public class ScriptService extends AbstractComponent implements Closeable {
             throw new ScriptException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
         }
 
+        // TODO: fix this through some API or something, thats wrong
         // special exception to prevent expressions from compiling as update or mapping scripts
-        boolean expression = scriptEngineService instanceof ExpressionScriptEngineService;
+        boolean expression = "expression".equals(script.getLang());
         boolean notSupported = scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey()) ||
                                scriptContext.getKey().equals(ScriptContext.Standard.MAPPING.getKey());
         if (expression && notSupported) {

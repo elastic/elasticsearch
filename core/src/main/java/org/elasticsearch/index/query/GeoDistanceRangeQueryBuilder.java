@@ -19,89 +19,118 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
-public class GeoDistanceRangeQueryBuilder extends QueryBuilder {
+public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistanceRangeQueryBuilder> {
 
-    private final String name;
+    public static final String NAME = "geo_distance_range";
+    public static final boolean DEFAULT_INCLUDE_LOWER = true;
+    public static final boolean DEFAULT_INCLUDE_UPPER = true;
+    public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.DEFAULT;
+    public static final DistanceUnit DEFAULT_UNIT = DistanceUnit.DEFAULT;
+    public static final String DEFAULT_OPTIMIZE_BBOX = "memory";
+
+    private final String fieldName;
 
     private Object from;
     private Object to;
-    private boolean includeLower = true;
-    private boolean includeUpper = true;
+    private boolean includeLower = DEFAULT_INCLUDE_LOWER;
+    private boolean includeUpper = DEFAULT_INCLUDE_UPPER;
 
-    private double lat;
+    private final GeoPoint point;
 
-    private double lon;
+    private GeoDistance geoDistance = DEFAULT_GEO_DISTANCE;
 
-    private String geohash;
+    private DistanceUnit unit = DEFAULT_UNIT;
 
-    private GeoDistance geoDistance;
+    private String optimizeBbox = DEFAULT_OPTIMIZE_BBOX;
 
-    private String queryName;
+    private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
 
-    private String optimizeBbox;
+    static final GeoDistanceRangeQueryBuilder PROTOTYPE = new GeoDistanceRangeQueryBuilder("_na_", new GeoPoint());
 
-    private Boolean coerce;
-
-    private Boolean ignoreMalformed;
-
-    public GeoDistanceRangeQueryBuilder(String name) {
-        this.name = name;
+    public GeoDistanceRangeQueryBuilder(String fieldName, GeoPoint point) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("fieldName must not be null");
+        }
+        if (point == null) {
+            throw new IllegalArgumentException("point must not be null");
+        }
+        this.fieldName = fieldName;
+        this.point = point;
     }
 
-    public GeoDistanceRangeQueryBuilder point(double lat, double lon) {
-        this.lat = lat;
-        this.lon = lon;
-        return this;
+    public GeoDistanceRangeQueryBuilder(String fieldName, double lat, double lon) {
+        this(fieldName, new GeoPoint(lat, lon));
     }
 
-    public GeoDistanceRangeQueryBuilder lat(double lat) {
-        this.lat = lat;
-        return this;
+    public GeoDistanceRangeQueryBuilder(String fieldName, String geohash) {
+        this(fieldName, geohash == null ? null : new GeoPoint().resetFromGeoHash(geohash));
     }
 
-    public GeoDistanceRangeQueryBuilder lon(double lon) {
-        this.lon = lon;
-        return this;
+    public String fieldName() {
+        return fieldName;
     }
 
-    public GeoDistanceRangeQueryBuilder from(Object from) {
+    public GeoPoint point() {
+        return point;
+    }
+
+    public GeoDistanceRangeQueryBuilder from(String from) {
+        if (from == null) {
+            throw new IllegalArgumentException("[from] must not be null");
+        }
         this.from = from;
         return this;
     }
 
-    public GeoDistanceRangeQueryBuilder to(Object to) {
-        this.to = to;
-        return this;
-    }
-
-    public GeoDistanceRangeQueryBuilder gt(Object from) {
+    public GeoDistanceRangeQueryBuilder from(Number from) {
+        if (from == null) {
+            throw new IllegalArgumentException("[from] must not be null");
+        }
         this.from = from;
-        this.includeLower = false;
         return this;
     }
 
-    public GeoDistanceRangeQueryBuilder gte(Object from) {
-        this.from = from;
-        this.includeLower = true;
-        return this;
+    public Object from() {
+        return from;
     }
 
-    public GeoDistanceRangeQueryBuilder lt(Object to) {
+    public GeoDistanceRangeQueryBuilder to(String to) {
+        if (to == null) {
+            throw new IllegalArgumentException("[to] must not be null");
+        }
         this.to = to;
-        this.includeUpper = false;
         return this;
     }
 
-    public GeoDistanceRangeQueryBuilder lte(Object to) {
+    public GeoDistanceRangeQueryBuilder to(Number to) {
+        if (to == null) {
+            throw new IllegalArgumentException("[to] must not be null");
+        }
         this.to = to;
-        this.includeUpper = true;
         return this;
+    }
+
+    public Object to() {
+        return to;
     }
 
     public GeoDistanceRangeQueryBuilder includeLower(boolean includeLower) {
@@ -109,71 +138,190 @@ public class GeoDistanceRangeQueryBuilder extends QueryBuilder {
         return this;
     }
 
+    public boolean includeLower() {
+        return includeLower;
+    }
+
     public GeoDistanceRangeQueryBuilder includeUpper(boolean includeUpper) {
         this.includeUpper = includeUpper;
         return this;
     }
 
-    public GeoDistanceRangeQueryBuilder geohash(String geohash) {
-        this.geohash = geohash;
-        return this;
+    public boolean includeUpper() {
+        return includeUpper;
     }
 
     public GeoDistanceRangeQueryBuilder geoDistance(GeoDistance geoDistance) {
+        if (geoDistance == null) {
+            throw new IllegalArgumentException("geoDistance calculation mode must not be null");
+        }
         this.geoDistance = geoDistance;
         return this;
     }
 
+    public GeoDistance geoDistance() {
+        return geoDistance;
+    }
+
+    public GeoDistanceRangeQueryBuilder unit(DistanceUnit unit) {
+        if (unit == null) {
+            throw new IllegalArgumentException("distance unit must not be null");
+        }
+        this.unit = unit;
+        return this;
+    }
+
+    public DistanceUnit unit() {
+        return unit;
+    }
+
     public GeoDistanceRangeQueryBuilder optimizeBbox(String optimizeBbox) {
+        if (optimizeBbox == null) {
+            throw new IllegalArgumentException("optimizeBox must not be null");
+        }
+        switch (optimizeBbox) {
+            case "none":
+            case "memory":
+            case "indexed":
+                break;
+            default:
+                throw new IllegalArgumentException("optimizeBbox must be one of [none, memory, indexed]");
+        }
         this.optimizeBbox = optimizeBbox;
         return this;
     }
 
-    public GeoDistanceRangeQueryBuilder coerce(boolean coerce) {
-        this.coerce = coerce;
-        return this;
+    public String optimizeBbox() {
+        return optimizeBbox;
     }
 
-    public GeoDistanceRangeQueryBuilder ignoreMalformed(boolean ignoreMalformed) {
-        this.ignoreMalformed = ignoreMalformed;
+    /** Set validation method for coordinates. */
+    public GeoDistanceRangeQueryBuilder setValidationMethod(GeoValidationMethod method) {
+        this.validationMethod = method;
         return this;
     }
+    
+    /** Returns validation method for coordinates. */
+    public GeoValidationMethod getValidationMethod(GeoValidationMethod method) {
+        return this.validationMethod;
+    }
 
-    /**
-     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public GeoDistanceRangeQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+
+        final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
+        // validation was not available prior to 2.x, so to support bwc
+        // percolation queries we only ignore_malformed on 2.x created indexes
+        if (!indexCreatedBeforeV2_0 && !GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
+            if (!GeoUtils.isValidLatitude(point.lat())) {
+                throw new QueryShardException(context, "illegal latitude value [{}] for [{}]", point.lat(), NAME);
+            }
+            if (!GeoUtils.isValidLongitude(point.lon())) {
+                throw new QueryShardException(context, "illegal longitude value [{}] for [{}]", point.lon(), NAME);
+            }
+        }
+
+        if (GeoValidationMethod.isCoerce(validationMethod)) {
+            GeoUtils.normalizePoint(point, true, true);
+        }
+
+        Double fromValue = null;
+        Double toValue = null;
+        if (from != null) {
+            if (from instanceof Number) {
+                fromValue = unit.toMeters(((Number) from).doubleValue());
+            } else {
+                fromValue = DistanceUnit.parse((String) from, unit, DistanceUnit.DEFAULT);
+            }
+            fromValue = geoDistance.normalize(fromValue, DistanceUnit.DEFAULT);
+        }
+        if (to != null) {
+            if (to instanceof Number) {
+                toValue = unit.toMeters(((Number) to).doubleValue());
+            } else {
+                toValue = DistanceUnit.parse((String) to, unit, DistanceUnit.DEFAULT);
+            }
+            toValue = geoDistance.normalize(toValue, DistanceUnit.DEFAULT);
+        }
+
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        if (fieldType == null) {
+            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+        }
+        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
+            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
+        }
+        GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
+
+        IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
+        return new GeoDistanceRangeQuery(point, fromValue, toValue, includeLower, includeUpper, geoDistance, geoFieldType,
+                indexFieldData, optimizeBbox);
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(GeoDistanceRangeQueryParser.NAME);
-        if (geohash != null) {
-            builder.field(name, geohash);
-        } else {
-            builder.startArray(name).value(lon).value(lat).endArray();
-        }
-        builder.field("from", from);
-        builder.field("to", to);
-        builder.field("include_lower", includeLower);
-        builder.field("include_upper", includeUpper);
-        if (geoDistance != null) {
-            builder.field("distance_type", geoDistance.name().toLowerCase(Locale.ROOT));
-        }
-        if (optimizeBbox != null) {
-            builder.field("optimize_bbox", optimizeBbox);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
-        if (coerce != null) {
-            builder.field("coerce", coerce);
-        }
-        if (ignoreMalformed != null) {
-            builder.field("ignore_malformed", ignoreMalformed);
-        }
+        builder.startObject(NAME);
+        builder.startArray(fieldName).value(point.lon()).value(point.lat()).endArray();
+        builder.field(GeoDistanceRangeQueryParser.FROM_FIELD.getPreferredName(), from);
+        builder.field(GeoDistanceRangeQueryParser.TO_FIELD.getPreferredName(), to);
+        builder.field(GeoDistanceRangeQueryParser.INCLUDE_LOWER_FIELD.getPreferredName(), includeLower);
+        builder.field(GeoDistanceRangeQueryParser.INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
+        builder.field(GeoDistanceRangeQueryParser.UNIT_FIELD.getPreferredName(), unit);
+        builder.field(GeoDistanceRangeQueryParser.DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
+        builder.field(GeoDistanceRangeQueryParser.OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
+        builder.field(GeoDistanceRangeQueryParser.VALIDATION_METHOD.getPreferredName(), validationMethod);
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    @Override
+    protected GeoDistanceRangeQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        GeoDistanceRangeQueryBuilder queryBuilder = new GeoDistanceRangeQueryBuilder(in.readString(), GeoPoint.readGeoPointFrom(in));
+        queryBuilder.from = in.readGenericValue();
+        queryBuilder.to = in.readGenericValue();
+        queryBuilder.includeLower = in.readBoolean();
+        queryBuilder.includeUpper = in.readBoolean();
+        queryBuilder.unit = DistanceUnit.valueOf(in.readString());
+        queryBuilder.geoDistance = GeoDistance.readGeoDistanceFrom(in);
+        queryBuilder.optimizeBbox = in.readString();
+        queryBuilder.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
+        return queryBuilder;
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        point.writeTo(out);
+        out.writeGenericValue(from);
+        out.writeGenericValue(to);
+        out.writeBoolean(includeLower);
+        out.writeBoolean(includeUpper);
+        out.writeString(unit.name());
+        geoDistance.writeTo(out);;
+        out.writeString(optimizeBbox);
+        validationMethod.writeTo(out);
+    }
+
+    @Override
+    protected boolean doEquals(GeoDistanceRangeQueryBuilder other) {
+        return ((Objects.equals(fieldName, other.fieldName)) && 
+                (Objects.equals(point, other.point)) &&
+                (Objects.equals(from, other.from)) &&
+                (Objects.equals(to, other.to)) &&
+                (Objects.equals(includeUpper, other.includeUpper)) &&
+                (Objects.equals(includeLower, other.includeLower)) &&
+                (Objects.equals(geoDistance, other.geoDistance)) &&
+                (Objects.equals(optimizeBbox, other.optimizeBbox)) &&
+                (Objects.equals(validationMethod, other.validationMethod)));
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(fieldName, point, from, to, includeUpper, includeLower, geoDistance, optimizeBbox, validationMethod);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

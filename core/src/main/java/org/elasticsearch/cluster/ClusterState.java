@@ -380,7 +380,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
             if (!blocks().indices().isEmpty()) {
                 builder.startObject("indices");
-                for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : blocks().indices().entrySet()) {
+                for (Map.Entry<String, Set<ClusterBlock>> entry : blocks().indices().entrySet()) {
                     builder.startObject(entry.getKey());
                     for (ClusterBlock block : entry.getValue()) {
                         block.toXContent(builder, params);

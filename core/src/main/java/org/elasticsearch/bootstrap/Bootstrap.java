@@ -43,6 +43,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 
@@ -82,7 +83,7 @@ final class Bootstrap {
     }
     
     /** initialize native resources */
-    public static void initializeNatives(boolean mlockAll, boolean seccomp, boolean ctrlHandler) {
+    public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean seccomp, boolean ctrlHandler) {
         final ESLogger logger = Loggers.getLogger(Bootstrap.class);
         
         // check if the user is running as root, and bail
@@ -96,7 +97,7 @@ final class Bootstrap {
         
         // enable secure computing mode
         if (seccomp) {
-            Natives.trySeccomp();
+            Natives.trySeccomp(tmpFile);
         }
         
         // mlockall if requested
@@ -141,7 +142,8 @@ final class Bootstrap {
     }
 
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
-        initializeNatives(settings.getAsBoolean("bootstrap.mlockall", false),
+        initializeNatives(environment.tmpFile(),
+                          settings.getAsBoolean("bootstrap.mlockall", false),
                           settings.getAsBoolean("bootstrap.seccomp", true),
                           settings.getAsBoolean("bootstrap.ctrlhandler", true));
 

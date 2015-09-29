@@ -1544,4 +1544,5 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return estimatedSize;
         }
     }
+
 }

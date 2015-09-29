@@ -69,6 +69,8 @@ grant codeBase "${es.security.plugin.lang-groovy}" {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   // needed by GroovyScriptEngineService to close its classloader (why?)
   permission java.lang.RuntimePermission "closeClassLoader";
+  // Allow executing groovy scripts with codesource of /groovy/script
+  permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
 };
 
 grant codeBase "${es.security.plugin.lang-javascript}" {
@@ -119,10 +121,9 @@ grant codeBase "${es.security.jar.randomizedtesting.junit4}" {
 
 grant {
 
-  // Allow executing groovy scripts with codesource of /groovy/script
-  // TODO: make our own general ScriptServicePermission we check instead and 
-  // check-before-createClassLoader for all scripting engines.
-  permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
+  // checked by scripting engines, and before hacks and other issues in
+  // third party code, to safeguard these against unprivileged code like scripts.
+  permission org.elasticsearch.SpecialPermission;
 
   // Allow connecting to the internet anywhere
   permission java.net.SocketPermission "*", "accept,listen,connect,resolve";

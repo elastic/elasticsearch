@@ -40,6 +40,7 @@ import org.codehaus.groovy.control.CompilerConfiguration;
 import org.codehaus.groovy.control.SourceUnit;
 import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -105,6 +106,10 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
         // Groovy class loader to isolate Groovy-land code
         // classloader created here
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
         this.loader = AccessController.doPrivileged(new PrivilegedAction<GroovyClassLoader>() {
             @Override
             public GroovyClassLoader run() {
@@ -117,6 +122,10 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     public void close() {
         loader.clearCache();
         // close classloader here (why do we do this?)
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @Override
             public Void run() {
@@ -158,6 +167,11 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     @Override
     public Object compile(String script) {
         try {
+            // we reuse classloader, so do a security check just in case.
+            SecurityManager sm = System.getSecurityManager();
+            if (sm != null) {
+                sm.checkPermission(new SpecialPermission());
+            }
             return loader.parseClass(script, Hashing.sha1().hashString(script, StandardCharsets.UTF_8).toString());
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {

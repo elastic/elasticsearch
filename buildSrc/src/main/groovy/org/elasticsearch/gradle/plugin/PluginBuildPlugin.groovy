@@ -5,7 +5,6 @@ import org.elasticsearch.gradle.ElasticsearchProperties
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.bundling.Zip
 
 /**
@@ -20,10 +19,12 @@ class PluginBuildPlugin extends BuildPlugin {
         configureDependencies(project)
         Task bundle = configureBundleTask(project)
         RestIntegTestTask integTest = RestIntegTestTask.configure(project)
-        integTest.configure {
-            dependsOn bundle
-            cluster {
-                plugin 'installPlugin', bundle.outputs.files.singleFile
+        project.afterEvaluate {
+            integTest.configure {
+                dependsOn bundle
+                cluster {
+                    plugin 'installPlugin', bundle.outputs.files.singleFile
+                }
             }
         }
         project.configurations.archives.artifacts.removeAll { it.archiveTask.is project.jar }

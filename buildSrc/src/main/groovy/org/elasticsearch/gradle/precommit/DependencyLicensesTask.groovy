@@ -53,9 +53,6 @@ class DependencyLicensesTask extends DefaultTask {
 
     @TaskAction
     void checkDependencies() {
-        if (ignoreFailures) {
-            throw new StopActionException() // skip
-        }
         // TODO: empty license dir (or error when dir exists and no deps)
         if (licensesDir.exists() == false && dependencies.isEmpty() == false) {
             throw new GradleException("Licences dir ${licensesDir} does not exist, but there are dependencies")

@@ -875,6 +875,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 try {
                     Lucene.cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {
+                        if (file.equals("write.lock") || file.startsWith("extra")) {
+                            continue;
+                        }
                         targetStore.directory().copyFrom(sourceStore.directory(), file, file, IOContext.DEFAULT);
                     }
                 } catch (Exception ex) {

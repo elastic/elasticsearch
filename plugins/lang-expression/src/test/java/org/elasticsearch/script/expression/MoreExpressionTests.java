@@ -423,6 +423,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
 
     // series of unit test for using expressions as executable scripts
     public void testExecutableScripts() throws Exception {
+        assumeTrue("test creates classes directly, cannot run with security manager", System.getSecurityManager() == null);
         Map<String, Object> vars = new HashMap<>();
         vars.put("a", 2.5);
         vars.put("b", 3);

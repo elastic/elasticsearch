@@ -20,10 +20,13 @@
 package org.elasticsearch.script.groovy;
 
 import java.nio.charset.StandardCharsets;
+
 import com.google.common.hash.Hashing;
+
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
@@ -49,6 +52,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -99,17 +104,30 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
 
         // Groovy class loader to isolate Groovy-land code
-        this.loader = new GroovyClassLoader(getClass().getClassLoader(), config);
+        // classloader created here
+        this.loader = AccessController.doPrivileged(new PrivilegedAction<GroovyClassLoader>() {
+            @Override
+            public GroovyClassLoader run() {
+                return new GroovyClassLoader(getClass().getClassLoader(), config);
+            }
+        });
     }
 
     @Override
     public void close() {
         loader.clearCache();
-        try {
-            loader.close();
-        } catch (IOException e) {
-            logger.warn("Unable to close Groovy loader", e);
-        }
+        // close classloader here (why do we do this?)
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                try {
+                    loader.close();
+                } catch (IOException e) {
+                    logger.warn("Unable to close Groovy loader", e);
+                }
+                return null;
+            }
+        });
     }
 
     @Override

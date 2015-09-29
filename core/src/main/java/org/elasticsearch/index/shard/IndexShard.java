@@ -37,10 +37,8 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
@@ -85,6 +83,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
@@ -121,10 +120,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class IndexShard extends AbstractIndexShardComponent {
+public class IndexShard extends AbstractIndexShardComponent implements IndexSettingsService.Listener {
 
     private final ThreadPool threadPool;
-    private final IndexSettingsService indexSettingsService;
     private final MapperService mapperService;
     private final IndexQueryParserService queryParserService;
     private final IndexCache indexCache;
@@ -144,8 +142,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexFieldDataService indexFieldDataService;
     private final ShardSuggestMetric shardSuggestMetric = new ShardSuggestMetric();
     private final ShardBitsetFilterCache shardBitsetFilterCache;
-    private final DiscoveryNode localNode;
-
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
     private final CodecService codecService;
@@ -171,9 +167,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private RecoveryState recoveryState;
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
-
-    private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
-
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
 
@@ -200,13 +193,13 @@ public class IndexShard extends AbstractIndexShardComponent {
     private EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
 
     @Inject
-    public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store,
+    public IndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndicesLifecycle indicesLifecycle, Store store,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
                       IndicesQueryCache indicesQueryCache, CodecService codecService,
                       TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
                       @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory,
-                      ClusterService clusterService, ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) {
-        super(shardId, indexSettingsService.getSettings());
+                      ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) {
+        super(shardId, indexSettings);
         this.codecService = codecService;
         this.warmer = warmer;
         this.deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
@@ -215,7 +208,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         Objects.requireNonNull(store, "Store must be provided to the index shard");
         this.engineFactory = factory;
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
-        this.indexSettingsService = indexSettingsService;
         this.store = store;
         this.mergeSchedulerConfig = new MergeSchedulerConfig(indexSettings);
         this.threadPool = threadPool;
@@ -235,12 +227,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryParserService, indexingService, indicesLifecycle, mapperService, indexFieldDataService, shardPercolateService);
         this.indexFieldDataService = indexFieldDataService;
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
-        assert clusterService.localNode() != null : "Local node is null lifecycle state is: " + clusterService.lifecycleState();
-        this.localNode = clusterService.localNode();
         state = IndexShardState.CREATED;
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
         this.flushOnClose = indexSettings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
-        indexSettingsService.addListener(applyRefreshSettings);
         this.path = path;
         this.mergePolicyConfig = new MergePolicyConfig(logger, indexSettings);
         /* create engine config */
@@ -385,21 +374,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
-     * Marks the shard as recovering based on a remote or local node, fails with exception is recovering is not allowed to be set.
+     * Marks the shard as recovering based on a recovery state, fails with exception is recovering is not allowed to be set.
      */
-    public IndexShardState recovering(String reason, RecoveryState.Type type, DiscoveryNode sourceNode) throws IndexShardStartedException,
-            IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
-        return recovering(reason, new RecoveryState(shardId, shardRouting.primary(), type, sourceNode, localNode));
-    }
-
-    /**
-     * Marks the shard as recovering based on a restore, fails with exception is recovering is not allowed to be set.
-     */
-    public IndexShardState recovering(String reason, RecoveryState.Type type, RestoreSource restoreSource) throws IndexShardStartedException {
-        return recovering(reason, new RecoveryState(shardId, shardRouting.primary(), type, restoreSource, localNode));
-    }
-
-    private IndexShardState recovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
+    public IndexShardState recovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
             IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
@@ -776,7 +753,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void close(String reason, boolean flushEngine) throws IOException {
         synchronized (mutex) {
             try {
-                indexSettingsService.removeListener(applyRefreshSettings);
                 if (state != IndexShardState.CLOSED) {
                     FutureUtils.cancel(refreshScheduledFuture);
                     refreshScheduledFuture = null;
@@ -1060,7 +1036,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return path;
     }
 
-    public boolean recoverFromStore(ShardRouting shard) {
+    public boolean recoverFromStore(ShardRouting shard, DiscoveryNode localNode) {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
         assert shard.primary() : "recover from store only makes sense if the shard is a primary shard";
@@ -1069,10 +1045,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         return storeRecovery.recoverFromStore(this, shouldExist, localNode);
     }
 
-    public boolean restoreFromRepository(ShardRouting shard, IndexShardRepository repository) {
+    public boolean restoreFromRepository(ShardRouting shard, IndexShardRepository repository, DiscoveryNode locaNode) {
         assert shard.primary() : "recover from store only makes sense if the shard is a primary shard";
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
-        return storeRecovery.recoverFromRepository(this, repository);
+        return storeRecovery.recoverFromRepository(this, repository, locaNode);
     }
 
     /**
@@ -1094,110 +1070,108 @@ public class IndexShard extends AbstractIndexShardComponent {
         return false;
     }
 
-    private class ApplyRefreshSettings implements IndexSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            boolean change = false;
-            synchronized (mutex) {
-                if (state() == IndexShardState.CLOSED) { // no need to update anything if we are closed
-                    return;
-                }
-                int flushThresholdOperations = settings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, IndexShard.this.flushThresholdOperations);
-                if (flushThresholdOperations != IndexShard.this.flushThresholdOperations) {
-                    logger.info("updating flush_threshold_ops from [{}] to [{}]", IndexShard.this.flushThresholdOperations, flushThresholdOperations);
-                    IndexShard.this.flushThresholdOperations = flushThresholdOperations;
-                }
-                ByteSizeValue flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, IndexShard.this.flushThresholdSize);
-                if (!flushThresholdSize.equals(IndexShard.this.flushThresholdSize)) {
-                    logger.info("updating flush_threshold_size from [{}] to [{}]", IndexShard.this.flushThresholdSize, flushThresholdSize);
-                    IndexShard.this.flushThresholdSize = flushThresholdSize;
-                }
-                boolean disableFlush = settings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, IndexShard.this.disableFlush);
-                if (disableFlush != IndexShard.this.disableFlush) {
-                    logger.info("updating disable_flush from [{}] to [{}]", IndexShard.this.disableFlush, disableFlush);
-                    IndexShard.this.disableFlush = disableFlush;
-                }
+    @Override
+    public void onRefreshSettings(Settings settings) {
+        boolean change = false;
+        synchronized (mutex) {
+            if (state() == IndexShardState.CLOSED) { // no need to update anything if we are closed
+                return;
+            }
+            int flushThresholdOperations = settings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, this.flushThresholdOperations);
+            if (flushThresholdOperations != this.flushThresholdOperations) {
+                logger.info("updating flush_threshold_ops from [{}] to [{}]", this.flushThresholdOperations, flushThresholdOperations);
+                this.flushThresholdOperations = flushThresholdOperations;
+            }
+            ByteSizeValue flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, this.flushThresholdSize);
+            if (!flushThresholdSize.equals(this.flushThresholdSize)) {
+                logger.info("updating flush_threshold_size from [{}] to [{}]", this.flushThresholdSize, flushThresholdSize);
+                this.flushThresholdSize = flushThresholdSize;
+            }
+            boolean disableFlush = settings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, this.disableFlush);
+            if (disableFlush != this.disableFlush) {
+                logger.info("updating disable_flush from [{}] to [{}]", this.disableFlush, disableFlush);
+                this.disableFlush = disableFlush;
+            }
 
-                final EngineConfig config = engineConfig;
-                final boolean flushOnClose = settings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, IndexShard.this.flushOnClose);
-                if (flushOnClose != IndexShard.this.flushOnClose) {
-                    logger.info("updating {} from [{}] to [{}]", INDEX_FLUSH_ON_CLOSE, IndexShard.this.flushOnClose, flushOnClose);
-                    IndexShard.this.flushOnClose = flushOnClose;
-                }
+            final EngineConfig config = engineConfig;
+            final boolean flushOnClose = settings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, this.flushOnClose);
+            if (flushOnClose != this.flushOnClose) {
+                logger.info("updating {} from [{}] to [{}]", INDEX_FLUSH_ON_CLOSE, this.flushOnClose, flushOnClose);
+                this.flushOnClose = flushOnClose;
+            }
 
-                TranslogWriter.Type type = TranslogWriter.Type.fromString(settings.get(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, translogConfig.getType().name()));
-                if (type != translogConfig.getType()) {
-                    logger.info("updating type from [{}] to [{}]", translogConfig.getType(), type);
-                    translogConfig.setType(type);
-                }
+            TranslogWriter.Type type = TranslogWriter.Type.fromString(settings.get(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, translogConfig.getType().name()));
+            if (type != translogConfig.getType()) {
+                logger.info("updating type from [{}] to [{}]", translogConfig.getType(), type);
+                translogConfig.setType(type);
+            }
 
-                final Translog.Durabilty durabilty = getFromSettings(logger, settings, translogConfig.getDurabilty());
-                if (durabilty != translogConfig.getDurabilty()) {
-                    logger.info("updating durability from [{}] to [{}]", translogConfig.getDurabilty(), durabilty);
-                    translogConfig.setDurabilty(durabilty);
-                }
+            final Translog.Durabilty durabilty = getFromSettings(logger, settings, translogConfig.getDurabilty());
+            if (durabilty != translogConfig.getDurabilty()) {
+                logger.info("updating durability from [{}] to [{}]", translogConfig.getDurabilty(), durabilty);
+                translogConfig.setDurabilty(durabilty);
+            }
 
-                TimeValue refreshInterval = settings.getAsTime(INDEX_REFRESH_INTERVAL, IndexShard.this.refreshInterval);
-                if (!refreshInterval.equals(IndexShard.this.refreshInterval)) {
-                    logger.info("updating refresh_interval from [{}] to [{}]", IndexShard.this.refreshInterval, refreshInterval);
-                    if (refreshScheduledFuture != null) {
-                        // NOTE: we pass false here so we do NOT attempt Thread.interrupt if EngineRefresher.run is currently running.  This is
-                        // very important, because doing so can cause files to suddenly be closed if they were doing IO when the interrupt
-                        // hit.  See https://issues.apache.org/jira/browse/LUCENE-2239
-                        FutureUtils.cancel(refreshScheduledFuture);
-                        refreshScheduledFuture = null;
-                    }
-                    IndexShard.this.refreshInterval = refreshInterval;
-                    if (refreshInterval.millis() > 0) {
-                        refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, new EngineRefresher());
-                    }
+            TimeValue refreshInterval = settings.getAsTime(INDEX_REFRESH_INTERVAL, this.refreshInterval);
+            if (!refreshInterval.equals(this.refreshInterval)) {
+                logger.info("updating refresh_interval from [{}] to [{}]", this.refreshInterval, refreshInterval);
+                if (refreshScheduledFuture != null) {
+                    // NOTE: we pass false here so we do NOT attempt Thread.interrupt if EngineRefresher.run is currently running.  This is
+                    // very important, because doing so can cause files to suddenly be closed if they were doing IO when the interrupt
+                    // hit.  See https://issues.apache.org/jira/browse/LUCENE-2239
+                    FutureUtils.cancel(refreshScheduledFuture);
+                    refreshScheduledFuture = null;
                 }
-
-                long gcDeletesInMillis = settings.getAsTime(EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis())).millis();
-                if (gcDeletesInMillis != config.getGcDeletesInMillis()) {
-                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis()), TimeValue.timeValueMillis(gcDeletesInMillis));
-                    config.setGcDeletesInMillis(gcDeletesInMillis);
-                    change = true;
-                }
-
-                final boolean compoundOnFlush = settings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush());
-                if (compoundOnFlush != config.isCompoundOnFlush()) {
-                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush(), compoundOnFlush);
-                    config.setCompoundOnFlush(compoundOnFlush);
-                    change = true;
-                }
-                final String versionMapSize = settings.get(EngineConfig.INDEX_VERSION_MAP_SIZE, config.getVersionMapSizeSetting());
-                if (config.getVersionMapSizeSetting().equals(versionMapSize) == false) {
-                    config.setVersionMapSizeSetting(versionMapSize);
-                }
-
-                final int maxThreadCount = settings.getAsInt(MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxThreadCount());
-                if (maxThreadCount != mergeSchedulerConfig.getMaxThreadCount()) {
-                    logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxThreadCount);
-                    mergeSchedulerConfig.setMaxThreadCount(maxThreadCount);
-                    change = true;
-                }
-
-                final int maxMergeCount = settings.getAsInt(MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount());
-                if (maxMergeCount != mergeSchedulerConfig.getMaxMergeCount()) {
-                    logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxMergeCount);
-                    mergeSchedulerConfig.setMaxMergeCount(maxMergeCount);
-                    change = true;
-                }
-
-                final boolean autoThrottle = settings.getAsBoolean(MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle());
-                if (autoThrottle != mergeSchedulerConfig.isAutoThrottle()) {
-                    logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle(), autoThrottle);
-                    mergeSchedulerConfig.setAutoThrottle(autoThrottle);
-                    change = true;
+                this.refreshInterval = refreshInterval;
+                if (refreshInterval.millis() > 0) {
+                    refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, new EngineRefresher());
                 }
             }
-            mergePolicyConfig.onRefreshSettings(settings);
-            searchService.onRefreshSettings(settings);
-            indexingService.onRefreshSettings(settings);
-            if (change) {
-                engine().onSettingsChanged();
+
+            long gcDeletesInMillis = settings.getAsTime(EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis())).millis();
+            if (gcDeletesInMillis != config.getGcDeletesInMillis()) {
+                logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis()), TimeValue.timeValueMillis(gcDeletesInMillis));
+                config.setGcDeletesInMillis(gcDeletesInMillis);
+                change = true;
             }
+
+            final boolean compoundOnFlush = settings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush());
+            if (compoundOnFlush != config.isCompoundOnFlush()) {
+                logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush(), compoundOnFlush);
+                config.setCompoundOnFlush(compoundOnFlush);
+                change = true;
+            }
+            final String versionMapSize = settings.get(EngineConfig.INDEX_VERSION_MAP_SIZE, config.getVersionMapSizeSetting());
+            if (config.getVersionMapSizeSetting().equals(versionMapSize) == false) {
+                config.setVersionMapSizeSetting(versionMapSize);
+            }
+
+            final int maxThreadCount = settings.getAsInt(MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxThreadCount());
+            if (maxThreadCount != mergeSchedulerConfig.getMaxThreadCount()) {
+                logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxThreadCount);
+                mergeSchedulerConfig.setMaxThreadCount(maxThreadCount);
+                change = true;
+            }
+
+            final int maxMergeCount = settings.getAsInt(MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount());
+            if (maxMergeCount != mergeSchedulerConfig.getMaxMergeCount()) {
+                logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxMergeCount);
+                mergeSchedulerConfig.setMaxMergeCount(maxMergeCount);
+                change = true;
+            }
+
+            final boolean autoThrottle = settings.getAsBoolean(MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle());
+            if (autoThrottle != mergeSchedulerConfig.isAutoThrottle()) {
+                logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle(), autoThrottle);
+                mergeSchedulerConfig.setAutoThrottle(autoThrottle);
+                change = true;
+            }
+        }
+        mergePolicyConfig.onRefreshSettings(settings);
+        searchService.onRefreshSettings(settings);
+        indexingService.onRefreshSettings(settings);
+        if (change) {
+            engine().onSettingsChanged();
         }
     }
 
@@ -1428,7 +1402,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         };
         return new EngineConfig(shardId,
-                threadPool, indexingService, indexSettingsService.indexSettings(), warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
+                threadPool, indexingService, indexSettings, warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
                 mapperService.indexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, wrappingService, translogConfig);
     }
 

@@ -24,6 +24,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -382,6 +383,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             indicesLifecycle.afterIndexShardCreated(indexShard);
 
             shards = newMapBuilder(shards).put(shardId.id(), new IndexShardInjectorPair(indexShard, shardInjector)).immutableMap();
+            settingsService.addListener(indexShard);
             success = true;
             return indexShard;
         } catch (IOException e) {
@@ -433,6 +435,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 // this logic is tricky, we want to close the engine so we rollback the changes done to it
                 // and close the shard so no operations are allowed to it
                 if (indexShard != null) {
+                    settingsService.removeListener(indexShard);
                     try {
                         final boolean flushEngine = deleted.get() == false && closed.get(); // only flush we are we closed (closed index or shutdown) and if we are not deleted
                         indexShard.close(reason, flushEngine);
@@ -449,18 +452,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 shardInjector.getInstance(Store.class).close();
             } catch (Throwable e) {
                 logger.warn("[{}] failed to close store on shard removal (reason: [{}])", e, shardId, reason);
-            }
-        }
-    }
-
-    /**
-     * This method gets an instance for each of the given classes passed and calls #close() on the returned instance.
-     * NOTE: this method swallows all exceptions thrown from the close method of the injector and logs them as debug log
-     */
-    private void closeInjectorResource(ShardId shardId, Injector shardInjector, Class<? extends Closeable>... toClose) {
-        for (Class<? extends Closeable> closeable : toClose) {
-            if (closeInjectorOptionalResource(shardId, shardInjector, closeable) == false) {
-                logger.warn("[{}] no instance available for [{}], ignoring... ", shardId, closeable.getSimpleName());
             }
         }
     }

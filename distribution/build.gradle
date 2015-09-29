@@ -37,11 +37,11 @@ Map expansions = [
   'packaging.type': 'tar.gz',
 ]
 
-Configuration deps = project(':core').configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
+Configuration deps = project("${projectsPrefix}:core").configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
 
 CopySpec libFiles = copySpec {
   into 'lib'
-  from project(':core').jar
+  from project("${projectsPrefix}:core").jar
   from deps
 }
 

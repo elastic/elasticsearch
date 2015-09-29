@@ -7,7 +7,11 @@ class ElasticsearchProperties {
     static final String version
     static {
         Properties props = new Properties()
-        props.load(ElasticsearchProperties.class.getResourceAsStream('/elasticsearch.properties'))
+        InputStream propsStream = ElasticsearchProperties.class.getResourceAsStream('/elasticsearch.properties')
+        if (propsStream == null) {
+            throw new RuntimeException('/elasticsearch.properties resource missing')
+        }
+        props.load(propsStream)
         version = props.getProperty('version')
     }
 }

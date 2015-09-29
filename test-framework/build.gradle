@@ -3,7 +3,7 @@ apply plugin: 'java'
 
 dependencies {
   // TODO: change to elasticsearch core jar dep, and use dependnecy subs to point at core project
-  compile project(':core')
+  compile "org.elasticsearch:elasticsearch:${version}"
 
   compile(group: 'junit', name: 'junit', version: '4.11') {
     transitive = false
@@ -26,7 +26,7 @@ dependencies {
 // point we can physically move the test framework files to this project
 project.ext {
   srcDir = new File(project.buildDir, 'src')
-  coreDir = new File(project(':core').projectDir, 'src' + File.separator + 'test')
+  coreDir = new File(project("${projectsPrefix}:core").projectDir, 'src' + File.separator + 'test')
 }
 class ExecHack extends DefaultTask {
   File srcDir = project.ext.srcDir

@@ -1,11 +1,9 @@
 package org.elasticsearch.gradle.plugin
 
-import com.carrotsearch.gradle.randomizedtesting.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.ElasticsearchProperties
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.test.RestSpecHack
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.tasks.TaskContainer

@@ -105,7 +105,7 @@ dependencies {
 
   testCompile configurations.optional // optional deps are pulled into tests
 
-  restSpec2 project(':rest-api-spec') // for rest tests
+  restSpec2 project("${projectsPrefix}:rest-api-spec") // for rest tests
 }
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"

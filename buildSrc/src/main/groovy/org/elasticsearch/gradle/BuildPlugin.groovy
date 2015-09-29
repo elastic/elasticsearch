@@ -19,7 +19,7 @@ class BuildPlugin implements Plugin<Project> {
 
         configureCompile(project)
         configureTest(project)
-        PrecommitTasks.setup(project)
+        PrecommitTasks.configure(project)
     }
 
     /** Adds compiler settings to the project */

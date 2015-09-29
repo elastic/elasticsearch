@@ -30,7 +30,7 @@ import org.gradle.api.tasks.TaskContainer
 class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
-    static void setup(Project project) {
+    static void configure(Project project) {
         List precommitTasks = [
                 configureForbiddenApis(project),
                 configureForbiddenPatterns(project.tasks)]
@@ -63,17 +63,17 @@ class PrecommitTasks {
             internalRuntimeForbidden = true
             failOnUnsupportedJava = false
             bundledSignatures = ['jdk-unsafe', 'jdk-deprecated']
-            signaturesFiles = project.files(new File(getClass().getResource('/forbidden/all-signatures.txt').toURI()))
+            signaturesURLs = [getClass().getResource('/forbidden/all-signatures.txt')]
             suppressAnnotations = ['**.SuppressForbidden']
         }
         project.tasks.findByName('forbiddenApisMain').configure {
             bundledSignatures += ['jdk-system-out']
-            signaturesFiles += project.files(
-                    new File(getClass().getResource('/forbidden/core-signatures.txt').toURI()),
-                    new File(getClass().getResource('/forbidden/third-party-signatures.txt').toURI()))
+            signaturesURLs += [
+                    getClass().getResource('/forbidden/core-signatures.txt'),
+                    getClass().getResource('/forbidden/third-party-signatures.txt')]
         }
         project.tasks.findByName('forbiddenApisTest').configure {
-            signaturesFiles += project.files(new File(getClass().getResource('/forbidden/test-signatures.txt').toURI()))
+            signaturesURLs += [getClass().getResource('/forbidden/test-signatures.txt')]
         }
         Task forbiddenApis = project.tasks.findByName('forbiddenApis')
         forbiddenApis.group = "" // clear group, so this does not show up under verification tasks
@@ -81,10 +81,10 @@ class PrecommitTasks {
     }
 
     static Task configureForbiddenPatterns(TaskContainer tasks) {
-        def options = [
-                'name': 'forbiddenPatterns',
-                'type': ForbiddenPatternsTask,
-                'description': 'Checks source files for invalid patterns like nocommits or tabs',
+        Map options = [
+                name: 'forbiddenPatterns',
+                type: ForbiddenPatternsTask,
+                description: 'Checks source files for invalid patterns like nocommits or tabs',
         ]
         return tasks.create(options) {
             rule name: 'nocommit', pattern: /nocommit/

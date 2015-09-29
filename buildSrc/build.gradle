@@ -4,16 +4,12 @@ apply plugin: 'groovy'
 // TODO: move common IDE configuration to a common file to include
 apply plugin: 'idea'
 apply plugin: 'eclipse'
-idea {
+/*idea {
   project {
     languageLevel = '1.8'
     vcs = 'Git'
   }
-}
-
-if (System.getenv().get('JAVA_HOME') == null) {
-  throw new InvalidUserDataException('JAVA_HOME must be set')
-}
+}*/
 
 repositories {
   mavenCentral()
@@ -23,10 +19,11 @@ repositories {
   }
 }
 
-configurations.all {
+/*configurations.all {
     // check for updates every build
     resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
 }
+*/
 
 dependencies {
   compile gradleApi()

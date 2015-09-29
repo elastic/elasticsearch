@@ -21,8 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexOptions;
@@ -64,13 +64,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
@@ -116,7 +120,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private volatile ImmutableMap<String, MappedFieldType> unmappedFieldTypes = ImmutableMap.of();
 
-    private volatile ImmutableSet<String> parentTypes = ImmutableSet.of();
+    private volatile Set<String> parentTypes = emptySet();
 
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
@@ -161,6 +165,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
+    @Override
     public void close() {
         for (DocumentMapper documentMapper : mappers.values()) {
             documentMapper.close();
@@ -283,10 +288,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }
                 mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
                 if (mapper.parentFieldMapper().active()) {
-                    ImmutableSet.Builder<String> parentTypesCopy = ImmutableSet.builder();
-                    parentTypesCopy.addAll(parentTypes);
-                    parentTypesCopy.add(mapper.parentFieldMapper().type());
-                    parentTypes = parentTypesCopy.build();
+                    Set<String> newParentTypes = new HashSet<>(parentTypes.size() + 1);
+                    newParentTypes.addAll(parentTypes);
+                    newParentTypes.add(mapper.parentFieldMapper().type());
+                    parentTypes = unmodifiableSet(newParentTypes);
                 }
                 assert assertSerialization(mapper);
                 return mapper;
@@ -594,7 +599,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return null;
     }
 
-    public ImmutableSet<String> getParentTypes() {
+    public Set<String> getParentTypes() {
         return parentTypes;
     }
 

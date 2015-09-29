@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import java.util.ArrayList;
@@ -76,13 +75,6 @@ public class ScriptModule extends AbstractModule {
 
         Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
         multibinder.addBinding().to(NativeScriptEngineService.class);
-
-        try {
-            Class.forName("groovy.lang.GroovyClassLoader");
-            multibinder.addBinding().to(GroovyScriptEngineService.class).asEagerSingleton();
-        } catch (Throwable t) {
-            Loggers.getLogger(ScriptService.class, settings).debug("failed to load groovy", t);
-        }
         
         try {
             Class.forName("com.github.mustachejava.Mustache");

@@ -26,7 +26,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<ConstantScoreQueryBuilder> {
 
@@ -46,7 +47,7 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         } else {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
-            assertThat(constantScoreQuery.getQuery(), equalTo(innerQuery));
+            assertThat(constantScoreQuery.getQuery(), instanceOf(innerQuery.getClass()));
         }
     }
 

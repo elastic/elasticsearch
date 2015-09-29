@@ -17,6 +17,7 @@
 package org.elasticsearch.common.inject.spi;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Key;
@@ -38,10 +39,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.inject.internal.MoreTypes.getRawType;
 
 /**
@@ -253,13 +256,13 @@ public final class InjectionPoint {
      *                                of the valid injection points.
      */
     public static Set<InjectionPoint> forStaticMethodsAndFields(TypeLiteral type) {
-        List<InjectionPoint> sink = new ArrayList<>();
+        Set<InjectionPoint> result = new HashSet<>();
         Errors errors = new Errors();
 
-        addInjectionPoints(type, Factory.FIELDS, true, sink, errors);
-        addInjectionPoints(type, Factory.METHODS, true, sink, errors);
+        addInjectionPoints(type, Factory.FIELDS, true, result, errors);
+        addInjectionPoints(type, Factory.METHODS, true, result, errors);
 
-        ImmutableSet<InjectionPoint> result = ImmutableSet.copyOf(sink);
+        result = unmodifiableSet(result);
         if (errors.hasErrors()) {
             throw new ConfigurationException(errors.getMessages()).withPartialValue(result);
         }
@@ -293,14 +296,14 @@ public final class InjectionPoint {
      *                                of the valid injection points.
      */
     public static Set<InjectionPoint> forInstanceMethodsAndFields(TypeLiteral<?> type) {
-        List<InjectionPoint> sink = new ArrayList<>();
+        Set<InjectionPoint> result = new HashSet<>();
         Errors errors = new Errors();
 
         // TODO (crazybob): Filter out overridden members.
-        addInjectionPoints(type, Factory.FIELDS, false, sink, errors);
-        addInjectionPoints(type, Factory.METHODS, false, sink, errors);
+        addInjectionPoints(type, Factory.FIELDS, false, result, errors);
+        addInjectionPoints(type, Factory.METHODS, false, result, errors);
 
-        ImmutableSet<InjectionPoint> result = ImmutableSet.copyOf(sink);
+        result = unmodifiableSet(result);
         if (errors.hasErrors()) {
             throw new ConfigurationException(errors.getMessages()).withPartialValue(result);
         }

@@ -34,6 +34,7 @@ import org.junit.Test;
 
 import java.util.*;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -170,11 +171,10 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                             boolean stateInMemory,
                             boolean expectMetaData) throws Exception {
         MetaData inMemoryMetaData = null;
-        ImmutableSet<String> oldIndicesList = ImmutableSet.of();
+        Set<String> oldIndicesList = emptySet();
         if (stateInMemory) {
             inMemoryMetaData = event.previousState().metaData();
-            ImmutableSet.Builder<String> relevantIndices = ImmutableSet.builder();
-            oldIndicesList = relevantIndices.addAll(GatewayMetaState.getRelevantIndices(event.previousState(), event.previousState(), oldIndicesList)).build();
+            oldIndicesList = GatewayMetaState.getRelevantIndices(event.previousState(), event.previousState(), oldIndicesList);
         }
         Set<String> newIndicesList = GatewayMetaState.getRelevantIndices(event.state(),event.previousState(), oldIndicesList);
         // third, get the actual write info

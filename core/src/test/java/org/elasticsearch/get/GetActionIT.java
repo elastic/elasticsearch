@@ -19,8 +19,6 @@
 
 package org.elasticsearch.get;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -52,9 +50,17 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GetActionIT extends ESIntegTestCase {
 
@@ -295,7 +301,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getType(), equalTo("type1"));
         Set<String> fields = new HashSet<>(response.getFields().keySet());
         fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
-        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("field")));
+        assertThat(fields, equalTo(singleton("field")));
         assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
         assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
@@ -307,7 +313,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getId(), equalTo("1"));
         fields = new HashSet<>(response.getFields().keySet());
         fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
-        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("field")));
+        assertThat(fields, equalTo(singleton("field")));
         assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
         assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
@@ -319,7 +325,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getId(), equalTo("1"));
         fields = new HashSet<>(response.getFields().keySet());
         fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
-        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("field")));
+        assertThat(fields, equalTo(singleton("field")));
         assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
         assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
@@ -329,7 +335,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getId(), equalTo("1"));
         fields = new HashSet<>(response.getFields().keySet());
         fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
-        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("field")));
+        assertThat(fields, equalTo(singleton("field")));
         assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
         assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));

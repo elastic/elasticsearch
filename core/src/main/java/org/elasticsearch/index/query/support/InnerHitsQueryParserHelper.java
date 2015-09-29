@@ -21,10 +21,6 @@ package org.elasticsearch.index.query.support;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
@@ -73,7 +69,7 @@ public class InnerHitsQueryParserHelper {
                 }
             }
         } catch (Exception e) {
-            throw new IOException("Failed to parse [_inner_hits]");
+            throw new IOException("Failed to parse [_inner_hits]", e);
         }
         return new InnerHitsSubSearchContext(innerHitName, subSearchContext);
     }

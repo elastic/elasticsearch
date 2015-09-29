@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.block;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -33,66 +33,70 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableSet;
+import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Stream.concat;
 
 /**
  * Represents current cluster level blocks to block dirty operations done against the cluster.
  */
 public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
-
-    public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(ImmutableSet.<ClusterBlock>of(), ImmutableMap.<String, ImmutableSet<ClusterBlock>>of());
+    public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), emptyMap());
 
     public static final ClusterBlocks PROTO = EMPTY_CLUSTER_BLOCK;
 
-    private final ImmutableSet<ClusterBlock> global;
+    private final Set<ClusterBlock> global;
 
-    private final Map<String, ImmutableSet<ClusterBlock>> indicesBlocks;
+    private final Map<String, Set<ClusterBlock>> indicesBlocks;
 
     private final ImmutableLevelHolder[] levelHolders;
 
-    ClusterBlocks(ImmutableSet<ClusterBlock> global, Map<String, ImmutableSet<ClusterBlock>> indicesBlocks) {
+    ClusterBlocks(Set<ClusterBlock> global, Map<String, Set<ClusterBlock>> indicesBlocks) {
         this.global = global;
         this.indicesBlocks = indicesBlocks;
 
         levelHolders = new ImmutableLevelHolder[ClusterBlockLevel.values().length];
-        for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
-            ImmutableSet.Builder<ClusterBlock> globalBuilder = ImmutableSet.builder();
-            for (ClusterBlock block : global) {
-                if (block.contains(level)) {
-                    globalBuilder.add(block);
-                }
+        for (final ClusterBlockLevel level : ClusterBlockLevel.values()) {
+            Predicate<ClusterBlock> containsLevel = block -> block.contains(level);
+            Set<ClusterBlock> newGlobal = unmodifiableSet(global.stream()
+                    .filter(containsLevel)
+                    .collect(toSet()));
+
+            ImmutableMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
+            for (Map.Entry<String, Set<ClusterBlock>> entry : indicesBlocks.entrySet()) {
+                indicesBuilder.put(entry.getKey(), unmodifiableSet(entry.getValue().stream()
+                        .filter(containsLevel)
+                        .collect(toSet())));
             }
 
-
-            ImmutableMap.Builder<String, ImmutableSet<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
-            for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : indicesBlocks.entrySet()) {
-                ImmutableSet.Builder<ClusterBlock> indexBuilder = ImmutableSet.builder();
-                for (ClusterBlock block : entry.getValue()) {
-                    if (block.contains(level)) {
-                        indexBuilder.add(block);
-                    }
-                }
-
-                indicesBuilder.put(entry.getKey(), indexBuilder.build());
-            }
-
-            levelHolders[level.id()] = new ImmutableLevelHolder(globalBuilder.build(), indicesBuilder.build());
+            levelHolders[level.id()] = new ImmutableLevelHolder(newGlobal, indicesBuilder.build());
         }
     }
 
-    public ImmutableSet<ClusterBlock> global() {
+    public Set<ClusterBlock> global() {
         return global;
     }
 
-    public Map<String, ImmutableSet<ClusterBlock>> indices() {
+    public Map<String, Set<ClusterBlock>> indices() {
         return indicesBlocks;
     }
 
-    public ImmutableSet<ClusterBlock> global(ClusterBlockLevel level) {
+    public Set<ClusterBlock> global(ClusterBlockLevel level) {
         return levelHolders[level.id()].global();
     }
 
-    public Map<String, ImmutableSet<ClusterBlock>> indices(ClusterBlockLevel level) {
+    public Map<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
         return levelHolders[level.id()].indices();
+    }
+
+    private Set<ClusterBlock> blocksForIndex(ClusterBlockLevel level, String index) {
+        return indices(level).getOrDefault(index, emptySet());
     }
 
     /**
@@ -151,7 +155,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         if (global(level).isEmpty()) {
             return null;
         }
-        return new ClusterBlockException(ImmutableSet.copyOf(global(level)));
+        return new ClusterBlockException(global(level));
     }
 
     public void indexBlockedRaiseException(ClusterBlockLevel level, String index) throws ClusterBlockException {
@@ -165,24 +169,17 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         if (!indexBlocked(level, index)) {
             return null;
         }
-        ImmutableSet.Builder<ClusterBlock> builder = ImmutableSet.builder();
-        builder.addAll(global(level));
-        ImmutableSet<ClusterBlock> indexBlocks = indices(level).get(index);
-        if (indexBlocks != null) {
-            builder.addAll(indexBlocks);
-        }
-        return new ClusterBlockException(builder.build());
+        Stream<ClusterBlock> blocks = concat(
+                global(level).stream(),
+                blocksForIndex(level, index).stream());
+        return new ClusterBlockException(unmodifiableSet(blocks.collect(toSet())));
     }
 
     public boolean indexBlocked(ClusterBlockLevel level, String index) {
         if (!global(level).isEmpty()) {
             return true;
         }
-        ImmutableSet<ClusterBlock> indexBlocks = indices(level).get(index);
-        if (indexBlocks != null && !indexBlocks.isEmpty()) {
-            return true;
-        }
-        return false;
+        return !blocksForIndex(level, index).isEmpty();
     }
 
     public ClusterBlockException indicesBlockedException(ClusterBlockLevel level, String[] indices) {
@@ -195,28 +192,24 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         if (!indexIsBlocked) {
             return null;
         }
-        ImmutableSet.Builder<ClusterBlock> builder = ImmutableSet.builder();
-        builder.addAll(global(level));
-        for (String index : indices) {
-            ImmutableSet<ClusterBlock> indexBlocks = indices(level).get(index);
-            if (indexBlocks != null) {
-                builder.addAll(indexBlocks);
-            }
-        }
-        return new ClusterBlockException(builder.build());
+        Function<String, Stream<ClusterBlock>> blocksForIndexAtLevel = index -> blocksForIndex(level, index).stream();
+        Stream<ClusterBlock> blocks = concat(
+                global(level).stream(),
+                Stream.of(indices).flatMap(blocksForIndexAtLevel));
+        return new ClusterBlockException(unmodifiableSet(blocks.collect(toSet())));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         writeBlockSet(global, out);
         out.writeVInt(indicesBlocks.size());
-        for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : indicesBlocks.entrySet()) {
+        for (Map.Entry<String, Set<ClusterBlock>> entry : indicesBlocks.entrySet()) {
             out.writeString(entry.getKey());
             writeBlockSet(entry.getValue(), out);
         }
     }
 
-    private static void writeBlockSet(ImmutableSet<ClusterBlock> blocks, StreamOutput out) throws IOException {
+    private static void writeBlockSet(Set<ClusterBlock> blocks, StreamOutput out) throws IOException {
         out.writeVInt(blocks.size());
         for (ClusterBlock block : blocks) {
             block.writeTo(out);
@@ -225,8 +218,8 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     @Override
     public ClusterBlocks readFrom(StreamInput in) throws IOException {
-        ImmutableSet<ClusterBlock> global = readBlockSet(in);
-        ImmutableMap.Builder<String, ImmutableSet<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
+        Set<ClusterBlock> global = readBlockSet(in);
+        ImmutableMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
         int size = in.readVInt();
         for (int j = 0; j < size; j++) {
             indicesBuilder.put(in.readString().intern(), readBlockSet(in));
@@ -234,32 +227,32 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return new ClusterBlocks(global, indicesBuilder.build());
     }
 
-    private static ImmutableSet<ClusterBlock> readBlockSet(StreamInput in) throws IOException {
-        ImmutableSet.Builder<ClusterBlock> builder = ImmutableSet.builder();
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            builder.add(ClusterBlock.readClusterBlock(in));
+    private static Set<ClusterBlock> readBlockSet(StreamInput in) throws IOException {
+        int totalBlocks = in.readVInt();
+        Set<ClusterBlock> blocks = new HashSet<>(totalBlocks);
+        for (int i = 0; i < totalBlocks;i++) {
+            blocks.add(ClusterBlock.readClusterBlock(in));
         }
-        return builder.build();
+        return unmodifiableSet(blocks);
     }
 
     static class ImmutableLevelHolder {
 
-        static final ImmutableLevelHolder EMPTY = new ImmutableLevelHolder(ImmutableSet.<ClusterBlock>of(), ImmutableMap.<String, ImmutableSet<ClusterBlock>>of());
+        static final ImmutableLevelHolder EMPTY = new ImmutableLevelHolder(emptySet(), ImmutableMap.of());
 
-        private final ImmutableSet<ClusterBlock> global;
-        private final ImmutableMap<String, ImmutableSet<ClusterBlock>> indices;
+        private final Set<ClusterBlock> global;
+        private final ImmutableMap<String, Set<ClusterBlock>> indices;
 
-        ImmutableLevelHolder(ImmutableSet<ClusterBlock> global, ImmutableMap<String, ImmutableSet<ClusterBlock>> indices) {
+        ImmutableLevelHolder(Set<ClusterBlock> global, ImmutableMap<String, Set<ClusterBlock>> indices) {
             this.global = global;
             this.indices = indices;
         }
 
-        public ImmutableSet<ClusterBlock> global() {
+        public Set<ClusterBlock> global() {
             return global;
         }
 
-        public ImmutableMap<String, ImmutableSet<ClusterBlock>> indices() {
+        public ImmutableMap<String, Set<ClusterBlock>> indices() {
             return indices;
         }
     }
@@ -279,7 +272,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
         public Builder blocks(ClusterBlocks blocks) {
             global.addAll(blocks.global());
-            for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : blocks.indices().entrySet()) {
+            for (Map.Entry<String, Set<ClusterBlock>> entry : blocks.indices().entrySet()) {
                 if (!indices.containsKey(entry.getKey())) {
                     indices.put(entry.getKey(), new HashSet<>());
                 }
@@ -345,11 +338,12 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
 
         public ClusterBlocks build() {
-            ImmutableMap.Builder<String, ImmutableSet<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
+            // We copy the block sets here in case of the builder is modified after build is called
+            ImmutableMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
             for (Map.Entry<String, Set<ClusterBlock>> entry : indices.entrySet()) {
-                indicesBuilder.put(entry.getKey(), ImmutableSet.copyOf(entry.getValue()));
+                indicesBuilder.put(entry.getKey(), unmodifiableSet(new HashSet<>(entry.getValue())));
             }
-            return new ClusterBlocks(ImmutableSet.copyOf(global), indicesBuilder.build());
+            return new ClusterBlocks(unmodifiableSet(new HashSet<>(global)), indicesBuilder.build());
         }
 
         public static ClusterBlocks readClusterBlocks(StreamInput in) throws IOException {

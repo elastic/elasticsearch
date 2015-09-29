@@ -31,7 +31,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 public class NotQueryBuilderTests extends AbstractQueryTestCase<NotQueryBuilder> {
 
@@ -55,7 +57,7 @@ public class NotQueryBuilderTests extends AbstractQueryTestCase<NotQueryBuilder>
             assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
             assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(MatchAllDocsQuery.class));
             assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
-            assertThat(booleanQuery.clauses().get(1).getQuery(), equalTo(filter));
+            assertThat(booleanQuery.clauses().get(1).getQuery(), instanceOf(filter.getClass()));
         }
     }
 

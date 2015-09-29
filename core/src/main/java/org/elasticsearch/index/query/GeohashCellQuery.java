@@ -197,6 +197,7 @@ public class GeohashCellQuery {
                         fieldName);
             }
 
+            String geohash = this.geohash;
             if (levels != null) {
                 int len = Math.min(levels, geohash.length());
                 geohash = geohash.substring(0, len);

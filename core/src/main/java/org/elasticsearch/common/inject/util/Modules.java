@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.util;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Binding;
@@ -39,6 +38,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  * Static utility methods for creating and working with instances of {@link Module}.
@@ -94,15 +96,14 @@ public final class Modules {
      * Returns a new module that installs all of {@code modules}.
      */
     public static Module combine(Module... modules) {
-        return combine(ImmutableSet.copyOf(modules));
+        return combine(Arrays.asList(modules));
     }
 
     /**
      * Returns a new module that installs all of {@code modules}.
      */
     public static Module combine(Iterable<? extends Module> modules) {
-        // TODO: infer type once JI-9019884 is fixed
-        final Set<Module> modulesSet = ImmutableSet.<Module>copyOf(modules);
+        final Set<? extends Module> modulesSet = newHashSet(modules);
         return new Module() {
             @Override
             public void configure(Binder binder) {
@@ -131,11 +132,10 @@ public final class Modules {
     }
 
     private static final class RealOverriddenModuleBuilder implements OverriddenModuleBuilder {
-        private final ImmutableSet<Module> baseModules;
+        private final Set<Module> baseModules;
 
         private RealOverriddenModuleBuilder(Iterable<? extends Module> baseModules) {
-            // TODO: infer type once JI-9019884 is fixed
-            this.baseModules = ImmutableSet.<Module>copyOf(baseModules);
+            this.baseModules = unmodifiableSet(newHashSet(baseModules));
         }
 
         @Override

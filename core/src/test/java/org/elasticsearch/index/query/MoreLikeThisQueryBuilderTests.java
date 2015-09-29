@@ -52,7 +52,9 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLikeThisQueryBuilder> {
 

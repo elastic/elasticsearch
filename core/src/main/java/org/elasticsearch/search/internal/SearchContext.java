@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -368,4 +369,6 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
          */
         CONTEXT
     }
+
+    public abstract QueryCache getQueryCache();
 }

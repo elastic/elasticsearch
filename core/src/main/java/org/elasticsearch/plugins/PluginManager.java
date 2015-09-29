@@ -19,8 +19,8 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchCorruptionException;
@@ -41,17 +41,29 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Random;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.cli.Terminal.Verbosity.VERBOSE;
 import static org.elasticsearch.common.io.FileSystemUtils.moveFilesWithoutOverwriting;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  *
@@ -64,35 +76,34 @@ public class PluginManager {
         DEFAULT, SILENT, VERBOSE
     }
 
-    private static final ImmutableSet<String> BLACKLIST = ImmutableSet.<String>builder()
-            .add("elasticsearch",
-                    "elasticsearch.bat",
-                    "elasticsearch.in.sh",
-                    "plugin",
-                    "plugin.bat",
-                    "service.bat").build();
+    private static final Set<String> BLACKLIST = unmodifiableSet(newHashSet(
+            "elasticsearch",
+            "elasticsearch.bat",
+            "elasticsearch.in.sh",
+            "plugin",
+            "plugin.bat",
+            "service.bat"));
 
-    static final ImmutableSet<String> OFFICIAL_PLUGINS = ImmutableSet.<String>builder()
-            .add(
-                    "analysis-icu",
-                    "analysis-kuromoji",
-                    "analysis-phonetic",
-                    "analysis-smartcn",
-                    "analysis-stempel",
-                    "cloud-gce",
-                    "delete-by-query",
-                    "discovery-azure",
-                    "discovery-ec2",
-                    "discovery-multicast",
-                    "lang-expression",
-                    "lang-javascript",
-                    "lang-python",
-                    "mapper-murmur3",
-                    "mapper-size",
-                    "repository-azure",
-                    "repository-s3",
-                    "store-smb"
-            ).build();
+    static final Set<String> OFFICIAL_PLUGINS = unmodifiableSet(newHashSet(
+            "analysis-icu",
+            "analysis-kuromoji",
+            "analysis-phonetic",
+            "analysis-smartcn",
+            "analysis-stempel",
+            "cloud-gce",
+            "delete-by-query",
+            "discovery-azure",
+            "discovery-ec2",
+            "discovery-multicast",
+            "lang-expression",
+            "lang-groovy",
+            "lang-javascript",
+            "lang-python",
+            "mapper-murmur3",
+            "mapper-size",
+            "repository-azure",
+            "repository-s3",
+            "store-smb"));
 
     private final Environment environment;
     private URL url;

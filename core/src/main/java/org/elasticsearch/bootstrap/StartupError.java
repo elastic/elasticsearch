@@ -97,7 +97,11 @@ final class StartupError extends RuntimeException {
                 linesWritten++;
             }
         }
-        s.println("Refer to the log for complete error details.");
+        // if its a guice exception, the whole thing really will not be in the log, its megabytes.
+        // refer to the hack in bootstrap, where we don't log it
+        if (originalCause instanceof CreationException == false) {
+            s.println("Refer to the log for complete error details.");
+        }
     }
     
     /** 

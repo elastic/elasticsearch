@@ -42,6 +42,11 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
     private final String path;
     private String routing;
 
+    public TermsLookup(TermsLookup copy) {
+        this(copy.index, copy.type, copy.id, copy.path);
+        this.routing = copy.routing;
+    }
+
     public TermsLookup(String index, String type, String id, String path) {
         if (id == null) {
             throw new IllegalArgumentException("[terms] query lookup element requires specifying the id.");

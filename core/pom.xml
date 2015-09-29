@@ -164,12 +164,6 @@
         </dependency>
 
         <dependency>
-            <groupId>org.codehaus.groovy</groupId>
-            <artifactId>groovy-all</artifactId>
-            <classifier>indy</classifier>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
             <optional>true</optional>
@@ -283,6 +277,14 @@
                                 <include>org/elasticsearch/index/shard/MockEngineFactoryPlugin.class</include>
                                 <include>org/elasticsearch/search/MockSearchService.class</include>
                                 <include>org/elasticsearch/search/MockSearchService$*.class</include>
+                                <include>org/elasticsearch/search/aggregations/bucket/AbstractTermsTestCase.class</include>
+                                <include>org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptNoParams.class</include>
+                                <include>org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptNoParams$*.class</include>
+                                <include>org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptWithParams.class</include>
+                                <include>org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptWithParams$*.class</include>
+                                <include>org/elasticsearch/search/aggregations/bucket/script/TestScript.class</include>
+                                <include>org/elasticsearch/search/aggregations/metrics/AbstractNumericTestCase.class</include>
+                                <include>org/elasticsearch/percolator/PercolatorTestUtil.class</include>
                                 <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler.class</include>
                                 <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler$*.class</include>
                                 <include>org/elasticsearch/common/util/MockBigArrays.class</include>

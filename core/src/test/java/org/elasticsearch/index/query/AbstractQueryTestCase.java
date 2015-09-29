@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -69,7 +70,12 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -80,13 +86,22 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -356,10 +371,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         context.setAllowUnmappedFields(true);
 
         QB firstQuery = createTestQueryBuilder();
+        QB controlQuery = copyQuery(firstQuery);
         setSearchContext(randomTypes); // only set search context for toQuery to be more realistic
         Query firstLuceneQuery = firstQuery.toQuery(context);
         assertLuceneQuery(firstQuery, firstLuceneQuery, context);
         SearchContext.removeCurrent(); // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
+        assertTrue("query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
+                firstQuery.equals(controlQuery));
+        assertTrue("equals is not symmetric after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
+                controlQuery.equals(firstQuery));
+        assertThat("query copy's hashcode is different from original hashcode after calling toQuery, firstQuery: " + firstQuery
+                + ", secondQuery: " + controlQuery, controlQuery.hashCode(), equalTo(firstQuery.hashCode()));
 
 
         QB secondQuery = copyQuery(firstQuery);
@@ -473,7 +495,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertTrue("equals is not symmetric", thirdQuery.equals(firstQuery));
 
         if (randomBoolean()) {
-            secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName() + randomAsciiOfLengthBetween(1, 10));
+            secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName()
+                    + randomAsciiOfLengthBetween(1, 10));
         } else {
             secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
         }

@@ -40,7 +40,6 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -365,8 +364,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                             injector.getInstance(IndicesQueryCache.class).onClose(shardId);
                         }
                     }), path));
-            modules.add(new DeletionPolicyModule());
-
             pluginsService.processModules(modules);
 
             try {

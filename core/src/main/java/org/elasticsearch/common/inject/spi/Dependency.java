@@ -16,13 +16,13 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Key;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * A variable that can be resolved by an injector.
@@ -60,11 +60,11 @@ public final class Dependency<T> {
      * Returns the dependencies from the given injection points.
      */
     public static Set<Dependency<?>> forInjectionPoints(Set<InjectionPoint> injectionPoints) {
-        List<Dependency<?>> dependencies = new ArrayList<>();
+        Set<Dependency<?>> dependencies = new HashSet<>();
         for (InjectionPoint injectionPoint : injectionPoints) {
             dependencies.addAll(injectionPoint.getDependencies());
         }
-        return ImmutableSet.copyOf(dependencies);
+        return unmodifiableSet(dependencies);
     }
 
     /**

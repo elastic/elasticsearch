@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -750,4 +751,7 @@ public class PercolateContext extends SearchContext {
     public Map<Class<?>, Collector> queryCollectors() {
         return queryCollectors;
     }
+
+    @Override
+    public QueryCache getQueryCache() { return indexService.cache().query();}
 }

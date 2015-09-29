@@ -18,7 +18,7 @@ import java.security.MessageDigest
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
-class DependencyLicensesTask extends DefaultTask implements VerificationTask {
+class DependencyLicensesTask extends DefaultTask {
     static final String SHA_EXTENSION = '.sha1'
 
     static Task addToProject(Project project, Closure closure) {
@@ -29,9 +29,6 @@ class DependencyLicensesTask extends DefaultTask implements VerificationTask {
         project.tasks.getByName('check').dependsOn(task)
         return task
     }
-
-    @Input
-    boolean ignoreFailures = false
 
     @InputFiles
     FileCollection dependencies

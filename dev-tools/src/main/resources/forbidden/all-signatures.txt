@@ -128,6 +128,7 @@ com.google.common.collect.FluentIterable
 com.google.common.io.Files
 com.google.common.primitives.Ints
 com.google.common.collect.ImmutableSet
+com.google.common.collect.ImmutableSet$Builder
 
 @defaultMessage Do not violate java's access system
 java.lang.reflect.AccessibleObject#setAccessible(boolean)

@@ -34,9 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.query.HasChildQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -1938,4 +1936,25 @@ public class ChildQuerySearchTests extends ESIntegTestCase {
         return hasChildQueryBuilder;
     }
 
+    public void testHasParentInnerQueryType() {
+        assertAcked(prepareCreate("test").addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
+        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}").get();
+        client().prepareIndex("test", "parent-type", "parent-id").setSource("{}").get();
+        refresh();
+        //make sure that when we explicitly set a type, the inner query is executed in the context of the parent type instead
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("child-type").setQuery(
+                QueryBuilders.hasParentQuery("parent-type", new IdsQueryBuilder().addIds("parent-id"))).get();
+        assertSearchHits(searchResponse, "child-id");
+    }
+
+    public void testHasChildInnerQueryType() {
+        assertAcked(prepareCreate("test").addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
+        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}").get();
+        client().prepareIndex("test", "parent-type", "parent-id").setSource("{}").get();
+        refresh();
+        //make sure that when we explicitly set a type, the inner query is executed in the context of the child type instead
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("parent-type").setQuery(
+                QueryBuilders.hasChildQuery("child-type", new IdsQueryBuilder().addIds("child-id"))).get();
+        assertSearchHits(searchResponse, "parent-id");
+    }
 }

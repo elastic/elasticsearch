@@ -187,7 +187,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     private Query parseQuery(String type, XContentParser parser) {
         String[] previousTypes = null;
         if (type != null) {
-            QueryShardContext.setTypesWithPrevious(new String[]{type});
+            previousTypes = QueryShardContext.setTypesWithPrevious(type);
         }
         QueryShardContext context = queryParserService.getShardContext();
         try {

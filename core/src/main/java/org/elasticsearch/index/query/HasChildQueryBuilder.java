@@ -203,7 +203,13 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        Query innerQuery = query.toQuery(context);
+        String[] previousTypes = QueryShardContext.setTypesWithPrevious(type);
+        Query innerQuery;
+        try {
+            innerQuery = query.toQuery(context);
+        } finally {
+            QueryShardContext.setTypes(previousTypes);
+        }
         if (innerQuery == null) {
             return null;
         }
@@ -332,6 +338,10 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         public ScoreMode getScoreMode() {
             return scoreMode;
+        }
+
+        public Query getInnerQuery() {
+            return innerQuery;
         }
     }
 

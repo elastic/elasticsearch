@@ -20,7 +20,6 @@
 package org.elasticsearch.cloud.gce;
 
 import com.google.api.services.compute.model.Instance;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 
 import java.util.Collection;

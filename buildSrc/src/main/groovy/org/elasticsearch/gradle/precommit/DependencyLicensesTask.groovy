@@ -9,6 +9,7 @@ import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.StopActionException
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.VerificationTask
 
@@ -56,9 +57,7 @@ class DependencyLicensesTask extends DefaultTask implements VerificationTask {
     @TaskAction
     void checkDependencies() {
         if (ignoreFailures) {
-            // just exit early for now, maybe this should be an explicit enabled flag,
-            // instead of using VerificationTask
-            return
+            throw new StopActionException() // skip
         }
         // TODO: empty license dir (or error when dir exists and no deps)
         if (licensesDir.exists() == false && dependencies.isEmpty() == false) {

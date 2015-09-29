@@ -2,7 +2,6 @@ package org.elasticsearch.gradle.plugin
 
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.ElasticsearchProperties
-import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -27,7 +26,6 @@ class PluginBuildPlugin extends BuildPlugin {
                 plugin 'installPlugin', bundle.outputs.files.singleFile
             }
         }
-        configureDependencyLicenses(project)
         project.configurations.archives.artifacts.removeAll { it.archiveTask.is project.jar }
         project.configurations.runtime.artifacts.removeAll { it.archiveTask.is project.jar }
         project.artifacts {
@@ -68,12 +66,5 @@ class PluginBuildPlugin extends BuildPlugin {
         }
         tasks.getByName('assemble').dependsOn(bundle)
         return bundle
-    }
-
-    static configureDependencyLicenses(Project project) {
-        Task dependencyLicensesTask = DependencyLicensesTask.addToProject(project) {
-            dependencies = project.configurations.runtime - project.configurations.provided
-        }
-        project.tasks.getByName('precommit').dependsOn(dependencyLicensesTask)
     }
 }

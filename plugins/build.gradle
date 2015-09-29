@@ -1,4 +1,10 @@
+import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 
 subprojects {
   apply plugin: 'elasticsearch.esplugin'
+
+  Task dependencyLicensesTask = DependencyLicensesTask.addToProject(project) {
+    dependencies = project.configurations.runtime - project.configurations.provided
+  }
+  project.precommit.dependsOn(dependencyLicensesTask)
 }

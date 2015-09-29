@@ -87,6 +87,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -155,7 +156,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final TranslogConfig translogConfig;
     private final MergePolicyConfig mergePolicyConfig;
     private final IndicesQueryCache indicesQueryCache;
-    private final StoreRecoveryService storeRecoveryService;
 
     private TimeValue refreshInterval;
 
@@ -200,7 +200,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
 
     @Inject
-    public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, StoreRecoveryService storeRecoveryService,
+    public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
                       IndicesQueryCache indicesQueryCache, CodecService codecService,
                       TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
@@ -217,7 +217,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
         this.store = store;
-        this.storeRecoveryService = storeRecoveryService;
         this.mergeSchedulerConfig = new MergeSchedulerConfig(indexSettings);
         this.threadPool = threadPool;
         this.mapperService = mapperService;
@@ -844,13 +843,12 @@ public class IndexShard extends AbstractIndexShardComponent {
     /**
      * After the store has been recovered, we need to start the engine in order to apply operations
      */
-    public Map<String, Mapping> performTranslogRecovery(boolean indexExists) {
-        final Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(false, indexExists);
+    public void performTranslogRecovery(boolean indexExists) {
+        internalPerformTranslogRecovery(false, indexExists);
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
-        return recoveredTypes;
     }
 
-    private Map<String, Mapping> internalPerformTranslogRecovery(boolean skipTranslogRecovery, boolean indexExists) {
+    private void internalPerformTranslogRecovery(boolean skipTranslogRecovery, boolean indexExists) {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -869,7 +867,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         engineConfig.setEnableGcDeletes(false);
         engineConfig.setCreate(indexExists == false);
         createNewEngine(skipTranslogRecovery, engineConfig);
-        return engineConfig.getTranslogRecoveryPerformer().getRecoveredTypes();
+
     }
 
     /**
@@ -879,8 +877,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public void skipTranslogRecovery() throws IOException {
         assert engineUnsafe() == null : "engine was already created";
-        Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(true, true);
-        assert recoveredTypes.isEmpty();
+        internalPerformTranslogRecovery(true, true);
         assert recoveryState.getTranslog().recoveredOperations() == 0;
     }
 
@@ -1063,12 +1060,19 @@ public class IndexShard extends AbstractIndexShardComponent {
         return path;
     }
 
-    public void recoverFromStore(ShardRouting shard, StoreRecoveryService.RecoveryListener recoveryListener) {
+    public boolean recoverFromStore(ShardRouting shard) {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
         assert shard.primary() : "recover from store only makes sense if the shard is a primary shard";
         final boolean shouldExist = shard.allocatedPostIndexCreate();
-        storeRecoveryService.recover(this, shouldExist, recoveryListener);
+        StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
+        return storeRecovery.recoverFromStore(this, shouldExist, localNode);
+    }
+
+    public boolean restoreFromRepository(ShardRouting shard, IndexShardRepository repository) {
+        assert shard.primary() : "recover from store only makes sense if the shard is a primary shard";
+        StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
+        return storeRecovery.recoverFromRepository(this, repository);
     }
 
     /**

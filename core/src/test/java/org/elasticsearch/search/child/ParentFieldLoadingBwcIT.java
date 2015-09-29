@@ -36,6 +36,9 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.indices.IndicesService;
@@ -46,7 +49,6 @@ import java.io.IOException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.search.child.ChildQuerySearchIT.hasChildQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -244,6 +246,12 @@ public class ParentFieldLoadingBwcIT extends ESIntegTestCase {
                 .field("type", "parent")
                 .startObject("fielddata").field(MappedFieldType.Loading.KEY, loading).endObject()
                 .endObject().endObject().endObject();
+    }
+    
+    static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder queryBuilder) {
+        HasChildQueryBuilder hasChildQueryBuilder = QueryBuilders.hasChildQuery(type, queryBuilder);
+        hasChildQueryBuilder.setShortCircuitCutoff(randomInt(10));
+        return hasChildQueryBuilder;
     }
 
 }

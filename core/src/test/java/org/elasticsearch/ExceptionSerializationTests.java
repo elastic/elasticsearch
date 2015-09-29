@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.apache.lucene.util.Constants;
-import org.codehaus.groovy.runtime.typehandling.GroovyCastException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
@@ -557,7 +556,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
         Throwable[] unknowns = new Throwable[] {
                 new JsonParseException("foobar", new JsonLocation(new Object(), 1,2,3,4)),
-                new GroovyCastException("boom boom boom"),
+                new ClassCastException("boom boom boom"),
                 new IOException("booom")
         };
         for (Throwable t : unknowns) {

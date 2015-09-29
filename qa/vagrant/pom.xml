@@ -179,6 +179,12 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>lang-groovy</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>lang-javascript</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>

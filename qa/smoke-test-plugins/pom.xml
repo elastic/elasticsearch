@@ -171,12 +171,6 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>org.codehaus.groovy</groupId>
-      <artifactId>groovy-all</artifactId>
-      <classifier>indy</classifier>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
       <groupId>log4j</groupId>
       <artifactId>log4j</artifactId>
       <scope>provided</scope>
@@ -318,6 +312,14 @@
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>lang-expression</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>lang-groovy</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>

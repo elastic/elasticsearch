@@ -2611,18 +2611,6 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testProperErrorMessageWhenTwoFunctionsDefinedInQueryBody() throws IOException {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-causing-NPE.json");
-        try {
-            queryParser.parse(query).query();
-            fail("FunctionScoreQueryParser should throw an exception here because two functions in body are not allowed.");
-        } catch (QueryParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("use [functions] array if you want to define several functions."));
-        }
-    }
-
-    @Test
     public void testWeight1fStillProducesWeighFunction() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String queryString = jsonBuilder().startObject()

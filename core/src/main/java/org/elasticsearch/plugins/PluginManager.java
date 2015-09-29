@@ -85,6 +85,7 @@ public class PluginManager {
                     "delete-by-query",
                     "discovery-multicast",
                     "lang-expression",
+                    "lang-groovy",
                     "lang-javascript",
                     "lang-python",
                     "mapper-murmur3",

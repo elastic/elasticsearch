@@ -28,7 +28,9 @@ import java.io.IOException;
 /**
  * Exception used to wrap groovy script compilation exceptions so they are
  * correctly serialized between nodes.
+ * @deprecated for back compat only
  */
+@Deprecated
 public class GroovyScriptCompilationException extends ElasticsearchException {
     public GroovyScriptCompilationException(String message, Throwable cause) {
         super(message, cause);

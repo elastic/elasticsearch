@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -45,7 +47,8 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
                     value = randomAsciiOfLengthBetween(1, 10);
                 } else {
                     // generate unicode string in 10% of cases
-                    value = randomUnicodeOfLength(10);
+                    JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+                    value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
                 }
                 break;
             case 2:
@@ -97,19 +100,18 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
     protected Map<String, QB> getAlternateVersions() {
         HashMap<String, QB> alternateVersions = new HashMap<>();
         QB tempQuery = createTestQueryBuilder();
-        String fieldName = tempQuery.fieldName();
-        Object value = tempQuery.value();
-        boolean isString = value instanceof String;
-        // random builder rarely generates unicode string, which ca cause problems in contentString below
-        // if not escaped, so we simply default to ascii strings for this special case
+        QB testQuery = createQueryBuilder(tempQuery.fieldName(), tempQuery.value());
+        boolean isString = testQuery.value() instanceof String;
+        Object value;
         if (isString) {
-            value = randomAsciiOfLengthBetween(1, 10);
+            JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+            value = "\"" + new String(encoder.quoteAsString((String) testQuery.value())) + "\"";
+        } else {
+            value = testQuery.value();
         }
-        QB testQuery = createQueryBuilder(fieldName, value);
-        String valueInQuery = (isString ? "\"" : "") + testQuery.value() + (isString ? "\"" : "");
         String contentString = "{\n" +
                 "    \"" + testQuery.getName() + "\" : {\n" +
-                "        \"" + testQuery.fieldName() + "\" : " + valueInQuery + "\n" +
+                "        \"" + testQuery.fieldName() + "\" : " + value + "\n" +
                 "    }\n" +
                 "}";
         alternateVersions.put(contentString, testQuery);

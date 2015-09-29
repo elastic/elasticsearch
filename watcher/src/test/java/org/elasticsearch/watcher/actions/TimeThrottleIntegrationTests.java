@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.actions;
 
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexResponse;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,6 +36,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     private IndexResponse indexTestDoc() {

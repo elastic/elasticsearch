@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
@@ -53,6 +54,7 @@ import static org.hamcrest.core.Is.is;
 @TestLogging("discovery:TRACE,watcher:TRACE")
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
 @SuppressLocalMode
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
 
     private ClusterDiscoveryConfiguration.UnicastZen config;

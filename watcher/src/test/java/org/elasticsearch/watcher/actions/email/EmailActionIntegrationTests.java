@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -18,6 +19,7 @@ import org.junit.After;
 import org.junit.Test;
 
 import javax.mail.internet.MimeMessage;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -35,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging("subethamail:TRACE,watcher:TRACE")
 @ESIntegTestCase.ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     static final String USERNAME = "_user";

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.execution;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.unit.TimeValue;
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
 
     @Override

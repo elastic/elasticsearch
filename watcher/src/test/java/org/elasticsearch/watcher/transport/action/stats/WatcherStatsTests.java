@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.transport.action.stats;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -38,6 +39,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
  */
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
 @TestLogging("watcher:TRACE")
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class WatcherStatsTests extends AbstractWatcherIntegrationTestCase {
 
     @Test

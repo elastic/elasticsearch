@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.transport.action.stats;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 2)
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -55,6 +56,7 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @TestLogging("watcher.trigger.schedule:TRACE")
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     @Test

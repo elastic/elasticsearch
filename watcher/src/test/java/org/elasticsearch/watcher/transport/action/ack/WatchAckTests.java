@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.transport.action.ack;
 
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -45,6 +46,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
     private IndexResponse indexTestDoc() {

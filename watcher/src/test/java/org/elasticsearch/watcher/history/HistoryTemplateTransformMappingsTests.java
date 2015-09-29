@@ -6,6 +6,8 @@
 package org.elasticsearch.watcher.history;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -32,6 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the http host and path fields in the watch_record action result are
  * not analyzed so they can be used in aggregations
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override

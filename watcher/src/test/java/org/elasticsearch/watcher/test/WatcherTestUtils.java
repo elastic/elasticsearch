@@ -20,7 +20,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -236,11 +235,9 @@ public final class WatcherTestUtils {
                 .put("script.indexed", "on")
                 .put("path.home", createTempDir())
                 .build();
-        GroovyScriptEngineService groovyScriptEngineService = new GroovyScriptEngineService(settings);
         XMustacheScriptEngineService mustacheScriptEngineService = new XMustacheScriptEngineService(settings);
         Set<ScriptEngineService> engineServiceSet = new HashSet<>();
         engineServiceSet.add(mustacheScriptEngineService);
-        engineServiceSet.add(groovyScriptEngineService);
         ScriptContextRegistry registry = new ScriptContextRegistry(Arrays.asList(ScriptServiceProxy.INSTANCE));
 
         return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), engineServiceSet, new ResourceWatcherService(settings, tp), registry));

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.execution;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -20,6 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class TriggeredWatchTests extends AbstractWatcherIntegrationTestCase {
 
     @Test

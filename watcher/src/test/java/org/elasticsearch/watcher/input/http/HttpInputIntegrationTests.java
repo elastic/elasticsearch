@@ -37,6 +37,9 @@ import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     @Override

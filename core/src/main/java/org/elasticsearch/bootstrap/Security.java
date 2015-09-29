@@ -166,6 +166,8 @@ final class Security {
         m.put("repository-s3",       "org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin");
         m.put("discovery-ec2",       "org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin");
         m.put("cloud-gce",           "org.elasticsearch.plugin.cloud.gce.CloudGcePlugin");
+        m.put("lang-expression",     "org.elasticsearch.script.expression.ExpressionPlugin");
+        m.put("lang-groovy",         "org.elasticsearch.script.groovy.GroovyPlugin");
         m.put("lang-javascript",     "org.elasticsearch.plugin.javascript.JavaScriptPlugin");
         m.put("lang-python",         "org.elasticsearch.plugin.python.PythonPlugin");
         SPECIAL_PLUGINS = Collections.unmodifiableMap(m);

@@ -57,6 +57,20 @@ grant codeBase "${es.security.plugin.cloud-gce}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
+grant codeBase "${es.security.plugin.lang-expression}" {
+  // needed to generate runtime classes
+  permission java.lang.RuntimePermission "createClassLoader";
+};
+
+grant codeBase "${es.security.plugin.lang-groovy}" {
+  // needed to generate runtime classes
+  permission java.lang.RuntimePermission "createClassLoader";
+  // needed by groovy engine
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+  // needed by GroovyScriptEngineService to close its classloader (why?)
+  permission java.lang.RuntimePermission "closeClassLoader";
+};
+
 grant codeBase "${es.security.plugin.lang-javascript}" {
   // needed to generate runtime classes
   permission java.lang.RuntimePermission "createClassLoader";
@@ -106,6 +120,8 @@ grant codeBase "${es.security.jar.randomizedtesting.junit4}" {
 grant {
 
   // Allow executing groovy scripts with codesource of /groovy/script
+  // TODO: make our own general ScriptServicePermission we check instead and 
+  // check-before-createClassLoader for all scripting engines.
   permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
 
   // Allow connecting to the internet anywhere
@@ -114,14 +130,8 @@ grant {
   // Allow read/write to all system properties
   permission java.util.PropertyPermission "*", "read,write";
 
-  // needed by scripting engines, etc
-  permission java.lang.RuntimePermission "createClassLoader";
-
   // needed by lucene SPI currently 
   permission java.lang.RuntimePermission "getClassLoader";
-
-  // needed by GroovyScriptEngineService
-  permission java.lang.RuntimePermission "closeClassLoader";
 
   // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";
@@ -130,12 +140,10 @@ grant {
   // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "modifyThread";
 
-  // needed by groovy scripting
+  // needed by ExceptionSerializationTests and RestTestCase for
+  // some hackish things they do. otherwise only needed by groovy 
+  // (TODO: clean this up?)
   permission java.lang.RuntimePermission "getProtectionDomain";
-
-  // reflection hacks:
-  // needed by groovy engine
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   
   // likely not low hanging fruit...
   permission java.lang.RuntimePermission "accessDeclaredMembers";

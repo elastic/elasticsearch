@@ -30,6 +30,7 @@ import com.google.api.services.compute.model.InstanceList;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -66,13 +67,18 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
     @Override
     public Collection<Instance> instances() {
-
             logger.debug("get instances for project [{}], zones [{}]", project, zones);
 
             List<List<Instance>> instanceListByZone = eagerTransform(zones, new Function<String, List<Instance>>() {
                 @Override
                 public List<Instance> apply(final String zoneId) {
                     try {
+                        // hack around code messiness in GCE code
+                        // TODO: get this fixed
+                        SecurityManager sm = System.getSecurityManager();
+                        if (sm != null) {
+                            sm.checkPermission(new SpecialPermission());
+                        }
                         InstanceList instanceList = AccessController.doPrivileged(new PrivilegedExceptionAction<InstanceList>() {
                             @Override
                             public InstanceList run() throws Exception {
@@ -149,6 +155,10 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
             // hack around code messiness in GCE code
             // TODO: get this fixed
+            SecurityManager sm = System.getSecurityManager();
+            if (sm != null) {
+                sm.checkPermission(new SpecialPermission());
+            }
             AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
                 @Override
                 public Void run() throws IOException {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugin.cloud.aws;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cloud.aws.AwsModule;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -46,6 +47,10 @@ public class CloudAwsPlugin extends Plugin {
         // This internal config is deserialized but with wrong access modifiers,
         // cannot work without suppressAccessChecks permission right now. We force
         // a one time load with elevated privileges as a workaround.
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @Override
             public Void run() {

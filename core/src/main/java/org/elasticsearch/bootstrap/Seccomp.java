@@ -379,7 +379,7 @@ final class Seccomp {
         } else if (Constants.MAC_OS_X) {
             macImpl(tmpFile);
         } else {
-            logger.debug("syscall filtering not supported for OS {}", Constants.OS_NAME);
+            throw new UnsupportedOperationException("syscall filtering not supported for OS: '" + Constants.OS_NAME + "'");
         }
     }
 }

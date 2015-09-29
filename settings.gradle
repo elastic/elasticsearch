@@ -34,32 +34,3 @@ if (hasProperty('elasticsearch.projectsPrefix')) {
 
 include projects
 
-/*
-String extraProjectPrefix = 'elasticsearch.extra.'
-// add extra projects, eg so external plugins can hook in with a local elasticsearch checkout
-for (Map.Entry<String, ?> property : getProperties()) {
-  if (property.getKey().startsWith(extraProjectPrefix)) {
-    String name = property.getKey().replaceFirst(extraProjectPrefix, '')
-    String location = property.getValue()
-    if (location.isEmpty()) {
-      throw new InvalidUserDataException("Must specify a non-empty location for property '${property.getKey()}'")
-    }
-    File path = file(location)
-    if (path.exists() == false || path.isDirectory() == false) {
-      throw new InvalidUserDataException("Must specify a valid directory for property '${property.getKey()}'")
-    } 
-    logger.info("Adding extra project: ${name} at ${location}")
-
-    File settings = new File(path, 'settings.gradle')
-    if (settings.exists()) {
-      //ext.projectsPrefix = name
-      apply from: settings 
-    } else {
-      include name
-      project(":${name}").projectDir = path
-    }
-  }
-}
-*/
-
-// set the project name at the end because including extra projects may have reset it

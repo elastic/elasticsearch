@@ -50,7 +50,6 @@ subprojects {
     }
   }
 
-  /*
   configurations {
     all {
       resolutionStrategy {
@@ -65,7 +64,6 @@ subprojects {
       }
     }
   }
-  */
 
   // define a nice artifacts task to list all artifacts of a project
   task artifacts {

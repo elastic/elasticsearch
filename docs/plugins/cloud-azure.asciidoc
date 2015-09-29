@@ -559,7 +559,7 @@ The Azure repository supports following settings:
 
 `read_only`::
 
-    Makes repository read-only. coming[2.1.0]  Defaults to `false`.
+    Makes repository read-only. Defaults to `false`.
 
 Some examples, using scripts:
 

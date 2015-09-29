@@ -310,7 +310,7 @@ The following settings are supported:
 
 `read_only`::
 
-    Makes repository read-only. coming[2.1.0]  Defaults to `false`.
+    Makes repository read-only. Defaults to `false`.
 
 The S3 repositories use the same credentials as the rest of the AWS services
 provided by this plugin (`discovery`). See <<cloud-aws-usage>> for details.

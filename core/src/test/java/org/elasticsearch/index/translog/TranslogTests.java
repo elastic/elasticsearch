@@ -29,6 +29,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -860,7 +861,7 @@ public class TranslogTests extends ESTestCase {
         int count = 0;
         for (int op = 0; op < translogOperations; op++) {
             locations.add(translog.add(new Translog.Create("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8")))));
-            if (rarely() && translogOperations > op+1) {
+            if (rarely() && translogOperations > op + 1) {
                 translog.commit();
             }
         }
@@ -939,7 +940,7 @@ public class TranslogTests extends ESTestCase {
         final TranslogReader reader = randomBoolean() ? writer : translog.openReader(writer.path(), Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME)));
         for (int i = 0; i < numOps; i++) {
             ByteBuffer buffer = ByteBuffer.allocate(4);
-            reader.readBytes(buffer, reader.getFirstOperationOffset() + 4*i);
+            reader.readBytes(buffer, reader.getFirstOperationOffset() + 4 * i);
             buffer.flip();
             final int value = buffer.getInt();
             assertEquals(i, value);
@@ -978,9 +979,9 @@ public class TranslogTests extends ESTestCase {
         for (int op = 0; op < translogOperations; op++) {
             locations.add(translog.add(new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
             final boolean commit = commitOften ? frequently() : rarely();
-            if (commit && op < translogOperations-1) {
+            if (commit && op < translogOperations - 1) {
                 translog.commit();
-                minUncommittedOp = op+1;
+                minUncommittedOp = op + 1;
                 translogGeneration = translog.getGeneration();
             }
         }
@@ -1014,7 +1015,7 @@ public class TranslogTests extends ESTestCase {
     public void testRecoveryUncommitted() throws IOException {
         List<Translog.Location> locations = newArrayList();
         int translogOperations = randomIntBetween(10, 100);
-        final int prepareOp = randomIntBetween(0, translogOperations-1);
+        final int prepareOp = randomIntBetween(0, translogOperations - 1);
         Translog.TranslogGeneration translogGeneration = null;
         final boolean sync = randomBoolean();
         for (int op = 0; op < translogOperations; op++) {
@@ -1082,7 +1083,7 @@ public class TranslogTests extends ESTestCase {
         List<Translog.Location> locations = newArrayList();
         List<Translog.Location> locations2 = newArrayList();
         int translogOperations = randomIntBetween(10, 100);
-        try(Translog translog2 = create(createTempDir())) {
+        try (Translog translog2 = create(createTempDir())) {
             for (int op = 0; op < translogOperations; op++) {
                 locations.add(translog.add(new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
                 locations2.add(translog2.add(new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
@@ -1121,7 +1122,7 @@ public class TranslogTests extends ESTestCase {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         translog.close();
 
-        config.setTranslogGeneration(new Translog.TranslogGeneration(randomRealisticUnicodeOfCodepointLengthBetween(1, translogGeneration.translogUUID.length()),translogGeneration.translogFileGeneration));
+        config.setTranslogGeneration(new Translog.TranslogGeneration(randomRealisticUnicodeOfCodepointLengthBetween(1, translogGeneration.translogUUID.length()), translogGeneration.translogFileGeneration));
         try {
             new Translog(config);
             fail("translog doesn't belong to this UUID");
@@ -1189,7 +1190,7 @@ public class TranslogTests extends ESTestCase {
 
             assertTrue("[" + indexFile + "] missing index dir: " + src.toString(), Files.exists(src));
             assertTrue("[" + indexFile + "] missing translog dir: " + translog.toString(), Files.exists(translog));
-            Path[] tlogFiles =  FileSystemUtils.files(translog);
+            Path[] tlogFiles = FileSystemUtils.files(translog);
             assertEquals(tlogFiles.length, 1);
             final long size = Files.size(tlogFiles[0]);
 
@@ -1205,7 +1206,7 @@ public class TranslogTests extends ESTestCase {
                 final long headerSize;
                 if (version.before(Version.V_1_4_0_Beta1)) {
                     assertTrue(upgraded.getRecoveredReaders().get(0).getClass().toString(), upgraded.getRecoveredReaders().get(0).getClass() == LegacyTranslogReader.class);
-                   headerSize = 0;
+                    headerSize = 0;
                 } else {
                     assertTrue(upgraded.getRecoveredReaders().get(0).getClass().toString(), upgraded.getRecoveredReaders().get(0).getClass() == LegacyTranslogReaderBase.class);
                     headerSize = CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC);

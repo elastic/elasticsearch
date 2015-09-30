@@ -152,8 +152,12 @@ final class PercolatorQuery extends Query {
         leafReader.document(docId, singleFieldsVisitor);
         BytesRef percolatorQueryId = new BytesRef(singleFieldsVisitor.uid().id());
         Query percolatorQuery = percolatorQueries.get(percolatorQueryId);
-        Lucene.exists(percolatorIndexSearcher, percolatorQuery, collector);
-        return collector.exists();
+        if (percolatorQuery != null) {
+            Lucene.exists(percolatorIndexSearcher, percolatorQuery, collector);
+            return collector.exists();
+        } else {
+            return false;
+        }
     }
 
     @Override

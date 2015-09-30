@@ -62,7 +62,11 @@ public class PercolateDocumentParser {
     public ParsedDocument parse(PercolateShardRequest request, PercolateContext context, MapperService mapperService, IndexQueryParserService indexQueryParserService) {
         BytesReference source = request.source();
         if (source == null || source.length() == 0) {
-            return null;
+            if (request.docSource() != null && request.docSource().length() != 0) {
+                return parseFetchedDoc(context, request.docSource(), mapperService, request.shardId().getIndex(), request.documentType());
+            } else {
+                return null;
+            }
         }
 
         // TODO: combine all feature parse elements into one map

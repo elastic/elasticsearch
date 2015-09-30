@@ -140,7 +140,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
 
         DeleteIndexResponse actionGet = client().admin().indices().prepareDelete("test").get();
         assertThat(actionGet.isAcknowledged(), equalTo(true));
-        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).get();
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string").addMapping(PercolatorService.TYPE_NAME, "color", "type=string"));
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
@@ -278,7 +278,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
 
                             for (int i = 0; i < numPercolateRequest; i++) {
                                 PercolateRequestBuilder percolateBuilder = client.preparePercolate()
-                                        .setIndices("test").setDocumentType("type");
+                                        .setIndices("test").setDocumentType("type").setSize(numQueries);
                                 if (randomBoolean()) {
                                     percolateBuilder.setGetRequest(Requests.getRequest("test").type("type").id("1"));
                                 } else {
@@ -298,7 +298,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                             }
                         } else {
                             PercolateRequestBuilder percolateBuilder = client.preparePercolate()
-                                    .setIndices("test").setDocumentType("type");
+                                    .setIndices("test").setDocumentType("type").setSize(numQueries);
                             if (randomBoolean()) {
                                 percolateBuilder.setPercolateDoc(docBuilder().setDoc(document));
                             } else {

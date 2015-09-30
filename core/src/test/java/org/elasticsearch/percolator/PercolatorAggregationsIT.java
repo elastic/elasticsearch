@@ -83,7 +83,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
                     .setIndices("test")
                     .setDocumentType("type")
                     .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()))
-                    .setSize(numQueries);
+                    .setSize(expectedCount[i % numUniqueQueries]);
 
             SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
             percolateRequestBuilder.addAggregation(AggregationBuilders.terms("a").field("field2").collectMode(aggCollectionMode));
@@ -149,7 +149,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
                     .setIndices("test")
                     .setDocumentType("type")
                     .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()))
-                    .setSize(numQueries);
+                    .setSize(expectedCount[i % numUniqueQueries]);
 
             SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
             percolateRequestBuilder.addAggregation(AggregationBuilders.terms("a").field("field2").collectMode(aggCollectionMode));

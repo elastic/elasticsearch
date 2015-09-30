@@ -21,6 +21,7 @@ package org.elasticsearch.percolator;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
+import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -361,9 +362,9 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
             indexThreads[i].start();
         }
 
-        XContentBuilder percolateDoc = XContentFactory.jsonBuilder().startObject().startObject("doc")
+        String percolateDoc = XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value")
-                .endObject().endObject();
+                .endObject().string();
         for (int counter = 0; counter < numberPercolateOperation; counter++) {
             Thread.sleep(5);
             semaphore.acquire(numIndexThreads);
@@ -373,7 +374,9 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                 }
                 int atLeastExpected = liveIds.size();
                 PercolateResponse response = client().preparePercolate().setIndices("index").setDocumentType("type")
-                        .setSource(percolateDoc).execute().actionGet();
+                        .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(percolateDoc))
+                        .setSize(atLeastExpected)
+                        .get();
                 assertThat(response.getShardFailures(), emptyArray());
                 assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
                 assertThat(response.getMatches().length, equalTo(atLeastExpected));

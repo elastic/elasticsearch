@@ -52,6 +52,7 @@ public class PercolatorBackwardsCompatibilityIT extends ESIntegTestCase {
         indexRandom(true, docs);
         PercolateResponse response = client().preparePercolate().setIndices("test").setDocumentType("type")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("field1", "value"))
+                .setSize(numDocs)
                 .get();
         assertMatchCount(response, (long) numDocs);
 

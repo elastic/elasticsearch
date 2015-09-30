@@ -619,31 +619,20 @@ public class MapperQueryParser extends QueryParser {
             char c = termStr.charAt(i);
             if (c == '?' || c == '*') {
                 if (isWithinToken) {
-                    try {
-                        TokenStream source = getAnalyzer().tokenStream(field, tmp.toString());
-                        boolean success = false;
-                        try {
-                            source.reset();
-                            CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
-                            if (source.incrementToken()) {
-                                String term = termAtt.toString();
-                                if (term.length() == 0) {
-                                    // no tokens, just use what we have now
-                                    aggStr.append(tmp);
-                                } else {
-                                    aggStr.append(term);
-                                }
-                            } else {
+                    try (TokenStream source = getAnalyzer().tokenStream(field, tmp.toString())) {
+                        source.reset();
+                        CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
+                        if (source.incrementToken()) {
+                            String term = termAtt.toString();
+                            if (term.length() == 0) {
                                 // no tokens, just use what we have now
                                 aggStr.append(tmp);
-                            }
-                            success = true;
-                        } finally {
-                            if (success) {
-                                source.close();
                             } else {
-                                IOUtils.close(source);
+                                aggStr.append(term);
                             }
+                        } else {
+                            // no tokens, just use what we have now
+                            aggStr.append(tmp);
                         }
                     } catch (IOException e) {
                         aggStr.append(tmp);

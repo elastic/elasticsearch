@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -32,7 +32,6 @@ import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -47,11 +46,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
 import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.percolator.PercolatorService;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -65,21 +60,16 @@ import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
 import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-public class PercolatorTests extends ESIntegTestCase {
+public class PercolatorIT extends ESIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
-    }
-    
     @Test
     public void testSimple1() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
@@ -1183,7 +1173,7 @@ public class PercolatorTests extends ESIntegTestCase {
                     .setScore(true)
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
+                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
                     .execute().actionGet();
             assertMatchCount(response, numQueries);
             assertThat(response.getMatches().length, equalTo(size));
@@ -1200,7 +1190,7 @@ public class PercolatorTests extends ESIntegTestCase {
                     .setSortByScore(true)
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
+                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
                     .execute().actionGet();
             assertMatchCount(response, numQueries);
             assertThat(response.getMatches().length, equalTo(size));
@@ -1224,7 +1214,7 @@ public class PercolatorTests extends ESIntegTestCase {
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
                     .setPercolateQuery(
-                            QueryBuilders.functionScoreQuery(matchQuery("field1", value), scriptFunction(new Script("doc['level'].value")))
+                            QueryBuilders.functionScoreQuery(matchQuery("field1", value), fieldValueFactorFunction("level"))
                                     .boostMode(
                                     CombineFunction.REPLACE))
                     .execute().actionGet();
@@ -1258,7 +1248,7 @@ public class PercolatorTests extends ESIntegTestCase {
                 .setSortByScore(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
                 .execute().actionGet();
         assertMatchCount(response, 2l);
         assertThat(response.getMatches()[0].getId().string(), equalTo("2"));
@@ -1269,7 +1259,7 @@ public class PercolatorTests extends ESIntegTestCase {
         response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
                 .setSortByScore(true)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
                 .execute().actionGet();
         assertThat(response.getCount(), equalTo(0l));
         assertThat(response.getShardFailures().length, greaterThan(0));
@@ -1298,7 +1288,7 @@ public class PercolatorTests extends ESIntegTestCase {
         PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
                 .addSort(SortBuilders.fieldSort("level"))
                 .get();
 
@@ -1316,7 +1306,7 @@ public class PercolatorTests extends ESIntegTestCase {
                 .setSortByScore(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
                 .execute().actionGet();
         assertMatchCount(response, 0l);
     }
@@ -1336,7 +1326,7 @@ public class PercolatorTests extends ESIntegTestCase {
                 .setSortByScore(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
                 .execute().actionGet();
         assertMatchCount(response, 0l);
     }

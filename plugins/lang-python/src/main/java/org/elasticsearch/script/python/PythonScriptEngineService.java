@@ -81,7 +81,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public Object compile(String script) {
+    public Object compile(final String script) {
         // classloader created here
         return AccessController.doPrivileged(new PrivilegedAction<PyCode>() {
             @Override

@@ -56,10 +56,11 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
                 Analyzer analyzer = context.mapperService().documentMapper(parsedDocument.type()).mappers().indexAnalyzer();
                 // TODO: instead of passing null here, we can have a CTL<Map<String,TokenStream>> and pass previous,
                 // like the indexer does
-                TokenStream tokenStream = field.tokenStream(analyzer, null);
-                if (tokenStream != null) {
-                    memoryIndex.addField(field.name(), tokenStream, field.boost());
-                }
+                try (TokenStream tokenStream = field.tokenStream(analyzer, null)) {
+                    if (tokenStream != null) {
+                        memoryIndex.addField(field.name(), tokenStream, field.boost());
+                    }
+                 }
             } catch (Exception e) {
                 throw new ElasticsearchException("Failed to create token stream for [" + field.name() + "]", e);
             }

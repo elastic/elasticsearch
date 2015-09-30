@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CannedTokenStream;
+import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -87,7 +89,14 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
         int finalTokenIncrement = 4; // Count the final token increment on the rare token streams that have them
         Token[] tokens = new Token[] {t1, t2, t3};
         Collections.shuffle(Arrays.asList(tokens), getRandom());
-        TokenStream tokenStream = new CannedTokenStream(finalTokenIncrement, 0, tokens);
-        assertThat(TokenCountFieldMapper.countPositions(tokenStream), equalTo(7));
+        final TokenStream tokenStream = new CannedTokenStream(finalTokenIncrement, 0, tokens);
+        // TODO: we have no CannedAnalyzer?
+        Analyzer analyzer = new Analyzer() {
+                @Override
+                public TokenStreamComponents createComponents(String fieldName) {
+                    return new TokenStreamComponents(new MockTokenizer(), tokenStream);
+                }
+            };
+        assertThat(TokenCountFieldMapper.countPositions(analyzer, "", ""), equalTo(7));
     }
 }

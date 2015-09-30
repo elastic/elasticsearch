@@ -117,10 +117,10 @@ public final class SuggestUtils {
     }
     
     public static int analyze(Analyzer analyzer, CharsRef toAnalyze, String field, TokenConsumer consumer) throws IOException {
-        TokenStream ts = analyzer.tokenStream(
-                field, new FastCharArrayReader(toAnalyze.chars, toAnalyze.offset, toAnalyze.length)
-        );
-        return analyze(ts, consumer);
+        try (TokenStream ts = analyzer.tokenStream(
+                                  field, new FastCharArrayReader(toAnalyze.chars, toAnalyze.offset, toAnalyze.length))) {
+             return analyze(ts, consumer);
+        }
     }
     
     /** NOTE: this method closes the TokenStream, even on exception, which is awkward

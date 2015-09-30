@@ -60,7 +60,10 @@ import java.util.function.ToLongBiFunction;
  */
 public class Cache<K, V> {
     // positive if entries have an expiration
-    private long expireAfter = -1;
+    private long expireAfterAccess = -1;
+
+    // positive if entries have an expiration after write
+    private long expireAfterWrite = -1;
 
     // the number of entries in the cache
     private int count = 0;
@@ -82,11 +85,11 @@ public class Cache<K, V> {
     Cache() {
     }
 
-    void setExpireAfter(long expireAfter) {
-        if (expireAfter <= 0) {
-            throw new IllegalArgumentException("expireAfter <= 0");
+    void setExpireAfterAccess(long expireAfterAccess) {
+        if (expireAfterAccess <= 0) {
+            throw new IllegalArgumentException("expireAfterAccess <= 0");
         }
-        this.expireAfter = expireAfter;
+        this.expireAfterAccess = expireAfterAccess;
     }
 
     void setMaximumWeight(long maximumWeight) {
@@ -112,7 +115,11 @@ public class Cache<K, V> {
      */
     protected long now() {
         // System.nanoTime takes non-negligible time, so we only use it if we need it
-        return expireAfter == -1 ? 0 : System.nanoTime();
+        return expireAfterAccess == -1 ? 0 : System.nanoTime();
+    }
+
+    public void setExpireAfterWrite(long expireAfterWrite) {
+        this.expireAfterWrite = expireAfterWrite;
     }
 
     // the state of an entry in the LRU list
@@ -121,15 +128,16 @@ public class Cache<K, V> {
     static class Entry<K, V> {
         final K key;
         final V value;
+        long writeTime;
         long accessTime;
         Entry<K, V> before;
         Entry<K, V> after;
         State state = State.NEW;
 
-        public Entry(K key, V value, long accessTime) {
+        public Entry(K key, V value, long writeTime) {
             this.key = key;
             this.value = value;
-            this.accessTime = accessTime;
+            this.writeTime = this.accessTime = writeTime;
         }
 
         @Override
@@ -566,7 +574,8 @@ public class Cache<K, V> {
     }
 
     private boolean isExpired(Entry<K, V> entry, long now) {
-        return expireAfter != -1 && now - entry.accessTime > expireAfter;
+        return (expireAfterAccess != -1 && now - entry.accessTime > expireAfterAccess) ||
+                (expireAfterWrite != -1 && now - entry.writeTime > expireAfterWrite);
     }
 
     private boolean unlink(Entry<K, V> entry) {

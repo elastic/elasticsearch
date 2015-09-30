@@ -162,7 +162,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         // cacheBuilder.concurrencyLevel(concurrencyLevel);
 
         if (expire != null) {
-            cacheBuilder.setExpireAfter(TimeUnit.MILLISECONDS.toNanos(expire.millis()));
+            cacheBuilder.setExpireAfterAccess(TimeUnit.MILLISECONDS.toNanos(expire.millis()));
         }
 
         cache = cacheBuilder.build();

@@ -23,11 +23,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class CacheTests extends ESTestCase {
@@ -179,7 +177,7 @@ public class CacheTests extends ESTestCase {
 
     // cache some entries, step the clock forward, cache some more entries, step the clock forward and then check that
     // the first batch of cached entries expired and were removed
-    public void testExpiration() {
+    public void testExpirationAfterAccess() {
         AtomicLong now = new AtomicLong();
         Cache<Integer, String> cache = new Cache<Integer, String>() {
             @Override
@@ -187,7 +185,7 @@ public class CacheTests extends ESTestCase {
                 return now.get();
             }
         };
-        cache.setExpireAfter(1);
+        cache.setExpireAfterAccess(1);
         List<Integer> evictedKeys = new ArrayList<>();
         cache.setRemovalListener(notification -> {
             assertEquals(RemovalNotification.RemovalReason.EVICTED, notification.getRemovalReason());
@@ -216,6 +214,46 @@ public class CacheTests extends ESTestCase {
         }
     }
 
+    public void testExpirationAfterWrite() {
+        AtomicLong now = new AtomicLong();
+        Cache<Integer, String> cache = new Cache<Integer, String>() {
+            @Override
+            protected long now() {
+                return now.get();
+            }
+        };
+        cache.setExpireAfterWrite(1);
+        List<Integer> evictedKeys = new ArrayList<>();
+        cache.setRemovalListener(notification -> {
+            assertEquals(RemovalNotification.RemovalReason.EVICTED, notification.getRemovalReason());
+            evictedKeys.add(notification.getKey());
+        });
+        now.set(0);
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+        now.set(1);
+        for (int i = numberOfEntries; i < 2 * numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+        now.set(2);
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.get(i);
+        }
+        cache.refresh();
+        assertEquals(numberOfEntries, cache.count());
+        for (int i = 0; i < evictedKeys.size(); i++) {
+            assertEquals(i, (int) evictedKeys.get(i));
+        }
+        Set<Integer> remainingKeys = new HashSet<>();
+        for (Integer key : cache.keys()) {
+            remainingKeys.add(key);
+        }
+        for (int i = numberOfEntries; i < 2 * numberOfEntries; i++) {
+            assertTrue(remainingKeys.contains(i));
+        }
+    }
+
     // randomly promote some entries, step the clock forward, then check that the promoted entries remain and the
     // non-promoted entries were removed
     public void testPromotion() {
@@ -226,7 +264,7 @@ public class CacheTests extends ESTestCase {
                 return now.get();
             }
         };
-        cache.setExpireAfter(1);
+        cache.setExpireAfterAccess(1);
         now.set(0);
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));

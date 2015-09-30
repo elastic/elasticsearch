@@ -156,7 +156,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
             cacheBuilder.setMaximumWeight(cacheMaxSize);
         }
         if (cacheExpire != null) {
-            cacheBuilder.setExpireAfter(cacheExpire.nanos());
+            cacheBuilder.setExpireAfterAccess(cacheExpire.nanos());
         }
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 

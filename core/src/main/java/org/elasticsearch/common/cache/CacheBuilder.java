@@ -24,7 +24,8 @@ import java.util.function.ToLongBiFunction;
 
 public class CacheBuilder<K, V> {
     private long maximumWeight = -1;
-    private long expireAfter = -1;
+    private long expireAfterAccess = -1;
+    private long expireAfterWrite = -1;
     private ToLongBiFunction<K, V> weigher;
     private RemovalListener<K, V> removalListener;
 
@@ -43,11 +44,19 @@ public class CacheBuilder<K, V> {
         return this;
     }
 
-    public CacheBuilder<K, V> setExpireAfter(long expireAfter) {
-        if (expireAfter <= 0) {
-            throw new IllegalArgumentException("expireAfter <= 0");
+    public CacheBuilder<K, V> setExpireAfterAccess(long expireAfterAccess) {
+        if (expireAfterAccess <= 0) {
+            throw new IllegalArgumentException("expireAfterAccess <= 0");
         }
-        this.expireAfter = expireAfter;
+        this.expireAfterAccess = expireAfterAccess;
+        return this;
+    }
+
+    public CacheBuilder<K, V> setExpireAfterWrite(long expireAfterWrite) {
+        if (expireAfterWrite <= 0) {
+            throw new IllegalArgumentException("expireAfterWrite <= 0");
+        }
+        this.expireAfterWrite = expireAfterWrite;
         return this;
     }
 
@@ -68,8 +77,11 @@ public class CacheBuilder<K, V> {
         if (maximumWeight != -1) {
             cache.setMaximumWeight(maximumWeight);
         }
-        if (expireAfter != -1) {
-            cache.setExpireAfter(expireAfter);
+        if (expireAfterAccess != -1) {
+            cache.setExpireAfterAccess(expireAfterAccess);
+        }
+        if (expireAfterWrite != -1) {
+            cache.setExpireAfterWrite(expireAfterWrite);
         }
         if (weigher != null) {
             cache.setWeigher(weigher);

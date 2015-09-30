@@ -20,6 +20,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
@@ -28,30 +29,25 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
-public final class PercolatorQuery extends Query {
+final class PercolatorQuery extends Query {
 
     private final Query percolatorQueriesQuery;
-    // TODO: should we use stored fields instead?
-    // The two phase execution makes really lookup the query id when we need to percolator.
-    // Percolating is heavy so lookup stored fields shouldn't be a big of a deal?
-    // (_uid field is dense, so heavy to keep in memory)
-    private final IndexFieldData<?> uidFieldData;
     private final IndexSearcher percolatorIndexSearcher;
-    private final boolean percolatorIndexSearcherHoldsNestedDocs;
-    private final ConcurrentMap<BytesRef, Query> percolatorQueries;
+    private final Map<BytesRef, Query> percolatorQueries;
     private final Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();
 
-    public PercolatorQuery(Query percolatorQueriesQuery, IndexFieldData<?> uidFieldData, IndexSearcher percolatorIndexSearcher, boolean percolatorIndexSearcherHoldsNestedDocs, ConcurrentMap<BytesRef, Query> percolatorQueries) {
+    PercolatorQuery(Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher, Map<BytesRef, Query> percolatorQueries) {
         this.percolatorQueriesQuery = percolatorQueriesQuery;
-        this.uidFieldData = uidFieldData;
         this.percolatorIndexSearcher = percolatorIndexSearcher;
-        this.percolatorIndexSearcherHoldsNestedDocs = percolatorIndexSearcherHoldsNestedDocs;
         this.percolatorQueries = percolatorQueries;
     }
 
@@ -63,7 +59,7 @@ public final class PercolatorQuery extends Query {
 
         Query rewritten = percolatorQueriesQuery.rewrite(reader);
         if (rewritten != percolatorQueriesQuery) {
-            return new PercolatorQuery(rewritten, uidFieldData, percolatorIndexSearcher, percolatorIndexSearcherHoldsNestedDocs, percolatorQueries);
+            return new PercolatorQuery(rewritten, percolatorIndexSearcher, percolatorQueries);
         } else {
             return this;
         }
@@ -99,7 +95,7 @@ public final class PercolatorQuery extends Query {
                     return null;
                 }
 
-                final SortedBinaryDocValues values = uidFieldData.load(leafReaderContext).getBytesValues();
+                final LeafReader leafReader = leafReaderContext.reader();
                 return new Scorer(this) {
 
                     @Override
@@ -107,7 +103,7 @@ public final class PercolatorQuery extends Query {
                         return new TwoPhaseIterator(approximation) {
                             @Override
                             public boolean matches() throws IOException {
-                                return matchDocId(approximation.docID(), values);
+                                return matchDocId(approximation.docID(), leafReader);
                             }
                         };
                     }
@@ -135,7 +131,7 @@ public final class PercolatorQuery extends Query {
                     @Override
                     public int advance(int target) throws IOException {
                         for (int docId = approximation.advance(target); docId < NO_MORE_DOCS; docId = approximation.advance(docId + 1)) {
-                            if (matchDocId(docId, values)) {
+                            if (matchDocId(docId, leafReader)) {
                                 return docId;
                             }
                         }
@@ -151,20 +147,12 @@ public final class PercolatorQuery extends Query {
         };
     }
 
-    boolean matchDocId(int docId, SortedBinaryDocValues values) throws IOException {
-        values.setDocument(docId);
-        final int numValues = values.count();
-        if (numValues == 0) {
-            return false;
-        }
-        assert numValues == 1;
-        BytesRef percolatorQueryId = Uid.splitUidIntoTypeAndId(values.valueAt(0))[1];
+    boolean matchDocId(int docId, LeafReader leafReader) throws IOException {
+        SingleFieldsVisitor singleFieldsVisitor = new SingleFieldsVisitor(UidFieldMapper.NAME);
+        leafReader.document(docId, singleFieldsVisitor);
+        BytesRef percolatorQueryId = new BytesRef(singleFieldsVisitor.uid().id());
         Query percolatorQuery = percolatorQueries.get(percolatorQueryId);
-        if (percolatorIndexSearcherHoldsNestedDocs) {
-            Lucene.exists(percolatorIndexSearcher, percolatorQuery, Queries.newNonNestedFilter(), collector);
-        } else {
-            Lucene.exists(percolatorIndexSearcher, percolatorQuery, collector);
-        }
+        Lucene.exists(percolatorIndexSearcher, percolatorQuery, collector);
         return collector.exists();
     }
 

@@ -94,7 +94,6 @@ public class PercolateContext extends SearchContext {
     public byte percolatorTypeId;
     private boolean trackScores;
 
-    private final ConcurrentMap<BytesRef, Query> percolateQueries;
     private final SearchShardTarget searchShardTarget;
     private final IndexService indexService;
     private final IndexFieldDataService fieldDataService;
@@ -102,6 +101,7 @@ public class PercolateContext extends SearchContext {
     private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
+    private final MapperService mapperService;
     private final int numberOfShards;
     private final Query aliasFilter;
     private final long originNanoTime = System.nanoTime();
@@ -123,7 +123,6 @@ public class PercolateContext extends SearchContext {
     private Sort sort;
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
-    private Query queryMetaDataQuery;
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, PageCacheRecycler pageCacheRecycler,
@@ -132,8 +131,8 @@ public class PercolateContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.fieldDataService = indexService.fieldData();
+        this.mapperService = indexService.mapperService();
         this.searchShardTarget = searchShardTarget;
-        this.percolateQueries = indexShard.percolateRegistry().getPercolateQueries();
         this.types = new String[]{request.documentType()};
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -144,6 +143,22 @@ public class PercolateContext extends SearchContext {
         this.numberOfShards = request.getNumberOfShards();
         this.aliasFilter = aliasFilter;
         this.startTime = request.getStartTime();
+    }
+
+    // for testing:
+    PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, MapperService mapperService) {
+        super(null, request);
+        this.searchShardTarget = searchShardTarget;
+        this.mapperService = mapperService;
+        this.indexService = null;
+        this.indexShard = null;
+        this.fieldDataService = null;
+        this.pageCacheRecycler = null;
+        this.bigArrays = null;
+        this.scriptService = null;
+        this.aliasFilter = null;
+        this.startTime = 0;
+        this.numberOfShards = 0;
     }
 
     public IndexSearcher docSearcher() {
@@ -176,10 +191,6 @@ public class PercolateContext extends SearchContext {
 
     public IndexService indexService() {
         return indexService;
-    }
-
-    public ConcurrentMap<BytesRef, Query> percolateQueries() {
-        return percolateQueries;
     }
 
     public Query percolateQuery() {
@@ -231,7 +242,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public MapperService mapperService() {
-        return indexService.mapperService();
+        return mapperService;
     }
 
     @Override
@@ -751,14 +762,7 @@ public class PercolateContext extends SearchContext {
         return queryCollectors;
     }
 
-    public void setQueryMetaDataQuery(Query queryMetaDataQuery) {
-        this.queryMetaDataQuery = queryMetaDataQuery;
-    }
-
-    public Query getQueryMetaDataQuery() {
-        return queryMetaDataQuery;
-    }
-
     @Override
     public QueryCache getQueryCache() { return indexService.cache().query();}
+    
 }

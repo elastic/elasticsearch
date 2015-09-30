@@ -24,9 +24,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -71,7 +72,16 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         try {
             MultiReader mReader = new MultiReader(memoryIndices, true);
             LeafReader slowReader = SlowCompositeReaderWrapper.wrap(mReader);
-            final IndexSearcher slowSearcher = new IndexSearcher(slowReader);
+            final IndexSearcher slowSearcher = new IndexSearcher(slowReader) {
+
+                @Override
+                public void search(Query query, Collector collector) throws IOException {
+                    BooleanQuery.Builder bq = new BooleanQuery.Builder();
+                    bq.add(super.rewrite(query), BooleanClause.Occur.MUST);
+                    bq.add(Queries.newNestedFilter(), BooleanClause.Occur.MUST_NOT);
+                    super.search(bq.build(), collector);
+                }
+            };
             slowSearcher.setQueryCache(null);
             DocSearcher docSearcher = new DocSearcher(slowSearcher, rootDocMemoryIndex);
             context.initialize(docSearcher, parsedDocument);

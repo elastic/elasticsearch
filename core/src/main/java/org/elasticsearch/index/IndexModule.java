@@ -20,21 +20,21 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 
 /**
  *
  */
 public class IndexModule extends AbstractModule {
 
-    private final Settings settings;
-
-    public IndexModule(Settings settings) {
-        this.settings = settings;
-    }
-
+    // pkg private so tests can mock
+    Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
+    
     @Override
     protected void configure() {
+        bind(EngineFactory.class).to(engineFactoryImpl);
         bind(IndexService.class).asEagerSingleton();
+        bind(IndexServicesProvider.class).asEagerSingleton();
     }
 }

@@ -26,7 +26,7 @@ import org.apache.lucene.search.IndexSearcher;
  * Extension point to add custom functionality at request time to the {@link DirectoryReader}
  * and {@link IndexSearcher} managed by the {@link Engine}.
  */
-public interface IndexSearcherWrapper {
+interface IndexSearcherWrapper {
 
     /**
      * @param reader The provided directory reader to be wrapped to add custom functionality

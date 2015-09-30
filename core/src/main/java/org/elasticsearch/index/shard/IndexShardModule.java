@@ -21,12 +21,7 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.IndexSearcherWrapper;
-import org.elasticsearch.index.engine.IndexSearcherWrappingService;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.InternalEngineFactory;
 
 /**
  * The {@code IndexShardModule} module is responsible for binding the correct
@@ -39,8 +34,7 @@ public class IndexShardModule extends AbstractModule {
     private final Settings settings;
     private final boolean primary;
 
-    // pkg private so tests can mock
-    Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
+
 
     public IndexShardModule(ShardId shardId, boolean primary, Settings settings) {
         this.settings = settings;
@@ -64,13 +58,5 @@ public class IndexShardModule extends AbstractModule {
         } else {
             bind(IndexShard.class).asEagerSingleton();
         }
-
-        bind(EngineFactory.class).to(engineFactoryImpl);
-        bind(IndexSearcherWrappingService.class).asEagerSingleton();
-        // this injects an empty set in IndexSearcherWrappingService, otherwise guice can't construct IndexSearcherWrappingService
-        Multibinder<IndexSearcherWrapper> multibinder
-                = Multibinder.newSetBinder(binder(), IndexSearcherWrapper.class);
     }
-
-
 }

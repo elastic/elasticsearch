@@ -16,10 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.shard;
+package org.elasticsearch.index;
 
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.test.engine.MockEngineSupportModule;
@@ -27,7 +28,7 @@ import org.elasticsearch.test.engine.MockEngineSupportModule;
 import java.util.Collection;
 import java.util.Collections;
 
-// this must exist in the same package as IndexShardModule to allow access to setting the impl
+// this must exist in the same package as IndexModule to allow access to setting the impl
 public class MockEngineFactoryPlugin extends Plugin {
     @Override
     public String name() {
@@ -41,7 +42,7 @@ public class MockEngineFactoryPlugin extends Plugin {
     public Collection<Module> indexModules(Settings indexSettings) {
         return Collections.<Module>singletonList(new MockEngineSupportModule());
     }
-    public void onModule(IndexShardModule module) {
+    public void onModule(IndexModule module) {
         module.engineFactoryImpl = MockEngineFactory.class;
     }
 }

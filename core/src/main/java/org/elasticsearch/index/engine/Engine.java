@@ -26,6 +26,7 @@ import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
@@ -78,6 +79,7 @@ public abstract class Engine implements Closeable {
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
+    private final IndexSearcherWrapper searcherWrapper;
 
     protected volatile Throwable failedEngine = null;
 
@@ -92,6 +94,7 @@ public abstract class Engine implements Closeable {
                 engineConfig.getIndexSettings(), engineConfig.getShardId());
         this.failedEngineListener = engineConfig.getFailedEngineListener();
         this.deletionPolicy = engineConfig.getDeletionPolicy();
+        this.searcherWrapper = engineConfig.getSearcherWrapper();
     }
 
     /** Returns 0 in the case where accountable is null, otherwise returns {@code ramBytesUsed()} */
@@ -279,7 +282,7 @@ public abstract class Engine implements Closeable {
             try {
                 final Searcher retVal = newSearcher(source, searcher, manager);
                 success = true;
-                return config().getWrappingService().wrap(engineConfig, retVal);
+                return wrap(engineConfig, retVal);
             } finally {
                 if (!success) {
                     manager.release(searcher);
@@ -295,6 +298,38 @@ public abstract class Engine implements Closeable {
             if (!success) {  // release the ref in the case of an error...
                 store.decRef();
             }
+        }
+    }
+
+    /**
+     * If there are configured {@link IndexSearcherWrapper} instances, the {@link IndexSearcher} of the provided engine searcher
+     * gets wrapped and a new {@link Searcher} instances is returned, otherwise the provided {@link Searcher} is returned.
+     *
+     * This is invoked each time a {@link Searcher} is requested to do an operation. (for example search)
+     */
+    private Searcher wrap(EngineConfig engineConfig, final Searcher engineSearcher) throws EngineException {
+        if (searcherWrapper == null) {
+            return engineSearcher;
+        }
+
+        DirectoryReader reader = searcherWrapper.wrap((DirectoryReader) engineSearcher.reader());
+        IndexSearcher innerIndexSearcher = new IndexSearcher(reader);
+        innerIndexSearcher.setQueryCache(engineConfig.getQueryCache());
+        innerIndexSearcher.setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());
+        innerIndexSearcher.setSimilarity(engineConfig.getSimilarity());
+        // TODO: Right now IndexSearcher isn't wrapper friendly, when it becomes wrapper friendly we should revise this extension point
+        // For example if IndexSearcher#rewrite() is overwritten than also IndexSearcher#createNormalizedWeight needs to be overwritten
+        // This needs to be fixed before we can allow the IndexSearcher from Engine to be wrapped multiple times
+        IndexSearcher indexSearcher = searcherWrapper.wrap(engineConfig, innerIndexSearcher);
+        if (reader == engineSearcher.reader() && indexSearcher == innerIndexSearcher) {
+            return engineSearcher;
+        } else {
+            return new Engine.Searcher(engineSearcher.source(), indexSearcher) {
+                @Override
+                public void close() throws ElasticsearchException {
+                    engineSearcher.close();
+                }
+            };
         }
     }
 

@@ -74,13 +74,6 @@ public abstract class Plugin {
     }
 
     /**
-     * Per index shard module.
-     */
-    public Collection<Module> shardModules(Settings indexSettings) {
-        return Collections.emptyList();
-    }
-
-    /**
      * Per index shard service that will be automatically closed.
      */
     public Collection<Class<? extends Closeable>> shardServices() {

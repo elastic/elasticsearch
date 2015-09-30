@@ -25,6 +25,7 @@ import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -73,7 +74,7 @@ public final class EngineConfig {
     private final boolean forceNewTranslog;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
-    private final IndexSearcherWrappingService wrappingService;
+    private final SetOnce<IndexSearcherWrapper> searcherWrapper = new SetOnce<>();
 
     /**
      * Index setting for compound file on flush. This setting is realtime updateable.
@@ -121,7 +122,7 @@ public final class EngineConfig {
                         Settings indexSettings, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener,
-                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, IndexSearcherWrappingService wrappingService, TranslogConfig translogConfig) {
+                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -135,7 +136,6 @@ public final class EngineConfig {
         this.similarity = similarity;
         this.codecService = codecService;
         this.failedEngineListener = failedEngineListener;
-        this.wrappingService = wrappingService;
         this.compoundOnFlush = indexSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush);
         codecName = indexSettings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
         indexingBufferSize = DEFAULT_INDEX_BUFFER_SIZE;
@@ -380,8 +380,12 @@ public final class EngineConfig {
         return queryCachingPolicy;
     }
 
-    public IndexSearcherWrappingService getWrappingService() {
-        return wrappingService;
+    IndexSearcherWrapper getSearcherWrapper() {
+        return searcherWrapper.get();
+    }
+
+    public void setSearcherWrapper(IndexSearcherWrapper searcherWrapper) {
+        this.searcherWrapper.set(searcherWrapper);
     }
 
     /**

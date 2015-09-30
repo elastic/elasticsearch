@@ -346,7 +346,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         modules.add(new IndexFieldDataModule(indexSettings));
         modules.add(new MapperServiceModule());
         modules.add(new IndexAliasesServiceModule());
-        modules.add(new IndexModule(indexSettings));
+        modules.add(new IndexModule());
         
         pluginsService.processModules(modules);
 

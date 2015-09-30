@@ -443,8 +443,10 @@ public class CacheTests extends ESTestCase {
         for (int j = 0; j < numberOfEntries; j++) {
             flags.set(j, false);
         }
+        CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
+                latch.countDown();
                 for (int j = 0; j < numberOfEntries; j++) {
                     cache.computeIfAbsent(j, key -> {
                         assertTrue(flags.compareAndSet(key, false, true));
@@ -455,6 +457,7 @@ public class CacheTests extends ESTestCase {
             threads.add(thread);
             thread.start();
         }
+        latch.countDown();
         for (Thread thread : threads) {
             thread.join();
         }

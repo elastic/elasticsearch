@@ -474,8 +474,8 @@ public class CacheTests extends ESTestCase {
         List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
+                Random random = new Random(random().nextLong());
                 latch.countDown();
-                Random random = new Random();
                 for (int j = 0; j < numberOfEntries; j++) {
                     Integer key = random.nextInt(numberOfEntries);
                     cache.put(key, Integer.toString(j));

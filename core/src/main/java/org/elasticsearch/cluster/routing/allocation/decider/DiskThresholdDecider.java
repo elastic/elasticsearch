@@ -598,12 +598,12 @@ public class DiskThresholdDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "disk threshold decider disabled");
         }
 
-        // Allow allocation regardless if only a single node is available
-        if (allocation.nodes().size() <= 1) {
+        // Allow allocation regardless if only a single data node is available
+        if (allocation.nodes().dataNodes().size() <= 1) {
             if (logger.isTraceEnabled()) {
-                logger.trace("only a single node is present, allowing allocation");
+                logger.trace("only a single data node is present, allowing allocation");
             }
-            return allocation.decision(Decision.YES, NAME, "only a single node is present");
+            return allocation.decision(Decision.YES, NAME, "only a single data node is present");
         }
 
         // Fail open there is no info available

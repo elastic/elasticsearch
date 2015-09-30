@@ -149,14 +149,83 @@ public class StoreTests extends ESTestCase {
             }
         }
         Store.verify(verifyingOutput);
-        verifyingOutput.writeByte((byte) 0x0);
+        try {
+            appendRandomData(verifyingOutput);
+            fail("should be a corrupted index");
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            // ok
+        }
         try {
             Store.verify(verifyingOutput);
             fail("should be a corrupted index");
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             // ok
         }
+
         IOUtils.close(indexInput, verifyingOutput, dir);
+    }
+
+    public void testChecksumCorrupted() throws IOException {
+        Directory dir = newDirectory();
+        IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT);
+        int iters = scaledRandomIntBetween(10, 100);
+        for (int i = 0; i < iters; i++) {
+            BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
+            output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        }
+        output.writeInt(CodecUtil.FOOTER_MAGIC);
+        output.writeInt(0);
+        String checksum = Store.digestToString(output.getChecksum());
+        output.writeLong(output.getChecksum() + 1); // write a wrong checksum to the file
+        output.close();
+
+        IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);
+        indexInput.seek(0);
+        BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
+        long length = indexInput.length();
+        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, checksum), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+        while (length > 0) {
+            if (random().nextInt(10) == 0) {
+                verifyingOutput.writeByte(indexInput.readByte());
+                length--;
+            } else {
+                int min = (int) Math.min(length, ref.bytes.length);
+                indexInput.readBytes(ref.bytes, ref.offset, min);
+                verifyingOutput.writeBytes(ref.bytes, ref.offset, min);
+                length -= min;
+            }
+        }
+
+        try {
+            if (randomBoolean()) {
+               appendRandomData(verifyingOutput);
+            } else {
+                Store.verify(verifyingOutput);
+            }
+            fail("should be a corrupted index");
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            // ok
+        }
+        IOUtils.close(indexInput, verifyingOutput, dir);
+    }
+
+    private void appendRandomData(IndexOutput output) throws IOException {
+        int numBytes = randomIntBetween(1, 1024);
+        final BytesRef ref = new BytesRef(scaledRandomIntBetween(1, numBytes));
+        ref.length = ref.bytes.length;
+        while (numBytes > 0) {
+            if (random().nextInt(10) == 0) {
+                output.writeByte(randomByte());
+                numBytes--;
+            } else {
+                for (int i = 0; i<ref.length; i++) {
+                    ref.bytes[i] = randomByte();
+                }
+                final int min = Math.min(numBytes, ref.bytes.length);
+                output.writeBytes(ref.bytes, ref.offset, min);
+                numBytes -= min;
+            }
+        }
     }
 
     @Test

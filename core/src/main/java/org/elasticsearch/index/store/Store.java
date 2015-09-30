@@ -1291,7 +1291,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (writtenBytes == checksumPosition) {
                 readAndCompareChecksum();
             } else if (writtenBytes > checksumPosition) { // we are writing parts of the checksum....
-                final int index = Math.toIntExact(writtenBytes - checksumPosition);
+                final long indexLong = writtenBytes - checksumPosition;
+                if ((int)indexLong != indexLong) {
+                    throw new ArithmeticException("integer overflow");
+                }
+                final int index = (int)indexLong;
                 if (index < footerChecksum.length) {
                     footerChecksum[index] = b;
                 } else {

@@ -23,7 +23,7 @@ artifacts {
 
 Map expansions = [
   'project.version': version,
-  'project.parent.artifactId': 'distributions',
+  'project.parent.artifactId': 'distribution',
   // Default values for min/max heap memory allocated to elasticsearch java process
   'packaging.elasticsearch.heap.min': '256m',
   'packaging.elasticsearch.heap.max': '1g',

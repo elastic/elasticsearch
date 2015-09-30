@@ -133,7 +133,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
         CorruptionUtils.corruptFile(getRandom(), FileSystemUtils.files(tempDir, (p) ->
                 (p.getFileName().toString().equals("write.lock") ||
-                        Files.isDirectory(p)) == false));
+                        p.getFileName().toString().startsWith("extra")) == false));
         Store targetStore = newStore(createTempDir(), false);
         try {
             handler.sendFiles(store, metas.toArray(new StoreFileMetaData[0]), (md) -> {

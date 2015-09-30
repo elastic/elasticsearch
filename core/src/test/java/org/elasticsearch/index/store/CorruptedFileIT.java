@@ -20,14 +20,9 @@ package org.elasticsearch.index.store;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import java.nio.charset.StandardCharsets;
-import org.apache.lucene.codecs.CodecUtil;
+
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.store.ChecksumIndexInput;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -71,6 +66,7 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -83,12 +79,9 @@ import org.junit.Test;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -649,54 +642,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             }
         }
         pruneOldDeleteGenerations(files);
-        Path fileToCorrupt = null;
-        if (!files.isEmpty()) {
-            fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
-            try (Directory dir = FSDirectory.open(fileToCorrupt.toAbsolutePath().getParent())) {
-                long checksumBeforeCorruption;
-                try (IndexInput input = dir.openInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
-                    checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
-                }
-                try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
-                    // read
-                    raf.position(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.size() - 1)));
-                    long filePointer = raf.position();
-                    ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
-                    raf.read(bb);
-                    bb.flip();
-
-                    // corrupt
-                    byte oldValue = bb.get(0);
-                    byte newValue = (byte) (oldValue + 1);
-                    bb.put(0, newValue);
-
-                    // rewrite
-                    raf.position(filePointer);
-                    raf.write(bb);
-                    logger.info("Corrupting file for shard {} --  flipping at position {} from {} to {} file: {}", shardRouting, filePointer, Integer.toHexString(oldValue), Integer.toHexString(newValue), fileToCorrupt.getFileName());
-                }
-                long checksumAfterCorruption;
-                long actualChecksumAfterCorruption;
-                try (ChecksumIndexInput input = dir.openChecksumInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
-                    assertThat(input.getFilePointer(), is(0l));
-                    input.seek(input.length() - 8); // one long is the checksum... 8 bytes
-                    checksumAfterCorruption = input.getChecksum();
-                    actualChecksumAfterCorruption = input.readLong();
-                }
-                // we need to add assumptions here that the checksums actually really don't match there is a small chance to get collisions
-                // in the checksum which is ok though....
-                StringBuilder msg = new StringBuilder();
-                msg.append("Checksum before: [").append(checksumBeforeCorruption).append("]");
-                msg.append(" after: [").append(checksumAfterCorruption).append("]");
-                msg.append(" checksum value after corruption: ").append(actualChecksumAfterCorruption).append("]");
-                msg.append(" file: ").append(fileToCorrupt.getFileName()).append(" length: ").append(dir.fileLength(fileToCorrupt.getFileName().toString()));
-                logger.info(msg.toString());
-                assumeTrue("Checksum collision - " + msg.toString(),
-                        checksumAfterCorruption != checksumBeforeCorruption // collision
-                                || actualChecksumAfterCorruption != checksumBeforeCorruption); // checksum corrupted
-            }
-        }
-        assertThat("no file corrupted", fileToCorrupt, notNullValue());
+        CorruptionUtils.corruptFile(getRandom(), files.toArray(new Path[0]));
         return shardRouting;
     }
 

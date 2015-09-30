@@ -92,12 +92,14 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         if (gens.size() > 0 && suggestTerms != null) {
             final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram(), suggestion.getTokenLimit());
             final BytesRef separator = suggestion.separator();
-            TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField());
+            Result checkerResult;
+            try (TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
             
-            WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood, separator);
-            Result checkerResult = checker.getCorrections(stream, new MultiCandidateGeneratorWrapper(suggestion.getShardSize(),
-                    gens.toArray(new CandidateGenerator[gens.size()])), suggestion.maxErrors(),
-                    suggestion.getShardSize(), wordScorer, suggestion.confidence(), suggestion.gramSize());
+                    WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood, separator);
+                    checkerResult = checker.getCorrections(stream, new MultiCandidateGeneratorWrapper(suggestion.getShardSize(),
+                                                                                                      gens.toArray(new CandidateGenerator[gens.size()])), suggestion.maxErrors(),
+                                                                  suggestion.getShardSize(), wordScorer, suggestion.confidence(), suggestion.gramSize());
+                }
 
             PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
             response.addTerm(resultEntry);

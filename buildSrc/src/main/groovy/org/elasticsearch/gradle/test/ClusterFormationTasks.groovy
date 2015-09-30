@@ -146,7 +146,7 @@ class ClusterFormationTasks {
             elasticsearchZip
         }
         project.dependencies {
-            elasticsearchZip "org.elasticsearch.distribution.zip:elasticsearch:${elasticsearchVersion}"
+            elasticsearchZip "org.elasticsearch.distribution.zip:elasticsearch:${elasticsearchVersion}@zip"
         }
     }
 }

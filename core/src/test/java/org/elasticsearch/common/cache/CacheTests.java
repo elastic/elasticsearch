@@ -25,6 +25,7 @@ import org.junit.Before;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.hamcrest.Matchers.not;
 
@@ -433,6 +434,31 @@ public class CacheTests extends ESTestCase {
             }
         }
         assertEquals(replacements, notifications);
+    }
+
+    public void testComputeIfAbsentCallsOnce() throws InterruptedException {
+        int numberOfThreads = randomIntBetween(2, 200);
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        List<Thread> threads = new ArrayList<>();
+        AtomicReferenceArray flags = new AtomicReferenceArray(numberOfEntries);
+        for (int j = 0; j < numberOfEntries; j++) {
+            flags.set(j, false);
+        }
+        for (int i = 0; i < numberOfThreads; i++) {
+            Thread thread = new Thread(() -> {
+               for (int j = 0; j < numberOfEntries; j++) {
+                   cache.computeIfAbsent(j, key -> {
+                       assertTrue(flags.compareAndSet(key, false, true));
+                       return Integer.toString(key);
+                   });
+               }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
     }
 
     // test that the cache is not corrupted under lots of concurrent modifications, even hitting the same key

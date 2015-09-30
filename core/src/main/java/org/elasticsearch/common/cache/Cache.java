@@ -187,16 +187,13 @@ public class Cache<K, V> {
          * @param key the key of the entry to add to the cache
          * @param value the value of the entry to add to the cache
          * @param now the access time of this entry
-         * @param onlyIfAbsent whether or not an existing entry should be replaced
          * @return a tuple of the new entry and the existing entry, if there was one otherwise null
          */
-        Tuple<Entry<K, V>, Entry<K, V>> put(K key, V value, long now, boolean onlyIfAbsent) {
+        Tuple<Entry<K, V>, Entry<K, V>> put(K key, V value, long now) {
             Entry<K, V> entry = new Entry<>(key, value, now);
-            Entry<K, V> existing = null;
+            Entry<K, V> existing;
             try (ReleasableLock ignored = writeLock.acquire()) {
-                if (!onlyIfAbsent || (onlyIfAbsent && map.get(key) == null)) {
-                    existing = map.put(key, entry);
-                }
+                existing = map.put(key, entry);
             }
             return Tuple.tuple(entry, existing);
         }
@@ -282,9 +279,15 @@ public class Cache<K, V> {
         long now = now();
         V value = get(key);
         if (value == null) {
-            value = mappingFunction.apply(key);
-            if (value != null) {
-                put(key, value, now, true);
+            CacheSegment<K, V> segment = getCacheSegment(key);
+            try (ReleasableLock ignored = segment.writeLock.acquire()) {
+                value = get(key);
+                if (value == null) {
+                    value = mappingFunction.apply(key);
+                }
+                if (value != null) {
+                    put(key, value, now);
+                }
             }
         }
         return value;
@@ -299,12 +302,12 @@ public class Cache<K, V> {
      */
     public void put(K key, V value) {
         long now = now();
-        put(key, value, now, false);
+        put(key, value, now);
     }
 
-    private void put(K key, V value, long now, boolean onlyIfAbsent) {
+    private void put(K key, V value, long now) {
         CacheSegment<K, V> segment = getCacheSegment(key);
-        Tuple<Entry<K, V>, Entry<K, V>> tuple = segment.put(key, value, now, onlyIfAbsent);
+        Tuple<Entry<K, V>, Entry<K, V>> tuple = segment.put(key, value, now);
         boolean replaced = false;
         try (ReleasableLock ignored = lock.acquire()) {
             if (tuple.v2() != null && tuple.v2().state == State.EXISTING) {

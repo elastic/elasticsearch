@@ -29,7 +29,6 @@ import org.elasticsearch.common.logging.Loggers;
 
 import java.io.FilePermission;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.security.Permissions;
 import java.security.Policy;
@@ -80,7 +79,7 @@ public class BootstrapForTesting {
                 // initialize paths the same exact way as bootstrap.
                 Permissions perms = new Permissions();
                 // add permissions to everything in classpath
-                for (URL url : ((URLClassLoader)BootstrapForTesting.class.getClassLoader()).getURLs()) {
+                for (URL url : JarHell.parseClassPath()) {
                     Path path = PathUtils.get(url.toURI());
                     // resource itself
                     perms.add(new FilePermission(path.toString(), "read,readlink"));

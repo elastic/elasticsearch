@@ -26,6 +26,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.FileVisitResult;
@@ -74,16 +75,56 @@ public class JarHell {
      */
     public static void checkJarHell() throws Exception {
         ClassLoader loader = JarHell.class.getClassLoader();
-        if (loader instanceof URLClassLoader == false) {
-           return;
-        }
         ESLogger logger = Loggers.getLogger(JarHell.class);
         if (logger.isDebugEnabled()) {
             logger.debug("java.class.path: {}", System.getProperty("java.class.path"));
             logger.debug("sun.boot.class.path: {}", System.getProperty("sun.boot.class.path"));
-            logger.debug("classloader urls: {}", Arrays.toString(((URLClassLoader)loader).getURLs()));
+            if (loader instanceof URLClassLoader ) {
+                logger.debug("classloader urls: {}", Arrays.toString(((URLClassLoader)loader).getURLs()));
+             }
         }
-        checkJarHell(((URLClassLoader)loader).getURLs());
+        checkJarHell(parseClassPath());
+    }
+    
+    /**
+     * Parses the classpath into an array of URLs
+     * @return array of URLs
+     * @throws IllegalStateException if the classpath contains empty elements
+     */
+    public static URL[] parseClassPath()  {
+        return parseClassPath(System.getProperty("java.class.path"));
+    }
+
+    /**
+     * Parses the classpath into a set of URLs. For testing.
+     * @param classPath classpath to parse (typically the system property {@code java.class.path})
+     * @return array of URLs
+     * @throws IllegalStateException if the classpath contains empty elements
+     */
+    @SuppressForbidden(reason = "resolves against CWD because that is how classpaths work")
+    static URL[] parseClassPath(String classPath) {
+        String elements[] = classPath.split(System.getProperty("path.separator"));
+        URL urlElements[] = new URL[elements.length];
+        for (int i = 0; i < elements.length; i++) {
+            String element = elements[i];
+            // Technically empty classpath element behaves like CWD.
+            // So below is the "correct" code, however in practice with ES, this is usually just a misconfiguration,
+            // from old shell scripts left behind or something:
+            //   if (element.isEmpty()) {
+            //      element = System.getProperty("user.dir");
+            //   }
+            // Instead we just throw an exception, and keep it clean.
+            if (element.isEmpty()) {
+                throw new IllegalStateException("Classpath should not contain empty elements! (outdated shell script from a previous version?) classpath='" + classPath + "'");
+            }
+            try {
+                urlElements[i] = PathUtils.get(element).toUri().toURL();
+            } catch (MalformedURLException e) {
+                // should not happen, as we use the filesystem API
+                throw new RuntimeException(e);
+            }
+        }
+        return urlElements;
     }
 
     /**

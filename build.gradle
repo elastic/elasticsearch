@@ -13,7 +13,7 @@ allprojects {
   // injecting groovy property variables into all projects
   project.ext {
     // minimum java 8
-    sourceCompatibility = '1.8'
+    sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = sourceCompatibility
 
     luceneSnapshotRevision = '1702855'

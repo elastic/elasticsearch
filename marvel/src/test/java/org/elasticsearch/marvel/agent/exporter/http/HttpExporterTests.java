@@ -41,10 +41,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+
 
 // Transport Client instantiation also calls the marvel plugin, which then fails to find modules
 @SuppressLocalMode
 @ClusterScope(scope = TEST, transportClientRatio = 0.0, numDataNodes = 0, numClientNodes = 0)
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/729")
 public class HttpExporterTests extends MarvelIntegTestCase {
 
     final static AtomicLong timeStampGenerator = new AtomicLong();

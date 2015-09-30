@@ -23,7 +23,10 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.greaterThan;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+
 @ClusterScope(scope = SUITE, maxNumDataNodes = 2)
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/729")
 public class ClusterStatsTests extends MarvelIntegTestCase {
 
     @Override

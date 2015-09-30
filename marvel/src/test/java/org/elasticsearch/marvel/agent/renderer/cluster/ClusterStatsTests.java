@@ -12,7 +12,6 @@ import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
@@ -23,10 +22,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.greaterThan;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
-
-@ClusterScope(scope = SUITE, maxNumDataNodes = 2)
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/729")
+@ClusterScope(scope = SUITE, numClientNodes = 0)
 public class ClusterStatsTests extends MarvelIntegTestCase {
 
     @Override

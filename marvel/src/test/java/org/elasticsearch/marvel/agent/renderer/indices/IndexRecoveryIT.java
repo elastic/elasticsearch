@@ -17,6 +17,9 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.greaterThan;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/730")
 public class IndexRecoveryIT extends MarvelIntegTestCase {
 
     @Override

@@ -677,14 +677,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 try {
                     final boolean success;
                     final IndexShard shard = indexService.shard(shardId);
+                    final DiscoveryNode localNode = clusterService.localNode();
                     if (restoreSource == null) {
                         // recover from filesystem store
-                        success = shard.recoverFromStore(shardRouting);
+                        success = shard.recoverFromStore(shardRouting, localNode);
                     } else {
                         // restore
                         final IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(restoreSource.snapshotId().getRepository());
                         try {
-                            success = shard.restoreFromRepository(shardRouting, indexShardRepository);
+                            success = shard.restoreFromRepository(shardRouting, indexShardRepository, localNode);
                         } catch (Throwable t) {
                             if (Lucene.isCorruptionException(t)) {
                                 restoreService.failRestore(restoreSource.snapshotId(), shard.shardId());

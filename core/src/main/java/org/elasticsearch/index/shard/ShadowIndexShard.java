@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
@@ -54,7 +56,7 @@ import java.io.IOException;
 public final class ShadowIndexShard extends IndexShard {
 
     @Inject
-    public ShadowIndexShard(ShardId shardId, IndexSettingsService indexSettingsService,
+    public ShadowIndexShard(ShardId shardId, @IndexSettings Settings indexSettings,
                             IndicesLifecycle indicesLifecycle, Store store,
                             ThreadPool threadPool, MapperService mapperService,
                             IndexQueryParserService queryParserService, IndexCache indexCache,
@@ -62,14 +64,14 @@ public final class ShadowIndexShard extends IndexShard {
                             CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
                             @Nullable IndicesWarmer warmer,
                             SimilarityService similarityService,
-                            EngineFactory factory, ClusterService clusterService,
+                            EngineFactory factory,
                             ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) throws IOException {
-        super(shardId, indexSettingsService, indicesLifecycle, store,
+        super(shardId, indexSettings, indicesLifecycle, store,
                 threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
                 indicesQueryCache, codecService,
                 termVectorsService, indexFieldDataService,
                 warmer, similarityService,
-                factory, clusterService, path, bigArrays, wrappingService);
+                factory, path, bigArrays, wrappingService);
     }
 
     /**

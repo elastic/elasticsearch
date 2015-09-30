@@ -26,6 +26,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -72,7 +73,8 @@ final class StoreRecovery {
                 throw new IllegalStateException("can't recover - restore source is not null");
             }
             try {
-                indexShard.recovering("from store", RecoveryState.Type.STORE, localNode);
+                final RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), indexShard.routingEntry().primary(), RecoveryState.Type.STORE, localNode, localNode);
+                indexShard.recovering("from store", recoveryState);
             } catch (IllegalIndexShardStateException e) {
                 // that's fine, since we might be called concurrently, just ignore this, we are already recovering
                 return false;
@@ -93,19 +95,21 @@ final class StoreRecovery {
      * @return <code>true</code> if the the shard has been recovered successfully, <code>false</code> if the recovery
      * has been ignored due to a concurrent modification of if the clusters state has changed due to async updates.
      */
-    boolean recoverFromRepository(final IndexShard indexShard, IndexShardRepository repository) {
+    boolean recoverFromRepository(final IndexShard indexShard, IndexShardRepository repository, DiscoveryNode localNode) {
         if (canRecover(indexShard)) {
-            if (indexShard.routingEntry().restoreSource() == null) {
+            final ShardRouting shardRouting = indexShard.routingEntry();
+            if (shardRouting.restoreSource() == null) {
                 throw new IllegalStateException("can't restore - restore source is null");
             }
             try {
-                indexShard.recovering("from snapshot", RecoveryState.Type.SNAPSHOT, indexShard.routingEntry().restoreSource());
+                final RecoveryState recoveryState = new RecoveryState(shardId, shardRouting.primary(), RecoveryState.Type.SNAPSHOT, shardRouting.restoreSource(), localNode);
+                indexShard.recovering("from snapshot", recoveryState);
             } catch (IllegalIndexShardStateException e) {
                 // that's fine, since we might be called concurrently, just ignore this, we are already recovering
                 return false;
             }
             return executeRecovery(indexShard, () -> {
-                logger.debug("restoring from {} ...", indexShard.routingEntry().restoreSource());
+                logger.debug("restoring from {} ...", shardRouting.restoreSource());
                 restore(indexShard, repository);
             });
         }

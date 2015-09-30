@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -787,7 +789,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ShardRoutingHelper.reinit(routing);
         IndexShard newShard = test.createShard(0, routing);
         newShard.updateRoutingEntry(routing, false);
-        assertTrue(newShard.recoverFromStore(routing));
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        assertTrue(newShard.recoverFromStore(routing, localNode));
         routing = new ShardRouting(routing);
         ShardRoutingHelper.moveToStarted(routing);
         newShard.updateRoutingEntry(routing, true);
@@ -799,6 +802,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         createIndex("test");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
         IndexService test = indicesService.indexService("test");
         final IndexShard shard = test.shard(0);
 
@@ -817,7 +821,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndexShard newShard = test.createShard(0, routing);
         newShard.updateRoutingEntry(routing, false);
         try {
-            newShard.recoverFromStore(routing);
+            newShard.recoverFromStore(routing, localNode);
             fail("index not there!");
         } catch (IndexShardRecoveryException ex) {
             assertTrue(ex.getMessage().contains("failed to fetch index version after copying it over"));
@@ -826,11 +830,11 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ShardRoutingHelper.moveToUnassigned(routing, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "because I say so"));
         ShardRoutingHelper.initialize(routing, origRouting.currentNodeId());
 
-        assertFalse("it's already recovering", newShard.recoverFromStore(routing));
+        assertFalse("it's already recovering", newShard.recoverFromStore(routing, localNode));
         test.removeShard(0, "I broken it");
         newShard = test.createShard(0, routing);
         newShard.updateRoutingEntry(routing, false);
-        assertTrue("recover even if there is nothing to recover", newShard.recoverFromStore(routing));
+        assertTrue("recover even if there is nothing to recover", newShard.recoverFromStore(routing, localNode));
 
         routing = new ShardRouting(routing);
         ShardRoutingHelper.moveToStarted(routing);
@@ -865,6 +869,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         Store targetStore = test_target_shard.store();
 
         test_target_shard.updateRoutingEntry(routing, false);
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
         assertTrue(test_target_shard.restoreFromRepository(routing, new IndexShardRepository() {
             @Override
             public void snapshot(SnapshotId snapshotId, ShardId shardId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
@@ -893,7 +898,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             @Override
             public void verify(String verificationToken) {
             }
-        }));
+        }, localNode));
 
         routing = new ShardRouting(routing);
         ShardRoutingHelper.moveToStarted(routing);
@@ -902,4 +907,15 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertSearchHits(client().prepareSearch("test_target").get(), "0");
     }
 
+    public void testListenersAreRemoved() {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexService("test");
+        IndexShard shard = indexService.shard(0);
+        IndexSettingsService settingsService = indexService.settingsService();
+        assertTrue(settingsService.isRegistered(shard));
+        indexService.removeShard(0, "simon says so");
+        assertFalse(settingsService.isRegistered(shard));
+    }
 }

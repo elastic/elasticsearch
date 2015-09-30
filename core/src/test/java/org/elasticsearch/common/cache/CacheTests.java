@@ -22,12 +22,13 @@ package org.elasticsearch.common.cache;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-
-import static org.hamcrest.Matchers.not;
 
 public class CacheTests extends ESTestCase {
     private int numberOfEntries;
@@ -71,7 +72,7 @@ public class CacheTests extends ESTestCase {
         }
         assertEquals(hits, cache.stats().getHits());
         assertEquals(misses, cache.stats().getMisses());
-        assertEquals((int)Math.ceil(numberOfEntries / 2.0), evictions.get());
+        assertEquals((int) Math.ceil(numberOfEntries / 2.0), evictions.get());
         assertEquals(evictions.get(), cache.stats().getEvictions());
     }
 
@@ -319,11 +320,11 @@ public class CacheTests extends ESTestCase {
         Set<Integer> notifications = new HashSet<>();
         Cache<Integer, String> cache =
                 CacheBuilder.<Integer, String>builder()
-                    .removalListener(notification -> {
-                        assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
-                        notifications.add(notification.getKey());
-                    })
-                    .build();
+                        .removalListener(notification -> {
+                            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
+                            notifications.add(notification.getKey());
+                        })
+                        .build();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
         }
@@ -353,11 +354,11 @@ public class CacheTests extends ESTestCase {
         Set<Integer> notifications = new HashSet<>();
         Cache<Integer, String> cache =
                 CacheBuilder.<Integer, String>builder()
-                    .removalListener(notification -> {
-                        assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
-                        notifications.add(notification.getKey());
-                    })
-                    .build();
+                        .removalListener(notification -> {
+                            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
+                            notifications.add(notification.getKey());
+                        })
+                        .build();
         Set<Integer> invalidated = new HashSet<>();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
@@ -446,12 +447,12 @@ public class CacheTests extends ESTestCase {
         }
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
-               for (int j = 0; j < numberOfEntries; j++) {
-                   cache.computeIfAbsent(j, key -> {
-                       assertTrue(flags.compareAndSet(key, false, true));
-                       return Integer.toString(key);
-                   });
-               }
+                for (int j = 0; j < numberOfEntries; j++) {
+                    cache.computeIfAbsent(j, key -> {
+                        assertTrue(flags.compareAndSet(key, false, true));
+                        return Integer.toString(key);
+                    });
+                }
             });
             threads.add(thread);
             thread.start();

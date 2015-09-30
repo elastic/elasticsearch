@@ -32,12 +32,12 @@ import java.util.function.ToLongBiFunction;
 
 /**
  * A simple concurrent cache.
- *<p>
+ * <p>
  * Cache is a simple concurrent cache that supports time-based and weight-based evictions, with notifications for all
  * evictions. The design goals for this cache were simplicity and read performance. This means that we are willing to
  * accept reduced write performance in exchange for easy-to-understand code. Cache statistics for hits, misses and
  * evictions are exposed.
- *<p>
+ * <p>
  * The design of the cache is relatively simple. The cache is segmented into 256 segments which are backed by HashMaps.
  * The segments are protected by a re-entrant read/write lock. The read/write locks permit multiple concurrent readers
  * without contention, and the segments gives us write throughput without impacting readers (so readers are blocked only
@@ -47,12 +47,12 @@ import java.util.function.ToLongBiFunction;
  * LRU list is protected by a lock that serializes all writes to it. There are opportunities for improvements
  * here if write throughput is a concern.
  * <ol>
- *     <li>LRU list mutations could be inserted into a blocking queue that a single thread is reading from
- *     and applying to the LRU list.</li>
- *     <li>Promotions could be deferred for entries that were "recently" promoted.</li>
- *     <li>Locks on the list could be taken per node being modified instead of globally.</li>
+ * <li>LRU list mutations could be inserted into a blocking queue that a single thread is reading from
+ * and applying to the LRU list.</li>
+ * <li>Promotions could be deferred for entries that were "recently" promoted.</li>
+ * <li>Locks on the list could be taken per node being modified instead of globally.</li>
  * </ol>
- *
+ * <p>
  * Evictions only occur after a mutation to the cache (meaning an entry promotion, a cache insertion, or a manual
  * invalidation) or an explicit call to {@link #refresh()}.
  *
@@ -124,7 +124,9 @@ public class Cache<K, V> {
     }
 
     // the state of an entry in the LRU list
-    enum State {NEW, EXISTING, DELETED}
+    enum State {
+        NEW, EXISTING, DELETED
+    }
 
     static class Entry<K, V> {
         final K key;
@@ -144,7 +146,7 @@ public class Cache<K, V> {
 
     /**
      * A cache segment.
-     *
+     * <p>
      * A CacheSegment is backed by a HashMap and is protected by a read/write lock.
      *
      * @param <K> the type of the keys
@@ -184,9 +186,9 @@ public class Cache<K, V> {
         /**
          * put an entry into the segment
          *
-         * @param key the key of the entry to add to the cache
+         * @param key   the key of the entry to add to the cache
          * @param value the value of the entry to add to the cache
-         * @param now the access time of this entry
+         * @param now   the access time of this entry
          * @return a tuple of the new entry and the existing entry, if there was one otherwise null
          */
         Tuple<Entry<K, V>, Entry<K, V>> put(K key, V value, long now) {
@@ -270,7 +272,7 @@ public class Cache<K, V> {
      * If the specified key is not already associated with a value (or is mapped to null), attempts to compute its
      * value using the given mapping function and enters it into this map unless null.
      *
-     * @param key the key whose associated value is to be returned or computed for if non-existant
+     * @param key             the key whose associated value is to be returned or computed for if non-existant
      * @param mappingFunction the function to compute a value given a key
      * @return the current (existing or computed) value associated with the specified key, or null if the computed
      * value is null
@@ -297,7 +299,7 @@ public class Cache<K, V> {
      * Associates the specified value with the specified key in this map. If the map previously contained a mapping for
      * the key, the old value is replaced.
      *
-     * @param key key with which the specified value is to be associated
+     * @param key   key with which the specified value is to be associated
      * @param value value to be associated with the specified key
      */
     public void put(K key, V value) {

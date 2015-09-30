@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Script used to swap elasticsearch with too many indices and cause it to crash.
 # Run it like this to fill heap with allocated indexes:

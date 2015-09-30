@@ -257,7 +257,10 @@ public class Cache<K, V> {
      * @return the value to which the specified key is mapped, or null if this map contains no mapping for the key
      */
     public V get(K key) {
-        long now = now();
+        return get(key, now());
+    }
+
+    private V get(K key, long now) {
         CacheSegment<K, V> segment = getCacheSegment(key);
         Entry<K, V> entry = segment.get(key, now);
         if (entry == null || isExpired(entry, now)) {
@@ -279,11 +282,11 @@ public class Cache<K, V> {
      */
     public V computeIfAbsent(K key, Function<K, V> mappingFunction) {
         long now = now();
-        V value = get(key);
+        V value = get(key, now);
         if (value == null) {
             CacheSegment<K, V> segment = getCacheSegment(key);
             try (ReleasableLock ignored = segment.writeLock.acquire()) {
-                value = get(key);
+                value = get(key, now);
                 if (value == null) {
                     value = mappingFunction.apply(key);
                 }

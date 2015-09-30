@@ -672,28 +672,28 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 handleRecoveryFailure(indexService, shardRouting, true, e);
             }
         } else {
+            final DiscoveryNode localNode = clusterService.localNode();
             threadPool.generic().execute(() -> {
                 final RestoreSource restoreSource = shardRouting.restoreSource();
+                final ShardId sId = indexShard.shardId();
                 try {
                     final boolean success;
-                    final IndexShard shard = indexService.shard(shardId);
-                    final DiscoveryNode localNode = clusterService.localNode();
                     if (restoreSource == null) {
                         // recover from filesystem store
-                        success = shard.recoverFromStore(shardRouting, localNode);
+                        success = indexShard.recoverFromStore(shardRouting, localNode);
                     } else {
                         // restore
                         final IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(restoreSource.snapshotId().getRepository());
                         try {
-                            success = shard.restoreFromRepository(shardRouting, indexShardRepository, localNode);
+                            success = indexShard.restoreFromRepository(shardRouting, indexShardRepository, localNode);
                         } catch (Throwable t) {
                             if (Lucene.isCorruptionException(t)) {
-                                restoreService.failRestore(restoreSource.snapshotId(), shard.shardId());
+                                restoreService.failRestore(restoreSource.snapshotId(), sId);
                             }
                             throw t;
                         }
                         if (success) {
-                            restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), shard.shardId());
+                            restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), sId);
                         }
                     }
                     if (success) {

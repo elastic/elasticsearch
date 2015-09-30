@@ -8,7 +8,7 @@ microsoft office formats, open document formats, ePub, HTML, and so on (full lis
 In order to install the plugin, run:
 
 ```sh
-bin/plugin install elasticsearch/elasticsearch-mapper-attachments/2.7.1
+bin/plugin install elasticsearch/elasticsearch-mapper-attachments/3.0.0
 ```
 
 You need to install a version matching your Elasticsearch version:

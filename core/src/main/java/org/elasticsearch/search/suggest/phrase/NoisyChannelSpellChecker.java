@@ -133,12 +133,11 @@ public final class NoisyChannelSpellChecker {
 
     public Result getCorrections(Analyzer analyzer, BytesRef query, CandidateGenerator generator,
             float maxErrors, int numCorrections, IndexReader reader, String analysisField, WordScorer scorer, float confidence, int gramSize) throws IOException {
-        try (TokenStream ts = tokenStream(analyzer, query, new CharsRefBuilder(), analysisField)) {
-            return getCorrections(ts, generator, maxErrors, numCorrections, scorer, confidence, gramSize);
-        }
+       
+        return getCorrections(tokenStream(analyzer, query, new CharsRefBuilder(), analysisField), generator, maxErrors, numCorrections, scorer, confidence, gramSize);
+
     }
 
-    /** NOTE: caller must close returned TokenStream */
     public TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) throws IOException {
         spare.copyUTF8Bytes(query);
         return analyzer.tokenStream(field, new FastCharArrayReader(spare.chars(), 0, spare.length()));

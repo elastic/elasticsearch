@@ -190,7 +190,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     public void testParseFromJSON() throws IOException {
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/has-child-with-inner-hits.json").trim();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/has-child-with-inner-hits.json");
         HasChildQueryBuilder queryBuilder = (HasChildQueryBuilder) parseQuery(query);
         assertEquals(query, queryBuilder.maxChildren(), 1217235442);
         assertEquals(query, queryBuilder.minChildren(), 883170873);
@@ -203,7 +203,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         // now assert that we actually generate the same JSON
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         queryBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(query, builder.string());
+        assertEquals(query.trim(), builder.string().trim());
     }
 
     public void testToQueryInnerQueryType() throws IOException {

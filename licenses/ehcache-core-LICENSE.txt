@@ -1,3 +1,0 @@
-Open Source License
-
-The open source Ehcache project is licensed under the Apache 2.0 License.

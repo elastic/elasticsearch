@@ -139,24 +139,6 @@ public class Cache<K, V> {
             this.value = value;
             this.writeTime = this.accessTime = writeTime;
         }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            } else if (!(obj instanceof Entry)) {
-                return false;
-            } else {
-                @SuppressWarnings("unchecked")
-                Entry<K, V> e = (Entry<K, V>) obj;
-                return Objects.equals(key, e.key);
-            }
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(key);
-        }
     }
 
     /**

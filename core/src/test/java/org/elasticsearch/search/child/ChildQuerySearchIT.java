@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.child;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -34,14 +34,12 @@ import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -62,7 +60,7 @@ import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -71,13 +69,8 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope = Scope.SUITE)
-public class ChildQuerySearchTests extends ESIntegTestCase {
+public class ChildQuerySearchIT extends ESIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(GroovyPlugin.class);
-    }
-    
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
@@ -165,7 +158,7 @@ public class ChildQuerySearchTests extends ESIntegTestCase {
         client().prepareIndex("test", "foo", "1").setSource("foo", 1).get();
         client().prepareIndex("test", "test", "2").setSource("foo", 1).setParent("1").get();
         refresh();
-        String query = copyToStringFromClasspath("/org/elasticsearch/messy/tests/bool-query-with-empty-clauses.json");
+        String query = copyToStringFromClasspath("/org/elasticsearch/search/child/bool-query-with-empty-clauses.json");
         SearchResponse searchResponse = client().prepareSearch("test").setSource(query).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -679,8 +672,8 @@ public class ChildQuerySearchTests extends ESIntegTestCase {
                         QueryBuilders.hasChildQuery(
                                 "child",
                                 QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0),
-                                        scriptFunction(new Script("doc['c_field1'].value")))
-                                        .boostMode(CombineFunction.REPLACE.getName())).scoreType("sum")).get();
+                                        fieldValueFactorFunction("c_field1"))
+                                        .boostMode(CombineFunction.REPLACE)).scoreMode("sum")).get();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("1"));
@@ -696,8 +689,8 @@ public class ChildQuerySearchTests extends ESIntegTestCase {
                         QueryBuilders.hasChildQuery(
                                 "child",
                                 QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0),
-                                        scriptFunction(new Script("doc['c_field1'].value")))
-                                        .boostMode(CombineFunction.REPLACE.getName())).scoreType("max")).get();
+                                        fieldValueFactorFunction("c_field1"))
+                                        .boostMode(CombineFunction.REPLACE)).scoreMode("max")).get();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
@@ -713,8 +706,8 @@ public class ChildQuerySearchTests extends ESIntegTestCase {
                         QueryBuilders.hasChildQuery(
                                 "child",
                                 QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0),
-                                        scriptFunction(new Script("doc['c_field1'].value")))
-                                        .boostMode(CombineFunction.REPLACE.getName())).scoreType("avg")).get();
+                                        fieldValueFactorFunction("c_field1"))
+                                        .boostMode(CombineFunction.REPLACE)).scoreMode("avg")).get();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
@@ -730,8 +723,8 @@ public class ChildQuerySearchTests extends ESIntegTestCase {
                         QueryBuilders.hasParentQuery(
                                 "parent",
                                 QueryBuilders.functionScoreQuery(matchQuery("p_field1", "p_value3"),
-                                        scriptFunction(new Script("doc['p_field2'].value")))
-                                        .boostMode(CombineFunction.REPLACE.getName())).scoreType("score"))
+                                        fieldValueFactorFunction("p_field2"))
+                                        .boostMode(CombineFunction.REPLACE)).scoreType("score"))
                 .addSort(SortBuilders.fieldSort("c_field3")).addSort(SortBuilders.scoreSort()).get();
 
         assertThat(response.getHits().totalHits(), equalTo(7l));

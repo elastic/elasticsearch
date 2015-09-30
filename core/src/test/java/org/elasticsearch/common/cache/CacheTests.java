@@ -23,8 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.*;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -463,7 +462,7 @@ public class CacheTests extends ESTestCase {
 
     // test that the cache is not corrupted under lots of concurrent modifications, even hitting the same key
     // here be dragons: this test did catch one subtle bug during development; do not remove lightly
-    public void testTorture() throws InterruptedException, BrokenBarrierException {
+    public void testTorture() throws InterruptedException {
         int numberOfThreads = randomIntBetween(2, 200);
         final Cache<Integer, String> cache =
                 CacheBuilder.<Integer, String>builder()
@@ -471,15 +470,11 @@ public class CacheTests extends ESTestCase {
                         .weigher((k, v) -> 2)
                         .build();
 
-        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
+        CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
         List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
-                try {
-                    barrier.await();
-                } catch (InterruptedException | BrokenBarrierException e){
-                    throw new RuntimeException(e);
-                }
+                latch.countDown();
                 Random random = new Random();
                 for (int j = 0; j < numberOfEntries; j++) {
                     Integer key = random.nextInt(numberOfEntries);
@@ -489,7 +484,7 @@ public class CacheTests extends ESTestCase {
             threads.add(thread);
             thread.start();
         }
-        barrier.await();
+        latch.countDown();
         for (Thread thread : threads) {
             thread.join();
         }

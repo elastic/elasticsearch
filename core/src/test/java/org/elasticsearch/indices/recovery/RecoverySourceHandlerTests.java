@@ -104,7 +104,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
                 randomBoolean(), null, RecoveryState.Type.STORE, randomLong());
         Path tempDir = createTempDir();
-        Store store = newStore(tempDir);
+        Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
         RecoverySourceHandler handler = new RecoverySourceHandler(null, request, recoverySettings, null, logger) {
             @Override
@@ -130,10 +130,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         for (StoreFileMetaData md : metadata) {
             metas.add(md);
         }
+
         CorruptionUtils.corruptFile(getRandom(), FileSystemUtils.files(tempDir, (p) ->
                 (p.getFileName().toString().equals("write.lock") ||
                         Files.isDirectory(p)) == false));
-        Store targetStore = newStore(createTempDir());
+        Store targetStore = newStore(createTempDir(), false);
         try {
             handler.sendFiles(store, metas.toArray(new StoreFileMetaData[0]), (md) -> {
                 try {
@@ -150,6 +151,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         IOUtils.close(store, targetStore, recoverySettings);
     }
 
+
     public void testHandleExceptinoOnSendSendFiles() throws Throwable {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
@@ -157,7 +159,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
                 randomBoolean(), null, RecoveryState.Type.STORE, randomLong());
         Path tempDir = createTempDir();
-        Store store = newStore(tempDir);
+        Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
         RecoverySourceHandler handler = new RecoverySourceHandler(null, request, recoverySettings, null, logger) {
             @Override
@@ -184,7 +186,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             metas.add(md);
         }
         final boolean throwCorruptedIndexException = randomBoolean();
-        Store targetStore = newStore(createTempDir());
+        Store targetStore = newStore(createTempDir(), false);
         try {
             handler.sendFiles(store, metas.toArray(new StoreFileMetaData[0]), (md) -> {
                 if (throwCorruptedIndexException) {
@@ -209,6 +211,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     }
 
     private Store newStore(Path path) throws IOException {
+        return newStore(path, true);
+    }
+    private Store newStore(Path path, boolean checkIndex) throws IOException {
         DirectoryService directoryService = new DirectoryService(shardId, Settings.EMPTY) {
             @Override
             public long throttleTimeInNanos() {
@@ -217,7 +222,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
             @Override
             public Directory newDirectory() throws IOException {
-                return RecoverySourceHandlerTests.newFSDirectory(path);
+                BaseDirectoryWrapper baseDirectoryWrapper = RecoverySourceHandlerTests.newFSDirectory(path);
+                if (checkIndex == false) {
+                    baseDirectoryWrapper.setCheckIndexOnClose(false); // don't run checkindex we might corrupt the index in these tests
+                }
+                return baseDirectoryWrapper;
             }
         };
         return new Store(shardId, Settings.EMPTY, directoryService, new DummyShardLock(shardId));

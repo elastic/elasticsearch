@@ -6,4 +6,4 @@ esplugin {
 }
 
 // no unit tests
-test.onlyIf { false }
+test.enabled = false

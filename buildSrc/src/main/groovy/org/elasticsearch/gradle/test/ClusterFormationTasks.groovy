@@ -19,6 +19,10 @@ class ClusterFormationTasks {
      * Also adds a finalize task to stop the cluster.
      */
     static void setup(Project project, Task task, ClusterConfiguration config) {
+        if (task.getEnabled() == false) {
+            // no need to cluster formation if the task won't run!
+            return
+        }
         addZipConfiguration(project)
         File clusterDir = new File(project.buildDir, 'cluster' + File.separator + task.name)
         if (config.numNodes == 1) {

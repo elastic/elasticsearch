@@ -22,10 +22,9 @@ package org.elasticsearch.common.cache;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -464,37 +463,37 @@ public class CacheTests extends ESTestCase {
 
     // test that the cache is not corrupted under lots of concurrent modifications, even hitting the same key
     // here be dragons: this test did catch one subtle bug during development; do not remove lightly
-    public void testTorture() throws InterruptedException {
-        int numberOfThreads = randomIntBetween(1, 200);
-        AtomicInteger count = new AtomicInteger();
+    public void testTorture() throws InterruptedException, BrokenBarrierException {
+        int numberOfThreads = randomIntBetween(2, 200);
         final Cache<Integer, String> cache =
                 CacheBuilder.<Integer, String>builder()
                         .setMaximumWeight(1000)
-                        .removalListener(notification -> count.decrementAndGet())
                         .weigher((k, v) -> 2)
                         .build();
 
+        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                } catch (InterruptedException | BrokenBarrierException e){
+                    throw new RuntimeException(e);
+                }
+                Random random = new Random();
                 for (int j = 0; j < numberOfEntries; j++) {
-                    Integer key = randomIntBetween(1, numberOfEntries);
-                    cache.put(key, randomAsciiOfLength(10));
-                    count.incrementAndGet();
-                    if (rarely()) {
-                        cache.invalidate(key);
-                    } else {
-                        cache.get(key);
-                    }
+                    Integer key = random.nextInt(numberOfEntries);
+                    cache.put(key, Integer.toString(j));
                 }
             });
             threads.add(thread);
             thread.start();
         }
+        barrier.await();
         for (Thread thread : threads) {
             thread.join();
         }
         cache.refresh();
-        assertEquals(count.get(), cache.count());
+        assertEquals(500, cache.count());
     }
 }

@@ -18,9 +18,12 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+
 /**
  *
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/728")
 public class DataAttachmentTests extends ESTestCase {
 
     @Test

@@ -21,9 +21,10 @@ artifacts {
   archives buildRpm
 }
 
+// TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
 Map expansions = [
   'project.version': version,
-  'project.parent.artifactId': 'distribution',
+  'project.parent.artifactId': 'distributions',
   // Default values for min/max heap memory allocated to elasticsearch java process
   'packaging.elasticsearch.heap.min': '256m',
   'packaging.elasticsearch.heap.max': '1g',

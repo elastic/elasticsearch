@@ -101,7 +101,7 @@ dependencies {
 
   testCompile configurations.optional // optional deps are pulled into tests
 
-  restSpec2 project("${projectsPrefix}:rest-api-spec") // for rest tests
+  restSpec2 "org.elasticsearch:rest-api-spec:${version}" //project("${projectsPrefix}:rest-api-spec") // for rest tests
 }
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
@@ -113,8 +113,8 @@ forbiddenPatterns {
   exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
 }
 
-task copyRestSpec(type: Copy, dependsOn: configurations.restSpec2.buildDependencies) {
-  from zipTree(configurations.restSpec2.asPath)
+task copyRestSpec(type: Copy, dependsOn: configurations.restSpec2) {
+  from { zipTree(configurations.restSpec2.singleFile) }
   into sourceSets.test.output.resourcesDir
 }
 // TODO: remove this once test-the-tester rest tests are moved out of core

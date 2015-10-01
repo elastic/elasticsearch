@@ -53,12 +53,10 @@ class RestSpecHack {
         Map copyRestSpecProps = [
             name: 'copyRestSpec',
             type: Copy,
-            dependsOn: [project.configurations.restSpec.buildDependencies, 'processTestResources']
+            dependsOn: [project.configurations.restSpec, 'processTestResources']
         ]
         Task copyRestSpec = project.tasks.create(copyRestSpecProps) {
-            from project.zipTree {
-                project.configurations.restSpec.fileCollection {true}.singleFile
-            }
+            from { project.zipTree(project.configurations.restSpec.singleFile) }
             include 'rest-api-spec/api/**'
             if (includePackagedTests) {
                 include 'rest-api-spec/test/**'

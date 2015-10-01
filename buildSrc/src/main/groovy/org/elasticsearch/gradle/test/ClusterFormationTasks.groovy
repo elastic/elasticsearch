@@ -40,10 +40,10 @@ class ClusterFormationTasks {
     static void addNodeStartupTasks(Project project, Task task, ClusterConfiguration config, File baseDir) {
         String clusterName = "${task.path.replace(':', '_').substring(1)}"
         File home = new File(baseDir, "elasticsearch-${ElasticsearchProperties.version}")
-        List setupDependsOn = [project.configurations.elasticsearchZip.buildDependencies]
+        List setupDependsOn = [project.configurations.elasticsearchZip]
         setupDependsOn.addAll(task.dependsOn)
         Task setup = project.tasks.create(name: task.name + '#setup', type: Copy, dependsOn: setupDependsOn) {
-            from project.zipTree(project.configurations.elasticsearchZip.asPath)
+            from { project.configurations.elasticsearchZip.singleFile }
             into baseDir
         }
         // chain setup tasks to maintain their order

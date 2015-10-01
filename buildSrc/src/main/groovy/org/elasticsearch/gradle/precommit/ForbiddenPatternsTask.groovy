@@ -26,6 +26,8 @@ class ForbiddenPatternsTask extends DefaultTask {
         filesFilter.exclude('**/*.ico')
         filesFilter.exclude('**/*.jar')
         filesFilter.exclude('**/*.zip')
+        filesFilter.exclude('**/*.jks')
+        filesFilter.exclude('**/*.crt')
 
         // TODO: add compile and test compile outputs as this tasks outputs, so we don't rerun when source files haven't changed
     }

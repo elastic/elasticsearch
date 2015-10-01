@@ -19,15 +19,17 @@
 
 package org.elasticsearch.index.similarity;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
+import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Service for looking up configured {@link SimilarityProvider} implementations by name.
@@ -39,17 +41,17 @@ public class SimilarityLookupService extends AbstractIndexComponent {
 
     public final static String DEFAULT_SIMILARITY = "default";
 
-    private final ImmutableMap<String, SimilarityProvider> similarities;
+    private final Map<String, SimilarityProvider> similarities;
 
     public SimilarityLookupService(Index index, Settings indexSettings) {
-        this(index, indexSettings, ImmutableMap.<String, SimilarityProvider.Factory>of());
+        this(index, indexSettings, emptyMap());
     }
 
     @Inject
     public SimilarityLookupService(Index index, @IndexSettings Settings indexSettings, Map<String, SimilarityProvider.Factory> similarities) {
         super(index, indexSettings);
 
-        MapBuilder<String, SimilarityProvider> providers = MapBuilder.newMapBuilder();
+        Map<String, SimilarityProvider> providers = new HashMap<>();
 
         Map<String, Settings> similaritySettings = indexSettings.getGroups(SimilarityModule.SIMILARITY_SETTINGS_PREFIX);
         for (Map.Entry<String, SimilarityProvider.Factory> entry : similarities.entrySet()) {
@@ -70,7 +72,7 @@ public class SimilarityLookupService extends AbstractIndexComponent {
             }
         }
 
-        this.similarities = providers.immutableMap();
+        this.similarities = unmodifiableMap(providers);
     }
 
     /**

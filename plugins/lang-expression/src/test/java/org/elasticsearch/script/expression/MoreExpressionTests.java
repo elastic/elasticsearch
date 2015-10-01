@@ -68,7 +68,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ExpressionPlugin.class);
+        return pluginList(ExpressionPlugin.class);
     }
 
     private SearchRequestBuilder buildRequest(String script, Object... params) {

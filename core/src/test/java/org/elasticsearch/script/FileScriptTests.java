@@ -22,6 +22,7 @@ import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
@@ -50,8 +51,8 @@ public class FileScriptTests extends ESTestCase {
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
             .put(settings)
             .build();
-        Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));
-        return new ScriptService(settings, new Environment(settings), engines, null, new ScriptContextRegistry(Collections.emptyList()));
+        Set<ScriptEngineService> engines = new HashSet<ScriptEngineService>(Collections.singletonList(new MockScriptEngine()));
+        return new ScriptService(settings, new Environment(settings), engines, null, new ScriptContextRegistry(Collections.<ScriptContext.Plugin>emptyList()));
     }
 
     public void testFileScriptFound() throws Exception {

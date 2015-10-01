@@ -29,7 +29,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -48,7 +47,7 @@ public class IndexedExpressionTests extends ESIntegTestCase {
     
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ExpressionPlugin.class);
+        return pluginList(ExpressionPlugin.class);
     }
 
     @Test

@@ -59,9 +59,9 @@ public final class Mapping implements ToXContent {
     final MetadataFieldMapper[] metadataMappers;
     final ImmutableMap<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappersMap;
     final SourceTransform[] sourceTransforms;
-    volatile ImmutableMap<String, Object> meta;
+    volatile Map<String, Object> meta;
 
-    public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, SourceTransform[] sourceTransforms, ImmutableMap<String, Object> meta) {
+    public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, SourceTransform[] sourceTransforms, Map<String, Object> meta) {
         this.indexCreated = indexCreated;
         this.root = rootObjectMapper;
         this.metadataMappers = metadataMappers;
@@ -119,7 +119,7 @@ public final class Mapping implements ToXContent {
             meta = mergeWith.meta;
         }
     }
-    
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         root.toXContent(builder, params, new ToXContent() {

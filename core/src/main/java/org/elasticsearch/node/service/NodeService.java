@@ -19,8 +19,6 @@
 
 package org.elasticsearch.node.service;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -44,6 +42,8 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+
 /**
  */
 public class NodeService extends AbstractComponent {
@@ -59,7 +59,7 @@ public class NodeService extends AbstractComponent {
     @Nullable
     private HttpServer httpServer;
 
-    private volatile ImmutableMap<String, String> serviceAttributes = ImmutableMap.of();
+    private volatile Map<String, String> serviceAttributes = emptyMap();
 
     private final Version version;
 

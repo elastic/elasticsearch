@@ -90,6 +90,7 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -232,7 +233,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
-                    final ImmutableMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards;
+                    Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards;
                     Set<String> aliases = new HashSet<>();
                     if (!renamedIndices.isEmpty()) {
                         // We have some indices to restore
@@ -311,7 +312,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshotId, RestoreInProgress.State.INIT, Collections.unmodifiableList(new ArrayList<>(renamedIndices.keySet())), shards);
                         builder.putCustom(RestoreInProgress.TYPE, new RestoreInProgress(restoreEntry));
                     } else {
-                        shards = ImmutableMap.of();
+                        shards = emptyMap();
                     }
 
                     checkAliasNameConflicts(renamedIndices, aliases);

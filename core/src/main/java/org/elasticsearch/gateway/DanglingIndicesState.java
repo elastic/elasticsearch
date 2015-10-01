@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -33,6 +34,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * The dangling indices state is responsible for finding new dangling indices (indices that have
@@ -107,7 +110,7 @@ public class DanglingIndicesState extends AbstractComponent {
             indices = nodeEnv.findAllIndices();
         } catch (Throwable e) {
             logger.warn("failed to list dangling indices", e);
-            return ImmutableMap.of();
+            return emptyMap();
         }
 
         Map<String, IndexMetaData>  newIndices = new HashMap<>();

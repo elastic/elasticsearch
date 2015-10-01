@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -33,6 +32,8 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * Wrapper around everything that defines a mapping, without references to
@@ -150,22 +151,11 @@ public final class Mapping implements ToXContent {
         return builder;
     }
 
-    /** Serialize to a {@link BytesReference}. */
-    public BytesReference toBytes() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            toXContent(builder, new ToXContent.MapParams(ImmutableMap.<String, String>of()));
-            return builder.endObject().bytes();
-        } catch (IOException bogus) {
-            throw new AssertionError(bogus);
-        }
-    }
-
     @Override
     public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            toXContent(builder, new ToXContent.MapParams(ImmutableMap.<String, String>of()));
+            toXContent(builder, new ToXContent.MapParams(emptyMap()));
             return builder.endObject().string();
         } catch (IOException bogus) {
             throw new AssertionError(bogus);

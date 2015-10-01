@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
@@ -68,7 +69,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
                     .filter(containsLevel)
                     .collect(toSet()));
 
-            ImmutableMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
+            ImmutableOpenMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableOpenMap.builder();
             for (Map.Entry<String, Set<ClusterBlock>> entry : indicesBlocks.entrySet()) {
                 indicesBuilder.put(entry.getKey(), unmodifiableSet(entry.getValue().stream()
                         .filter(containsLevel)
@@ -91,7 +92,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return levelHolders[level.id()].global();
     }
 
-    public Map<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
+    public ImmutableOpenMap<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
         return levelHolders[level.id()].indices();
     }
 
@@ -238,12 +239,12 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     static class ImmutableLevelHolder {
 
-        static final ImmutableLevelHolder EMPTY = new ImmutableLevelHolder(emptySet(), ImmutableMap.of());
+        static final ImmutableLevelHolder EMPTY = new ImmutableLevelHolder(emptySet(), ImmutableOpenMap.of());
 
         private final Set<ClusterBlock> global;
-        private final ImmutableMap<String, Set<ClusterBlock>> indices;
+        private final ImmutableOpenMap<String, Set<ClusterBlock>> indices;
 
-        ImmutableLevelHolder(Set<ClusterBlock> global, ImmutableMap<String, Set<ClusterBlock>> indices) {
+        ImmutableLevelHolder(Set<ClusterBlock> global, ImmutableOpenMap<String, Set<ClusterBlock>> indices) {
             this.global = global;
             this.indices = indices;
         }
@@ -252,7 +253,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             return global;
         }
 
-        public ImmutableMap<String, Set<ClusterBlock>> indices() {
+        public ImmutableOpenMap<String, Set<ClusterBlock>> indices() {
             return indices;
         }
     }

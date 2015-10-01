@@ -20,11 +20,11 @@
 package org.elasticsearch.index;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -74,6 +74,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
@@ -110,7 +111,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final NodeEnvironment nodeEnv;
     private final IndicesService indicesServices;
 
-    private volatile ImmutableMap<Integer, IndexShardInjectorPair> shards = ImmutableMap.of();
+    private volatile Map<Integer, IndexShardInjectorPair> shards = emptyMap();
 
     private static class IndexShardInjectorPair {
         private final IndexShard indexShard;

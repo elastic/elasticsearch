@@ -35,6 +35,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -55,8 +57,6 @@ import static org.elasticsearch.index.shard.IndexShardState.CREATED;
 import static org.elasticsearch.index.shard.IndexShardState.POST_RECOVERY;
 import static org.elasticsearch.index.shard.IndexShardState.RECOVERING;
 import static org.elasticsearch.index.shard.IndexShardState.STARTED;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -105,7 +105,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
             ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
+            assertFalse(resp.getState().routingTable().indicesRouting().keys().contains("failed"));
         }
     }
 
@@ -149,7 +149,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         } catch (ElasticsearchException e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
             ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
+            assertFalse(resp.getState().routingTable().indicesRouting().keys().contains("failed"));
         }
 
 

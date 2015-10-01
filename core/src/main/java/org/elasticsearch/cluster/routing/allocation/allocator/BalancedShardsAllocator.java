@@ -21,11 +21,10 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -40,10 +39,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.common.util.CollectionUtils.addAll;
 
 /**
  * The {@link BalancedShardsAllocator} re-balances the nodes allocations
@@ -284,7 +293,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (logger.isTraceEnabled()) {
                 logger.trace("Start distributing Shards");
             }
-            indices.addAll(allocation.routingTable().indicesRouting().keySet());
+            addAll(indices, allocation.routingTable().indicesRouting().keys());
             buildModelFromAssigned(routing.shards(assignedFilter));
             return allocateUnassigned(unassigned);
         }
@@ -428,7 +437,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 deltas[i] = sorter.delta();
             }
             new IntroSorter() {
-                
+
                 float pivotWeight;
 
                 @Override
@@ -554,10 +563,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 return false;
             }
             boolean changed = false;
-          
+
             /*
              * TODO: We could be smarter here and group the shards by index and then
-             * use the sorter to save some iterations. 
+             * use the sorter to save some iterations.
              */
             final AllocationDeciders deciders = allocation.deciders();
             final PriorityComparator secondaryComparator = PriorityComparator.getAllocationComparator(allocation);
@@ -768,7 +777,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 }
 
                 if (candidate != null) {
-                  
+
                     /* allocate on the model even if not throttled */
                     maxNode.removeShard(candidate);
                     minNode.addShard(candidate, decision);

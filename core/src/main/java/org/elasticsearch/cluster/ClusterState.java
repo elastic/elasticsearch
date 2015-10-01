@@ -591,10 +591,6 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             return this;
         }
 
-        public Builder routingTable(RoutingTable.Builder routingTable) {
-            return routingTable(routingTable.build());
-        }
-
         public Builder routingResult(RoutingAllocation.Result routingResult) {
             this.routingTable = routingResult.routingTable();
             return this;

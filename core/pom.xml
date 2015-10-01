@@ -314,6 +314,45 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>de.thetaphi</groupId>
+                <artifactId>forbiddenapis</artifactId>
+                <version>1.8</version>
+
+                <executions>
+                    <execution>
+                        <id>check-forbidden-apis-in-cluster</id>
+                            <configuration>
+                                 <targetVersion>${maven.compiler.target}</targetVersion>
+                                 <!-- disallow undocumented classes like sun.misc.Unsafe: -->
+                                 <internalRuntimeForbidden>true</internalRuntimeForbidden>
+                                 <!-- if the used Java version is too new, don't fail, just do nothing: -->
+                                 <failOnUnsupportedJava>false</failOnUnsupportedJava>
+                                 <bundledSignatures>
+                                     <!-- This will automatically choose the right signatures based on 'targetVersion': -->
+                                     <bundledSignature>jdk-unsafe</bundledSignature>
+                                     <bundledSignature>jdk-deprecated</bundledSignature>
+                                     <bundledSignature>jdk-system-out</bundledSignature>
+                                 </bundledSignatures>
+                                 <signaturesFiles>
+                                      <signaturesFile>${elasticsearch.tools.directory}/forbidden/core-signatures.txt</signaturesFile>
+                                      <signaturesFile>${elasticsearch.tools.directory}/forbidden/all-signatures.txt</signaturesFile>
+                                      <signaturesFile>${elasticsearch.tools.directory}/forbidden/third-party-signatures.txt</signaturesFile>
+                                      <signaturesFile>${elasticsearch.tools.directory}/forbidden/cluster-signatures.txt</signaturesFile>
+                                 </signaturesFiles>
+                                 <signatures>${forbidden.signatures}</signatures>
+                                 <includes>
+                                     <include>org/elasticsearch/cluster/**/*.class</include>
+                                 </includes>
+                                 <suppressAnnotations><annotation>**.SuppressForbidden</annotation></suppressAnnotations>
+                             </configuration>
+                         <phase>compile</phase>
+                         <goals>
+                             <goal>check</goal>
+                         </goals>
+                     </execution>
+                 </executions>
+             </plugin>
         </plugins>
       <pluginManagement>
         <plugins>
@@ -356,6 +395,23 @@
                 </property>
             </activation>
             <!-- not including license-maven-plugin is sufficent to expose default license -->
+        </profile>
+        <profile>
+            <id>dev</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>de.thetaphi</groupId>
+                        <artifactId>forbiddenapis</artifactId>
+                        <executions>
+                            <execution>
+                                <id>check-forbidden-apis-in-cluster</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
     </profiles>
 </project>

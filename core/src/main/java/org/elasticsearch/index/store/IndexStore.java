@@ -116,5 +116,4 @@ public class IndexStore extends AbstractIndexComponent implements Closeable {
     public DirectoryService newDirectoryService(ShardPath path) {
         return new FsDirectoryService(indexSettings, this, path);
     }
-
 }

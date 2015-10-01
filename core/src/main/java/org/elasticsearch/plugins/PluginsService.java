@@ -250,14 +250,6 @@ public class PluginsService extends AbstractComponent {
         return services;
     }
 
-    public Collection<Class<? extends Closeable>> shardServices() {
-        List<Class<? extends Closeable>> services = new ArrayList<>();
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            services.addAll(plugin.v2().shardServices());
-        }
-        return services;
-    }
-
     /**
      * Get information about plugins (jvm and site plugins).
      */

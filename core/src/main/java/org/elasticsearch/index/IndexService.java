@@ -260,6 +260,9 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         if (closed.get()) {
             throw new IllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
         }
+        if (indexSettings.get("index.translog.type") != null) { // TODO remove?
+            throw new IllegalStateException("a custom translog type is no longer supported. got [" + indexSettings.get("index.translog.type") + "]");
+        }
         final ShardId shardId = new ShardId(index, sShardId);
         ShardLock lock = null;
         boolean success = false;
@@ -313,7 +316,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
             IndexStore indexStore = injector.getInstance(IndexStore.class);
             store = new Store(shardId, indexSettings, indexStore.newDirectoryService(path), lock, new StoreCloseListener(shardId, canDeleteShardContent, () -> injector.getInstance(IndicesQueryCache.class).onClose(shardId)));
-            if (primary && IndexMetaData.isIndexUsingShadowReplicas(indexSettings)) {
+            if (useShadowEngine(primary, indexSettings)) {
                 indexShard = new ShadowIndexShard(shardId, indexSettings, path, store, injector.getInstance(IndexServicesProvider.class));
             } else {
                 indexShard = new IndexShard(shardId, indexSettings, path, store, injector.getInstance(IndexServicesProvider.class));
@@ -336,6 +339,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 closeShard("initialization failed", shardId, indexShard, store);
             }
         }
+    }
+
+    static boolean useShadowEngine(boolean primary, Settings indexSettings) {
+        return primary == false && IndexMetaData.isIndexUsingShadowReplicas(indexSettings);
     }
 
     public synchronized void removeShard(int shardId, String reason) {

@@ -674,6 +674,7 @@ public class RecoverySourceHandler {
                     try (final OutputStream outputStream = outputStreamFactory.apply(md);
                          final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
                         Streams.copy(new InputStreamIndexInput(indexInput, md.length()), outputStream);
+                        Store.verify(indexInput);
                     }
                     return null;
                 });

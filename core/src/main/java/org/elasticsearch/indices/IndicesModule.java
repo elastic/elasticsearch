@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
+import org.elasticsearch.index.query.MoreLikeThisQueryParser;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;

@@ -56,6 +56,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -93,9 +94,13 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", CustomSignificanceHeuristicPlugin.class.getName())
                 .put("path.conf", this.getDataPath("config"))
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CustomSignificanceHeuristicPlugin.class);
     }
 
     public String randomExecutionHint() {
@@ -231,7 +236,8 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         public static class SimpleHeuristicParser implements SignificanceHeuristicParser {
 
             @Override
-            public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException, QueryParsingException {
+            public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, SearchContext context)
+                    throws IOException, QueryParsingException {
                 parser.nextToken();
                 return new SimpleHeuristic();
             }
@@ -287,7 +293,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         assertThat(responseBuilder.string(), equalTo(result));
 
     }
-    
+
     @Test
     public void testDeletesIssue7951() throws Exception {
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
@@ -307,10 +313,10 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "4")
                 .setSource(TEXT_FIELD, cat2v2, CLASS_FIELD, "2"));
         indexRandom(true, false, indexRequestBuilderList);
-        
+
         // Now create some holes in the index with selective deletes caused by updates.
         // This is the scenario that caused this issue https://github.com/elasticsearch/elasticsearch/issues/7951
-        // Scoring algorithms throw exceptions if term docFreqs exceed the reported size of the index 
+        // Scoring algorithms throw exceptions if term docFreqs exceed the reported size of the index
         // from which they are taken so need to make sure this doesn't happen.
         String[] text = cat1v1;
         indexRequestBuilderList.clear();
@@ -319,7 +325,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1").setSource(TEXT_FIELD, text, CLASS_FIELD, "1"));
         }
         indexRandom(true, false, indexRequestBuilderList);
-        
+
         SearchResponse response1 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
                 .addAggregation(new TermsBuilder("class")
                         .field(CLASS_FIELD)
@@ -329,7 +335,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                         .minDocCount(1)))
                 .execute()
                 .actionGet();
-    }    
+    }
 
     @Test
     public void testBackgroundVsSeparateSet() throws Exception {

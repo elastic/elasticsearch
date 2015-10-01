@@ -148,7 +148,7 @@ Example:
 --------------------------------------------------
 {
     "query" : {
-        "filtered" : { "filter": { "range" : { "price" : { "to" : "500" } } } }
+        "constant_score" : { "filter": { "range" : { "price" : { "to" : "500" } } } }
     },
     "aggs" : {
         "prices" : {

@@ -7,7 +7,7 @@ points. Here is an example:
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
+    "bool" : {
         "query" : {
             "match_all" : {}
         },
@@ -53,8 +53,8 @@ conform with http://geojson.org/[GeoJSON].
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -80,8 +80,8 @@ Format in `lat,lon`.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -105,8 +105,8 @@ Format in `lat,lon`.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {

@@ -36,8 +36,8 @@ import java.io.IOException;
  * Field can be used to provide near real time document suggestions.
  * </p>
  * <p>
- * Besides the usual {@link org.apache.lucene.analysis.Analyzer}s,
- * {@link org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer}
+ * Besides the usual {@link Analyzer}s,
+ * {@link CompletionAnalyzer}
  * can be used to tune suggest field only parameters
  * (e.g. preserving token seperators, preserving position increments
  * when converting the token stream to an automaton)
@@ -101,7 +101,7 @@ public class SuggestField extends Field {
 
   @Override
   public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) throws IOException {
-    org.apache.lucene.search.suggest.xdocument.CompletionTokenStream completionStream = wrapTokenStream(super.tokenStream(analyzer, reuse));
+    CompletionTokenStream completionStream = wrapTokenStream(super.tokenStream(analyzer, reuse));
     completionStream.setPayload(buildSuggestPayload());
     return completionStream;
   }
@@ -111,11 +111,11 @@ public class SuggestField extends Field {
    *
    * Subclasses can override this method to change the indexing pipeline.
    */
-  protected org.apache.lucene.search.suggest.xdocument.CompletionTokenStream wrapTokenStream(TokenStream stream) {
-    if (stream instanceof org.apache.lucene.search.suggest.xdocument.CompletionTokenStream) {
-      return (org.apache.lucene.search.suggest.xdocument.CompletionTokenStream) stream;
+  protected CompletionTokenStream wrapTokenStream(TokenStream stream) {
+    if (stream instanceof CompletionTokenStream) {
+      return (CompletionTokenStream) stream;
     } else {
-      return new org.apache.lucene.search.suggest.xdocument.CompletionTokenStream(stream);
+      return new CompletionTokenStream(stream);
     }
   }
 
@@ -139,9 +139,9 @@ public class SuggestField extends Field {
 
   private boolean isReserved(char c) {
     switch (c) {
-      case org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer.SEP_LABEL:
-      case org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer.HOLE_CHARACTER:
-      case org.apache.lucene.search.suggest.xdocument.NRTSuggesterBuilder.END_BYTE:
+      case CompletionAnalyzer.SEP_LABEL:
+      case CompletionAnalyzer.HOLE_CHARACTER:
+      case NRTSuggesterBuilder.END_BYTE:
         return true;
       default:
         return false;

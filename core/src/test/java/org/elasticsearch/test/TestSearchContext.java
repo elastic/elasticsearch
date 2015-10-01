@@ -83,6 +83,12 @@ public class TestSearchContext extends SearchContext {
     final ThreadPool threadPool;
     final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     final IndexShard indexShard;
+    final Counter timeEstimateCounter = Counter.newCounter();
+    final QuerySearchResult queryResult = new QuerySearchResult();
+    ParsedQuery originalQuery;
+    ParsedQuery postFilter;
+    Query query;
+    Float minScore;
 
     ContextIndexSearcher searcher;
     int size;
@@ -94,7 +100,7 @@ public class TestSearchContext extends SearchContext {
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
 
     public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService) {
-        super(ParseFieldMatcher.STRICT);
+        super(ParseFieldMatcher.STRICT, null);
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
@@ -105,7 +111,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     public TestSearchContext() {
-        super(ParseFieldMatcher.STRICT);
+        super(ParseFieldMatcher.STRICT, null);
         this.pageCacheRecycler = null;
         this.bigArrays = null;
         this.indexService = null;
@@ -363,12 +369,13 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext minimumScore(float minimumScore) {
-        return null;
+        this.minScore = minimumScore;
+        return this;
     }
 
     @Override
     public Float minimumScore() {
-        return null;
+        return minScore;
     }
 
     @Override
@@ -393,12 +400,13 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext parsedPostFilter(ParsedQuery postFilter) {
-        return null;
+        this.postFilter = postFilter;
+        return this;
     }
 
     @Override
     public ParsedQuery parsedPostFilter() {
-        return null;
+        return postFilter;
     }
 
     @Override
@@ -408,17 +416,19 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext parsedQuery(ParsedQuery query) {
-        return null;
+        this.originalQuery = query;
+        this.query = query.query();
+        return this;
     }
 
     @Override
     public ParsedQuery parsedQuery() {
-        return null;
+        return originalQuery;
     }
 
     @Override
     public Query query() {
-        return null;
+        return query;
     }
 
     @Override
@@ -537,7 +547,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public QuerySearchResult queryResult() {
-        return null;
+        return queryResult;
     }
 
     @Override
@@ -580,7 +590,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public Counter timeEstimateCounter() {
-        throw new UnsupportedOperationException();
+        return timeEstimateCounter;
     }
 
     @Override

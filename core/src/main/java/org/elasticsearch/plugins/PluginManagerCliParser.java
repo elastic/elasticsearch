@@ -19,9 +19,8 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.base.Strings;
-
 import org.apache.commons.cli.CommandLine;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
@@ -35,6 +34,7 @@ import org.elasticsearch.plugins.PluginManager.OutputMode;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.util.Locale;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
@@ -51,8 +51,8 @@ public class PluginManagerCliParser extends CliTool {
             .build();
 
     public static void main(String[] args) {
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(EMPTY, true, Terminal.DEFAULT);
-        LogConfigurator.configure(initialSettings.v1());
+        Environment env = InternalSettingsPreparer.prepareEnvironment(EMPTY, Terminal.DEFAULT);
+        LogConfigurator.configure(env.settings());
         int status = new PluginManagerCliParser().execute(args).status();
         System.exit(status);
     }
@@ -154,7 +154,7 @@ public class PluginManagerCliParser extends CliTool {
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
 
             PluginManager pluginManager = new PluginManager(env, null, outputMode, DEFAULT_TIMEOUT);
-            terminal.println("-> Removing " + Strings.nullToEmpty(pluginName) + "...");
+            terminal.println("-> Removing " + Strings.coalesceToEmpty(pluginName) + "...");
             pluginManager.removePlugin(pluginName, terminal);
             return ExitStatus.OK;
         }
@@ -220,9 +220,9 @@ public class PluginManagerCliParser extends CliTool {
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
             PluginManager pluginManager = new PluginManager(env, url, outputMode, timeout);
             if (name != null) {
-                terminal.println("-> Installing " + Strings.nullToEmpty(name) + "...");
+                terminal.println("-> Installing " + Strings.coalesceToEmpty(name) + "...");
             } else {
-                terminal.println("-> Installing from " + url + "...");
+                terminal.println("-> Installing from " + URLDecoder.decode(url.toString(), "UTF-8") + "...");
             }
             pluginManager.downloadAndExtract(name, terminal);
             return ExitStatus.OK;

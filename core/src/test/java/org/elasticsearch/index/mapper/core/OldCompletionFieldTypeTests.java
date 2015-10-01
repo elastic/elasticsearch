@@ -20,10 +20,53 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.suggest.completion.old.AnalyzingCompletionLookupProvider;
+import org.elasticsearch.search.suggest.completion.old.context.ContextBuilder;
+import org.elasticsearch.search.suggest.completion.old.context.ContextMapping;
+import org.junit.Before;
+
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 public class OldCompletionFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new OldCompletionFieldMapper.CompletionFieldType();
+        OldCompletionFieldMapper.CompletionFieldType ft = new OldCompletionFieldMapper.CompletionFieldType();
+        ft.setProvider(new AnalyzingCompletionLookupProvider(true, false, true, false));
+        return ft;
+    }
+
+    @Before
+    public void setupProperties() {
+        addModifier(new Modifier("preserve_separators", false, true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                OldCompletionFieldMapper.CompletionFieldType cft = (OldCompletionFieldMapper.CompletionFieldType)ft;
+                cft.setProvider(new AnalyzingCompletionLookupProvider(false, false, true, false));
+            }
+        });
+        addModifier(new Modifier("preserve_position_increments", false, true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                OldCompletionFieldMapper.CompletionFieldType cft = (OldCompletionFieldMapper.CompletionFieldType)ft;
+                cft.setProvider(new AnalyzingCompletionLookupProvider(true, false, false, false));
+            }
+        });
+        addModifier(new Modifier("payload", false, true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                OldCompletionFieldMapper.CompletionFieldType cft = (OldCompletionFieldMapper.CompletionFieldType)ft;
+                cft.setProvider(new AnalyzingCompletionLookupProvider(true, false, true, true));
+            }
+        });
+        addModifier(new Modifier("context_mapping", false, true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                OldCompletionFieldMapper.CompletionFieldType cft = (OldCompletionFieldMapper.CompletionFieldType)ft;
+                SortedMap<String, ContextMapping> contextMapping = new TreeMap<>();
+                contextMapping.put("foo", ContextBuilder.location("foo").build());
+                cft.setContextMapping(contextMapping);
+            }
+        });
     }
 }

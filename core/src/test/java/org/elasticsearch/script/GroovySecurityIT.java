@@ -23,6 +23,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.groovy.GroovyScriptExecutionException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -31,6 +32,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 /**
  * Tests for the Groovy security permissions
@@ -125,9 +127,10 @@ public class GroovySecurityIT extends ESIntegTestCase {
         // TODO: GroovyScriptExecutionException needs work:
         // fix it to preserve cause so we don't do this flaky string-check stuff
         for (ShardSearchFailure fail : fails) {
+            assertThat(fail.getCause(), instanceOf(GroovyScriptExecutionException.class));
             assertTrue("unexpected exception" + fail.getCause(),
                        // different casing, depending on jvm impl...
-                       fail.getCause().toString().toLowerCase(Locale.ROOT).contains("accesscontrolexception[access denied"));
+                       fail.getCause().toString().toLowerCase(Locale.ROOT).contains("[access denied"));
         }
     }
 }

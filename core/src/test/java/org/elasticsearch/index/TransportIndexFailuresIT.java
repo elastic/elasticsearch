@@ -33,12 +33,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -57,8 +59,12 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
             .put(FaultDetection.SETTING_PING_RETRIES, "1") // <-- for hitting simulated network failures quickly
             .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
             .put("discovery.zen.minimum_master_nodes", 1)
-            .put("plugin.types", MockTransportService.TestPlugin.class.getName())
             .build();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockTransportService.TestPlugin.class);
+    }
 
     @Override
     protected int numberOfShards() {

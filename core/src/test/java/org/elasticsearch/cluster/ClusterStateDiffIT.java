@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -44,6 +43,7 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
@@ -659,14 +659,14 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 new SnapshotId(randomName("repo"), randomName("snap")),
                                 randomBoolean(),
                                 SnapshotsInProgress.State.fromValue((byte) randomIntBetween(0, 6)),
-                                ImmutableList.<String>of(),
+                                Collections.<String>emptyList(),
                                 Math.abs(randomLong()),
                                 ImmutableMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>of()));
                     case 1:
                         return new RestoreInProgress(new RestoreInProgress.Entry(
                                 new SnapshotId(randomName("repo"), randomName("snap")),
                                 RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
-                                ImmutableList.<String>of(),
+                                Collections.<String>emptyList(),
                                 ImmutableMap.<ShardId, RestoreInProgress.ShardRestoreStatus>of()));
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntSet;
 import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.UnmodifiableIterator;
@@ -221,6 +222,38 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             }
         }
         return new GroupShardsIterator(set);
+    }
+
+    public ShardsIterator allShards(String[] indices) {
+        return allShardsSatisfyingPredicate(indices, Predicates.<ShardRouting>alwaysTrue(), false);
+    }
+
+    public ShardsIterator allShardsIncludingRelocationTargets(String[] indices) {
+        return allShardsSatisfyingPredicate(indices, Predicates.<ShardRouting>alwaysTrue(), true);
+    }
+
+    // TODO: replace with JDK 8 native java.util.function.Predicate
+    private ShardsIterator allShardsSatisfyingPredicate(String[] indices, Predicate<ShardRouting> predicate, boolean includeRelocationTargets) {
+        // use list here since we need to maintain identity across shards
+        List<ShardRouting> shards = new ArrayList<>();
+        for (String index : indices) {
+            IndexRoutingTable indexRoutingTable = index(index);
+            if (indexRoutingTable == null) {
+                continue;
+                // we simply ignore indices that don't exists (make sense for operations that use it currently)
+            }
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    if (predicate.apply(shardRouting)) {
+                        shards.add(shardRouting);
+                        if (includeRelocationTargets && shardRouting.relocating()) {
+                            shards.add(shardRouting.buildTargetRelocatingShard());
+                        }
+                    }
+                }
+            }
+        }
+        return new PlainShardsIterator(shards);
     }
 
     /**

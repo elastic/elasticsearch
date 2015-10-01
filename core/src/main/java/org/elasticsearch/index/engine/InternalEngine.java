@@ -21,8 +21,8 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -45,6 +45,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -136,7 +137,7 @@ public class InternalEngine extends Engine {
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getMergeSchedulerConfig());
-            this.dirtyLocks = new Object[engineConfig.getIndexConcurrency() * 50]; // we multiply it to have enough...
+            this.dirtyLocks = new Object[Runtime.getRuntime().availableProcessors() * 10]; // we multiply it to have enough...
             for (int i = 0; i < dirtyLocks.length; i++) {
                 dirtyLocks[i] = new Object();
             }
@@ -152,6 +153,14 @@ public class InternalEngine extends Engine {
                 assert translogGeneration != null;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
+            } catch (AssertionError e) {
+                // IndexWriter throws AssertionError on init, if asserts are enabled, if any files don't exist, but tests that
+                // randomly throw FNFE/NSFE can also hit this:
+                if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+                    throw new EngineCreationFailureException(shardId, "failed to create engine", e);
+                } else {
+                    throw e;
+                }
             }
             this.translog = translog;
             manager = createSearcherManager();
@@ -638,10 +647,10 @@ public class InternalEngine extends Engine {
         try {
             Query query = delete.query();
             if (delete.aliasFilter() != null) {
-                BooleanQuery boolQuery = new BooleanQuery();
-                boolQuery.add(query, Occur.MUST);
-                boolQuery.add(delete.aliasFilter(), Occur.FILTER);
-                query = boolQuery;
+                query = new BooleanQuery.Builder()
+                    .add(query, Occur.MUST)
+                    .add(delete.aliasFilter(), Occur.FILTER)
+                    .build();
             }
             if (delete.nested()) {
                 query = new IncludeNestedDocsQuery(query, delete.parentFilter());
@@ -665,7 +674,6 @@ public class InternalEngine extends Engine {
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            updateIndexWriterSettings();
             searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {
             ensureOpen();
@@ -735,7 +743,6 @@ public class InternalEngine extends Engine {
          */
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            updateIndexWriterSettings();
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing) {
@@ -755,9 +762,10 @@ public class InternalEngine extends Engine {
                         logger.trace("starting commit for flush; commitTranslog=true");
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
-                        translog.commit();
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush");
+                        // after refresh documents can be retrieved from the index so we can now commit the translog
+                        translog.commit();
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
@@ -823,7 +831,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException {
+                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException, EngineClosedException, IOException {
         /*
          * We do NOT acquire the readlock here since we are waiting on the merges to finish
          * that's fine since the IW.rollback should stop all the threads and trigger an IOException
@@ -865,9 +873,8 @@ public class InternalEngine extends Engine {
                 store.decRef();
             }
         } catch (Throwable t) {
-            ForceMergeFailedEngineException ex = new ForceMergeFailedEngineException(shardId, t);
-            maybeFailEngine("force merge", ex);
-            throw ex;
+            maybeFailEngine("force merge", t);
+            throw t;
         } finally {
             try {
                 mp.setUpgradeInProgress(false, false); // reset it just to make sure we reset it in a case of an error
@@ -953,7 +960,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-
     /**
      * Closes the engine without acquiring the write lock. This should only be
      * called while the write lock is hold or in a disaster condition ie. if the engine
@@ -1038,7 +1044,6 @@ public class InternalEngine extends Engine {
             iwc.setMergePolicy(mergePolicy);
             iwc.setSimilarity(engineConfig.getSimilarity());
             iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
-            iwc.setMaxThreadStates(engineConfig.getIndexConcurrency());
             iwc.setCodec(engineConfig.getCodec());
             /* We set this timeout to a highish value to work around
              * the default poll interval in the Lucene lock that is
@@ -1168,8 +1173,6 @@ public class InternalEngine extends Engine {
         return indexWriter.getConfig();
     }
 
-
-
     private final class EngineMergeScheduler extends ElasticsearchConcurrentMergeScheduler {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
@@ -1245,11 +1248,14 @@ public class InternalEngine extends Engine {
 
     public void onSettingsChanged() {
         mergeScheduler.refreshConfig();
+        updateIndexWriterSettings();
+        // config().getVersionMapSize() may have changed:
+        checkVersionMapRefresh();
+        // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
+        maybePruneDeletedTombstones();
     }
 
     public MergeStats getMergeStats() {
         return mergeScheduler.stats();
     }
-
-
 }

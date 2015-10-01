@@ -30,13 +30,11 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
@@ -154,7 +152,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                 try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
                     logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
                     try {
-                        locks[dirIndex] = Lucene.acquireLock(luceneDir, NODE_LOCK_FILENAME, 0);
+                        locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
                         nodePaths[dirIndex] = new NodePath(dir, environment);
                         localNodeId = possibleLockId;
                     } catch (LockObtainFailedException ex) {
@@ -324,7 +322,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                 dirs[i] = new SimpleFSDirectory(p, FsDirectoryService.buildLockFactory(indexSettings));
                 // create a lock for the "write.lock" file
                 try {
-                    locks[i] = Lucene.acquireWriteLock(dirs[i]);
+                    locks[i] = dirs[i].obtainLock(IndexWriter.WRITE_LOCK_NAME);
                 } catch (IOException ex) {
                     throw new LockObtainFailedException("unable to acquire " +
                             IndexWriter.WRITE_LOCK_NAME + " for " + p);
@@ -730,7 +728,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         if (!closed.get() && locks != null) {
             for (Lock lock : locks) {
                 try {
-                    assert lock.isLocked() : "Lock: " + lock + "is not locked";
+                    lock.ensureValid();
                 } catch (IOException e) {
                     logger.warn("lock assertion failed", e);
                     return false;

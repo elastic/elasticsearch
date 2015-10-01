@@ -43,7 +43,8 @@ public class CompletionFieldStats {
                 for (String fieldName : atomicReader.fields()) {
                     Terms terms = atomicReader.fields().terms(fieldName);
                     if (terms instanceof CompletionTerms) {
-                        long fstSize = ((CompletionTerms) terms).ramBytesUsed();
+                        // TODO: currently we load up the suggester for reporting it's size
+                        long fstSize = ((CompletionTerms) terms).suggester().ramBytesUsed();
                         if (fields != null && fields.length > 0 && Regex.simpleMatch(fields, fieldName)) {
                             completionFields.addTo(fieldName, fstSize);
                         }

@@ -32,8 +32,10 @@
       <echoxml><exec script="${script.base}"><nested/></exec></echoxml>
       <exec executable="cmd" osfamily="winnt" dir="${temp.cwd}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
         <arg value="/c"/>
+        <arg value="&quot;"/>
         <arg value="@{script}.bat"/>
         <nested/>
+        <arg value="&quot;"/>
       </exec>
 
       <exec executable="sh" osfamily="unix" dir="${temp.cwd}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
@@ -155,7 +157,7 @@
       <!-- run bin/elasticsearch with args -->
       <echo>Starting up external cluster...</echo>
 
-      <run-script script="@{home}/bin/elasticsearch" 
+      <run-script script="@{home}/bin/elasticsearch"
                   spawn="@{spawn}">
         <nested>
           <env key="JAVA_HOME" value="${java.home}"/>
@@ -170,6 +172,8 @@
           <arg value="-Des.path.shared_data=@{home}/../"/>
           <arg value="-Des.script.inline=on"/>
           <arg value="-Des.script.indexed=on"/>
+          <!-- Define a node attribute so we can test that it exists -->
+          <arg value="-Des.node.testattr=test"/>
           <arg value="-Des.repositories.url.allowed_urls=http://snapshot.test*"/>
           <additional-args/>
         </nested>
@@ -295,6 +299,11 @@
     <startup-elasticsearch/>
   </target>
 
+  <!-- unzip core release artifact then start ES -->
+  <target name="start-external-cluster" depends="setup-workspace">
+    <startup-elasticsearch/>
+  </target>
+
   <target name="stop-external-cluster" if="integ.pidfile.exists">
     <stop-node/>
   </target>
@@ -393,37 +402,5 @@
 
   <target name="start-external-cluster-rpm" depends="setup-workspace-rpm">
     <startup-elasticsearch home="${integ.scratch}/rpm-extracted/usr/share/elasticsearch/"/>
-  </target>
-
-  <!-- check shaded jar for jar hell -->
-  <target name="check-for-jar-hell">
-    <java failonerror="true" fork="true" classname="org.elasticsearch.bootstrap.JarHell">
-        <classpath>
-           <pathelement location="${project.build.directory}/${project.artifactId}-${project.version}.jar"/>
-           <pathelement location="${org.apache.lucene:lucene-core:jar}"/>
-        </classpath>
-    </java>
-  </target>
-
-  <target name="check-shaded-jar-packages">
-    <!-- we unzip the jar, vs zipfileset, zipfileset toString is useless -->
-    <delete dir="${integ.temp}/unzipped"/>
-    <mkdir dir="${integ.temp}/unzipped"/>
-    <unzip src="${project.build.directory}/${project.artifactId}-${project.version}.jar"
-           dest="${integ.temp}/unzipped"/>
-    <local name="unshaded.classes"/>
-    <fileset id="unshaded.classes"
-             dir="${integ.temp}/unzipped"
-             includes="**/*.class"
-             excludes="org/elasticsearch/**,org/apache/lucene/**"/>
-    <fail message="shaded jar contains packages outside of org.elasticsearch: ${toString:unshaded.classes}">
-       <condition>
-         <not>
-           <resourcecount count="0">
-             <fileset refid="unshaded.classes"/>
-           </resourcecount>
-         </not>
-       </condition>
-    </fail>
   </target>
 </project>

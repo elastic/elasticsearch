@@ -22,33 +22,53 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.net.URI;
+import java.net.URL;
+import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
+import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.security.URIParameter;
+import java.util.PropertyPermission;
 
 /** custom policy for union of static and dynamic permissions */
 final class ESPolicy extends Policy {
     
     /** template policy file, the one used in tests */
     static final String POLICY_RESOURCE = "security.policy";
+    /** limited policy for groovy scripts */
+    static final String GROOVY_RESOURCE = "groovy.policy";
     
     final Policy template;
+    final Policy groovy;
     final PermissionCollection dynamic;
 
     public ESPolicy(PermissionCollection dynamic) throws Exception {
-        URI uri = getClass().getResource(POLICY_RESOURCE).toURI();
-        this.template = Policy.getInstance("JavaPolicy", new URIParameter(uri));
+        URI policyUri = getClass().getResource(POLICY_RESOURCE).toURI();
+        URI groovyUri = getClass().getResource(GROOVY_RESOURCE).toURI();
+        this.template = Policy.getInstance("JavaPolicy", new URIParameter(policyUri));
+        this.groovy = Policy.getInstance("JavaPolicy", new URIParameter(groovyUri));
         this.dynamic = dynamic;
     }
 
     @Override @SuppressForbidden(reason = "fast equals check is desired")
-    public boolean implies(ProtectionDomain domain, Permission permission) {
-        // run groovy scripts with no permissions
-        if ("/groovy/script".equals(domain.getCodeSource().getLocation().getFile())) {
-            return false;
+    public boolean implies(ProtectionDomain domain, Permission permission) {        
+        CodeSource codeSource = domain.getCodeSource();
+        // codesource can be null when reducing privileges via doPrivileged()
+        if (codeSource != null) {
+            URL location = codeSource.getLocation();
+            // location can be null... ??? nobody knows
+            // https://bugs.openjdk.java.net/browse/JDK-8129972
+            if (location != null) {
+                // run groovy scripts with no permissions (except logging property)
+                if ("/groovy/script".equals(location.getFile())) {
+                    return groovy.implies(domain, permission);
+                }
+            }
         }
+
+        // otherwise defer to template + dynamic file permissions
         return template.implies(domain, permission) || dynamic.implies(permission);
     }
 }

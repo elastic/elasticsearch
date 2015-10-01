@@ -26,16 +26,12 @@ import org.apache.lucene.search.suggest.xdocument.TopSuggestDocs;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.search.suggest.completion.CompletionSuggester;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestionContext;
 
 import java.io.IOException;
 import java.util.*;

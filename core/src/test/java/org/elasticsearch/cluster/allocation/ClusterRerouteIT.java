@@ -166,7 +166,6 @@ public class ClusterRerouteIT extends ESIntegTestCase {
     @Test
     public void testDelayWithALargeAmountOfShards() throws Exception {
         Settings commonSettings = settingsBuilder()
-                .put("gateway.type", "local")
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CONCURRENT_RECOVERIES, 1)
                 .build();
         logger.info("--> starting 4 nodes");

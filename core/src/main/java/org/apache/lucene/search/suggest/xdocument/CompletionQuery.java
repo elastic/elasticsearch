@@ -18,14 +18,17 @@ package org.apache.lucene.search.suggest.xdocument;
  */
 
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.suggest.BitsProducer;
 
 import java.io.IOException;
 
+import static org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer.HOLE_CHARACTER;
+import static org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer.SEP_LABEL;
+
 /**
  * Abstract {@link Query} that match documents containing terms with a specified prefix
- * filtered by {@link Filter}. This should be used to query against any {@link SuggestField}s
+ * filtered by {@link BitsProducer}. This should be used to query against any {@link SuggestField}s
  * or {@link ContextSuggestField}s of documents.
  * <p>
  * Use {@link SuggestIndexSearcher#suggest(CompletionQuery, int)} to execute any query
@@ -49,25 +52,25 @@ public abstract class CompletionQuery extends Query {
   private final Term term;
 
   /**
-   * Filter for document scoping
+   * {@link BitsProducer} which is used to filter the document scope.
    */
-  private final Filter filter;
+  private final BitsProducer filter;
 
   /**
    * Creates a base Completion query against a <code>term</code>
    * with a <code>filter</code> to scope the documents
    */
-  protected CompletionQuery(Term term, Filter filter) {
+  protected CompletionQuery(Term term, BitsProducer filter) {
     validate(term.text());
     this.term = term;
     this.filter = filter;
   }
 
   /**
-   * Returns the filter for the query, used to
-   * suggest completions on a subset of indexed documents
+   * Returns a {@link BitsProducer}. Only suggestions matching the returned
+   * bits will be returned.
    */
-  public Filter getFilter() {
+  public BitsProducer getFilter() {
     return filter;
   }
 
@@ -88,6 +91,9 @@ public abstract class CompletionQuery extends Query {
 
   @Override
   public Query rewrite(IndexReader reader) throws IOException {
+    if (getBoost() != 1f) {
+      return super.rewrite(reader);
+    }
     byte type = 0;
     boolean first = true;
     Terms terms;
@@ -125,7 +131,7 @@ public abstract class CompletionQuery extends Query {
         }
       }
     }
-    return this;
+    return super.rewrite(reader);
   }
 
   @Override
@@ -141,7 +147,7 @@ public abstract class CompletionQuery extends Query {
       buffer.append(",");
       buffer.append("filter");
       buffer.append(":");
-      buffer.append(filter.toString(field));
+      buffer.append(filter.toString());
     }
     return buffer.toString();
   }
@@ -149,10 +155,10 @@ public abstract class CompletionQuery extends Query {
   private void validate(String termText) {
     for (int i = 0; i < termText.length(); i++) {
       switch (termText.charAt(i)) {
-        case CompletionAnalyzer.HOLE_CHARACTER:
+        case HOLE_CHARACTER:
           throw new IllegalArgumentException(
               "Term text cannot contain HOLE character U+001E; this character is reserved");
-        case CompletionAnalyzer.SEP_LABEL:
+        case SEP_LABEL:
           throw new IllegalArgumentException(
               "Term text cannot contain unit separator character U+001F; this character is reserved");
         default:

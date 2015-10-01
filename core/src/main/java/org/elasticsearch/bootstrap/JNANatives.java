@@ -21,10 +21,13 @@ package org.elasticsearch.bootstrap;
 
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
+
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+
+import java.nio.file.Path;
 
 import static org.elasticsearch.bootstrap.JNAKernel32Library.SizeT;
 
@@ -41,6 +44,8 @@ class JNANatives {
 
     // Set to true, in case native mlockall call was successful
     static boolean LOCAL_MLOCKALL = false;
+    // Set to true, in case native seccomp call was successful
+    static boolean LOCAL_SECCOMP = false;
 
     static void tryMlockall() {
         int errno = Integer.MIN_VALUE;
@@ -170,4 +175,17 @@ class JNANatives {
         }
     }
 
+    static void trySeccomp(Path tmpFile) {
+        try {
+            Seccomp.init(tmpFile);
+            LOCAL_SECCOMP = true;
+        } catch (Throwable t) {
+            // this is likely to happen unless the kernel is newish, its a best effort at the moment
+            // so we log stacktrace at debug for now...
+            if (logger.isDebugEnabled()) {
+                logger.debug("unable to install syscall filter", t);
+            }
+            logger.warn("unable to install syscall filter: " + t.getMessage());
+        }
+    }
 }

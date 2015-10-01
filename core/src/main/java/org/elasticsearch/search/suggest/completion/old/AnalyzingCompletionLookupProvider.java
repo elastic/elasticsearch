@@ -22,6 +22,7 @@ package org.elasticsearch.search.suggest.completion.old;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.index.PostingsEnum;
@@ -40,6 +41,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.LimitedFiniteStringsIterator;
 import org.apache.lucene.util.fst.ByteSequenceOutputs;
 import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.PairOutputs;
@@ -55,6 +57,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -155,7 +158,7 @@ public class AnalyzingCompletionLookupProvider extends Completion090PostingsForm
                         if (term == null) {
                             break;
                         }
-                        docsEnum = termsEnum.postings(null, docsEnum, PostingsEnum.PAYLOADS);
+                        docsEnum = termsEnum.postings(docsEnum, PostingsEnum.PAYLOADS);
                         builder.startTerm(term);
                         int docFreq = 0;
                         while (docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
@@ -396,6 +399,8 @@ public class AnalyzingCompletionLookupProvider extends Completion090PostingsForm
 
     @Override
     public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
-        return prototype.toFiniteStrings(prototype.getTokenStreamToAutomaton(), stream);
+        return prototype.toFiniteStrings(stream);
     }
+
+    
 }

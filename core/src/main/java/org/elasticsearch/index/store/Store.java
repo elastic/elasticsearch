@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.store;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.codecs.CodecUtil;
@@ -30,15 +29,18 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -84,11 +86,12 @@ import java.util.zip.Checksum;
  */
 public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
 
-    private static final String CODEC = "store";
-    private static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0
-    private static final int VERSION_START = 0;
-    private static final int VERSION = VERSION_STACK_TRACE;
-    private static final String CORRUPTED = "corrupted_";
+    static final String CODEC = "store";
+    static final int VERSION_WRITE_THROWABLE= 2; // we write throwable since 2.0
+    static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0
+    static final int VERSION_START = 0;
+    static final int VERSION = VERSION_WRITE_THROWABLE;
+    static final String CORRUPTED = "corrupted_";
     public static final String INDEX_STORE_STATS_REFRESH_INTERVAL = "index.store.stats_refresh_interval";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -259,7 +262,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         metadataLock.writeLock().lock();
         // we make sure that nobody fetches the metadata while we do this rename operation here to ensure we don't
         // get exceptions if files are still open.
-        try (Lock writeLock = Lucene.acquireWriteLock(directory())) {
+        try (Lock writeLock = directory().obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             for (Map.Entry<String, String> entry : entries) {
                 String tempFile = entry.getKey();
                 String origFile = entry.getValue();
@@ -563,16 +566,31 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (file.startsWith(CORRUPTED)) {
                 try (ChecksumIndexInput input = directory.openChecksumInput(file, IOContext.READONCE)) {
                     int version = CodecUtil.checkHeader(input, CODEC, VERSION_START, VERSION);
-                    String msg = input.readString();
-                    StringBuilder builder = new StringBuilder(shardId.toString());
-                    builder.append(" Preexisting corrupted index [");
-                    builder.append(file).append("] caused by: ");
-                    builder.append(msg);
-                    if (version == VERSION_STACK_TRACE) {
-                        builder.append(System.lineSeparator());
-                        builder.append(input.readString());
+
+                    if (version == VERSION_WRITE_THROWABLE) {
+                        final int size = input.readVInt();
+                        final byte[] buffer = new byte[size];
+                        input.readBytes(buffer, 0, buffer.length);
+                        StreamInput in = StreamInput.wrap(buffer);
+                        Throwable t = in.readThrowable();
+                        if (t instanceof CorruptIndexException) {
+                            ex.add((CorruptIndexException) t);
+                        } else {
+                            ex.add(new CorruptIndexException(t.getMessage(), "preexisting_corruption", t));
+                        }
+                    } else {
+                        assert version == VERSION_START || version == VERSION_STACK_TRACE;
+                        String msg = input.readString();
+                        StringBuilder builder = new StringBuilder(shardId.toString());
+                        builder.append(" Preexisting corrupted index [");
+                        builder.append(file).append("] caused by: ");
+                        builder.append(msg);
+                        if (version == VERSION_STACK_TRACE) {
+                            builder.append(System.lineSeparator());
+                            builder.append(input.readString());
+                        }
+                        ex.add(new CorruptIndexException(builder.toString(), "preexisting_corruption"));
                     }
-                    ex.add(new CorruptIndexException(builder.toString(), "preexisting_corruption"));
                     CodecUtil.checkFooter(input);
                 }
             }
@@ -594,7 +612,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData) throws IOException {
         metadataLock.writeLock().lock();
-        try (Lock writeLock = Lucene.acquireWriteLock(directory)) {
+        try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             final StoreDirectory dir = directory;
             for (String existingFile : dir.listAll()) {
                 if (Store.isAutogenerated(existingFile) || sourceMetaData.contains(existingFile)) {
@@ -1005,9 +1023,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * NOTE: this diff will not contain the <tt>segments.gen</tt> file. This file is omitted on recovery.
          */
         public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot) {
-            final ImmutableList.Builder<StoreFileMetaData> identical = ImmutableList.builder();
-            final ImmutableList.Builder<StoreFileMetaData> different = ImmutableList.builder();
-            final ImmutableList.Builder<StoreFileMetaData> missing = ImmutableList.builder();
+            final List<StoreFileMetaData> identical = new ArrayList<>();
+            final List<StoreFileMetaData> different = new ArrayList<>();
+            final List<StoreFileMetaData> missing = new ArrayList<>();
             final Map<String, List<StoreFileMetaData>> perSegment = new HashMap<>();
             final List<StoreFileMetaData> perCommitStoreFiles = new ArrayList<>();
 
@@ -1053,7 +1071,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     different.addAll(identicalFiles);
                 }
             }
-            RecoveryDiff recoveryDiff = new RecoveryDiff(identical.build(), different.build(), missing.build());
+            RecoveryDiff recoveryDiff = new RecoveryDiff(Collections.unmodifiableList(identical), Collections.unmodifiableList(different), Collections.unmodifiableList(missing));
             assert recoveryDiff.size() == this.metadata.size() - (metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN) ? 1 : 0)
                     : "some files are missing recoveryDiff size: [" + recoveryDiff.size() + "] metadata size: [" + this.metadata.size() + "] contains  segments.gen: [" + metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN) + "]";
             return recoveryDiff;
@@ -1244,27 +1262,46 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         private long writtenBytes;
         private final long checksumPosition;
         private String actualChecksum;
+        private final byte[] footerChecksum = new byte[8]; // this holds the actual footer checksum data written by to this output
 
         LuceneVerifyingIndexOutput(StoreFileMetaData metadata, IndexOutput out) {
             super(out);
             this.metadata = metadata;
-            checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum
+            checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum - we store it in footerChecksum
         }
 
         @Override
         public void verify() throws IOException {
+            String footerDigest = null;
             if (metadata.checksum().equals(actualChecksum) && writtenBytes == metadata.length()) {
-                return;
+                ByteArrayIndexInput indexInput = new ByteArrayIndexInput("checksum", this.footerChecksum);
+                footerDigest = digestToString(indexInput.readLong());
+                if (metadata.checksum().equals(footerDigest)) {
+                    return;
+                }
             }
             throw new CorruptIndexException("verification failed (hardware problem?) : expected=" + metadata.checksum() +
-                    " actual=" + actualChecksum + " writtenLength=" + writtenBytes + " expectedLength=" + metadata.length() +
+                    " actual=" + actualChecksum + " footer=" + footerDigest +" writtenLength=" + writtenBytes + " expectedLength=" + metadata.length() +
                     " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + metadata.name() + ")");
         }
 
         @Override
         public void writeByte(byte b) throws IOException {
-            if (writtenBytes++ == checksumPosition) {
+            final long writtenBytes = this.writtenBytes++;
+            if (writtenBytes == checksumPosition) {
                 readAndCompareChecksum();
+            } else if (writtenBytes > checksumPosition) { // we are writing parts of the checksum....
+                final long indexLong = writtenBytes - checksumPosition;
+                if ((int)indexLong != indexLong) {
+                    throw new ArithmeticException("integer overflow");
+                }
+                final int index = (int)indexLong;
+                if (index < footerChecksum.length) {
+                    footerChecksum[index] = b;
+                } else {
+                    verify(); // fail if we write more than expected
+                    throw new AssertionError("write past EOF expected length: " + metadata.length() + " writtenBytes: " + writtenBytes);
+                }
             }
             out.writeByte(b);
         }
@@ -1280,17 +1317,23 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         @Override
         public void writeBytes(byte[] b, int offset, int length) throws IOException {
-            if (writtenBytes + length > checksumPosition && actualChecksum == null) {
-                assert writtenBytes <= checksumPosition;
-                final int bytesToWrite = (int) (checksumPosition - writtenBytes);
-                out.writeBytes(b, offset, bytesToWrite);
-                readAndCompareChecksum();
-                offset += bytesToWrite;
-                length -= bytesToWrite;
-                writtenBytes += bytesToWrite;
+            if (writtenBytes + length > checksumPosition) {
+                if (actualChecksum == null) {
+                    assert writtenBytes <= checksumPosition;
+                    final int bytesToWrite = (int) (checksumPosition - writtenBytes);
+                    out.writeBytes(b, offset, bytesToWrite);
+                    readAndCompareChecksum();
+                    offset += bytesToWrite;
+                    length -= bytesToWrite;
+                    writtenBytes += bytesToWrite;
+                }
+                for (int i = 0; i < length; i++) {
+                    writeByte(b[offset+i]);
+                }
+            } else {
+                out.writeBytes(b, offset, length);
+                writtenBytes += length;
             }
-            out.writeBytes(b, offset, length);
-            writtenBytes += length;
         }
 
     }
@@ -1447,8 +1490,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             String uuid = CORRUPTED + Strings.randomBase64UUID();
             try (IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(output, CODEC, VERSION);
-                output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0)); // handles null exception
-                output.writeString(ExceptionsHelper.stackTrace(exception));
+                BytesStreamOutput out = new BytesStreamOutput();
+                out.writeThrowable(exception);
+                BytesReference bytes = out.bytes();
+                output.writeVInt(bytes.length());
+                output.writeBytes(bytes.array(), bytes.arrayOffset(), bytes.length());
                 CodecUtil.writeFooter(output);
             } catch (IOException ex) {
                 logger.warn("Can't mark store as corrupted", ex);

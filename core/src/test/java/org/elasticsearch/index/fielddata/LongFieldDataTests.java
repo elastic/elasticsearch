@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * Tests for all integer types (byte, short, int, long).
  */
-public class LongFieldDataTests extends AbstractNumericFieldDataTests {
+public class LongFieldDataTests extends AbstractNumericFieldDataTestCase {
 
     @Override
     protected FieldDataType getFieldDataType() {

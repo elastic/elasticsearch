@@ -212,7 +212,8 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                     docs.add(scoreDoc);
                 }
             }
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(docs.toArray(new ScoreDoc[0]), queryFetchResults, queryFetchResults);
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(docs.toArray(new ScoreDoc[0]), queryFetchResults,
+                    queryFetchResults, request);
             ((InternalSearchHits) internalResponse.hits()).totalHits = Long.parseLong(this.scrollId.getAttributes().get("total_hits"));
 
 

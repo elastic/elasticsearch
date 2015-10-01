@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.support.format;
 
-import org.elasticsearch.common.geo.GeoHashUtils;
+import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -250,7 +250,7 @@ public interface ValueFormatter extends Streamable {
 
         @Override
         public String format(long value) {
-            return GeoHashUtils.toString(value);
+            return XGeoHashUtils.stringEncode(value);
         }
 
         @Override

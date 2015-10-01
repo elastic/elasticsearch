@@ -21,14 +21,15 @@ package org.elasticsearch.index.search.child;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
+
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.lease.Releasables;
@@ -72,7 +73,7 @@ public class ParentQueryTests extends AbstractChildTestCase {
         Query parentQuery = new TermQuery(new Term("field", "value"));
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper.fieldType());
-        BitDocIdSetFilter childrenFilter = wrapWithBitSetFilter(new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, "child"))));
+        Filter childrenFilter = new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, "child")));
         Query query = new ParentQuery(parentChildIndexFieldData, parentQuery, "parent", childrenFilter);
         QueryUtils.check(query);
     }
@@ -207,8 +208,14 @@ public class ParentQueryTests extends AbstractChildTestCase {
                     for (Map.Entry<String, Float> entry : childIdsAndScore.entrySet()) {
                         TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(Uid.createUidAsBytes("child", entry.getKey()));
                         if (seekStatus == TermsEnum.SeekStatus.FOUND) {
-                            docsEnum = termsEnum.postings(slowLeafReader.getLiveDocs(), docsEnum, PostingsEnum.NONE);
-                            expectedResult.set(docsEnum.nextDoc());
+                            docsEnum = termsEnum.postings(docsEnum, PostingsEnum.NONE);
+                            final Bits liveDocs = slowLeafReader.getLiveDocs();
+                            for (int doc = docsEnum.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = docsEnum.nextDoc()) {
+                                if (liveDocs == null || liveDocs.get(doc)) {
+                                    break;
+                                }
+                            }
+                            expectedResult.set(docsEnum.docID());
                             FloatArrayList s = scores[docsEnum.docID()];
                             if (s == null) {
                                 scores[docsEnum.docID()] = s = new FloatArrayList(2);

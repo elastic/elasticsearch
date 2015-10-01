@@ -20,10 +20,8 @@
 package org.elasticsearch.cloud.aws;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
 
 public class AwsModule extends AbstractModule {
-
 
     // pkg private so it is settable by tests
     static Class<? extends AwsS3Service> s3ServiceImpl = InternalAwsS3Service.class;
@@ -35,6 +33,6 @@ public class AwsModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(AwsS3Service.class).to(s3ServiceImpl).asEagerSingleton();
-        bind(AwsEc2Service.class).asEagerSingleton();
+        bind(AwsEc2Service.class).to(AwsEc2ServiceImpl.class).asEagerSingleton();
     }
 }

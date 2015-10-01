@@ -22,8 +22,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.suggest.Lookup;
 
 /**
- * {@link org.apache.lucene.search.TopDocs} wrapper with
- * an additional CharSequence key per {@link org.apache.lucene.search.ScoreDoc}
+ * {@link TopDocs} wrapper with
+ * an additional CharSequence key per {@link ScoreDoc}
  *
  * @lucene.experimental
  */
@@ -35,7 +35,7 @@ public class TopSuggestDocs extends TopDocs {
   public final static TopSuggestDocs EMPTY = new TopSuggestDocs(0, new SuggestScoreDoc[0], 0);
 
   /**
-   * {@link org.apache.lucene.search.ScoreDoc} with an
+   * {@link ScoreDoc} with an
    * additional CharSequence key
    */
   public static class SuggestScoreDoc extends ScoreDoc implements Comparable<SuggestScoreDoc> {
@@ -70,9 +70,9 @@ public class TopSuggestDocs extends TopDocs {
   }
 
   /**
-   * {@link org.apache.lucene.search.TopDocs} wrapper with
+   * {@link TopDocs} wrapper with
    * {@link TopSuggestDocs.SuggestScoreDoc}
-   * instead of {@link org.apache.lucene.search.ScoreDoc}
+   * instead of {@link ScoreDoc}
    */
   public TopSuggestDocs(int totalHits, SuggestScoreDoc[] scoreDocs, float maxScore) {
     super(totalHits, scoreDocs, maxScore);
@@ -90,7 +90,7 @@ public class TopSuggestDocs extends TopDocs {
    * Returns a new TopSuggestDocs, containing topN results across
    * the provided TopSuggestDocs, sorting by score. Each {@link TopSuggestDocs}
    * instance must be sorted.
-   * Analogous to {@link org.apache.lucene.search.TopDocs#merge(int, org.apache.lucene.search.TopDocs[])}
+   * Analogous to {@link TopDocs#merge(int, TopDocs[])}
    * for {@link TopSuggestDocs}
    *
    * NOTE: assumes every <code>shardHit</code> is already sorted by score

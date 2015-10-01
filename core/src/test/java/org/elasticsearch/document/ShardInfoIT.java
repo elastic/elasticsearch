@@ -35,7 +35,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
@@ -146,7 +149,7 @@ public class ShardInfoIT extends ESIntegTestCase {
                 RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("idx")
                         .setActiveOnly(true)
                         .get();
-                assertThat(recoveryResponse.shardResponses().get("idx").size(), equalTo(0));
+                assertThat(recoveryResponse.shardRecoveryStates().get("idx").size(), equalTo(0));
             }
         });
     }

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.test;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
@@ -26,7 +25,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.SettingsSource;
+import org.elasticsearch.test.NodeConfigurationSource;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -47,14 +46,14 @@ public class InternalTestClusterTests extends ESTestCase {
         int minNumDataNodes = randomIntBetween(0, 9);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 10);
         String clusterName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
-        SettingsSource settingsSource = SettingsSource.EMPTY;
+        NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
         int numClientNodes = randomIntBetween(0, 10);
         boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
 
         Path baseDir = createTempDir();
-        InternalTestCluster cluster0 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableHttpPipelining, nodePrefix);
-        InternalTestCluster cluster1 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableHttpPipelining, nodePrefix);
+        InternalTestCluster cluster0 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes, enableHttpPipelining, nodePrefix, true);
+        InternalTestCluster cluster1 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes, enableHttpPipelining, nodePrefix, true);
         // TODO: this is not ideal - we should have a way to make sure ports are initialized in the same way
         assertClusters(cluster0, cluster1, false);
 
@@ -84,7 +83,7 @@ public class InternalTestClusterTests extends ESTestCase {
     }
 
     public static void assertSettings(Settings left, Settings right, boolean checkClusterUniqueSettings) {
-        ImmutableSet<Map.Entry<String, String>> entries0 = left.getAsMap().entrySet();
+        Set<Map.Entry<String, String>> entries0 = left.getAsMap().entrySet();
         Map<String, String> entries1 = right.getAsMap();
         assertThat(entries0.size(), equalTo(entries1.size()));
         for (Map.Entry<String, String> entry : entries0) {
@@ -104,15 +103,15 @@ public class InternalTestClusterTests extends ESTestCase {
         /*while (clusterName.equals(clusterName1)) {
             clusterName1 = clusterName("shared", Integer.toString(CHILD_JVM_ID), clusterSeed);   // spin until the time changes
         }*/
-        SettingsSource settingsSource = SettingsSource.EMPTY;
+        NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
         int numClientNodes = randomIntBetween(0, 2);
         boolean enableHttpPipelining = randomBoolean();
         int jvmOrdinal = randomIntBetween(0, 10);
         String nodePrefix = "foobar";
 
         Path baseDir = createTempDir();
-        InternalTestCluster cluster0 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName1, settingsSource, numClientNodes, enableHttpPipelining, nodePrefix);
-        InternalTestCluster cluster1 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName2, settingsSource, numClientNodes, enableHttpPipelining, nodePrefix);
+        InternalTestCluster cluster0 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes, enableHttpPipelining, nodePrefix, true);
+        InternalTestCluster cluster1 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName2, nodeConfigurationSource, numClientNodes, enableHttpPipelining, nodePrefix, true);
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();

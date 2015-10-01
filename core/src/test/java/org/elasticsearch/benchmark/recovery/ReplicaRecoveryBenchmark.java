@@ -19,7 +19,6 @@
 package org.elasticsearch.benchmark.recovery;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.transport.TransportModule;
@@ -60,7 +60,6 @@ public class ReplicaRecoveryBenchmark {
         BootstrapForTesting.ensureInitialized();
 
         Settings settings = settingsBuilder()
-                .put("gateway.type", "local")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, "false")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
@@ -128,12 +127,12 @@ public class ReplicaRecoveryBenchmark {
                     long currentTime = System.currentTimeMillis();
                     long currentDocs = indexer.totalIndexedDocs();
                     RecoveryResponse recoveryResponse = client1.admin().indices().prepareRecoveries(INDEX_NAME).setActiveOnly(true).get();
-                    List<ShardRecoveryResponse> indexRecoveries = recoveryResponse.shardResponses().get(INDEX_NAME);
+                    List<RecoveryState> indexRecoveries = recoveryResponse.shardRecoveryStates().get(INDEX_NAME);
                     long translogOps;
                     long bytes;
                     if (indexRecoveries.size() > 0) {
-                        translogOps = indexRecoveries.get(0).recoveryState().getTranslog().recoveredOperations();
-                        bytes = recoveryResponse.shardResponses().get(INDEX_NAME).get(0).recoveryState().getIndex().recoveredBytes();
+                        translogOps = indexRecoveries.get(0).getTranslog().recoveredOperations();
+                        bytes = recoveryResponse.shardRecoveryStates().get(INDEX_NAME).get(0).getIndex().recoveredBytes();
                     } else {
                         bytes = lastBytes = 0;
                         translogOps = lastTranslogOps = 0;

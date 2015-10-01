@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,6 +37,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.EnumSet;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -251,7 +251,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().hasUnassigned(), equalTo(false));
         // fail shard
         ShardRouting shardToFail = clusterState.getRoutingNodes().shardsWithState(STARTED).get(0);
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyFailedShards(clusterState, ImmutableList.of(new FailedRerouteAllocation.FailedShard(shardToFail, "test fail", null)))).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyFailedShards(clusterState, Collections.singletonList(new FailedRerouteAllocation.FailedShard(shardToFail, "test fail", null)))).build();
         // verify the reason and details
         assertThat(clusterState.getRoutingNodes().hasUnassigned(), equalTo(true));
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));

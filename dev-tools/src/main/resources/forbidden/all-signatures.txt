@@ -42,8 +42,8 @@ org.apache.lucene.search.TermRangeFilter
 org.apache.lucene.search.NumericRangeFilter
 org.apache.lucene.search.PrefixFilter
 
-java.nio.file.Paths @ Use PathUtils.get instead.
-java.nio.file.FileSystems#getDefault() @ use PathUtils.getDefault instead.
+java.nio.file.Paths @ Use org.elasticsearch.common.io.PathUtils.get() instead.
+java.nio.file.FileSystems#getDefault() @ use org.elasticsearch.common.io.PathUtils.getDefaultFileSystem() instead.
 
 @defaultMessage Specify a location for the temp file/directory instead.
 java.nio.file.Files#createTempDirectory(java.lang.String,java.nio.file.attribute.FileAttribute[])
@@ -57,8 +57,8 @@ java.io.ObjectInput
 
 java.nio.file.Files#isHidden(java.nio.file.Path) @ Dependent on the operating system, use FileSystemUtils.isHidden instead
 
-java.nio.file.Files#getFileStore(java.nio.file.Path) @ Use Environment.getFileStore() instead, impacted by JDK-8034057
-java.nio.file.Files#isWritable(java.nio.file.Path) @ Use Environment.isWritable() instead, impacted by JDK-8034057
+java.nio.file.Files#getFileStore(java.nio.file.Path) @ Use org.elasticsearch.env.Environment.getFileStore() instead, impacted by JDK-8034057
+java.nio.file.Files#isWritable(java.nio.file.Path) @ Use org.elasticsearch.env.Environment.isWritable() instead, impacted by JDK-8034057
 
 @defaultMessage Resolve hosts explicitly to the address(es) you want with InetAddress.
 java.net.InetSocketAddress#<init>(java.lang.String,int)

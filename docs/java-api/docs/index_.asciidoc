@@ -60,24 +60,8 @@ json.put("message","trying out Elasticsearch");
 [[java-docs-index-generate-beans]]
 ===== Serialize your beans
 
-Elasticsearch already uses Jackson but shades it under
-`org.elasticsearch.common.jackson` package. +
- So, you can add your own Jackson version in your `pom.xml` file or in
-your classpath. See http://wiki.fasterxml.com/JacksonDownload[Jackson
-Download Page].
-
-For example:
-
-[source,xml]
---------------------------------------------------
-<dependency>
-    <groupId>com.fasterxml.jackson.core</groupId>
-    <artifactId>jackson-databind</artifactId>
-    <version>2.1.3</version>
-</dependency>
---------------------------------------------------
-
-Then, you can start serializing your beans to JSON:
+Elasticsearch already uses http://wiki.fasterxml.com/JacksonHome[Jackson].
+So you can use it to serialize your beans to JSON:
 
 [source,java]
 --------------------------------------------------

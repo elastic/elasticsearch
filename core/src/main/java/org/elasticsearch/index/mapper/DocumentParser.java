@@ -104,8 +104,9 @@ class DocumentParser implements Closeable {
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new MapperParsingException("Malformed content, must start with an object");
             }
+
+            boolean emptyDoc = false;
             if (mapping.root.isEnabled()) {
-                boolean emptyDoc = false;
                 token = parser.nextToken();
                 if (token == XContentParser.Token.END_OBJECT) {
                     // empty doc, we can handle it...
@@ -113,23 +114,24 @@ class DocumentParser implements Closeable {
                 } else if (token != XContentParser.Token.FIELD_NAME) {
                     throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
                 }
+            }
 
-                for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                    metadataMapper.preParse(context);
-                }
-                if (emptyDoc == false) {
-                    Mapper update = parseObject(context, mapping.root);
-                    if (update != null) {
-                        context.addDynamicMappingsUpdate(update);
-                    }
-                }
-                for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                    metadataMapper.postParse(context);
-                }
+            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                metadataMapper.preParse(context);
+            }
 
-            } else {
+            if (mapping.root.isEnabled() == false) {
                 // entire type is disabled
                 parser.skipChildren();
+            } else if (emptyDoc == false) {
+                Mapper update = parseObject(context, mapping.root);
+                if (update != null) {
+                    context.addDynamicMappingsUpdate(update);
+                }
+            }
+
+            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                metadataMapper.postParse(context);
             }
 
             // try to parse the next token, this should be null if the object is ended properly

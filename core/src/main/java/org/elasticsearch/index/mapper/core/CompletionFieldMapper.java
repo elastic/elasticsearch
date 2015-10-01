@@ -40,7 +40,6 @@ import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.search.suggest.completion.context.ContextMappingsParser;
 
 import java.io.IOException;
-
 import java.util.*;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.completionField;
@@ -238,6 +237,25 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         }
 
         @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
+
+            CompletionFieldType that = (CompletionFieldType) o;
+
+            return !(contextMappings != null ? !contextMappings.equals(that.contextMappings) : that.contextMappings != null);
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = super.hashCode();
+            result = 31 * result + (contextMappings != null ? contextMappings.hashCode() : 0);
+            return result;
+        }
+
+        @Override
         public CompletionFieldType clone() {
             return new CompletionFieldType(this);
         }
@@ -255,15 +273,15 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             CompletionAnalyzer otherAnalyzer = (CompletionAnalyzer) other.indexAnalyzer().analyzer();
 
             if (analyzer.preservePositionIncrements() != otherAnalyzer.preservePositionIncrements()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different 'preserve_position_increments' values");
+                conflicts.add("mapper [" + names().fullName() + "] has different [preserve_position_increments] values");
             }
             if (analyzer.preserveSep() != otherAnalyzer.preserveSep()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different 'preserve_separators' values");
+                conflicts.add("mapper [" + names().fullName() + "] has different [preserve_separators] values");
             }
             if (hasContextMappings() != other.hasContextMappings()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different context mapping");
+                conflicts.add("mapper [" + names().fullName() + "] has different [context mappings]");
             } else if (hasContextMappings() && contextMappings.equals(other.contextMappings) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] has different 'context_mappings' values");
+                conflicts.add("mapper [" + names().fullName() + "] has different [context_mappings] values");
             }
         }
 

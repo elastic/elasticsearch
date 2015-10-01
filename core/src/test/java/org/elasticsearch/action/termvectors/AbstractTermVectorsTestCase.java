@@ -346,8 +346,8 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
                 assertNotNull(luceneTermEnum.next());
 
                 assertThat(esTermEnum.totalTermFreq(), equalTo(luceneTermEnum.totalTermFreq()));
-                PostingsEnum esDocsPosEnum = esTermEnum.postings(null, null, PostingsEnum.POSITIONS);
-                PostingsEnum luceneDocsPosEnum = luceneTermEnum.postings(null, null, PostingsEnum.POSITIONS);
+                PostingsEnum esDocsPosEnum = esTermEnum.postings(null, PostingsEnum.POSITIONS);
+                PostingsEnum luceneDocsPosEnum = luceneTermEnum.postings(null, PostingsEnum.POSITIONS);
                 if (luceneDocsPosEnum == null) {
                     // test we expect that...
                     assertFalse(field.storedOffset);

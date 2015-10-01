@@ -42,11 +42,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class SettingsFilteringIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", SettingsFilteringPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(SettingsFilteringPlugin.class);
     }
 
     public static class SettingsFilteringPlugin extends Plugin {

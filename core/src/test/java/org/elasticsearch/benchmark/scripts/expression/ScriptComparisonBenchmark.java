@@ -20,6 +20,7 @@
 package org.elasticsearch.benchmark.scripts.expression;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Client;
@@ -28,13 +29,18 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.joda.time.PeriodType;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Random;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -102,10 +108,11 @@ public class ScriptComparisonBenchmark {
 
     static Client setupIndex() throws Exception {
         // create cluster
-        Settings settings = settingsBuilder().put("plugin.types", NativeScriptPlugin.class.getName())
-                                             .put("name", "node1")
-                                             .build();
-        Node node1 = nodeBuilder().clusterName(clusterName).settings(settings).node();
+        Settings settings = settingsBuilder().put("name", "node1")
+                                             .put("cluster.name", clusterName).build();
+        Collection<Class<? extends Plugin>> plugins = Collections.<Class<? extends Plugin>>singletonList(NativeScriptPlugin.class);
+        Node node1 = new MockNode(settings, Version.CURRENT, plugins);
+        node1.start();
         Client client = node1.client();
         client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
 

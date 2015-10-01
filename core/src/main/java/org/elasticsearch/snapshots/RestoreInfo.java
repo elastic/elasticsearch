@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -28,6 +27,8 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -39,7 +40,7 @@ public class RestoreInfo implements ToXContent, Streamable {
 
     private String name;
 
-    private ImmutableList<String> indices;
+    private List<String> indices;
 
     private int totalShards;
 
@@ -49,7 +50,7 @@ public class RestoreInfo implements ToXContent, Streamable {
 
     }
 
-    public RestoreInfo(String name, ImmutableList<String> indices, int totalShards, int successfulShards) {
+    public RestoreInfo(String name, List<String> indices, int totalShards, int successfulShards) {
         this.name = name;
         this.indices = indices;
         this.totalShards = totalShards;
@@ -147,11 +148,11 @@ public class RestoreInfo implements ToXContent, Streamable {
     public void readFrom(StreamInput in) throws IOException {
         name = in.readString();
         int size = in.readVInt();
-        ImmutableList.Builder<String> indicesListBuilder = ImmutableList.builder();
+        List<String> indicesListBuilder = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             indicesListBuilder.add(in.readString());
         }
-        indices = indicesListBuilder.build();
+        indices = Collections.unmodifiableList(indicesListBuilder);
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
     }

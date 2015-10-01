@@ -45,36 +45,15 @@ Fractional values are allowed for seconds, minutes, hours, days and weeks. For e
 
 See <<time-units>> for accepted abbreviations.
 
-==== Time Zone
-
-By default, times are stored as UTC milliseconds since the epoch. Thus, all computation and "bucketing" / "rounding" is
-done on UTC. It is possible to provide a time zone value, which will cause all bucket
-computations to take place in the specified zone. The time returned for each bucket/entry is milliseconds since the
-epoch in UTC. The parameters is called `time_zone`. It accepts either a ISO 8601 UTC offset, or a timezone id.
-A UTC offset has the form of a `+` or `-`, followed by two digit hour, followed by `:`, followed by two digit minutes.
-For example, `+01:00` represents 1 hour ahead of UTC. A timezone id is the identifier for a TZ database. For example,
-Pacific time is represented as `America\Los_Angeles`.
-
-Lets take an example. For `2012-04-01T04:15:30Z` (UTC), with a `time_zone` of `"-08:00"`. For day interval, the actual time by
-applying the time zone and rounding falls under `2012-03-31`, so the returned value will be (in millis) of
-`2012-03-31T08:00:00Z` (UTC). For hour interval, internally applying the time zone results in `2012-03-31T20:15:30`, so rounding it
-in the time zone results in `2012-03-31T20:00:00`, but we return that rounded value converted back in UTC so be consistent as
-`2012-04-01T04:00:00Z` (UTC).
-
-==== Offset
-
-The `offset` option can be provided for shifting the date bucket intervals boundaries after any other shifts because of
-time zones are applies. This for example makes it possible that daily buckets go from 6AM to 6AM the next day instead of starting at 12AM
-or that monthly buckets go from the 10th of the month to the 10th of the next month instead of the 1st.
-
-The `offset` option accepts positive or negative time durations like "1h" for an hour or "1M" for a Month. See <<time-units>> for more
-possible time duration options.
-
 ==== Keys
 
-Since internally, dates are represented as 64bit numbers, these numbers are returned as the bucket keys (each key
-representing a date - milliseconds since the epoch). It is also possible to define a date format, which will result in
-returning the dates as formatted strings next to the numeric key values:
+Internally, a date is represented as a 64 bit number representing a timestamp
+in milliseconds-since-the-epoch. These timestamps are returned as the bucket
+++key++s. The `key_as_string` is the same timestamp converted to a formatted
+date string using the format specified with the `format` parameter:
+
+TIP: If no `format` is specified, then it will use the first date
+<<mapping-date-format,format>> specified in the field mapping.
 
 [source,js]
 --------------------------------------------------
@@ -117,6 +96,172 @@ Response:
     }
 }
 --------------------------------------------------
+
+==== Time Zone
+
+Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
+rounding is also done in UTC. The `time_zone` parameter can be used to indicate
+that bucketing should use a different time zone.
+
+Time zones may either be specified as an ISO 8601 UTC offset (e.g. `+01:00` or
+`-08:00`)  or as a timezone id, an identifier used in the TZ database like
+`America\Los_Angeles` (which would need to be escaped in JSON as
+`"America\\Los_Angeles"`).
+
+Consider the following example:
+
+[source,js]
+---------------------------------
+PUT my_index/log/1
+{
+  "date": "2015-10-01T00:30:00Z"
+}
+
+PUT my_index/log/2
+{
+  "date": "2015-10-01T01:30:00Z"
+}
+
+GET my_index/_search?size=0
+{
+  "aggs": {
+    "by_day": {
+      "date_histogram": {
+        "field":     "date",
+        "interval":  "day"
+      }
+    }
+  }
+}
+---------------------------------
+
+UTC is used if no time zone is specified, which would result in both of these
+documents being placed into the same day bucket, which starts at midnight UTC
+on 1 October 2015:
+
+[source,js]
+---------------------------------
+"aggregations": {
+  "by_day": {
+    "buckets": [
+      {
+        "key_as_string": "2015-10-01T00:00:00.000Z",
+        "key":           1443657600000,
+        "doc_count":     2
+      }
+    ]
+  }
+}
+---------------------------------
+
+If a `time_zone` of `-01:00` is specified, then midnight starts at one hour before
+midnight UTC:
+
+[source,js]
+---------------------------------
+GET my_index/_search?size=0
+{
+  "aggs": {
+    "by_day": {
+      "date_histogram": {
+        "field":     "date",
+        "interval":  "day",
+        "time_zone": "-01:00"
+      }
+    }
+  }
+}
+---------------------------------
+
+Now the first document falls into the bucket for 30 September 2015, while the
+second document falls into the bucket for 1 October 2015:
+
+[source,js]
+---------------------------------
+"aggregations": {
+  "by_day": {
+    "buckets": [
+      {
+        "key_as_string": "2015-09-30T00:00:00.000-01:00", <1>
+        "key": 1443571200000,
+        "doc_count": 1
+      },
+      {
+        "key_as_string": "2015-10-01T00:00:00.000-01:00", <1>
+        "key": 1443657600000,
+        "doc_count": 1
+      }
+    ]
+  }
+}
+---------------------------------
+<1> The `key_as_string` value represents midnight on each day
+    in the specified time zone.
+
+==== Offset
+
+The `offset` parameter is used to change the start value of each bucket by the
+specified positive (`+`) or negative offset (`-`) duration, such as `1h` for
+an hour, or `1M` for a month. See <<time-units>> for more possible time
+duration options.
+
+For instance, when using an interval of `day`, each bucket runs from midnight
+to midnight.  Setting the `offset` parameter to `+6h` would change each bucket
+to run from 6am to 6am:
+
+[source,js]
+-----------------------------
+PUT my_index/log/1
+{
+  "date": "2015-10-01T05:30:00Z"
+}
+
+PUT my_index/log/2
+{
+  "date": "2015-10-01T06:30:00Z"
+}
+
+GET my_index/_search?size=0
+{
+  "aggs": {
+    "by_day": {
+      "date_histogram": {
+        "field":     "date",
+        "interval":  "day",
+        "offset":    "+6h"
+      }
+    }
+  }
+}
+-----------------------------
+
+Instead of a single bucket starting at midnight, the above request groups the
+documents into buckets starting at 6am:
+
+[source,js]
+-----------------------------
+"aggregations": {
+  "by_day": {
+    "buckets": [
+      {
+        "key_as_string": "2015-09-30T06:00:00.000Z",
+        "key": 1443592800000,
+        "doc_count": 1
+      },
+      {
+        "key_as_string": "2015-10-01T06:00:00.000Z",
+        "key": 1443679200000,
+        "doc_count": 1
+      }
+    ]
+  }
+}
+-----------------------------
+
+NOTE: The start `offset` of each bucket is calculated after the `time_zone`
+adjustments have been made.
+
+==== Scripts
 
 Like with the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>, both document level scripts and
 value level scripts are supported. It is also possible to control the order of the returned buckets using the `order`

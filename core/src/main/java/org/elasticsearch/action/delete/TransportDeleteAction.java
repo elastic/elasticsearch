@@ -95,11 +95,6 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     }
 
     @Override
-    protected boolean resolveIndex() {
-        return true;
-    }
-
-    @Override
     protected void resolveRequest(final ClusterState state, final InternalRequest request, final ActionListener<DeleteResponse> listener) {
         request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         if (state.metaData().hasIndex(request.concreteIndex())) {

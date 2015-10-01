@@ -19,7 +19,6 @@
 
 package org.elasticsearch.threadpool;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -46,6 +45,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.*;
 
@@ -345,7 +345,7 @@ public class ThreadPool extends AbstractComponent {
             if (previousExecutorHolder != null) {
                 if ("fixed".equals(previousInfo.getType())) {
                     SizeValue updatedQueueSize = getAsSizeOrUnbounded(settings, "capacity", getAsSizeOrUnbounded(settings, "queue", getAsSizeOrUnbounded(settings, "queue_size", previousInfo.getQueueSize())));
-                    if (Objects.equal(previousInfo.getQueueSize(), updatedQueueSize)) {
+                    if (Objects.equals(previousInfo.getQueueSize(), updatedQueueSize)) {
                         int updatedSize = settings.getAsInt("size", previousInfo.getMax());
                         if (previousInfo.getMax() != updatedSize) {
                             logger.debug("updating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, updatedSize, updatedQueueSize);
@@ -501,8 +501,8 @@ public class ThreadPool extends AbstractComponent {
         public void run() {
             try {
                 runnable.run();
-            } catch (Exception e) {
-                logger.warn("failed to run {}", e, runnable.toString());
+            } catch (Throwable t) {
+                logger.warn("failed to run {}", t, runnable.toString());
             }
         }
 

@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -91,30 +89,7 @@ public class FilteredQueryParser implements QueryParser {
             return null;
         }
 
-        if (filter == null) {
-            if (!filterFound) {
-                // we allow for null filter, so it makes compositions on the client side to be simpler
-                return query;
-            } else {
-                // even if the filter is not found, and its null, we should simply ignore it, and go
-                // by the query
-                return query;
-            }
-        }
-        if (Queries.isConstantMatchAllQuery(filter)) {
-            // this is an instance of match all filter, just execute the query
-            return query;
-        }
-
-        // if its a match_all query, use constant_score
-        if (Queries.isConstantMatchAllQuery(query)) {
-            Query q = new ConstantScoreQuery(filter);
-            q.setBoost(boost);
-            return q;
-        }
-
         BooleanQuery filteredQuery = Queries.filtered(query, filter);
-
         filteredQuery.setBoost(boost);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, filteredQuery);

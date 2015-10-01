@@ -105,9 +105,13 @@ final class PerThreadIDAndVersionLookup {
                     // Use NDV to retrieve the version, in which case we only need PostingsEnum:
 
                     // there may be more than one matching docID, in the case of nested docs, so we want the last one:
-                    PostingsEnum docs = docsEnums[seg] = termsEnums[seg].postings(liveDocs[seg], docsEnums[seg], 0);
+                    PostingsEnum docs = docsEnums[seg] = termsEnums[seg].postings(docsEnums[seg], 0);
+                    final Bits liveDocs = this.liveDocs[seg];
                     int docID = DocIdSetIterator.NO_MORE_DOCS;
                     for (int d = docs.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docs.nextDoc()) {
+                        if (liveDocs != null && liveDocs.get(d) == false) {
+                            continue;
+                        }
                         docID = d;
                     }
 
@@ -125,9 +129,13 @@ final class PerThreadIDAndVersionLookup {
                 }
 
                 // ... but used to be stored as payloads; in this case we must use PostingsEnum
-                PostingsEnum dpe = posEnums[seg] = termsEnums[seg].postings(liveDocs[seg], posEnums[seg], PostingsEnum.PAYLOADS);
+                PostingsEnum dpe = posEnums[seg] = termsEnums[seg].postings(posEnums[seg], PostingsEnum.PAYLOADS);
                 assert dpe != null; // terms has payloads
+                final Bits liveDocs = this.liveDocs[seg];
                 for (int d = dpe.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = dpe.nextDoc()) {
+                    if (liveDocs != null && liveDocs.get(d) == false) {
+                        continue;
+                    }
                     dpe.nextPosition();
                     final BytesRef payload = dpe.getPayload();
                     if (payload != null && payload.length == 8) {

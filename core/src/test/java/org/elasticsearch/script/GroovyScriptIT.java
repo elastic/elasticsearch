@@ -91,7 +91,7 @@ public class GroovyScriptIT extends ESIntegTestCase {
             assertThat(e.toString() + "should have contained GroovyScriptExecutionException",
                     e.toString().contains("GroovyScriptExecutionException"), equalTo(true));
             assertThat(e.toString()+ "should have contained an assert error",
-                    e.toString().contains("PowerAssertionError[assert false"), equalTo(true));
+                    e.toString().contains("AssertionError[assert false"), equalTo(true));
         }
     }
 

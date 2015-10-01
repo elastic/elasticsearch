@@ -154,6 +154,16 @@ public class IndicesOptions {
                 defaultSettings);
     }
 
+    /**
+     * Returns true if the name represents a valid name for one of the indices option
+     * false otherwise
+     */
+    public static boolean isIndicesOptions(String name) {
+        return "expand_wildcards".equals(name) || "expandWildcards".equals(name) ||
+                "ignore_unavailable".equals(name) || "ignoreUnavailable".equals(name) ||
+                "allow_no_indices".equals(name) || "allowNoIndices".equals(name);
+    }
+
     public static IndicesOptions fromParameters(Object wildcardsString, Object ignoreUnavailableString, Object allowNoIndicesString, IndicesOptions defaultSettings) {
         if (wildcardsString == null && ignoreUnavailableString == null && allowNoIndicesString == null) {
             return defaultSettings;

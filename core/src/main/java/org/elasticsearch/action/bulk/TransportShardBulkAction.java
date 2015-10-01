@@ -109,7 +109,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
 
     @Override
     protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
-        return clusterState.routingTable().index(request.concreteIndex()).shard(request.request().shardId()).shardsIt();
+        return clusterState.routingTable().index(request.concreteIndex()).shard(request.request().shardId().id()).shardsIt();
     }
 
     @Override

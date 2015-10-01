@@ -42,13 +42,13 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
@@ -279,7 +279,7 @@ public class MapperQueryParser extends QueryParser {
                     if (q != null) {
                         added = true;
                         applyBoost(mField, q);
-                        applySlop(q, slop);
+                        q = applySlop(q, slop);
                         disMaxQuery.add(q);
                     }
                 }
@@ -293,7 +293,7 @@ public class MapperQueryParser extends QueryParser {
                     Query q = super.getFieldQuery(mField, queryText, slop);
                     if (q != null) {
                         applyBoost(mField, q);
-                        applySlop(q, slop);
+                        q = applySlop(q, slop);
                         clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
                     }
                 }
@@ -572,7 +572,7 @@ public class MapperQueryParser extends QueryParser {
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
         if (termStr.equals("*")) {
             // we want to optimize for match all query for the "*:*", and "*" cases
-            if ("*".equals(field) || Objects.equal(field, this.field)) {
+            if ("*".equals(field) || Objects.equals(field, this.field)) {
                 String actualField = field;
                 if (actualField == null) {
                     actualField = this.field;
@@ -719,15 +719,6 @@ public class MapperQueryParser extends QueryParser {
     }
 
     @Override
-    protected WildcardQuery newWildcardQuery(Term t) {
-        // Backport: https://issues.apache.org/jira/browse/LUCENE-6677
-        assert Version.LATEST == Version.LUCENE_5_2_1;
-        WildcardQuery query = new WildcardQuery(t, maxDeterminizedStates);
-        query.setRewriteMethod(multiTermRewriteMethod);
-        return query;
-    }
-
-    @Override
     protected Query getRegexpQuery(String field, String termStr) throws ParseException {
         if (lowercaseExpandedTerms) {
             termStr = termStr.toLowerCase(locale);
@@ -815,14 +806,24 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
-    private void applySlop(Query q, int slop) {
-        if (q instanceof FilteredQuery) {
-            applySlop(((FilteredQuery)q).getQuery(), slop);
-        }
+    private Query applySlop(Query q, int slop) {
         if (q instanceof PhraseQuery) {
-            ((PhraseQuery) q).setSlop(slop);
+            PhraseQuery pq = (PhraseQuery) q;
+            PhraseQuery.Builder builder = new PhraseQuery.Builder();
+            builder.setSlop(slop);
+            final Term[] terms = pq.getTerms();
+            final int[] positions = pq.getPositions();
+            for (int i = 0; i < terms.length; ++i) {
+                builder.add(terms[i], positions[i]);
+            }
+            pq = builder.build();
+            pq.setBoost(q.getBoost());
+            return pq;
         } else if (q instanceof MultiPhraseQuery) {
             ((MultiPhraseQuery) q).setSlop(slop);
+            return q;
+        } else {
+            return q;
         }
     }
 

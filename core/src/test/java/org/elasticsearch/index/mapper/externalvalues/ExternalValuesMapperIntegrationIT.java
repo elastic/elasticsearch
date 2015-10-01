@@ -25,19 +25,20 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", ExternalMapperPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(ExternalMapperPlugin.class);
     }
 
     @Test

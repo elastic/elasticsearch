@@ -52,7 +52,7 @@ public class SuggestIndexSearcher extends IndexSearcher {
    * <code>query</code>
    */
   public TopSuggestDocs suggest(CompletionQuery query, int n) throws IOException {
-    org.apache.lucene.search.suggest.xdocument.TopSuggestDocsCollector collector = new org.apache.lucene.search.suggest.xdocument.TopSuggestDocsCollector(n);
+    TopSuggestDocsCollector collector = new TopSuggestDocsCollector(n);
     suggest(query, collector);
     return collector.get();
   }
@@ -61,19 +61,19 @@ public class SuggestIndexSearcher extends IndexSearcher {
    * Lower-level suggest API.
    * Collects completion hits through <code>collector</code> for <code>query</code>.
    *
-   * <p>{@link org.apache.lucene.search.suggest.xdocument.TopSuggestDocsCollector#collect(int, CharSequence, CharSequence, float)}
+   * <p>{@link TopSuggestDocsCollector#collect(int, CharSequence, CharSequence, float)}
    * is called for every matching completion hit.
    */
-  public void suggest(CompletionQuery query, org.apache.lucene.search.suggest.xdocument.TopSuggestDocsCollector collector) throws IOException {
+  public void suggest(CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {
     // TODO use IndexSearcher.rewrite instead
     // have to implement equals() and hashCode() in CompletionQuerys and co
     query = (CompletionQuery) query.rewrite(getIndexReader());
     Weight weight = query.createWeight(this, collector.needsScores());
     for (LeafReaderContext context : getIndexReader().leaves()) {
-      BulkScorer scorer = weight.bulkScorer(context, context.reader().getLiveDocs());
+      BulkScorer scorer = weight.bulkScorer(context);
       if (scorer != null) {
         try {
-          scorer.score(collector.getLeafCollector(context));
+          scorer.score(collector.getLeafCollector(context), context.reader().getLiveDocs());
         } catch (CollectionTerminatedException e) {
           // collection was terminated prematurely
           // continue with the following leaf

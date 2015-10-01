@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.node;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -433,7 +433,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 newMasterNode = masterNode();
             }
         }
-        return new Delta(previousMasterNode, newMasterNode, localNodeId, ImmutableList.copyOf(removed), ImmutableList.copyOf(added));
+        return new Delta(previousMasterNode, newMasterNode, localNodeId, Collections.unmodifiableList(removed), Collections.unmodifiableList(added));
     }
 
     @Override
@@ -472,14 +472,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         private final String localNodeId;
         private final DiscoveryNode previousMasterNode;
         private final DiscoveryNode newMasterNode;
-        private final ImmutableList<DiscoveryNode> removed;
-        private final ImmutableList<DiscoveryNode> added;
+        private final List<DiscoveryNode> removed;
+        private final List<DiscoveryNode> added;
 
-        public Delta(String localNodeId, ImmutableList<DiscoveryNode> removed, ImmutableList<DiscoveryNode> added) {
+        public Delta(String localNodeId, List<DiscoveryNode> removed, List<DiscoveryNode> added) {
             this(null, null, localNodeId, removed, added);
         }
 
-        public Delta(@Nullable DiscoveryNode previousMasterNode, @Nullable DiscoveryNode newMasterNode, String localNodeId, ImmutableList<DiscoveryNode> removed, ImmutableList<DiscoveryNode> added) {
+        public Delta(@Nullable DiscoveryNode previousMasterNode, @Nullable DiscoveryNode newMasterNode, String localNodeId, List<DiscoveryNode> removed, List<DiscoveryNode> added) {
             this.previousMasterNode = previousMasterNode;
             this.newMasterNode = newMasterNode;
             this.localNodeId = localNodeId;

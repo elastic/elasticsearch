@@ -23,6 +23,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -112,7 +113,7 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper(indexSettings, mapperService.fullName(TimestampFieldMapper.NAME)));
             this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper(indexSettings));
             this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper(indexSettings));
-            this.rootMappers.put(ParentFieldMapper.class, new ParentFieldMapper(indexSettings, mapperService.fullName(ParentFieldMapper.NAME)));
+            this.rootMappers.put(ParentFieldMapper.class, new ParentFieldMapper(indexSettings, mapperService.fullName(ParentFieldMapper.NAME), /* parent type */builder.name()));
             // _field_names last so that it can see all other fields
             this.rootMappers.put(FieldNamesFieldMapper.class, new FieldNamesFieldMapper(indexSettings, mapperService.fullName(FieldNamesFieldMapper.NAME)));
         }
@@ -199,7 +200,7 @@ public class DocumentMapper implements ToXContent {
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         for (MetadataFieldMapper metadataMapper : this.mapping.metadataMappers) {
             if (metadataMapper instanceof FieldMapper) {
-                newFieldMappers.add((FieldMapper) metadataMapper);
+                newFieldMappers.add(metadataMapper);
             }
         }
         MapperUtils.collect(this.mapping.root, newObjectMappers, newFieldMappers);
@@ -452,7 +453,7 @@ public class DocumentMapper implements ToXContent {
         public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
             try {
                 // We use the ctx variable and the _source name to be consistent with the update api.
-                ExecutableScript executable = scriptService.executable(script, ScriptContext.Standard.MAPPING);
+                ExecutableScript executable = scriptService.executable(script, ScriptContext.Standard.MAPPING, null);
                 Map<String, Object> ctx = new HashMap<>(1);
                 ctx.put("_source", sourceAsMap);
                 executable.setNextVar("ctx", ctx);

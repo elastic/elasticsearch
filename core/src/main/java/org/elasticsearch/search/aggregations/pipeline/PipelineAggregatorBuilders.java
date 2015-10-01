@@ -22,6 +22,9 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketBuilder;
 import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptBuilder;
@@ -53,6 +56,18 @@ public final class PipelineAggregatorBuilders {
 
     public static final SumBucketBuilder sumBucket(String name) {
         return new SumBucketBuilder(name);
+    }
+
+    public static final StatsBucketBuilder statsBucket(String name) {
+        return new StatsBucketBuilder(name);
+    }
+
+    public static final ExtendedStatsBucketBuilder extendedStatsBucket(String name) {
+        return new ExtendedStatsBucketBuilder(name);
+    }
+
+    public static final PercentilesBucketBuilder percentilesBucket(String name) {
+        return new PercentilesBucketBuilder(name);
     }
 
     public static final MovAvgBuilder movingAvg(String name) {

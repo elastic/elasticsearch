@@ -19,7 +19,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -55,15 +56,18 @@ public class TranslogRecoveryPerformer {
     private final IndexQueryParserService queryParserService;
     private final IndexAliasesService indexAliasesService;
     private final IndexCache indexCache;
+    private final ESLogger logger;
     private final Map<String, Mapping> recoveredTypes = new HashMap<>();
     private final ShardId shardId;
 
-    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, IndexQueryParserService queryParserService, IndexAliasesService indexAliasesService, IndexCache indexCache) {
+    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, IndexQueryParserService queryParserService,
+                                        IndexAliasesService indexAliasesService, IndexCache indexCache, ESLogger logger) {
         this.shardId = shardId;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
         this.indexAliasesService = indexAliasesService;
         this.indexCache = indexCache;
+        this.logger = logger;
     }
 
     protected DocumentMapperForType docMapper(String type) {
@@ -148,6 +152,9 @@ public class TranslogRecoveryPerformer {
                                     .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()),
                             create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true, false);
                     maybeAddMappingUpdate(engineCreate.type(), engineCreate.parsedDoc().dynamicMappingsUpdate(), engineCreate.id(), allowMappingUpdates);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[translog] recover [create] op of [{}][{}]", create.type(), create.id());
+                    }
                     engine.create(engineCreate);
                     break;
                 case SAVE:
@@ -156,11 +163,17 @@ public class TranslogRecoveryPerformer {
                                     .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
                             index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true);
                     maybeAddMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate(), engineIndex.id(), allowMappingUpdates);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[translog] recover [index] op of [{}][{}]", index.type(), index.id());
+                    }
                     engine.index(engineIndex);
                     break;
                 case DELETE:
                     Translog.Delete delete = (Translog.Delete) operation;
                     Uid uid = Uid.createUid(delete.uid().text());
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[translog] recover [delete] op of [{}][{}]", uid.type(), uid.id());
+                    }
                     engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
                             delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false));
                     break;
@@ -222,7 +235,7 @@ public class TranslogRecoveryPerformer {
         }
 
         Query aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
-        BitDocIdSetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter()) : null;
+        BitSetProducer parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter()) : null;
         return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
     }
 

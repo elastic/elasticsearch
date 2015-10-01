@@ -25,6 +25,8 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
+import java.util.Collection;
+
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -41,9 +43,13 @@ public class ResponseHeaderPluginIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", TestResponseHeaderPlugin.class.getName())
                 .put("force.http.enabled", true)
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(TestResponseHeaderPlugin.class);
     }
 
     @Test

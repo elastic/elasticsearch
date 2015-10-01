@@ -161,10 +161,10 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         query = (CompletionQuery) query.rewrite(searcher.getIndexReader());
         Weight weight = query.createWeight(searcher, collector.needsScores());
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
-            BulkScorer scorer = weight.bulkScorer(context, context.reader().getLiveDocs());
+            BulkScorer scorer = weight.bulkScorer(context);
             if (scorer != null) {
                 try {
-                    scorer.score(collector.getLeafCollector(context));
+                    scorer.score(collector.getLeafCollector(context), context.reader().getLiveDocs());
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf

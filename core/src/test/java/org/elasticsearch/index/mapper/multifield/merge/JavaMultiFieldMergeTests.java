@@ -173,15 +173,15 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper4 = parser.parse(mapping);
         mergeResult = docMapper.merge(docMapper4.mapping(), true, false);
         assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(true));
-        assertThat(mergeResult.buildConflicts()[0], equalTo("mapper [name] has different index values"));
-        assertThat(mergeResult.buildConflicts()[1], equalTo("mapper [name] has different store values"));
+        assertThat(mergeResult.buildConflicts()[0], equalTo("mapper [name] has different [index] values"));
+        assertThat(mergeResult.buildConflicts()[1], equalTo("mapper [name] has different [store] values"));
 
         mergeResult = docMapper.merge(docMapper4.mapping(), false, false);
         assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(true));
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
-        assertThat(mergeResult.buildConflicts()[0], equalTo("mapper [name] has different index values"));
-        assertThat(mergeResult.buildConflicts()[1], equalTo("mapper [name] has different store values"));
+        assertThat(mergeResult.buildConflicts()[0], equalTo("mapper [name] has different [index] values"));
+        assertThat(mergeResult.buildConflicts()[1], equalTo("mapper [name] has different [store] values"));
 
         // There are conflicts, but the `name.not_indexed3` has been added, b/c that field has no conflicts
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());

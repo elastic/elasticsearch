@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.InternalContext;
@@ -85,7 +84,7 @@ class InjectionRequestProcessor extends AbstractProcessor {
         final InjectorImpl injector;
         final Object source;
         final StaticInjectionRequest request;
-        ImmutableList<SingleMemberInjector> memberInjectors;
+        List<SingleMemberInjector> memberInjectors;
 
         public StaticInjection(InjectorImpl injector, StaticInjectionRequest request) {
             this.injector = injector;

@@ -23,7 +23,6 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -58,13 +57,31 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BindTransportException;
+import org.elasticsearch.transport.BytesTransportRequest;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.AdaptiveReceiveBufferSizePredictorFactory;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelFutureListener;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.ExceptionEvent;
+import org.jboss.netty.channel.FixedReceiveBufferSizePredictorFactory;
+import org.jboss.netty.channel.ReceiveBufferSizePredictorFactory;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioWorkerPool;
@@ -78,8 +95,20 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.CancelledKeyException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -289,12 +318,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     createServerBootstrap(name, mergedSettings);
                     bindServerBootstrap(name, mergedSettings);
                 }
-
-                InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(DEFAULT_PROFILE).get(0).getLocalAddress();
-                int publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
-                String publishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
-                InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
-                this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
             }
             success = true;
         } finally {
@@ -420,9 +443,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
         
-    private void bindServerBootstrap(final String name, final InetAddress hostAddress, Settings settings) {
+    private void bindServerBootstrap(final String name, final InetAddress hostAddress, Settings profileSettings) {
 
-        String port = settings.get("port");
+        String port = profileSettings.get("port");
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
@@ -438,7 +461,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                             serverChannels.put(name, list);
                         }
                         list.add(channel);
-                        boundSocket.set((InetSocketAddress)channel.getLocalAddress());
+                        boundSocket.set((InetSocketAddress) channel.getLocalAddress());
                     }
                 } catch (Exception e) {
                     lastException.set(e);
@@ -451,16 +474,48 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             throw new BindTransportException("Failed to bind to [" + port + "]", lastException.get());
         }
 
+        InetSocketAddress boundAddress = boundSocket.get();
+        // TODO: We can remove the special casing for the default profile and store it in the profile map to reduce the complexity here
         if (!DEFAULT_PROFILE.equals(name)) {
-            InetSocketAddress boundAddress = boundSocket.get();
-            int publishPort = settings.getAsInt("publish_port", boundAddress.getPort());
-            String publishHost = settings.get("publish_host", boundAddress.getHostString());
-            InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
-            // TODO: support real multihoming with publishing. Today we use putIfAbsent so only the prioritized address is published
-            profileBoundAddresses.putIfAbsent(name, new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress)));
+            // check to see if an address is already bound for this profile
+            BoundTransportAddress boundTransportAddress = profileBoundAddresses().get(name);
+            if (boundTransportAddress == null) {
+                // no address is bound, so lets create one with the publish address information from the settings or the bound address as a fallback
+                int publishPort = profileSettings.getAsInt("publish_port", boundAddress.getPort());
+                String publishHost = profileSettings.get("publish_host", boundAddress.getHostString());
+                InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
+                profileBoundAddresses.put(name, new BoundTransportAddress(new TransportAddress[]{new InetSocketTransportAddress(boundAddress)}, new InetSocketTransportAddress(publishAddress)));
+            } else {
+                // TODO: support real multihoming with publishing. Today we update the bound addresses so only the prioritized address is published
+                // an address already exists. add the new bound address to the end of a new array and create a new BoundTransportAddress with the array and existing publish address
+                // the new bound address is appended in order to preserve the ordering/priority of bound addresses
+                TransportAddress[] existingBoundAddress = boundTransportAddress.boundAddresses();
+                TransportAddress[] updatedBoundAddresses = Arrays.copyOf(existingBoundAddress, existingBoundAddress.length + 1);
+                updatedBoundAddresses[updatedBoundAddresses.length - 1] = new InetSocketTransportAddress(boundAddress);
+                profileBoundAddresses.put(name, new BoundTransportAddress(updatedBoundAddresses, boundTransportAddress.publishAddress()));
+            }
+        } else {
+            if (this.boundAddress == null) {
+                // this is the first address that has been bound for the default profile so we get the publish address information and create a new BoundTransportAddress
+                // these calls are different from the profile ones due to the way the settings for a profile are created. If we want to merge the code for the default profile and
+                // other profiles together, we need to change how the profileSettings are built for the default profile...
+                int publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
+                String publishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
+                InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
+                this.boundAddress = new BoundTransportAddress(new TransportAddress[]{new InetSocketTransportAddress(boundAddress)}, new InetSocketTransportAddress(publishAddress));
+            } else {
+                // the default profile is already bound to one address and has the publish address, copy the existing bound addresses as is and append the new address.
+                // the new bound address is appended in order to preserve the ordering/priority of bound addresses
+                TransportAddress[] existingBoundAddress = this.boundAddress.boundAddresses();
+                TransportAddress[] updatedBoundAddresses = Arrays.copyOf(existingBoundAddress, existingBoundAddress.length + 1);
+                updatedBoundAddresses[updatedBoundAddresses.length - 1] = new InetSocketTransportAddress(boundAddress);
+                this.boundAddress = new BoundTransportAddress(updatedBoundAddresses, this.boundAddress.publishAddress());
+            }
         }
 
-        logger.info("Bound profile [{}] to address {{}}", name, NetworkAddress.format(boundSocket.get()));
+        if (logger.isDebugEnabled()) {
+            logger.debug("Bound profile [{}] to address {{}}", name, NetworkAddress.format(boundSocket.get()));
+        }
     }
 
     private void createServerBootstrap(String name, Settings settings) {
@@ -947,7 +1002,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             }
         } catch (RuntimeException e) {
             // clean the futures
-            for (ChannelFuture future : ImmutableList.<ChannelFuture>builder().add(connectRecovery).add(connectBulk).add(connectReg).add(connectState).add(connectPing).build()) {
+            List<ChannelFuture> futures = new ArrayList<>();
+            futures.addAll(Arrays.asList(connectRecovery));
+            futures.addAll(Arrays.asList(connectBulk));
+            futures.addAll(Arrays.asList(connectReg));
+            futures.addAll(Arrays.asList(connectState));
+            futures.addAll(Arrays.asList(connectPing));
+            for (ChannelFuture future : Collections.unmodifiableList(futures)) {
                 future.cancel();
                 if (future.getChannel() != null && future.getChannel().isOpen()) {
                     try {
@@ -1130,7 +1191,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     public static class NodeChannels {
 
-        ImmutableList<Channel> allChannels = ImmutableList.of();
+        List<Channel> allChannels = Collections.emptyList();
         private Channel[] recovery;
         private final AtomicInteger recoveryCounter = new AtomicInteger();
         private Channel[] bulk;
@@ -1151,7 +1212,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         public void start() {
-            this.allChannels = ImmutableList.<Channel>builder().add(recovery).add(bulk).add(reg).add(state).add(ping).build();
+            List<Channel> newAllChannels = new ArrayList<>();
+            newAllChannels.addAll(Arrays.asList(recovery));
+            newAllChannels.addAll(Arrays.asList(bulk));
+            newAllChannels.addAll(Arrays.asList(reg));
+            newAllChannels.addAll(Arrays.asList(state));
+            newAllChannels.addAll(Arrays.asList(ping));
+            this.allChannels = Collections.unmodifiableList(newAllChannels);
         }
 
         public boolean hasChannel(Channel channel) {

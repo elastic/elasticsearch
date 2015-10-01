@@ -28,6 +28,7 @@ import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.LimitedFiniteStringsIterator;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.Transition;
 import org.apache.lucene.util.fst.*;
@@ -465,16 +466,12 @@ public long ramBytesUsed() {
     byte buffer[] = new byte[8];
     try {
       ByteArrayDataOutput output = new ByteArrayDataOutput(buffer);
-      BytesRef surfaceForm;
 
-      while ((surfaceForm = iterator.next()) != null) {
-        Set<IntsRef> paths = toFiniteStrings(surfaceForm, ts2a);
-        
-        maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, paths.size());
-
-        for (IntsRef path : paths) {
-
-          Util.toBytesRef(path, scratch);
+      for (BytesRef surfaceForm; (surfaceForm = iterator.next()) != null;) {
+        LimitedFiniteStringsIterator finiteStrings =
+                new LimitedFiniteStringsIterator(toAutomaton(surfaceForm, ts2a), maxGraphExpansions);
+        for (IntsRef string; (string = finiteStrings.next()) != null; count++) {
+          Util.toBytesRef(string, scratch);
           
           // length of the analyzed text (FST input)
           if (scratch.length() > Short.MAX_VALUE-2) {
@@ -526,7 +523,7 @@ public long ramBytesUsed() {
 
           writer.write(buffer, 0, output.getPosition());
         }
-        count++;
+        maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, finiteStrings.size());
       }
       writer.close();
 
@@ -912,23 +909,17 @@ public long ramBytesUsed() {
     return prefixPaths;
   }
 
-  public final Set<IntsRef> toFiniteStrings(final BytesRef surfaceForm, final TokenStreamToAutomaton ts2a) throws IOException {
-      // Analyze surface form:
-      TokenStream ts = indexAnalyzer.tokenStream("", surfaceForm.utf8ToString());
-      return toFiniteStrings(ts2a, ts);
-  }
-      
-  public final Set<IntsRef> toFiniteStrings(final TokenStreamToAutomaton ts2a, final TokenStream ts) throws IOException {
-      Automaton automaton = null;
-      try {
-
-        // Create corresponding automaton: labels are bytes
-        // from each analyzed token, with byte 0 used as
-        // separator between tokens:
-        automaton = ts2a.toAutomaton(ts);
-      } finally {
-        IOUtils.closeWhileHandlingException(ts);
+  final Automaton toAutomaton(final BytesRef surfaceForm, final TokenStreamToAutomaton ts2a) throws IOException {
+      try (TokenStream ts = indexAnalyzer.tokenStream("", surfaceForm.utf8ToString())) {
+          return toAutomaton(ts, ts2a);
       }
+  }
+
+  final Automaton toAutomaton(TokenStream ts, final TokenStreamToAutomaton ts2a) throws IOException {
+      // Create corresponding automaton: labels are bytes
+      // from each analyzed token, with byte 0 used as
+      // separator between tokens:
+      Automaton automaton = ts2a.toAutomaton(ts);
 
       automaton = replaceSep(automaton);
       automaton = convertAutomaton(automaton);
@@ -940,11 +931,24 @@ public long ramBytesUsed() {
       // more than one path, eg if the analyzer created a
       // graph using SynFilter or WDF):
 
-      // TODO: we could walk & add simultaneously, so we
-      // don't have to alloc [possibly biggish]
-      // intermediate HashSet in RAM:
+      return automaton;
+  }
 
-      return Operations.getFiniteStrings(automaton, maxGraphExpansions);
+  // EDIT: Adrien, needed by lookup providers
+  // NOTE: these XForks are unmaintainable, we need to get rid of them...
+  public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
+      final TokenStreamToAutomaton ts2a = getTokenStreamToAutomaton();
+      Automaton automaton;
+      try (TokenStream ts = stream) {
+          automaton = toAutomaton(ts, ts2a);
+      }
+      LimitedFiniteStringsIterator finiteStrings =
+              new LimitedFiniteStringsIterator(automaton, maxGraphExpansions);
+      Set<IntsRef> set = new HashSet<>();
+      for (IntsRef string = finiteStrings.next(); string != null; string = finiteStrings.next()) {
+          set.add(IntsRef.deepCopyOf(string));
+      }
+      return Collections.unmodifiableSet(set);
   }
 
   final Automaton toLookupAutomaton(final CharSequence key) throws IOException {

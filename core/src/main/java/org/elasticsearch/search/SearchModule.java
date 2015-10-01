@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
@@ -110,6 +109,12 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucke
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptParser;
@@ -143,8 +148,6 @@ import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.highlight.Highlighter;
 import org.elasticsearch.search.highlight.Highlighters;
 import org.elasticsearch.search.query.QueryPhase;
-import org.elasticsearch.search.suggest.SuggestParseElement;
-import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
 
@@ -301,6 +304,9 @@ public class SearchModule extends AbstractModule {
         multibinderPipelineAggParser.addBinding().to(MinBucketParser.class);
         multibinderPipelineAggParser.addBinding().to(AvgBucketParser.class);
         multibinderPipelineAggParser.addBinding().to(SumBucketParser.class);
+        multibinderPipelineAggParser.addBinding().to(StatsBucketParser.class);
+        multibinderPipelineAggParser.addBinding().to(ExtendedStatsBucketParser.class);
+        multibinderPipelineAggParser.addBinding().to(PercentilesBucketParser.class);
         multibinderPipelineAggParser.addBinding().to(MovAvgParser.class);
         multibinderPipelineAggParser.addBinding().to(CumulativeSumParser.class);
         multibinderPipelineAggParser.addBinding().to(BucketScriptParser.class);
@@ -393,6 +399,9 @@ public class SearchModule extends AbstractModule {
         MinBucketPipelineAggregator.registerStreams();
         AvgBucketPipelineAggregator.registerStreams();
         SumBucketPipelineAggregator.registerStreams();
+        StatsBucketPipelineAggregator.registerStreams();
+        ExtendedStatsBucketPipelineAggregator.registerStreams();
+        PercentilesBucketPipelineAggregator.registerStreams();        
         MovAvgPipelineAggregator.registerStreams();
         CumulativeSumPipelineAggregator.registerStreams();
         BucketScriptPipelineAggregator.registerStreams();

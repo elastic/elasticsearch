@@ -103,10 +103,11 @@ public class OrQueryParser implements QueryParser {
             return null;
         }
 
-        BooleanQuery query = new BooleanQuery();
+        BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
         for (Query f : queries) {
-            query.add(f, Occur.SHOULD);
+            queryBuilder.add(f, Occur.SHOULD);
         }
+        BooleanQuery query = queryBuilder.build();
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

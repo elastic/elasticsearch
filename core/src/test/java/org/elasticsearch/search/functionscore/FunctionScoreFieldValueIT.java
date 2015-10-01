@@ -104,6 +104,15 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
                 .get();
         assertOrderedSearchHits(response, "1", "2", "3");
 
+        // field is not mapped but we're defaulting it to 100 so all documents should have the same score
+        response = client().prepareSearch("test")
+                .setExplain(randomBoolean())
+                .setQuery(functionScoreQuery(matchAllQuery(),
+                        fieldValueFactorFunction("notmapped").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL).missing(100)))
+                .get();
+        assertEquals(response.getHits().getAt(0).score(), response.getHits().getAt(2).score(), 0);
+
+
         // n divided by 0 is infinity, which should provoke an exception.
         try {
             response = client().prepareSearch("test")

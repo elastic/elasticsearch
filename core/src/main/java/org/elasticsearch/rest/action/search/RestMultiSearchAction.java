@@ -50,6 +50,13 @@ public class RestMultiSearchAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/{type}/_msearch", this);
         controller.registerHandler(POST, "/{index}/{type}/_msearch", this);
 
+        controller.registerHandler(GET, "/_msearch/template", this);
+        controller.registerHandler(POST, "/_msearch/template", this);
+        controller.registerHandler(GET, "/{index}/_msearch/template", this);
+        controller.registerHandler(POST, "/{index}/_msearch/template", this);
+        controller.registerHandler(GET, "/{index}/{type}/_msearch/template", this);
+        controller.registerHandler(POST, "/{index}/{type}/_msearch/template", this);
+
         this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
     }
 
@@ -59,9 +66,15 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
+        String path = request.path();
+        boolean isTemplateRequest = isTemplateRequest(path);
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, multiSearchRequest.indicesOptions());
-        multiSearchRequest.add(RestActions.getRestContent(request), indices, types, request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex);
+        multiSearchRequest.add(RestActions.getRestContent(request), isTemplateRequest, indices, types, request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex);
 
         client.multiSearch(multiSearchRequest, new RestToXContentListener<MultiSearchResponse>(channel));
+    }
+
+    private boolean isTemplateRequest(String path) {
+        return (path != null && path.endsWith("/template"));
     }
 }

@@ -16,12 +16,12 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Key;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -100,16 +100,16 @@ public final class Dependency<T> {
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(injectionPoint, parameterIndex, key);
+        return Objects.hash(injectionPoint, parameterIndex, key);
     }
 
     @Override
     public boolean equals(Object o) {
         if (o instanceof Dependency) {
             Dependency dependency = (Dependency) o;
-            return Objects.equal(injectionPoint, dependency.injectionPoint)
-                    && Objects.equal(parameterIndex, dependency.parameterIndex)
-                    && Objects.equal(key, dependency.key);
+            return Objects.equals(injectionPoint, dependency.injectionPoint)
+                    && Objects.equals(parameterIndex, dependency.parameterIndex)
+                    && Objects.equals(key, dependency.key);
         } else {
             return false;
         }

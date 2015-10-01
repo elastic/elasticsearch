@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.suggest.xdocument.ContextQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;

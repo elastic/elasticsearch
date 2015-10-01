@@ -24,7 +24,7 @@ import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 
 /**
  */
-public class PagedBytesStringFieldDataTests extends AbstractStringFieldDataTests {
+public class PagedBytesStringFieldDataTests extends AbstractStringFieldDataTestCase {
 
     @Override
     protected FieldDataType getFieldDataType() {

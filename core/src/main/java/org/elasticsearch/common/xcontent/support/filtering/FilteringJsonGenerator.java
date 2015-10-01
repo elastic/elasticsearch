@@ -23,7 +23,6 @@ import com.fasterxml.jackson.core.Base64Variant;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.SerializableString;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.BaseJsonGenerator;
@@ -34,6 +33,8 @@ import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 
@@ -61,7 +62,7 @@ public class FilteringJsonGenerator extends BaseJsonGenerator {
     public FilteringJsonGenerator(JsonGenerator generator, String[] filters) {
         super(generator);
 
-        ImmutableList.Builder<String[]> builder = ImmutableList.builder();
+        List<String[]> builder = new ArrayList<>();
         if (filters != null) {
             for (String filter : filters) {
                 String[] matcher = Strings.delimitedListToStringArray(filter, ".");
@@ -72,7 +73,7 @@ public class FilteringJsonGenerator extends BaseJsonGenerator {
         }
 
         // Creates a root context that matches all filtering rules
-        this.context = get(null, null, builder.build());
+        this.context = get(null, null, Collections.unmodifiableList(builder));
     }
 
     /**

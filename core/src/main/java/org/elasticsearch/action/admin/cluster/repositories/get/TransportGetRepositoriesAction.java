@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -36,6 +35,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Transport action for get repositories operation
@@ -71,11 +74,11 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
             if (repositories != null) {
                 listener.onResponse(new GetRepositoriesResponse(repositories.repositories()));
             } else {
-                listener.onResponse(new GetRepositoriesResponse(ImmutableList.<RepositoryMetaData>of()));
+                listener.onResponse(new GetRepositoriesResponse(Collections.<RepositoryMetaData>emptyList()));
             }
         } else {
             if (repositories != null) {
-                ImmutableList.Builder<RepositoryMetaData> repositoryListBuilder = ImmutableList.builder();
+                List<RepositoryMetaData> repositoryListBuilder = new ArrayList<>();
                 for (String repository : request.repositories()) {
                     RepositoryMetaData repositoryMetaData = repositories.repository(repository);
                     if (repositoryMetaData == null) {
@@ -84,7 +87,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
                     }
                     repositoryListBuilder.add(repositoryMetaData);
                 }
-                listener.onResponse(new GetRepositoriesResponse(repositoryListBuilder.build()));
+                listener.onResponse(new GetRepositoriesResponse(Collections.unmodifiableList(repositoryListBuilder)));
             } else {
                 listener.onFailure(new RepositoryMissingException(request.repositories()[0]));
             }

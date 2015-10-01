@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.AbstractDoubleSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ExplainableSearchScript;
@@ -42,6 +43,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -60,11 +62,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExplainableScriptIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", ExplainableScriptPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(ExplainableScriptPlugin.class);
     }
 
     @Test

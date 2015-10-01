@@ -22,7 +22,7 @@ package org.elasticsearch.common.xcontent.support.filtering;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
-public class YamlFilteringGeneratorTests extends AbstractFilteringJsonGeneratorTests {
+public class YamlFilteringGeneratorTests extends AbstractFilteringJsonGeneratorTestCase {
 
     @Override
     protected XContentType getXContentType() {

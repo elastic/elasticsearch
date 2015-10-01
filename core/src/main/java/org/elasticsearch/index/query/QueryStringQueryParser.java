@@ -233,7 +233,7 @@ public class QueryStringQueryParser implements QueryParser {
             }
             query = fixNegativeQueryIfNeeded(query);
             if (query instanceof BooleanQuery) {
-                Queries.applyMinimumShouldMatch((BooleanQuery) query, qpSettings.minimumShouldMatch());
+                query = Queries.applyMinimumShouldMatch((BooleanQuery) query, qpSettings.minimumShouldMatch());
             }
             if (queryName != null) {
                 parseContext.addNamedQuery(queryName, query);

@@ -36,6 +36,7 @@ import org.elasticsearch.test.junit.rule.RepeatOnExceptionRule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.TransportService;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -52,16 +53,30 @@ import static org.hamcrest.Matchers.is;
 public class NettyTransportMultiPortTests extends ESTestCase {
 
     private static final int MAX_RETRIES = 10;
+    private String host;
 
     @Rule
     public RepeatOnExceptionRule repeatOnBindExceptionRule = new RepeatOnExceptionRule(logger, MAX_RETRIES, BindTransportException.class);
+
+    @Before
+    public void setup() {
+        if (randomBoolean()) {
+            host = "localhost";
+        } else {
+            if (NetworkUtils.SUPPORTS_V6 && randomBoolean()) {
+                host = "::1";
+            } else {
+                host = "127.0.0.1";
+            }
+        }
+    }
 
     @Test
     public void testThatNettyCanBindToMultiplePorts() throws Exception {
         int[] ports = getRandomPorts(3);
 
         Settings settings = settingsBuilder()
-                .put("network.host", "127.0.0.1")
+                .put("network.host", host)
                 .put("transport.tcp.port", ports[0])
                 .put("transport.profiles.default.port", ports[1])
                 .put("transport.profiles.client1.port", ports[2])
@@ -82,7 +97,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         int[] ports = getRandomPorts(2);
 
         Settings settings = settingsBuilder()
-                .put("network.host", "127.0.0.1")
+                .put("network.host", host)
                 .put("transport.tcp.port", ports[0])
                 .put("transport.profiles.client1.port", ports[1])
                 .build();
@@ -101,7 +116,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         int[] ports = getRandomPorts(1);
 
         Settings settings = settingsBuilder()
-                .put("network.host", "127.0.0.1")
+                .put("network.host", host)
                 .put("transport.tcp.port", ports[0])
                 .put("transport.profiles.client1.whatever", "foo")
                 .build();
@@ -119,7 +134,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         int[] ports = getRandomPorts(3);
 
         Settings settings = settingsBuilder()
-                .put("network.host", "127.0.0.1")
+                .put("network.host", host)
                 .put("transport.tcp.port", ports[0])
                 .put("transport.netty.port", ports[1])
                 .put("transport.profiles.default.port", ports[2])
@@ -140,7 +155,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         int[] ports = getRandomPorts(3);
 
         Settings settings = settingsBuilder()
-                .put("network.host", "127.0.0.1")
+                .put("network.host", host)
                 .put("transport.tcp.port", ports[0])
                 // mimics someone trying to define a profile for .local which is the profile for a node request to itself
                 .put("transport.profiles." + TransportService.DIRECT_RESPONSE_PROFILE + ".port", ports[1])
@@ -199,7 +214,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
 
     private void assertConnectionRefused(int port) throws Exception {
         try {
-            trySocketConnection(new InetSocketTransportAddress(InetAddress.getByName("localhost"), port).address());
+            trySocketConnection(new InetSocketTransportAddress(InetAddress.getByName(host), port).address());
             fail("Expected to get exception when connecting to port " + port);
         } catch (IOException e) {
             // expected
@@ -208,7 +223,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     private void assertPortIsBound(int port) throws Exception {
-        assertPortIsBound("localhost", port);
+        assertPortIsBound(host, port);
     }
 
     private void assertPortIsBound(String host, int port) throws Exception {

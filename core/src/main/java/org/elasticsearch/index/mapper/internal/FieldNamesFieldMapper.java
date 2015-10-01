@@ -167,6 +167,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
         @Override
         public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
+            super.checkCompatibility(fieldType, conflicts, strict);
             if (strict) {
                 FieldNamesFieldType other = (FieldNamesFieldType)fieldType;
                 if (isEnabled() != other.isEnabled()) {

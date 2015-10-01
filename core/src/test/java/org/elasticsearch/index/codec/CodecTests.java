@@ -30,6 +30,7 @@ import org.apache.lucene.codecs.lucene49.Lucene49Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
+import org.apache.lucene.codecs.lucene53.Lucene53Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -51,7 +52,8 @@ public class CodecTests extends ESSingleNodeTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene50Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene53Codec.class));
+        assertThat(codecService.codec("Lucene50"), instanceOf(Lucene50Codec.class));
         assertThat(codecService.codec("Lucene410"), instanceOf(Lucene410Codec.class));
         assertThat(codecService.codec("Lucene49"), instanceOf(Lucene49Codec.class));
         assertThat(codecService.codec("Lucene46"), instanceOf(Lucene46Codec.class));

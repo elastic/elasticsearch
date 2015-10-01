@@ -335,7 +335,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                     assertThat(infoString, next, notNullValue());
                     // do not test ttf or doc frequency, because here we have
                     // many shards and do not know how documents are distributed
-                    PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
+                    PostingsEnum docsAndPositions = iterator.postings(null, PostingsEnum.ALL);
                     // docs and pos only returns something if positions or
                     // payloads or offsets are stored / requestd Otherwise use
                     // DocsEnum?
@@ -464,7 +464,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         TermsEnum iterator = terms.iterator();
         while (iterator.next() != null) {
             String term = iterator.term().utf8ToString();
-            PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
+            PostingsEnum docsAndPositions = iterator.postings(null, PostingsEnum.ALL);
             assertThat(docsAndPositions.nextDoc(), equalTo(0));
             List<BytesRef> curPayloads = payloads.get(term);
             assertThat(term, curPayloads, notNullValue());
@@ -658,7 +658,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             assertThat(next, notNullValue());
             // do not test ttf or doc frequency, because here we have many
             // shards and do not know how documents are distributed
-            PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
+            PostingsEnum docsAndPositions = iterator.postings(null, PostingsEnum.ALL);
             assertThat(docsAndPositions.nextDoc(), equalTo(0));
             assertThat(freq[j], equalTo(docsAndPositions.freq()));
             int[] termPos = pos[j];
@@ -753,8 +753,8 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             assertThat("term: " + string0, iter0.totalTermFreq(), equalTo(iter1.totalTermFreq()));
 
             // compare freq and docs
-            PostingsEnum docsAndPositions0 = iter0.postings(null, null, PostingsEnum.ALL);
-            PostingsEnum docsAndPositions1 = iter1.postings(null, null, PostingsEnum.ALL);
+            PostingsEnum docsAndPositions0 = iter0.postings(null, PostingsEnum.ALL);
+            PostingsEnum docsAndPositions1 = iter1.postings(null, PostingsEnum.ALL);
             assertThat("term: " + string0, docsAndPositions0.nextDoc(), equalTo(docsAndPositions1.nextDoc()));
             assertThat("term: " + string0, docsAndPositions0.freq(), equalTo(docsAndPositions1.freq()));
 

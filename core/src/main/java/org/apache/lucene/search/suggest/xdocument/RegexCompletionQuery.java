@@ -18,9 +18,9 @@ package org.apache.lucene.search.suggest.xdocument;
  */
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.suggest.BitsProducer;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 
@@ -50,7 +50,7 @@ public class RegexCompletionQuery extends CompletionQuery {
   private final int maxDeterminizedStates;
 
   /**
-   * Calls {@link RegexCompletionQuery#RegexCompletionQuery(Term, Filter)}
+   * Calls {@link RegexCompletionQuery#RegexCompletionQuery(Term, BitsProducer)}
    * with no filter
    */
   public RegexCompletionQuery(Term term) {
@@ -58,15 +58,15 @@ public class RegexCompletionQuery extends CompletionQuery {
   }
 
   /**
-   * Calls {@link RegexCompletionQuery#RegexCompletionQuery(Term, int, int, Filter)}
+   * Calls {@link RegexCompletionQuery#RegexCompletionQuery(Term, int, int, BitsProducer)}
    * enabling all optional regex syntax and <code>maxDeterminizedStates</code> of
    * {@value Operations#DEFAULT_MAX_DETERMINIZED_STATES}
    */
-  public RegexCompletionQuery(Term term, Filter filter) {
+  public RegexCompletionQuery(Term term, BitsProducer filter) {
     this(term, RegExp.ALL, Operations.DEFAULT_MAX_DETERMINIZED_STATES, filter);
   }
   /**
-   * Calls {@link RegexCompletionQuery#RegexCompletionQuery(Term, int, int, Filter)}
+   * Calls {@link RegexCompletionQuery#RegexCompletionQuery(Term, int, int, BitsProducer)}
    * with no filter
    */
   public RegexCompletionQuery(Term term, int flags, int maxDeterminizedStates) {
@@ -82,7 +82,7 @@ public class RegexCompletionQuery extends CompletionQuery {
    * @param maxDeterminizedStates used in {@link RegExp#toAutomaton(int)}
    * @param filter used to query on a sub set of documents
    */
-  public RegexCompletionQuery(Term term, int flags, int maxDeterminizedStates, Filter filter) {
+  public RegexCompletionQuery(Term term, int flags, int maxDeterminizedStates, BitsProducer filter) {
     super(term, filter);
     this.flags = flags;
     this.maxDeterminizedStates = maxDeterminizedStates;

@@ -34,6 +34,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Test;
 
+import java.util.Collection;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasKey;
@@ -46,11 +47,8 @@ import static org.hamcrest.Matchers.is;
 public class UpdateByNativeScriptIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .extendArray("plugin.types", CustomNativeScriptFactory.TestPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CustomNativeScriptFactory.TestPlugin.class);
     }
 
     @Test

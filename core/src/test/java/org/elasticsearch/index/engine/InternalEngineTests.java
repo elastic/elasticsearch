@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -41,16 +42,19 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
@@ -92,8 +96,12 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -116,7 +124,6 @@ public class InternalEngineTests extends ESTestCase {
     protected InternalEngine replicaEngine;
 
     private Settings defaultSettings;
-    private int indexConcurrency;
     private String codecName;
     private Path primaryTranslogDir;
     private Path replicaTranslogDir;
@@ -127,7 +134,6 @@ public class InternalEngineTests extends ESTestCase {
         super.setUp();
 
         CodecService codecService = new CodecService(shardId.index());
-        indexConcurrency = randomIntBetween(1, 20);
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -140,7 +146,6 @@ public class InternalEngineTests extends ESTestCase {
                 .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
                 .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
-                .put(EngineConfig.INDEX_CONCURRENCY_SETTING, indexConcurrency)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
@@ -254,7 +259,7 @@ public class InternalEngineTests extends ESTestCase {
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
             }
-        }, new TranslogHandler(shardId.index().getName()), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), new IndexSearcherWrappingService(new HashSet<>(Arrays.asList(wrappers))), translogConfig);
+        }, new TranslogHandler(shardId.index().getName(), logger), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), new IndexSearcherWrappingService(new HashSet<>(Arrays.asList(wrappers))), translogConfig);
         try {
             config.setCreate(Lucene.indexExists(store.directory()) == false);
         } catch (IOException e) {
@@ -313,6 +318,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
             engine.config().setCompoundOnFlush(false);
+            engine.onSettingsChanged();
 
             ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
             engine.create(new Engine.Create(newUid("3"), doc3));
@@ -361,6 +367,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(1).isCompound(), equalTo(false));
 
             engine.config().setCompoundOnFlush(true);
+            engine.onSettingsChanged();
             ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
             engine.create(new Engine.Create(newUid("4"), doc4));
             engine.refresh("test");
@@ -520,6 +527,45 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(counter.get(), equalTo(2));
         searcher.close();
         IOUtils.close(store, engine);
+    }
+
+    @Test
+    /* */
+    public void testConcurrentGetAndFlush() throws Exception {
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        engine.create(new Engine.Create(newUid("1"), doc));
+
+        final AtomicReference<Engine.GetResult> latestGetResult = new AtomicReference<>();
+        latestGetResult.set(engine.get(new Engine.Get(true, newUid("1"))));
+        final AtomicBoolean flushFinished = new AtomicBoolean(false);
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        Thread getThread = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    barrier.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    throw new RuntimeException(e);
+                }
+                while (flushFinished.get() == false) {
+                    Engine.GetResult previousGetResult = latestGetResult.get();
+                    if (previousGetResult != null) {
+                        previousGetResult.release();
+                    }
+                    latestGetResult.set(engine.get(new Engine.Get(true, newUid("1"))));
+                    if (latestGetResult.get().exists() == false) {
+                        break;
+                    }
+                }
+            }
+        };
+        getThread.start();
+        barrier.await();
+        engine.flush();
+        flushFinished.set(true);
+        getThread.join();
+        assertTrue(latestGetResult.get().exists());
+        latestGetResult.get().release();
     }
 
     @Test
@@ -1003,8 +1049,7 @@ public class InternalEngineTests extends ESTestCase {
                                 indexed.countDown();
                                 try {
                                     engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
-                                } catch (ForceMergeFailedEngineException ex) {
-                                    // ok
+                                } catch (IOException e) {
                                     return;
                                 }
                             }
@@ -1507,8 +1552,6 @@ public class InternalEngineTests extends ESTestCase {
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
-        assertEquals(engine.config().getIndexConcurrency(), indexConcurrency);
-        assertEquals(currentIndexWriterConfig.getMaxThreadStates(), indexConcurrency);
     }
 
     @Test
@@ -1597,12 +1640,10 @@ public class InternalEngineTests extends ESTestCase {
     // #10312
     @Test
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
-        // Tiny indexing buffer:
-        Settings indexSettings = Settings.builder().put(defaultSettings)
-                .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(indexSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()),
+            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()),
                      false)) {
+            engine.config().setIndexingBufferSize(new ByteSizeValue(1, ByteSizeUnit.KB));
             for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
                 ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, null);
@@ -1748,8 +1789,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testUpgradeOldIndex() throws IOException {
         List<Path> indexes = new ArrayList<>();
-        Path dir = getDataPath("/" + OldIndexBackwardsCompatibilityIT.class.getPackage().getName().replace('.', '/')); // the files are in the same pkg as the OldIndexBackwardsCompatibilityTests test
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path);
             }
@@ -1942,8 +1982,8 @@ public class InternalEngineTests extends ESTestCase {
 
         public final AtomicInteger recoveredOps = new AtomicInteger(0);
 
-        public TranslogHandler(String indexName) {
-            super(new ShardId("test", 0), null, null, null, null);
+        public TranslogHandler(String indexName, ESLogger logger) {
+            super(new ShardId("test", 0), null, null, null, null, logger);
             Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             Index index = new Index(indexName);
@@ -2023,5 +2063,43 @@ public class InternalEngineTests extends ESTestCase {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
+    }
+
+    public void testShardNotAvailableExceptionWhenEngineClosedConcurrently() throws IOException, InterruptedException {
+        final AtomicReference<Throwable> throwable = new AtomicReference<>();
+        final String operation = randomFrom("optimize", "refresh", "flush");
+        Thread mergeThread = new Thread() {
+            @Override
+            public void run() {
+                boolean stop = false;
+                logger.info("try with {}", operation);
+                while (stop == false) {
+                    try {
+                        switch (operation) {
+                            case "optimize": {
+                                engine.forceMerge(true, 1, false, false, false);
+                                break;
+                            }
+                            case "refresh": {
+                                engine.refresh("test refresh");
+                                break;
+                            }
+                            case "flush": {
+                                engine.flush(true, false);
+                                break;
+                            }
+                        }
+                    } catch (Throwable t) {
+                        throwable.set(t);
+                        stop = true;
+                    }
+                }
+            }
+        };
+        mergeThread.start();
+        engine.close();
+        mergeThread.join();
+        logger.info("exception caught: ", throwable.get());
+        assertTrue("expected an Exception that signals shard is not available", TransportActions.isShardNotAvailableException(throwable.get()));
     }
 }

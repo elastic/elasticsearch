@@ -19,6 +19,7 @@
 
 package org.elasticsearch.node.internal;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
@@ -28,58 +29,113 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
 public class InternalSettingsPreparerTests extends ESTestCase {
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
+
+    Map<String, String> savedProperties = new HashMap<>();
+    Settings baseEnvSettings;
 
     @Before
-    public void setupSystemProperties() {
-        System.setProperty("es.node.zone", "foo");
-        System.setProperty("name", "sys-prop-name");
+    public void saveSettingsSystemProperties() {
+        // clear out any properties the settings preparer may look for
+        savedProperties.clear();
+        for (Object propObj : System.getProperties().keySet()) {
+            String property = (String)propObj;
+            // NOTE: these prefixes are prefixes of the defaults, so both are handled here
+            for (String prefix : InternalSettingsPreparer.PROPERTY_PREFIXES) {
+                if (property.startsWith(prefix)) {
+                    savedProperties.put(property, System.getProperty(property));
+                }
+            }
+        }
+        String name = System.getProperty("name");
+        if (name != null) {
+            savedProperties.put("name", name);
+        }
+        for (String property : savedProperties.keySet()) {
+            System.clearProperty(property);
+        }
     }
 
     @After
-    public void cleanupSystemProperties() {
-        System.clearProperty("es.node.zone");
-        System.clearProperty("name");
+    public void restoreSettingsSystemProperties() {
+        for (Map.Entry<String, String> property : savedProperties.entrySet()) {
+            System.setProperty(property.getKey(), property.getValue());
+        }
     }
 
-    @Test
-    public void testIgnoreSystemProperties() {
-        Settings settings = settingsBuilder()
-                .put("node.zone", "bar")
-                .put("path.home", createTempDir().toString())
-                .build();
-        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settings, true);
-        // Should use setting from the system property
-        assertThat(tuple.v1().get("node.zone"), equalTo("foo"));
+    @Before
+    public void createBaseEnvSettings() {
+        baseEnvSettings = settingsBuilder()
+            .put("path.home", createTempDir())
+            .build();
+    }
 
-        settings = settingsBuilder()
+    @After
+    public void clearBaseEnvSettings() {
+        baseEnvSettings = null;
+    }
+
+    public void testEmptySettings() {
+        Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
+        assertNotNull(settings.get("name")); // a name was set
+        assertNotNull(settings.get(ClusterName.SETTING)); // a cluster name was set
+        assertEquals(settings.toString(), 2, settings.names().size());
+
+        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null);
+        settings = env.settings();
+        assertNotNull(settings.get("name")); // a name was set
+        assertNotNull(settings.get(ClusterName.SETTING)); // a cluster name was set
+        assertEquals(settings.toString(), 3 /* path.home is in the base settings */, settings.names().size());
+        String home = baseEnvSettings.get("path.home");
+        String configDir = env.configFile().toString();
+        assertTrue(configDir, configDir.startsWith(home));
+    }
+
+    public void testClusterNameDefault() {
+        Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
+        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.SETTING));
+        settings = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null).settings();
+        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.SETTING));
+    }
+
+    public void testIgnoreSystemProperties() {
+        try {
+            System.setProperty("es.node.zone", "foo");
+            Settings settings = settingsBuilder()
+                .put("node.zone", "bar")
+                .put(baseEnvSettings)
+                .build();
+            Environment env = InternalSettingsPreparer.prepareEnvironment(settings, null);
+            // Should use setting from the system property
+            assertThat(env.settings().get("node.zone"), equalTo("foo"));
+
+            settings = settingsBuilder()
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                 .put("node.zone", "bar")
-                .put("path.home", createTempDir().toString())
+                .put(baseEnvSettings)
                 .build();
-        tuple = InternalSettingsPreparer.prepareSettings(settings, true);
-        // Should use setting from the system property
-        assertThat(tuple.v1().get("node.zone"), equalTo("bar"));
+            env = InternalSettingsPreparer.prepareEnvironment(settings, null);
+            // Should use setting from the system property
+            assertThat(env.settings().get("node.zone"), equalTo("bar"));
+        } finally {
+            System.clearProperty("es.node.zone");
+        }
     }
 
-    @Test
     public void testReplacePromptPlaceholders() {
         final List<String> replacedSecretProperties = new ArrayList<>();
         final List<String> replacedTextProperties = new ArrayList<>();
@@ -102,6 +158,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         };
 
         Settings.Builder builder = settingsBuilder()
+                .put(baseEnvSettings)
                 .put("password.replace", InternalSettingsPreparer.SECRET_PROMPT_VALUE)
                 .put("dont.replace", "prompt:secret")
                 .put("dont.replace2", "_prompt:secret_")
@@ -109,8 +166,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
                 .put("dont.replace4", "__prompt:text_")
                 .put("dont.replace5", "prompt:secret__")
                 .put("replace_me", InternalSettingsPreparer.TEXT_PROMPT_VALUE);
-        Settings settings = builder.build();
-        settings = InternalSettingsPreparer.replacePromptPlaceholders(settings, terminal);
+        Settings settings = InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal).settings();
 
         assertThat(replacedSecretProperties.size(), is(1));
         assertThat(replacedTextProperties.size(), is(1));
@@ -125,70 +181,70 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertThat(settings.get("dont.replace5"), equalTo("prompt:secret__"));
     }
 
-    @Test
     public void testReplaceSecretPromptPlaceholderWithNullTerminal() {
         Settings.Builder builder = settingsBuilder()
+                .put(baseEnvSettings)
                 .put("replace_me1", InternalSettingsPreparer.SECRET_PROMPT_VALUE);
         try {
-            InternalSettingsPreparer.replacePromptPlaceholders(builder.build(), null);
+            InternalSettingsPreparer.prepareEnvironment(builder.build(), null);
             fail("an exception should have been thrown since no terminal was provided!");
         } catch (UnsupportedOperationException e) {
             assertThat(e.getMessage(), containsString("with value [" + InternalSettingsPreparer.SECRET_PROMPT_VALUE + "]"));
         }
     }
 
-    @Test
     public void testReplaceTextPromptPlaceholderWithNullTerminal() {
         Settings.Builder builder = settingsBuilder()
+                .put(baseEnvSettings)
                 .put("replace_me1", InternalSettingsPreparer.TEXT_PROMPT_VALUE);
         try {
-            InternalSettingsPreparer.replacePromptPlaceholders(builder.build(), null);
+            InternalSettingsPreparer.prepareEnvironment(builder.build(), null);
             fail("an exception should have been thrown since no terminal was provided!");
         } catch (UnsupportedOperationException e) {
             assertThat(e.getMessage(), containsString("with value [" + InternalSettingsPreparer.TEXT_PROMPT_VALUE + "]"));
         }
     }
 
-    @Test
     public void testNameSettingsPreference() {
-        // Test system property overrides node.name
-        Settings settings = settingsBuilder()
+        try {
+            System.setProperty("name", "sys-prop-name");
+            // Test system property overrides node.name
+            Settings settings = settingsBuilder()
                 .put("node.name", "node-name")
-                .put("path.home", createTempDir().toString())
+                .put(baseEnvSettings)
                 .build();
-        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settings, true);
-        assertThat(tuple.v1().get("name"), equalTo("sys-prop-name"));
+            Environment env = InternalSettingsPreparer.prepareEnvironment(settings, null);
+            assertThat(env.settings().get("name"), equalTo("sys-prop-name"));
 
-        // test name in settings overrides sys prop and node.name
-        settings = settingsBuilder()
+            // test name in settings overrides sys prop and node.name
+            settings = settingsBuilder()
                 .put("name", "name-in-settings")
                 .put("node.name", "node-name")
-                .put("path.home", createTempDir().toString())
+                .put(baseEnvSettings)
                 .build();
-        tuple = InternalSettingsPreparer.prepareSettings(settings, true);
-        assertThat(tuple.v1().get("name"), equalTo("name-in-settings"));
+            env = InternalSettingsPreparer.prepareEnvironment(settings, null);
+            assertThat(env.settings().get("name"), equalTo("name-in-settings"));
 
-        // test only node.name in settings
-        System.clearProperty("name");
-        settings = settingsBuilder()
+            // test only node.name in settings
+            System.clearProperty("name");
+            settings = settingsBuilder()
                 .put("node.name", "node-name")
-                .put("path.home", createTempDir().toString())
+                .put(baseEnvSettings)
                 .build();
-        tuple = InternalSettingsPreparer.prepareSettings(settings, true);
-        assertThat(tuple.v1().get("name"), equalTo("node-name"));
+            env = InternalSettingsPreparer.prepareEnvironment(settings, null);
+            assertThat(env.settings().get("name"), equalTo("node-name"));
 
-        // test no name at all results in name being set
-        settings = settingsBuilder()
-                .put("path.home", createTempDir().toString())
-                .build();
-        tuple = InternalSettingsPreparer.prepareSettings(settings, true);
-        assertThat(tuple.v1().get("name"), not("name-in-settings"));
-        assertThat(tuple.v1().get("name"), not("sys-prop-name"));
-        assertThat(tuple.v1().get("name"), not("node-name"));
-        assertThat(tuple.v1().get("name"), notNullValue());
+            // test no name at all results in name being set
+            env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null);
+            assertThat(env.settings().get("name"), not("name-in-settings"));
+            assertThat(env.settings().get("name"), not("sys-prop-name"));
+            assertThat(env.settings().get("name"), not("node-name"));
+            assertThat(env.settings().get("name"), notNullValue());
+        } finally {
+            System.clearProperty("name");
+        }
     }
 
-    @Test
     public void testPromptForNodeNameOnlyPromptsOnce() {
         final AtomicInteger counter = new AtomicInteger();
         final Terminal terminal = new CliToolTestCase.MockTerminal() {
@@ -207,27 +263,30 @@ public class InternalSettingsPreparerTests extends ESTestCase {
 
         System.clearProperty("name");
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
+                .put(baseEnvSettings)
                 .put("node.name", InternalSettingsPreparer.TEXT_PROMPT_VALUE)
                 .build();
-        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settings, false, terminal);
-        settings = tuple.v1();
+        Environment env = InternalSettingsPreparer.prepareEnvironment(settings, terminal);
+        settings = env.settings();
         assertThat(counter.intValue(), is(1));
         assertThat(settings.get("name"), is("prompted name 0"));
         assertThat(settings.get("node.name"), is("prompted name 0"));
     }
 
-    @Test(expected = SettingsException.class)
     public void testGarbageIsNotSwallowed() throws IOException {
-        InputStream garbage = getClass().getResourceAsStream("/config/garbage/garbage.yml");
-        Path home = createTempDir();
-        Path config = home.resolve("config");
-        Files.createDirectory(config);
-        Files.copy(garbage, config.resolve("elasticsearch.yml"));
-        InternalSettingsPreparer.prepareSettings(settingsBuilder()
+        try {
+            InputStream garbage = getClass().getResourceAsStream("/config/garbage/garbage.yml");
+            Path home = createTempDir();
+            Path config = home.resolve("config");
+            Files.createDirectory(config);
+            Files.copy(garbage, config.resolve("elasticsearch.yml"));
+            InternalSettingsPreparer.prepareEnvironment(settingsBuilder()
                 .put("config.ignore_system_properties", true)
-                .put("path.home", home)
-                .build(), true);
+                .put(baseEnvSettings)
+                .build(), null);
+        } catch (SettingsException e) {
+            assertEquals("Failed to load settings from [elasticsearch.yml]", e.getMessage());
+        }
     }
 
     public void testMultipleSettingsFileNotAllowed() throws IOException {
@@ -239,14 +298,15 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         Files.copy(yaml, config.resolve("elasticsearch.yaml"));
         Files.copy(properties, config.resolve("elasticsearch.properties"));
 
-        expectedException.expect(SettingsException.class);
-        expectedException.expectMessage("multiple settings files found with suffixes: ");
-        expectedException.expectMessage("yaml");
-        expectedException.expectMessage("properties");
-
-        InternalSettingsPreparer.prepareSettings(settingsBuilder()
+        try {
+            InternalSettingsPreparer.prepareEnvironment(settingsBuilder()
                 .put("config.ignore_system_properties", true)
-                .put("path.home", home)
-                .build(), true);
+                .put(baseEnvSettings)
+                .build(), null);
+        } catch (SettingsException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("multiple settings files found with suffixes"));
+            assertTrue(e.getMessage(), e.getMessage().contains(".yaml"));
+            assertTrue(e.getMessage(), e.getMessage().contains(".properties"));
+        }
     }
 }

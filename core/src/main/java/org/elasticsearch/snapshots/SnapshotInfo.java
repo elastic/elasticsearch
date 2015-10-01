@@ -19,6 +19,8 @@
 package org.elasticsearch.snapshots;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.elasticsearch.Version;
@@ -32,7 +34,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestStatus;
-import com.google.common.collect.ImmutableList;
 
 /**
  * Information about snapshot
@@ -260,11 +261,11 @@ public class SnapshotInfo implements ToXContent, Streamable {
     public void readFrom(StreamInput in) throws IOException {
         name = in.readString();
         int size = in.readVInt();
-        ImmutableList.Builder<String> indicesListBuilder = ImmutableList.builder();
+        List<String> indicesListBuilder = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             indicesListBuilder.add(in.readString());
         }
-        indices = indicesListBuilder.build();
+        indices = Collections.unmodifiableList(indicesListBuilder);
         state = SnapshotState.fromValue(in.readByte());
         reason = in.readOptionalString();
         startTime = in.readVLong();
@@ -273,13 +274,13 @@ public class SnapshotInfo implements ToXContent, Streamable {
         successfulShards = in.readVInt();
         size = in.readVInt();
         if (size > 0) {
-            ImmutableList.Builder<SnapshotShardFailure> failureBuilder = ImmutableList.builder();
+            List<SnapshotShardFailure> failureBuilder = new ArrayList<>();
             for (int i = 0; i < size; i++) {
                 failureBuilder.add(SnapshotShardFailure.readSnapshotShardFailure(in));
             }
-            shardFailures = failureBuilder.build();
+            shardFailures = Collections.unmodifiableList(failureBuilder);
         } else {
-            shardFailures = ImmutableList.of();
+            shardFailures = Collections.emptyList();
         }
         version = Version.readVersion(in);
     }

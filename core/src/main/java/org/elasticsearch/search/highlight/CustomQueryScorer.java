@@ -20,7 +20,6 @@
 package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
@@ -87,7 +86,7 @@ public final class CustomQueryScorer extends QueryScorer {
             } else if (query instanceof FilteredQuery) {
                 query = ((FilteredQuery) query).getQuery();
                 extract(query, terms);
-            } else if (query instanceof BlendedTermQuery) {
+            } else {
                 extractWeightedTerms(terms, query);
             }
         }

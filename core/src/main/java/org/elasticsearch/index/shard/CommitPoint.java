@@ -19,10 +19,11 @@
 
 package org.elasticsearch.index.shard;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -30,7 +31,7 @@ import java.util.List;
  */
 public class CommitPoint {
 
-    public static final CommitPoint NULL = new CommitPoint(-1, "_null_", Type.GENERATED, ImmutableList.<CommitPoint.FileInfo>of(), ImmutableList.<CommitPoint.FileInfo>of());
+    public static final CommitPoint NULL = new CommitPoint(-1, "_null_", Type.GENERATED, Collections.<CommitPoint.FileInfo>emptyList(), Collections.<CommitPoint.FileInfo>emptyList());
 
     public static class FileInfo {
         private final String name;
@@ -81,16 +82,16 @@ public class CommitPoint {
 
     private final Type type;
 
-    private final ImmutableList<FileInfo> indexFiles;
+    private final List<FileInfo> indexFiles;
 
-    private final ImmutableList<FileInfo> translogFiles;
+    private final List<FileInfo> translogFiles;
 
     public CommitPoint(long version, String name, Type type, List<FileInfo> indexFiles, List<FileInfo> translogFiles) {
         this.version = version;
         this.name = name;
         this.type = type;
-        this.indexFiles = ImmutableList.copyOf(indexFiles);
-        this.translogFiles = ImmutableList.copyOf(translogFiles);
+        this.indexFiles = Collections.unmodifiableList(new ArrayList<>(indexFiles));
+        this.translogFiles = Collections.unmodifiableList(new ArrayList<>(translogFiles));
     }
 
     public long version() {

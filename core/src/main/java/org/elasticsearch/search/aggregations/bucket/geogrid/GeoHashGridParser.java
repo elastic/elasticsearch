@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.common.geo.GeoHashUtils;
+import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -29,7 +29,6 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
@@ -111,7 +110,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
     }
 
 
-    private static class GeoGridFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+    static class GeoGridFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
         private int precision;
         private int requiredSize;
@@ -143,20 +142,17 @@ public class GeoHashGridParser implements Aggregator.Parser {
             if (collectsFromSingleBucket == false) {
                 return asMultiBucketAggregator(this, aggregationContext, parent);
             }
-            ValuesSource.Numeric cellIdSource = new CellIdSource(valuesSource, precision);
+            CellIdSource cellIdSource = new CellIdSource(valuesSource, precision);
             return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext, parent, pipelineAggregators,
                     metaData);
 
         }
 
         private static class CellValues extends SortingNumericDocValues {
-
             private MultiGeoPointValues geoValues;
-            private int precision;
 
-            protected CellValues(MultiGeoPointValues geoValues, int precision) {
+            protected CellValues(MultiGeoPointValues geoValues) {
                 this.geoValues = geoValues;
-                this.precision = precision;
             }
 
             @Override
@@ -165,14 +161,13 @@ public class GeoHashGridParser implements Aggregator.Parser {
                 resize(geoValues.count());
                 for (int i = 0; i < count(); ++i) {
                     GeoPoint target = geoValues.valueAt(i);
-                    values[i] = GeoHashUtils.encodeAsLong(target.getLat(), target.getLon(), precision);
+                    values[i] = XGeoHashUtils.longEncode(target.getLon(), target.getLat(), XGeoHashUtils.PRECISION);
                 }
                 sort();
             }
-
         }
 
-        private static class CellIdSource extends ValuesSource.Numeric {
+        static class CellIdSource extends ValuesSource.Numeric {
             private final ValuesSource.GeoPoint valuesSource;
             private final int precision;
 
@@ -182,6 +177,10 @@ public class GeoHashGridParser implements Aggregator.Parser {
                 this.precision = precision;
             }
 
+            public int precision() {
+                return precision;
+            }
+
             @Override
             public boolean isFloatingPoint() {
                 return false;
@@ -189,7 +188,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
             @Override
             public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-                return new CellValues(valuesSource.geoPointValues(ctx), precision);
+                return new CellValues(valuesSource.geoPointValues(ctx));
             }
 
             @Override

@@ -19,7 +19,7 @@ die usage() unless $mode =~ /^--(check|update)$/;
 
 my $License_Dir = shift(@ARGV) || die usage();
 my $Source      = shift(@ARGV) || die usage();
-my $Ignore      = shift(@ARGV);
+my $Ignore      = shift(@ARGV) || '';
 my $ignore
     = $Ignore
     ? qr/${Ignore}[^\/]*$/
@@ -129,7 +129,7 @@ sub check_shas_and_licenses {
 
 You can update the SHA files by running:
 
-$0 --update $License_Dir $Source
+$0 --update $License_Dir $Source $Ignore
 
 SHAS
     }

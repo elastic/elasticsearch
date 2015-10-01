@@ -55,14 +55,14 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/all_mapping_create_index.json");
         String mappingUpdate = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/all_mapping_update_with_conflicts.json");
         String[] errorMessage = {"[_all] enabled is true now encountering false",
-                "[_all] cannot enable norms (`norms.enabled`)",
-                "[_all] has different store values",
-                "[_all] has different store_term_vector values",
-                "[_all] has different store_term_vector_offsets values",
-                "[_all] has different store_term_vector_positions values",
-                "[_all] has different store_term_vector_payloads values",
-                "[_all] has different analyzer",
-                "[_all] has different similarity"};
+                "[_all] has different [omit_norms] values",
+                "[_all] has different [store] values",
+                "[_all] has different [store_term_vector] values",
+                "[_all] has different [store_term_vector_offsets] values",
+                "[_all] has different [store_term_vector_positions] values",
+                "[_all] has different [store_term_vector_payloads] values",
+                "[_all] has different [analyzer]",
+                "[_all] has different [similarity]"};
         // fielddata and search_analyzer should not report conflict
         testConflict(mapping, mappingUpdate, errorMessage);
     }

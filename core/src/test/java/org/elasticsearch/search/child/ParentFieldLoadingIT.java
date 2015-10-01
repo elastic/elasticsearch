@@ -57,8 +57,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.LAZY))
-                .setUpdateAllTypes(true));
+                .addMapping("child", childMapping(MappedFieldType.Loading.LAZY)));
         ensureGreen();
 
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -73,8 +72,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent")
-                .setUpdateAllTypes(true));
+                .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
 
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -89,8 +87,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER))
-                .setUpdateAllTypes(true));
+                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER)));
         ensureGreen();
 
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -105,8 +102,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS))
-                .setUpdateAllTypes(true));
+                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS)));
         ensureGreen();
 
         // Need to do 2 separate refreshes, otherwise we have 1 segment and then we can't measure if global ordinals
@@ -153,7 +149,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
                     MapperService mapperService = indexService.mapperService();
                     DocumentMapper documentMapper = mapperService.documentMapper("child");
                     if (documentMapper != null) {
-                        verified = documentMapper.parentFieldMapper().fieldType().fieldDataType().getLoading() == MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS;
+                        verified = documentMapper.parentFieldMapper().getChildJoinFieldType().fieldDataType().getLoading() == MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS;
                     }
                 }
                 assertTrue(verified);

@@ -163,11 +163,11 @@ public class MoreLikeThisQuery extends Query {
     }
 
     private Query createQuery(XMoreLikeThis mlt) throws IOException {
-        BooleanQuery bq = new BooleanQuery();
+        BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
         if (this.likeFields != null) {
             Query mltQuery = mlt.like(this.likeFields);
-            Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
-            bq.add(mltQuery, BooleanClause.Occur.SHOULD);
+            mltQuery = Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
+            bqBuilder.add(mltQuery, BooleanClause.Occur.SHOULD);
         }
         if (this.likeText != null) {
             Reader[] readers = new Reader[likeText.length];
@@ -176,10 +176,11 @@ public class MoreLikeThisQuery extends Query {
             }
             //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
             Query mltQuery = mlt.like(moreLikeFields[0], readers);
-            Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
-            bq.add(mltQuery, BooleanClause.Occur.SHOULD);
+            mltQuery = Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
+            bqBuilder.add(mltQuery, BooleanClause.Occur.SHOULD);
         }
 
+        BooleanQuery bq = bqBuilder.build();
         bq.setBoost(getBoost());
         return bq;    
     }
@@ -252,12 +253,12 @@ public class MoreLikeThisQuery extends Query {
         setLikeText(likeText.toArray(Strings.EMPTY_ARRAY));
     }
 
-    public void setUnlikeText(Fields... ignoreFields) {
-        this.unlikeFields = ignoreFields;
+    public void setUnlikeText(Fields... unlikeFields) {
+        this.unlikeFields = unlikeFields;
     }
 
-    public void setIgnoreText(List<String> ignoreText) {
-        this.unlikeText = ignoreText.toArray(Strings.EMPTY_ARRAY);
+    public void setUnlikeText(List<String> unlikeText) {
+        this.unlikeText = unlikeText.toArray(Strings.EMPTY_ARRAY);
     }
 
     public String[] getMoreLikeFields() {

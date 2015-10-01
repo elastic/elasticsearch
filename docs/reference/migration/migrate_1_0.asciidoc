@@ -188,7 +188,7 @@ GET /_count
 Also, the top-level `filter` parameter in search has been renamed to
 <<search-request-post-filter,`post_filter`>>, to indicate that it should not
 be used as the primary way to filter search results (use a
-<<query-dsl-filtered-query,`filtered` query>> instead), but only to filter
+<<query-dsl-bool-query,`bool` query>> instead), but only to filter
 results AFTER aggregations have been calculated.
 
 This example counts the top colors in all matching docs, but only returns docs

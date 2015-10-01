@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSet;
@@ -124,14 +125,14 @@ public class ParentQuery extends IndexCacheableQuery {
         IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
         if (globalIfd == null) {
             // No docs of the specified type don't exist on this shard
-            return new BooleanQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
         }
 
         try {
             collector = new ParentOrdAndScoreCollector(sc, globalIfd, parentType);
             searcher.search(parentQuery, collector);
             if (collector.parentCount() == 0) {
-                return new BooleanQuery().createWeight(searcher, needsScores);
+                return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
             }
             childWeight = new ChildWeight(this, parentQuery.createWeight(searcher, needsScores), childrenFilter, collector, globalIfd);
             releaseCollectorResource = false;
@@ -243,8 +244,10 @@ public class ParentQuery extends IndexCacheableQuery {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            DocIdSet childrenDocSet = childrenFilter.getDocIdSet(context, acceptDocs);
+        public Scorer scorer(LeafReaderContext context) throws IOException {
+            DocIdSet childrenDocSet = childrenFilter.getDocIdSet(context, null);
+            // we forcefully apply live docs here so that deleted children don't give matching parents
+            childrenDocSet = BitsFilteredDocIdSet.wrap(childrenDocSet, context.reader().getLiveDocs());
             if (Lucene.isEmpty(childrenDocSet)) {
                 return null;
             }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -37,6 +36,8 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -71,7 +72,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     @Override
     protected void masterOperation(final GetSnapshotsRequest request, ClusterState state, final ActionListener<GetSnapshotsResponse> listener) {
         try {
-            ImmutableList.Builder<SnapshotInfo> snapshotInfoBuilder = ImmutableList.builder();
+            List<SnapshotInfo> snapshotInfoBuilder = new ArrayList<>();
             if (isAllSnapshots(request.snapshots())) {
                 List<Snapshot> snapshots = snapshotsService.snapshots(request.repository());
                 for (Snapshot snapshot : snapshots) {
@@ -88,7 +89,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     snapshotInfoBuilder.add(new SnapshotInfo(snapshotsService.snapshot(snapshotId)));
                 }
             }
-            listener.onResponse(new GetSnapshotsResponse(snapshotInfoBuilder.build()));
+            listener.onResponse(new GetSnapshotsResponse(Collections.unmodifiableList(snapshotInfoBuilder)));
         } catch (Throwable t) {
             listener.onFailure(t);
         }

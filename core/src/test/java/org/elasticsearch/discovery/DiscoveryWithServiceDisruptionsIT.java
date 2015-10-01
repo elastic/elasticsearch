@@ -22,9 +22,8 @@ package org.elasticsearch.discovery;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.*;
@@ -34,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -48,13 +48,19 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.disruption.*;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -82,7 +88,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return discoveryConfig.node(nodeOrdinal);
+        return discoveryConfig.nodeSettings(nodeOrdinal);
     }
 
     @Before
@@ -134,8 +140,12 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             .put("transport.bind_host", "127.0.0.1")
             .put("transport.publish_host", "127.0.0.1")
             .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
-            .put("plugin.types", MockTransportService.TestPlugin.class.getName())
             .build();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockTransportService.TestPlugin.class);
+    }
 
     private void configureUnicastCluster(int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
         if (minimumMasterNode < 0) {
@@ -254,8 +264,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         NetworkPartition networkPartition = addRandomPartition();
 
-        final String isolatedNode = networkPartition.getMinoritySide().get(0);
-        final String nonIsolatedNode = networkPartition.getMajoritySide().get(0);
+        assertEquals(1, networkPartition.getMinoritySide().size());
+        final String isolatedNode = networkPartition.getMinoritySide().iterator().next();
+        assertEquals(2, networkPartition.getMajoritySide().size());
+        final String nonIsolatedNode = networkPartition.getMajoritySide().iterator().next();
 
         // Simulate a network issue between the unlucky node and the rest of the cluster.
         networkPartition.startDisrupting();
@@ -332,7 +344,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         NetworkPartition networkPartition = addRandomIsolation(isolatedNode);
         networkPartition.startDisrupting();
 
-        String nonIsolatedNode = networkPartition.getMajoritySide().get(0);
+        String nonIsolatedNode = networkPartition.getMajoritySide().iterator().next();
 
         // make sure cluster reforms
         ensureStableCluster(2, nonIsolatedNode);
@@ -805,7 +817,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
 
-    /** Test cluster join with issues in cluster state publishing * */
+    /**
+     * Test cluster join with issues in cluster state publishing *
+     */
     @Test
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
         List<String> nodes = startCluster(2, 1);
@@ -912,6 +926,50 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         ensureStableCluster(3);
     }
 
+    /**
+     * This test creates a scenario where a primary shard (0 replicas) relocates and is in POST_RECOVERY on the target
+     * node but already deleted on the source node. Search request should still work.
+     */
+    @Test
+    public void searchWithRelocationAndSlowClusterStateProcessing() throws Exception {
+        configureUnicastCluster(3, null, 1);
+        Future<String> masterNodeFuture = internalCluster().startMasterOnlyNodeAsync();
+        Future<String> node_1Future = internalCluster().startDataOnlyNodeAsync();
+
+        final String node_1 = node_1Future.get();
+        final String masterNode = masterNodeFuture.get();
+        logger.info("--> creating index [test] with one shard and on replica");
+        assertAcked(prepareCreate("test").setSettings(
+                        Settings.builder().put(indexSettings())
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+        );
+        ensureGreen("test");
+
+        Future<String> node_2Future = internalCluster().startDataOnlyNodeAsync();
+        final String node_2 = node_2Future.get();
+        List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("doc").setSource("{\"int_field\":1}"));
+        }
+        indexRandom(true, indexRequestBuilderList);
+        SingleNodeDisruption disruption = new BlockClusterStateProcessing(node_2, getRandom());
+
+        internalCluster().setDisruptionScheme(disruption);
+        MockTransportService transportServiceNode2 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_2);
+        CountDownLatch beginRelocationLatch = new CountDownLatch(1);
+        CountDownLatch endRelocationLatch = new CountDownLatch(1);
+        transportServiceNode2.addTracer(new IndicesStoreIntegrationIT.ReclocationStartEndTracer(logger, beginRelocationLatch, endRelocationLatch));
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2)).get();
+        // wait for relocation to start
+        beginRelocationLatch.await();
+        disruption.startDisrupting();
+        // wait for relocation to finish
+        endRelocationLatch.await();
+        // now search for the documents and see if we get a reply
+        assertThat(client().prepareCount().get().getCount(), equalTo(100l));
+    }
+
     @Test
     public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {
         // test for https://github.com/elastic/elasticsearch/issues/8823
@@ -925,6 +983,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         ensureGreen();
 
         internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+            @Override
             public boolean clearData(String nodeName) {
                 return true;
             }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import com.google.common.collect.ImmutableList;
 import com.sun.jna.*;
 import com.sun.jna.win32.StdCallLibrary;
 
@@ -29,6 +28,7 @@ import org.elasticsearch.common.logging.Loggers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 
@@ -85,8 +85,8 @@ final class JNAKernel32Library {
         return result;
     }
 
-    ImmutableList<Object> getCallbacks() {
-        return ImmutableList.builder().addAll(callbacks).build();
+    List<Object> getCallbacks() {
+        return Collections.<Object>unmodifiableList(callbacks);
     }
 
     /**

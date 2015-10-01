@@ -51,8 +51,17 @@ public class BootstrapForTesting {
     // without making things complex???
 
     static {
+        // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
+        Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"),
+                                                               "please set ${java.io.tmpdir} in pom.xml"));
+        try {
+            Security.ensureDirectoryExists(javaTmpDir);
+        } catch (Exception e) {
+            throw new RuntimeException("unable to create test temp directory", e);
+        }
+
         // just like bootstrap, initialize natives, then SM
-        Bootstrap.initializeNatives(true, true);
+        Bootstrap.initializeNatives(javaTmpDir, true, true, true);
 
         // initialize probes
         Bootstrap.initializeProbes();
@@ -61,22 +70,7 @@ public class BootstrapForTesting {
         try {
             JarHell.checkJarHell();
         } catch (Exception e) {
-            if (Boolean.parseBoolean(System.getProperty("tests.maven"))) {
-                throw new RuntimeException("found jar hell in test classpath", e);
-            } else {
-                Loggers.getLogger(BootstrapForTesting.class)
-                    .warn("Your ide or custom test runner has jar hell issues, " +
-                          "you might want to look into that", e);
-            }
-        }
-
-        // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
-        Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"),
-                                                               "please set ${java.io.tmpdir} in pom.xml"));
-        try {
-            Security.ensureDirectoryExists(javaTmpDir);
-        } catch (Exception e) {
-            throw new RuntimeException("unable to create test temp directory", e);
+            throw new RuntimeException("found jar hell in test classpath", e);
         }
 
         // install security manager if requested
@@ -97,6 +91,7 @@ public class BootstrapForTesting {
                     String filename = path.getFileName().toString();
                     if (filename.contains("jython") && filename.endsWith(".jar")) {
                         // just enough so it won't fail when it does not exist
+                        perms.add(new FilePermission(path.getParent().toString(), "read,readlink"));
                         perms.add(new FilePermission(path.getParent().resolve("Lib").toString(), "read,readlink"));
                     }
                 }
@@ -105,6 +100,13 @@ public class BootstrapForTesting {
                 // custom test config file
                 if (Strings.hasLength(System.getProperty("tests.config"))) {
                     perms.add(new FilePermission(System.getProperty("tests.config"), "read,readlink"));
+                }
+                // jacoco coverage output file
+                if (Boolean.getBoolean("tests.coverage")) {
+                    Path coverageDir = PathUtils.get(System.getProperty("tests.coverage.dir"));
+                    perms.add(new FilePermission(coverageDir.resolve("jacoco.exec").toString(), "read,write"));
+                    // in case we get fancy and use the -integration goals later:
+                    perms.add(new FilePermission(coverageDir.resolve("jacoco-it.exec").toString(), "read,write"));
                 }
                 Policy.setPolicy(new ESPolicy(perms));
                 System.setSecurityManager(new TestSecurityManager());

@@ -43,6 +43,9 @@ time setting format). Defaults to `30s`.
 
 |`transport.tcp.compress` |Set to `true` to enable compression (LZF)
 between all nodes. Defaults to `false`.
+
+|`transport.ping_schedule` | Schedule a regular ping message to ensure that connections are kept alive. Defaults to `5s` in the transport client and `-1` (disabled) elsewhere.
+
 |=======================================================================
 
 It also uses the common

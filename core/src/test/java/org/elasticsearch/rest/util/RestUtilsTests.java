@@ -139,6 +139,16 @@ public class RestUtilsTests extends ESTestCase {
         assertCorsSettingRegexIsNull("");
         assertThat(RestUtils.getCorsSettingRegex(Settings.EMPTY), is(nullValue()));
     }
+    
+    public void testCrazyURL() {
+        Map<String, String> params = newHashMap();
+
+        // This is a valid URL
+        String uri = "example.com/:@-._~!$&'()*+,=;:@-._~!$&'()*+,=:@-._~!$&'()*+,==?/?:@-._~!$'()*+,;=/?:@-._~!$'()*+,;==#/?:@-._~!$&'()*+,;=";
+        RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
+        assertThat(params.get("/?:@-._~!$'()* ,;"), equalTo("/?:@-._~!$'()* ,;=="));
+        assertThat(params.size(), equalTo(1));
+    }
 
     private void assertCorsSettingRegexIsNull(String settingsValue) {
         assertThat(RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build()), is(nullValue()));

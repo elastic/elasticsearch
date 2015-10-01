@@ -26,8 +26,7 @@ import org.elasticsearch.common.settings.Settings;
  * <p/>
  * <p>Settings will be loaded relative to the ES home (with or without <tt>config/</tt> prefix) and if not found,
  * within the classpath (with or without <tt>config/<tt> prefix). The settings file loaded can either be named
- * <tt>elasticsearch.yml</tt> or <tt>elasticsearch.json</tt>). Loading settings can be disabled by calling
- * {@link #loadConfigSettings(boolean)} with <tt>false<tt>.
+ * <tt>elasticsearch.yml</tt> or <tt>elasticsearch.json</tt>).
  * <p/>
  * <p>Explicit settings can be passed by using the {@link #settings(org.elasticsearch.common.settings.Settings)} method.
  * <p/>
@@ -56,8 +55,6 @@ import org.elasticsearch.common.settings.Settings;
 public class NodeBuilder {
 
     private final Settings.Builder settings = Settings.settingsBuilder();
-
-    private boolean loadConfigSettings = true;
 
     /**
      * A convenient factory method to create a {@link NodeBuilder}.
@@ -92,15 +89,6 @@ public class NodeBuilder {
      */
     public NodeBuilder settings(Settings settings) {
         this.settings.put(settings);
-        return this;
-    }
-
-    /**
-     * Should the node builder automatically try and load config settings from the file system / classpath. Defaults
-     * to <tt>true</tt>.
-     */
-    public NodeBuilder loadConfigSettings(boolean loadConfigSettings) {
-        this.loadConfigSettings = loadConfigSettings;
         return this;
     }
 
@@ -154,7 +142,7 @@ public class NodeBuilder {
      * Builds the node without starting it.
      */
     public Node build() {
-        return new Node(settings.build(), loadConfigSettings);
+        return new Node(settings.build());
     }
 
     /**

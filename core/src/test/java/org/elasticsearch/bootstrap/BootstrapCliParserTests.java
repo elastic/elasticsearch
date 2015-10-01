@@ -220,6 +220,16 @@ public class BootstrapCliParserTests extends CliToolTestCase {
 
     }
 
+    public void testThatHelpfulErrorMessageIsGivenWhenParametersAreOutOfOrder() throws Exception {
+        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
+        try {
+            parser.parse("start", new String[]{"--foo=bar", "-Dbaz=qux"});
+            fail("expected IllegalArgumentException for out-of-order parameters");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("must be before any parameters starting with --"));
+        }
+    }
+
     private void registerProperties(String ... systemProperties) {
         propertiesToClear.addAll(Arrays.asList(systemProperties));
     }

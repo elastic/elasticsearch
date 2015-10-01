@@ -470,7 +470,7 @@ public final class OrdinalsBuilder implements Closeable {
             public BytesRef next() throws IOException {
                 BytesRef ref;
                 if ((ref = termsEnum.next()) != null) {
-                    docsEnum = termsEnum.postings(null, docsEnum, PostingsEnum.NONE);
+                    docsEnum = termsEnum.postings(docsEnum, PostingsEnum.NONE);
                     nextOrdinal();
                     int docId;
                     while ((docId = docsEnum.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {

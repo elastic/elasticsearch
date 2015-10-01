@@ -25,7 +25,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
@@ -56,6 +56,7 @@ public class HasChildQueryParser implements QueryParser {
 
     public static final String NAME = "has_child";
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
+    private static final ParseField SCORE_MODE = new ParseField("score_mode", "score_type");
 
     private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
 
@@ -107,9 +108,7 @@ public class HasChildQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
                     childType = parser.text();
-                } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
-                    scoreType = ScoreType.fromString(parser.text());
-                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_MODE)) {
                     scoreType = ScoreType.fromString(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
@@ -167,7 +166,7 @@ public class HasChildQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext, "[has_child] 'max_children' is less than 'min_children'");
         }
 
-        BitDocIdSetFilter nonNestedDocsFilter = null;
+        BitSetProducer nonNestedDocsFilter = null;
         if (parentDocMapper.hasNestedObjects()) {
             nonNestedDocsFilter = parseContext.bitsetFilter(Queries.newNonNestedFilter());
         }
@@ -249,12 +248,8 @@ public class HasChildQueryParser implements QueryParser {
 
         @Override
         public Query rewrite(IndexReader reader) throws IOException {
-            SearchContext searchContext = SearchContext.current();
-            if (searchContext == null) {
-                throw new IllegalArgumentException("Search context is required to be set");
-            }
-
-            IndexSearcher indexSearcher = searchContext.searcher();
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            indexSearcher.setQueryCache(null);
             String joinField = ParentFieldMapper.joinField(parentType);
             IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal(indexSearcher.getIndexReader());
             MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);

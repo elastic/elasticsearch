@@ -85,7 +85,7 @@ public class TransportModule extends AbstractModule {
                 bind(TransportService.class).asEagerSingleton();
             } else {
                 if (transportServices.containsKey(typeName) == false) {
-                    throw new IllegalArgumentException("Unknown TransportService [" + typeName + "]");
+                    throw new IllegalArgumentException("Unknown TransportService type [" + typeName + "], known types are: " + transportServices.keySet());
                 }
                 bind(TransportService.class).to(transportServices.get(typeName)).asEagerSingleton();
             }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
@@ -43,7 +44,6 @@ import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -108,6 +108,8 @@ public class MockRepository extends FsRepository {
 
     private final double randomDataFileIOExceptionRate;
 
+    private final long maximumNumberOfFailures;
+
     private final long waitAfterUnblock;
 
     private final MockBlobStore mockBlobStore;
@@ -127,6 +129,7 @@ public class MockRepository extends FsRepository {
         super(name, overrideSettings(repositorySettings, clusterService), indexShardRepository, environment);
         randomControlIOExceptionRate = repositorySettings.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = repositorySettings.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
+        maximumNumberOfFailures = repositorySettings.settings().getAsLong("max_failure_number", 100L);
         blockOnControlFiles = repositorySettings.settings().getAsBoolean("block_on_control", false);
         blockOnDataFiles = repositorySettings.settings().getAsBoolean("block_on_data", false);
         blockOnInitialization = repositorySettings.settings().getAsBoolean("block_on_init", false);
@@ -160,8 +163,8 @@ public class MockRepository extends FsRepository {
         return settingsBuilder().put(settings).put("location", location.toAbsolutePath()).build();
     }
 
-    private void addFailure() {
-        failureCounter.incrementAndGet();
+    private long incrementAndGetFailureCount() {
+        return failureCounter.incrementAndGet();
     }
 
     @Override
@@ -269,9 +272,8 @@ public class MockRepository extends FsRepository {
 
             private void maybeIOExceptionOrBlock(String blobName) throws IOException {
                 if (blobName.startsWith("__")) {
-                    if (shouldFail(blobName, randomDataFileIOExceptionRate)) {
+                    if (shouldFail(blobName, randomDataFileIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
-                        addFailure();
                         throw new IOException("Random IOException");
                     } else if (blockOnDataFiles) {
                         logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
@@ -286,9 +288,8 @@ public class MockRepository extends FsRepository {
                         }
                     }
                 } else {
-                    if (shouldFail(blobName, randomControlIOExceptionRate)) {
+                    if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
-                        addFailure();
                         throw new IOException("Random IOException");
                     } else if (blockOnControlFiles) {
                         logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
@@ -316,9 +317,9 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public InputStream openInput(String name) throws IOException {
+            public InputStream readBlob(String name) throws IOException {
                 maybeIOExceptionOrBlock(name);
-                return super.openInput(name);
+                return super.readBlob(name);
             }
 
             @Override
@@ -352,9 +353,15 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public OutputStream createOutput(String blobName) throws IOException {
+            public void writeBlob(String blobName, BytesReference bytes) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
-                return super.createOutput(blobName);
+                super.writeBlob(blobName, bytes);
+            }
+
+            @Override
+            public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+                maybeIOExceptionOrBlock(blobName);
+                super.writeBlob(blobName, inputStream, blobSize);
             }
         }
     }

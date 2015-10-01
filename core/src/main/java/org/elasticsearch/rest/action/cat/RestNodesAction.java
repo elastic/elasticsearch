@@ -166,6 +166,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("indexing.index_current", "alias:iic,indexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
         table.addCell("indexing.index_time", "alias:iiti,indexingIndexTime;default:false;text-align:right;desc:time spent in indexing");
         table.addCell("indexing.index_total", "alias:iito,indexingIndexTotal;default:false;text-align:right;desc:number of indexing ops");
+        table.addCell("indexing.index_failed", "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops");
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell("merges.current_docs", "alias:mcd,mergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
@@ -300,6 +301,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCurrent());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexTime());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCount());
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedCount());
 
             MergeStats mergeStats = indicesStats == null ? null : indicesStats.getMerge();
             table.addCell(mergeStats == null ? null : mergeStats.getCurrent());

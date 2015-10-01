@@ -22,12 +22,20 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -86,6 +94,39 @@ public class DiskUsageTests extends ESTestCase {
                 assertThat(du.getUsedDiskAsPercentage(), equalTo(100.0 - (100.0 * ((double) free / total))));
             }
         }
+    }
+    
+    public void testFillShardLevelInfo() {
+        ShardRouting test_0 = ShardRouting.newUnassigned("test", 0, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRoutingHelper.initialize(test_0, "node1");
+        ShardRoutingHelper.moveToStarted(test_0);
+        Path test0Path = createTempDir().resolve("indices").resolve("test").resolve("0");
+        CommonStats commonStats0 = new CommonStats();
+        commonStats0.store = new StoreStats(100, 1);
+        ShardRouting test_1 = ShardRouting.newUnassigned("test", 1, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRoutingHelper.initialize(test_1, "node2");
+        ShardRoutingHelper.moveToStarted(test_1);
+        Path test1Path = createTempDir().resolve("indices").resolve("test").resolve("1");
+        CommonStats commonStats1 = new CommonStats();
+        commonStats1.store = new StoreStats(1000, 1);
+        ShardStats[] stats  = new ShardStats[] {
+                new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, "0xdeadbeef", test_0.shardId()), commonStats0 , null),
+                new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, "0xdeadbeef", test_1.shardId()), commonStats1 , null)
+        };
+        HashMap<String, Long> shardSizes = new HashMap<>();
+        HashMap<ShardRouting, String> routingToPath = new HashMap<>();
+        InternalClusterInfoService.buildShardLevelInfo(logger, stats, shardSizes, routingToPath);
+        assertEquals(2, shardSizes.size());
+        assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_0)));
+        assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_1)));
+        assertEquals(100l, shardSizes.get(ClusterInfo.shardIdentifierFromRouting(test_0)).longValue());
+        assertEquals(1000l, shardSizes.get(ClusterInfo.shardIdentifierFromRouting(test_1)).longValue());
+
+        assertEquals(2, routingToPath.size());
+        assertTrue(routingToPath.containsKey(test_0));
+        assertTrue(routingToPath.containsKey(test_1));
+        assertEquals(test0Path.getParent().getParent().getParent().toAbsolutePath().toString(), routingToPath.get(test_0));
+        assertEquals(test1Path.getParent().getParent().getParent().toAbsolutePath().toString(), routingToPath.get(test_1));
     }
 
     public void testFillDiskUsage() {

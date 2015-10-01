@@ -28,8 +28,8 @@
                 index1      \s+
                 \d          \s+                                 # shard
                 \d+         \s+                                 # time
-                (store|replica|snapshot|relocating)     \s+   # type
-                (init|index|start|translog|finalize|done) \s+   # stage
+                (store|replica|snapshot|relocating)     \s+     # type
+                (init|index|verify_index|translog|finalize|done) \s+ # stage
                 [-\w./]+    \s+                                 # source_host
                 [-\w./]+    \s+                                 # target_host
                 [-\w./]+    \s+                                 # repository

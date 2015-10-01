@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -239,10 +238,10 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     private void assertWarmers(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, ImmutableList<Entry>> warmers = response.warmers();
+        ImmutableOpenMap<String, List<Entry>> warmers = response.warmers();
         assertThat(warmers, notNullValue());
         assertThat(warmers.size(), equalTo(1));
-        ImmutableList<Entry> indexWarmers = warmers.get(indexName);
+        List<Entry> indexWarmers = warmers.get(indexName);
         assertThat(indexWarmers, notNullValue());
         assertThat(indexWarmers.size(), equalTo(1));
         Entry warmer = indexWarmers.get(0);
@@ -297,10 +296,10 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     private void assertAliases(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliases = response.aliases();
+        ImmutableOpenMap<String, List<AliasMetaData>> aliases = response.aliases();
         assertThat(aliases, notNullValue());
         assertThat(aliases.size(), equalTo(1));
-        ImmutableList<AliasMetaData> indexAliases = aliases.get(indexName);
+        List<AliasMetaData> indexAliases = aliases.get(indexName);
         assertThat(indexAliases, notNullValue());
         assertThat(indexAliases.size(), equalTo(1));
         AliasMetaData alias = indexAliases.get(0);

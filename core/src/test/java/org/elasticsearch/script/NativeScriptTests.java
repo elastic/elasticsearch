@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -47,6 +48,7 @@ public class NativeScriptTests extends ESTestCase {
 
     @Test
     public void testNativeScript() throws InterruptedException {
+        ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings settings = Settings.settingsBuilder()
                 .put("name", "testNativeScript")
                 .put("path.home", createTempDir())
@@ -62,13 +64,14 @@ public class NativeScriptTests extends ESTestCase {
         ScriptService scriptService = injector.getInstance(ScriptService.class);
 
         ExecutableScript executable = scriptService.executable(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null),
-                ScriptContext.Standard.SEARCH);
+                ScriptContext.Standard.SEARCH, contextAndHeaders);
         assertThat(executable.run().toString(), equalTo("test"));
         terminate(injector.getInstance(ThreadPool.class));
     }
 
     @Test
     public void testFineGrainedSettingsDontAffectNativeScripts() throws IOException {
+        ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings.Builder builder = Settings.settingsBuilder();
         if (randomBoolean()) {
             ScriptType scriptType = randomFrom(ScriptType.values());
@@ -87,8 +90,8 @@ public class NativeScriptTests extends ESTestCase {
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, scriptContextRegistry);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            assertThat(scriptService.compile(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), scriptContext),
-                    notNullValue());
+            assertThat(scriptService.compile(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), scriptContext,
+                    contextAndHeaders), notNullValue());
         }
     }
 

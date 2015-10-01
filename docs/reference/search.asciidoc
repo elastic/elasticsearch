@@ -34,8 +34,8 @@ only the relevant shard:
 --------------------------------------------------
 $ curl -XGET 'http://localhost:9200/twitter/tweet/_search?routing=kimchy' -d '{
     "query": {
-        "filtered" : {
-            "query" : {
+        "bool" : {
+            "must" : {
                 "query_string" : {
                     "query" : "some query string here"
                 }

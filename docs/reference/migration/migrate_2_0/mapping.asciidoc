@@ -256,6 +256,18 @@ PUT my_index/my_type/1?routing=bar <2>
 <1> Routing can be marked as required to ensure it is not forgotten during indexing.
 <2> This indexing request uses a `routing` value of `bar`.
 
+==== `_timestamp` and `_ttl` deprecated
+
+The `_timestamp` and `_ttl` fields are deprecated, but will remain functional
+for the remainder of the 2.x series.
+
+Instead of the `_timestamp` field, use a normal <<date,`date`>> field and set
+the value explicitly.
+
+The current `_ttl` functionality will be replaced in a future version with a
+new implementation of TTL, possibly with different semantics, and will not
+depend on the `_timestamp` field.
+
 ==== Analyzer mappings
 
 Previously, `index_analyzer` and `search_analyzer` could be set separately,

@@ -22,6 +22,7 @@ import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
+
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleField;
@@ -29,8 +30,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.lease.Releasables;
@@ -77,7 +78,7 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
         ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper.fieldType());
-        BitDocIdSetFilter parentFilter = wrapWithBitSetFilter(new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, "parent"))));
+        Filter parentFilter = new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, "parent")));
         int minChildren = random().nextInt(10);
         int maxChildren = scaledRandomIntBetween(minChildren, 10);
         Query query = new ChildrenQuery(parentChildIndexFieldData, "parent", "child", parentFilter, childQuery, scoreType, minChildren,
@@ -231,8 +232,14 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
                         if (count >= minChildren && (maxChildren == 0 || count <= maxChildren)) {
                             TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(Uid.createUidAsBytes("parent", entry.getKey()));
                             if (seekStatus == TermsEnum.SeekStatus.FOUND) {
-                                docsEnum = termsEnum.postings(slowLeafReader.getLiveDocs(), docsEnum, PostingsEnum.NONE);
-                                expectedResult.set(docsEnum.nextDoc());
+                                docsEnum = termsEnum.postings(docsEnum, PostingsEnum.NONE);
+                                final Bits liveDocs = slowLeafReader.getLiveDocs();
+                                for (int doc = docsEnum.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = docsEnum.nextDoc()) {
+                                    if (liveDocs == null || liveDocs.get(doc)) {
+                                        break;
+                                    }
+                                }
+                                expectedResult.set(docsEnum.docID());
                                 scores[docsEnum.docID()] = new FloatArrayList(entry.getValue());
                             } else if (seekStatus == TermsEnum.SeekStatus.END) {
                                 break;

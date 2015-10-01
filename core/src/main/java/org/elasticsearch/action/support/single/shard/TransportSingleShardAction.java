@@ -210,6 +210,14 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 onFailure(shardRouting, new NoShardAvailableActionException(shardRouting.shardId()));
             } else {
                 internalRequest.request().internalShardId = shardRouting.shardId();
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                            "sending request [{}] to shard [{}] on node [{}]",
+                            internalRequest.request(),
+                            internalRequest.request().internalShardId,
+                            node
+                    );
+                }
                 transportService.sendRequest(node, transportShardAction, internalRequest.request(), new BaseTransportResponseHandler<Response>() {
 
                     @Override

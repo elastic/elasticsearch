@@ -39,6 +39,7 @@
                     indexing.index_current           .+   \n
                     indexing.index_time              .+   \n
                     indexing.index_total             .+   \n
+                    indexing.index_failed            .+   \n
                     merges.current                   .+   \n
                     merges.current_docs              .+   \n
                     merges.current_size              .+   \n

@@ -56,7 +56,7 @@ newlines. Example:
 $ cat requests
 { "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" } }
 { "field1" : "value1" }
-$ curl -s -XPOST localhost:9200/_bulk --data-binary @requests; echo
+$ curl -s -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
 {"took":7,"items":[{"create":{"_index":"test","_type":"type1","_id":"1","_version":1}}]}
 --------------------------------------------------
 
@@ -131,6 +131,8 @@ operation based on the `_parent` / `_routing` mapping.
 [[bulk-timestamp]]
 === Timestamp
 
+deprecated[2.0.0-beta2,The `_timestamp` field is deprecated.  Instead, use a normal <<date,`date`>> field and set its value explicitly]
+
 Each bulk item can include the timestamp value using the
 `_timestamp`/`timestamp` field. It automatically follows the behavior of
 the index operation based on the `_timestamp` mapping.
@@ -138,6 +140,8 @@ the index operation based on the `_timestamp` mapping.
 [float]
 [[bulk-ttl]]
 === TTL
+
+deprecated[2.0.0-beta2,The current `_ttl` implementation is deprecated and will be replaced with a different implementation in a future version]
 
 Each bulk item can include the ttl value using the `_ttl`/`ttl` field.
 It automatically follows the behavior of the index operation based on

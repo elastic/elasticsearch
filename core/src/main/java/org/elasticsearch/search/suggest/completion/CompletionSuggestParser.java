@@ -19,6 +19,8 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.HasContextAndHeaders;
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -86,11 +88,11 @@ public class CompletionSuggestParser implements SuggestContextParser {
 
     @Override
     public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService,
-                                                           IndexQueryParserService queryParserService, IndexFieldDataService fieldDataService) throws IOException {
+                                                           IndexQueryParserService queryParserService, IndexFieldDataService fieldDataService, HasContextAndHeaders headersContext) throws IOException {
         XContentParser.Token token;
         String fieldName = null;
         CompletionSuggestionContext suggestion = new CompletionSuggestionContext(completionSuggester);
-        
+
         XContentParser contextParser = null;
         CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptions = null;
         CompletionSuggestionBuilder.RegexOptionsBuilder regexOptions = null;

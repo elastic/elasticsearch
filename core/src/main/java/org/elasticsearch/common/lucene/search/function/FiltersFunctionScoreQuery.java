@@ -169,11 +169,11 @@ public class FiltersFunctionScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context) throws IOException {
             // we ignore scoreDocsInOrder parameter, because we need to score in
             // order if documents are scored with a script. The
             // ShardLookup depends on in order scoring.
-            Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs);
+            Scorer subQueryScorer = subQueryWeight.scorer(context);
             if (subQueryScorer == null) {
                 return null;
             }
@@ -182,7 +182,7 @@ public class FiltersFunctionScoreQuery extends Query {
             for (int i = 0; i < filterFunctions.length; i++) {
                 FilterFunction filterFunction = filterFunctions[i];
                 functions[i] = filterFunction.function.getLeafScoreFunction(context);
-                Scorer filterScorer = filterWeights[i].scorer(context, null); // no need to apply accepted docs
+                Scorer filterScorer = filterWeights[i].scorer(context);
                 docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
             }
             return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, minScore, needsScores);
@@ -208,7 +208,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 }
 
                 Bits docSet = Lucene.asSequentialAccessBits(context.reader().maxDoc(),
-                        filterWeights[i].scorer(context, null));
+                        filterWeights[i].scorer(context));
                 if (docSet.get(doc)) {
                     Explanation functionExplanation = filterFunction.function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);
                     double factor = functionExplanation.getValue();

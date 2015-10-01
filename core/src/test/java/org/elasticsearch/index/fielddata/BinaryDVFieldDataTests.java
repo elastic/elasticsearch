@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
+public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
 
     @Override
     protected boolean hasDocValues() {

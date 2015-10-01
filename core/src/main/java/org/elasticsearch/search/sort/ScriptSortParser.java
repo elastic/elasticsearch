@@ -25,7 +25,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -145,7 +145,7 @@ public class ScriptSortParser implements SortParser {
         // If nested_path is specified, then wrap the `fieldComparatorSource` in a `NestedFieldComparatorSource`
         final Nested nested;
         if (nestedHelper != null && nestedHelper.getPath() != null) {
-            BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
+            BitSetProducer rootDocumentsFilter = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter());
             Filter innerDocumentsFilter;
             if (nestedHelper.filterFound()) {
                 // TODO: use queries instead

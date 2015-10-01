@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -55,6 +56,7 @@ public class TestClusterService implements ClusterService {
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
     private final ThreadPool threadPool;
     private final ESLogger logger = Loggers.getLogger(getClass(), Settings.EMPTY);
+    private final OperationRouting operationRouting = new OperationRouting(Settings.Builder.EMPTY_SETTINGS, new AwarenessAllocationDecider());
 
     public TestClusterService() {
         this(ClusterState.builder(new ClusterName("test")).build());
@@ -129,7 +131,7 @@ public class TestClusterService implements ClusterService {
 
     @Override
     public OperationRouting operationRouting() {
-        return null;
+        return operationRouting;
     }
 
     @Override

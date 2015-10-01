@@ -22,7 +22,7 @@ package org.elasticsearch.nodesinfo;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.plugins.PluginTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
-public class SimpleNodesInfoIT extends PluginTestCase {
+public class SimpleNodesInfoIT extends ESIntegTestCase {
 
     static final class Fields {
         static final String SITE_PLUGIN = "dummy";

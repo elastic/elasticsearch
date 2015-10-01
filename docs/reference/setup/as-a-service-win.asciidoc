@@ -42,7 +42,7 @@ service will be installed. This information is made available during install:
 --------------------------------------------------
 c:\elasticsearch-{version}\bin>service install
 Installing service      :  "elasticsearch-service-x64"
-Using JAVA_HOME (64-bit):  "c:\jvm\jdk1.7"
+Using JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
 The service 'elasticsearch-service-x64' has been installed.
 --------------------------------------------------
 

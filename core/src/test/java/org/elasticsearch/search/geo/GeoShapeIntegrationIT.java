@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -45,15 +46,12 @@ import java.util.Locale;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
-import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
@@ -477,6 +475,39 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+    }
+
+    @Test
+    public void testPointsOnly() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("tree", randomBoolean() ? "quadtree" : "geohash")
+                .field("tree_levels", "6")
+                .field("distance_error_pct", "0.01")
+                .field("points_only", true)
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        assertAcked(prepareCreate("geo_points_only").addMapping("type1", mapping));
+        ensureGreen();
+
+        ShapeBuilder shape = RandomShapeGenerator.createShape(random());
+        try {
+            index("geo_points_only", "type1", "1", jsonBuilder().startObject().field("location", shape).endObject());
+        } catch (MapperParsingException e) {
+            // RandomShapeGenerator created something other than a POINT type, verify the correct exception is thrown
+            assertThat(e.getCause().getMessage(), containsString("is configured for points only"));
+            return;
+        }
+
+        refresh();
+        // test that point was inserted
+        SearchResponse response = client().prepareSearch()
+                .setQuery(geoIntersectionQuery("location", shape))
+                .execute().actionGet();
+
+        assertEquals(1, response.getHits().getTotalHits());
     }
 
     private String findNodeName(String index) {

@@ -104,12 +104,13 @@ public class CustomFieldQuery extends FieldQuery {
          * It seems expensive but most queries will pretty small.
          */
         if (currentPos == terms.size()) {
-            PhraseQuery query = new PhraseQuery();
-            query.setBoost(orig.getBoost());
-            query.setSlop(orig.getSlop());
+            PhraseQuery.Builder queryBuilder = new PhraseQuery.Builder();
+            queryBuilder.setSlop(orig.getSlop());
             for (int i = 0; i < termsIdx.length; i++) {
-                query.add(terms.get(i)[termsIdx[i]], pos[i]);
+                queryBuilder.add(terms.get(i)[termsIdx[i]], pos[i]);
             }
+            PhraseQuery query = queryBuilder.build();
+            query.setBoost(orig.getBoost());
             this.flatten(query, reader, flatQueries);
         } else {
             Term[] t = terms.get(currentPos);

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search.type;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -73,7 +74,8 @@ public class TransportSearchScanAction extends TransportSearchTypeAction {
 
         @Override
         protected void moveToSecondPhase() throws Exception {
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(SearchPhaseController.EMPTY_DOCS, firstResults, (AtomicArray<? extends FetchSearchResultProvider>) AtomicArray.empty());
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(SearchPhaseController.EMPTY_DOCS, firstResults,
+                    (AtomicArray<? extends FetchSearchResultProvider>) AtomicArray.empty(), request);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = buildScrollId(request.searchType(), firstResults, ImmutableMap.of("total_hits", Long.toString(internalResponse.hits().totalHits())));

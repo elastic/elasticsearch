@@ -66,7 +66,7 @@ import static org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester.HOL
 /**
  * This is an older implementation of the AnalyzingCompletionLookupProvider class
  * We use this to test for backwards compatibility in our tests, namely
- * CompletionPostingsFormatTest
+ * CompletionPostingsFormatTests
  * This ensures upgrades between versions work smoothly
  */
 public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvider {
@@ -155,7 +155,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
                         if (term == null) {
                             break;
                         }
-                        docsEnum = termsEnum.postings(null, docsEnum, PostingsEnum.PAYLOADS);
+                        docsEnum = termsEnum.postings(docsEnum, PostingsEnum.PAYLOADS);
                         builder.startTerm(term);
                         int docFreq = 0;
                         while (docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
@@ -331,6 +331,6 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
 
     @Override
     public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
-        return prototype.toFiniteStrings(prototype.getTokenStreamToAutomaton(), stream);
+        return prototype.toFiniteStrings(stream);
     }
 }

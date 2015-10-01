@@ -194,7 +194,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                     final long termOrd = typeBuilder.builder.nextOrdinal();
                     assert termOrd == typeBuilder.termOrdToBytesOffset.size();
                     typeBuilder.termOrdToBytesOffset.add(typeBuilder.bytes.copyUsingLengthPrefix(id));
-                    docsEnum = estimatedTermsEnum.postings(null, docsEnum, PostingsEnum.NONE);
+                    docsEnum = estimatedTermsEnum.postings(docsEnum, PostingsEnum.NONE);
                     for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                         typeBuilder.builder.addDoc(docId);
                     }

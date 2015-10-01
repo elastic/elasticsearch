@@ -19,12 +19,13 @@
 
 package org.elasticsearch.plugin.cloud.aws;
 
-import org.elasticsearch.cloud.aws.AwsEc2Service;
+import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cloud.aws.AwsModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
 import org.elasticsearch.discovery.ec2.Ec2Discovery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
@@ -69,7 +70,7 @@ public class CloudAwsPlugin extends Plugin {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
             services.add(AwsModule.getS3ServiceImpl());
-            services.add(AwsEc2Service.class);
+            services.add(AwsEc2ServiceImpl.class);
         }
         return services;
     }
@@ -82,5 +83,6 @@ public class CloudAwsPlugin extends Plugin {
 
     public void onModule(DiscoveryModule discoveryModule) {
         discoveryModule.addDiscoveryType("ec2", Ec2Discovery.class);
+        discoveryModule.addUnicastHostProvider(AwsEc2UnicastHostsProvider.class);
     }
 }

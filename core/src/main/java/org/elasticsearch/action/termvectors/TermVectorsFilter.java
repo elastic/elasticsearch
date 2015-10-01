@@ -286,7 +286,7 @@ public class TermVectorsFilter {
     }
 
     private int getTermFreq(TermsEnum termsEnum, PostingsEnum docsEnum) throws IOException {
-        docsEnum = termsEnum.postings(null, docsEnum);
+        docsEnum = termsEnum.postings(docsEnum);
         docsEnum.nextDoc();
         return docsEnum.freq();
     }

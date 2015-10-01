@@ -26,7 +26,7 @@ import org.apache.lucene.index.Term;
 
 /**
  */
-public class FloatFieldDataTests extends AbstractNumericFieldDataTests {
+public class FloatFieldDataTests extends AbstractNumericFieldDataTestCase {
 
     @Override
     protected FieldDataType getFieldDataType() {

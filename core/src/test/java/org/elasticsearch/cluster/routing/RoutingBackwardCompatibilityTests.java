@@ -39,7 +39,7 @@ public class RoutingBackwardCompatibilityTests extends ESTestCase {
 
     public void testBackwardCompatibility() throws Exception {
         Path baseDir = createTempDir();
-        Node node = new Node(Settings.builder().put("path.home", baseDir.toString()).build(), false);
+        Node node = new Node(Settings.builder().put("path.home", baseDir.toString()).build());
         try {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(RoutingBackwardCompatibilityTests.class.getResourceAsStream("/org/elasticsearch/cluster/routing/shard_routes.txt"), "UTF-8"))) {
                 for (String line = reader.readLine(); line != null; line = reader.readLine()) {

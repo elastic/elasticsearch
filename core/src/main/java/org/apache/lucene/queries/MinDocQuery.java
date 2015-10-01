@@ -27,7 +27,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 
@@ -60,7 +59,7 @@ public final class MinDocQuery extends Query {
     public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         return new ConstantScoreWeight(this) {
             @Override
-            public Scorer scorer(LeafReaderContext context, final Bits acceptDocs) throws IOException {
+            public Scorer scorer(LeafReaderContext context) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
                 if (context.docBase + maxDoc <= minDoc) {
                     return null;
@@ -88,12 +87,6 @@ public final class MinDocQuery extends Query {
                             doc = Math.max(target, segmentMinDoc);
                         } else {
                             doc = target;
-                        }
-                        while (doc < maxDoc) {
-                            if (acceptDocs == null || acceptDocs.get(doc)) {
-                                break;
-                            }
-                            doc += 1;
                         }
                         if (doc >= maxDoc) {
                             doc = NO_MORE_DOCS;

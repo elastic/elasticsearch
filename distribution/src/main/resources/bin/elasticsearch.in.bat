@@ -59,7 +59,7 @@ set ES_GC_OPTS=%ES_GC_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
 REM When running under Java 7
 REM JAVA_OPTS=%JAVA_OPTS% -XX:+UseCondCardMark
 )
-set JAVA_OPTS=%JAVA_OPTS% %ES_GC_OPTS%
+set JAVA_OPTS=%JAVA_OPTS%%ES_GC_OPTS%
 
 if "%ES_GC_LOG_FILE%" == "" goto nogclog
 

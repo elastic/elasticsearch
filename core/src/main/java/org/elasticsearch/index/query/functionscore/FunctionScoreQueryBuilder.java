@@ -35,8 +35,6 @@ public class FunctionScoreQueryBuilder extends QueryBuilder implements Boostable
 
     private final QueryBuilder queryBuilder;
 
-    private final QueryBuilder filterBuilder;
-
     private Float boost;
 
     private Float maxBoost;
@@ -57,11 +55,9 @@ public class FunctionScoreQueryBuilder extends QueryBuilder implements Boostable
      */
     public FunctionScoreQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
-        this.filterBuilder = null;
     }
 
     public FunctionScoreQueryBuilder() {
-        this.filterBuilder = null;
         this.queryBuilder = null;
     }
 
@@ -75,7 +71,6 @@ public class FunctionScoreQueryBuilder extends QueryBuilder implements Boostable
             throw new IllegalArgumentException("function_score: function must not be null");
         }
         queryBuilder = null;
-        filterBuilder = null;
         this.filters.add(null);
         this.scoreFunctions.add(scoreFunctionBuilder);
     }
@@ -160,10 +155,6 @@ public class FunctionScoreQueryBuilder extends QueryBuilder implements Boostable
         if (queryBuilder != null) {
             builder.field("query");
             queryBuilder.toXContent(builder, params);
-        }
-        if (filterBuilder != null) {
-            builder.field("filter");
-            filterBuilder.toXContent(builder, params);
         }
         builder.startArray("functions");
         for (int i = 0; i < filters.size(); i++) {

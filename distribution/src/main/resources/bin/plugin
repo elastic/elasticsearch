@@ -59,10 +59,22 @@ if [ -n "$ES_ENV_FILE" ]; then
   fi
 fi
 
+# don't let JAVA_TOOL_OPTIONS slip in (e.g. crazy agents in ubuntu)
+# works around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487
+if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
+    echo "Warning: Ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+    unset JAVA_TOOL_OPTIONS
+fi
+
 if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA=$JAVA_HOME/bin/java
 else
     JAVA=`which java`
+fi
+
+if [ ! -x "$JAVA" ]; then
+    echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+    exit 1
 fi
 
 # real getopt cannot be used because we need to hand options over to the PluginManager
@@ -108,4 +120,4 @@ fi
 HOSTNAME=`hostname | cut -d. -f1`
 export HOSTNAME
 
-eval "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Xmx64m -Xms16m -Delasticsearch -Des.path.home="\"$ES_HOME\"" $properties -cp "\"$ES_HOME/lib/*\"" org.elasticsearch.plugins.PluginManagerCliParser $args
+eval "$JAVA" -client -Delasticsearch -Des.path.home="\"$ES_HOME\"" $properties -cp "\"$ES_HOME/lib/*\"" org.elasticsearch.plugins.PluginManagerCliParser $args

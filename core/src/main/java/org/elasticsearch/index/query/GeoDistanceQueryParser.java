@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -95,7 +94,7 @@ public class GeoDistanceQueryParser implements QueryParser {
                         } else if (currentName.equals(GeoPointFieldMapper.Names.LON)) {
                             point.resetLon(parser.doubleValue());
                         } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                            GeoHashUtils.decode(parser.text(), point);
+                            point.resetFromGeoHash(parser.text());
                         } else {
                             throw new QueryParsingException(parseContext, "[geo_distance] query does not support [" + currentFieldName
                                     + "]");
@@ -120,7 +119,7 @@ public class GeoDistanceQueryParser implements QueryParser {
                     point.resetLon(parser.doubleValue());
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LON_SUFFIX.length());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.GEOHASH_SUFFIX)) {
-                    GeoHashUtils.decode(parser.text(), point);
+                    point.resetFromGeoHash(parser.text());
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length());
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();

@@ -23,12 +23,10 @@ import com.carrotsearch.hppc.IntArrayList;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
@@ -65,16 +63,16 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
     }
 
     @Override
-    public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
+    public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
         int size = stateSlots.size();
         assert size > 0;
         if (size == 1) {
             // Can't use 'reuse' since we don't know to which previous TermsEnum it belonged to.
-            return states.get(stateSlots.get(0)).termsEnum.postings(liveDocs, null, flags);
+            return states.get(stateSlots.get(0)).termsEnum.postings(null, flags);
         } else {
             List<PostingsEnum> docsEnums = new ArrayList<>(stateSlots.size());
             for (int i = 0; i < stateSlots.size(); i++) {
-                docsEnums.add(states.get(stateSlots.get(i)).termsEnum.postings(liveDocs, null, flags));
+                docsEnums.add(states.get(stateSlots.get(i)).termsEnum.postings(null, flags));
             }
             return new CompoundDocsEnum(docsEnums);
         }

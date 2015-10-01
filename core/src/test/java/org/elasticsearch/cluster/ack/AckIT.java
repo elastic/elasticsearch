@@ -46,8 +46,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
@@ -100,7 +100,7 @@ public class AckIT extends ESIntegTestCase {
         for (Client client : clients()) {
             GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
             assertThat(getWarmersResponse.warmers().size(), equalTo(1));
-            ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> entry = getWarmersResponse.warmers().iterator().next();
+            ObjectObjectCursor<String, List<IndexWarmersMetaData.Entry>> entry = getWarmersResponse.warmers().iterator().next();
             assertThat(entry.key, equalTo("test"));
             assertThat(entry.value.size(), equalTo(1));
             assertThat(entry.value.get(0).name(), equalTo("custom_warmer"));

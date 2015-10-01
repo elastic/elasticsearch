@@ -22,7 +22,6 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -110,7 +109,18 @@ public class NetworkService extends AbstractComponent {
         if (bindHost == null) {
             bindHost = DEFAULT_NETWORK_HOST;
         }
-        return resolveInetAddress(bindHost);
+        InetAddress addresses[] = resolveInetAddress(bindHost);
+
+        // try to deal with some (mis)configuration
+        if (addresses != null) {
+            for (InetAddress address : addresses) {
+                // check if its multicast: flat out mistake
+                if (address.isMulticastAddress()) {
+                    throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) + "} is invalid: multicast address");
+                }
+            }
+        }
+        return addresses;
     }
 
     // TODO: needs to be InetAddress[]
@@ -133,7 +143,23 @@ public class NetworkService extends AbstractComponent {
             publishHost = DEFAULT_NETWORK_HOST;
         }
         // TODO: allow publishing multiple addresses
-        return resolveInetAddress(publishHost)[0];
+        InetAddress address = resolveInetAddress(publishHost)[0];
+
+        // try to deal with some (mis)configuration
+        if (address != null) {
+            // check if its multicast: flat out mistake
+            if (address.isMulticastAddress()) {
+                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) + "} is invalid: multicast address");
+            }
+            // wildcard address, probably set by network.host
+            if (address.isAnyLocalAddress()) {
+                InetAddress old = address;
+                address = NetworkUtils.getFirstNonLoopbackAddresses()[0];
+                logger.warn("publish address: {{}} is a wildcard address, falling back to first non-loopback: {{}}", 
+                            NetworkAddress.format(old), NetworkAddress.format(address));
+            }
+        }
+        return address;
     }
 
     private InetAddress[] resolveInetAddress(String host) throws UnknownHostException, IOException {

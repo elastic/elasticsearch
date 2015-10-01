@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -57,13 +56,13 @@ import static com.google.common.collect.Maps.newHashMap;
 
 public class IndexNameExpressionResolver extends AbstractComponent {
 
-    private final ImmutableList<ExpressionResolver> expressionResolvers;
+    private final List<ExpressionResolver> expressionResolvers;
     private final DateMathExpressionResolver dateMathExpressionResolver;
 
     @Inject
     public IndexNameExpressionResolver(Settings settings) {
         super(settings);
-        expressionResolvers = ImmutableList.of(
+        expressionResolvers = Arrays.asList(
                 dateMathExpressionResolver = new DateMathExpressionResolver(settings),
                 new WildcardExpressionResolver()
         );
@@ -220,6 +219,15 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         Context context = new Context(state, IndicesOptions.lenientExpandOpen());
         String resolvedAliasOrIndex = dateMathExpressionResolver.resolveExpression(aliasOrIndex, context);
         return state.metaData().getAliasAndIndexLookup().containsKey(resolvedAliasOrIndex);
+    }
+
+    /**
+     * @return If the specified string is data math expression then this method returns the resolved expression.
+     */
+    public String resolveDateMathExpression(String dateExpression) {
+        // The data math expression resolver doesn't rely on cluster state or indices options, because
+        // it just resolves the date math to an actual date.
+        return dateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null));
     }
 
     /**
@@ -590,7 +598,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 if (Regex.isMatchAllPattern(expression)) {
                     // Can only happen if the expressions was initially: '-*'
                     matches = metaData.getAliasAndIndexLookup();
-                } else if (expression.endsWith("*")) {
+                } else if (expression.indexOf("*") == expression.length() - 1) {
                     // Suffix wildcard:
                     assert expression.length() >= 2 : "expression [" + expression + "] should have at least a length of 2";
                     String fromPrefix = expression.substring(0, expression.length() - 1);

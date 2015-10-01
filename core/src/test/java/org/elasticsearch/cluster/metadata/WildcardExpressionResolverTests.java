@@ -90,6 +90,28 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*"))), equalTo(newHashSet("testXXX", "testXXY")));
     }
 
+    // issue #13334
+    public void testMultipleWildcards() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("testXXX"))
+                .put(indexBuilder("testXXY"))
+                .put(indexBuilder("testXYY"))
+                .put(indexBuilder("testYYY"))
+                .put(indexBuilder("kuku"))
+                .put(indexBuilder("kukuYYY"));
+
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
+
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("test*X*"))), equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("test*X*Y"))), equalTo(newHashSet("testXXY", "testXYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("kuku*Y*"))), equalTo(newHashSet("kukuYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*Y*"))), equalTo(newHashSet("testXXY", "testXYY", "testYYY", "kukuYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("test*Y*X"))).size(), equalTo(0));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*Y*X"))).size(), equalTo(0));
+    }
+
     private IndexMetaData.Builder indexBuilder(String index) {
         return IndexMetaData.builder(index).settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
     }

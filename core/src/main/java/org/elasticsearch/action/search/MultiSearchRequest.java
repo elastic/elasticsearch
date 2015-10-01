@@ -69,15 +69,15 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
     }
 
     public MultiSearchRequest add(byte[] data, int from, int length,
-                                  @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType) throws Exception {
-        return add(new BytesArray(data, from, length), indices, types, searchType, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true);
+            boolean isTemplateRequest, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType) throws Exception {
+        return add(new BytesArray(data, from, length), isTemplateRequest, indices, types, searchType, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true);
     }
 
-    public MultiSearchRequest add(BytesReference data, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, IndicesOptions indicesOptions) throws Exception {
-        return add(data, indices, types, searchType, null, indicesOptions, true);
+    public MultiSearchRequest add(BytesReference data, boolean isTemplateRequest, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, IndicesOptions indicesOptions) throws Exception {
+        return add(data, isTemplateRequest, indices, types, searchType, null, indicesOptions, true);
     }
 
-    public MultiSearchRequest add(BytesReference data, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, @Nullable String routing, IndicesOptions indicesOptions, boolean allowExplicitIndex) throws Exception {
+    public MultiSearchRequest add(BytesReference data, boolean isTemplateRequest, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, @Nullable String routing, IndicesOptions indicesOptions, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -146,8 +146,11 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
             if (nextMarker == -1) {
                 break;
             }
-
-            searchRequest.source(data.slice(from, nextMarker - from));
+            if (isTemplateRequest) {
+                searchRequest.templateSource(data.slice(from,  nextMarker - from));
+            } else {
+                searchRequest.source(data.slice(from, nextMarker - from));
+            }
             // move pointers
             from = nextMarker + 1;
 
@@ -155,15 +158,6 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
         }
 
         return this;
-    }
-
-    private String[] parseArray(XContentParser parser) throws IOException {
-        final List<String> list = new ArrayList<>();
-        assert parser.currentToken() == XContentParser.Token.START_ARRAY;
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            list.add(parser.text());
-        }
-        return list.toArray(new String[list.size()]);
     }
 
     private int findNextMarker(byte marker, int from, BytesReference data, int length) {

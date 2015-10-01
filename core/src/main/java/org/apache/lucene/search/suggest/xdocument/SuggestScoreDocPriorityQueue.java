@@ -17,14 +17,15 @@ package org.apache.lucene.search.suggest.xdocument;
  * limitations under the License.
  */
 
+import org.apache.lucene.search.suggest.xdocument.TopSuggestDocs.SuggestScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
 
 /**
- * Bounded priority queue for {@link TopSuggestDocs.SuggestScoreDoc}s.
- * Priority is based on {@link TopSuggestDocs.SuggestScoreDoc#score} and tie
- * is broken by {@link TopSuggestDocs.SuggestScoreDoc#doc}
+ * Bounded priority queue for {@link SuggestScoreDoc}s.
+ * Priority is based on {@link SuggestScoreDoc#score} and tie
+ * is broken by {@link SuggestScoreDoc#doc}
  */
-final class SuggestScoreDocPriorityQueue extends PriorityQueue<TopSuggestDocs.SuggestScoreDoc> {
+final class SuggestScoreDocPriorityQueue extends PriorityQueue<SuggestScoreDoc> {
   /**
    * Creates a new priority queue of the specified size.
    */
@@ -33,15 +34,10 @@ final class SuggestScoreDocPriorityQueue extends PriorityQueue<TopSuggestDocs.Su
   }
 
   @Override
-  protected boolean lessThan(TopSuggestDocs.SuggestScoreDoc a, TopSuggestDocs.SuggestScoreDoc b) {
+  protected boolean lessThan(SuggestScoreDoc a, SuggestScoreDoc b) {
     if (a.score == b.score) {
-      int cmp = a.compareTo(b);
-      if (cmp == 0) {
-        // prefer smaller doc id, in case of a tie
-        return a.doc > b.doc;
-      } else {
-        return cmp < 0;
-      }
+      // prefer smaller doc id, in case of a tie
+      return a.doc > b.doc;
     }
     return a.score < b.score;
   }
@@ -49,9 +45,9 @@ final class SuggestScoreDocPriorityQueue extends PriorityQueue<TopSuggestDocs.Su
   /**
    * Returns the top N results in descending order.
    */
-  public TopSuggestDocs.SuggestScoreDoc[] getResults() {
+  public SuggestScoreDoc[] getResults() {
     int size = size();
-    TopSuggestDocs.SuggestScoreDoc[] res = new TopSuggestDocs.SuggestScoreDoc[size];
+    SuggestScoreDoc[] res = new SuggestScoreDoc[size];
     for (int i = size - 1; i >= 0; i--) {
       res[i] = pop();
     }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.common.Nullable;
@@ -34,6 +33,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -712,7 +713,7 @@ public class RecoveryState implements ToXContent, Streamable {
         private long targetThrottleTimeInNanos = UNKNOWN;
 
         public synchronized List<File> fileDetails() {
-            return ImmutableList.copyOf(fileDetails.values());
+            return Collections.unmodifiableList(new ArrayList<>(fileDetails.values()));
         }
 
         public synchronized void reset() {

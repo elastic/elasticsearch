@@ -85,19 +85,20 @@ public class ContextSuggestField extends SuggestField {
 
   @Override
   protected CompletionTokenStream wrapTokenStream(TokenStream stream) {
-    for (CharSequence context : contexts()) {
+    final Iterable<CharSequence> contexts = contexts();
+    for (CharSequence context : contexts) {
       validate(context);
     }
-    PrefixTokenFilter prefixTokenFilter = new PrefixTokenFilter(stream, (char) CONTEXT_SEPARATOR, contexts());
     CompletionTokenStream completionTokenStream;
     if (stream instanceof CompletionTokenStream) {
       completionTokenStream = (CompletionTokenStream) stream;
+      PrefixTokenFilter prefixTokenFilter = new PrefixTokenFilter(completionTokenStream.tokenStream(), (char) CONTEXT_SEPARATOR, contexts);
       completionTokenStream = new CompletionTokenStream(prefixTokenFilter,
-              completionTokenStream.preserveSep,
-              completionTokenStream.preservePositionIncrements,
-              completionTokenStream.maxGraphExpansions);
+          completionTokenStream.preserveSep,
+          completionTokenStream.preservePositionIncrements,
+          completionTokenStream.maxGraphExpansions);
     } else {
-      completionTokenStream = new CompletionTokenStream(prefixTokenFilter);
+      completionTokenStream = new CompletionTokenStream(new PrefixTokenFilter(stream, (char) CONTEXT_SEPARATOR, contexts));
     }
     return completionTokenStream;
   }
@@ -166,7 +167,7 @@ public class ContextSuggestField extends SuggestField {
     for (int i = 0; i < value.length(); i++) {
       if (CONTEXT_SEPARATOR == value.charAt(i)) {
         throw new IllegalArgumentException("Illegal value [" + value + "] UTF-16 codepoint [0x"
-                + Integer.toHexString((int) value.charAt(i))+ "] at position " + i + " is a reserved character");
+            + Integer.toHexString((int) value.charAt(i))+ "] at position " + i + " is a reserved character");
       }
     }
   }

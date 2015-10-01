@@ -852,7 +852,7 @@ public final class XMoreLikeThis {
                 continue;
             }
 
-            final PostingsEnum docs = termsEnum.postings(null, null);
+            final PostingsEnum docs = termsEnum.postings(null);
             int freq = 0;
             while(docs != null && docs.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                 freq += docs.freq();

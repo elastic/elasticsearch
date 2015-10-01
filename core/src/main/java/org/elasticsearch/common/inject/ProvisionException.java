@@ -16,12 +16,12 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.util.Collection;
+import java.util.Collections;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -47,7 +47,7 @@ public final class ProvisionException extends RuntimeException {
 
     public ProvisionException(String message, Throwable cause) {
         super(cause);
-        this.messages = ImmutableSet.of(new Message(ImmutableList.of(), message, cause));
+        this.messages = ImmutableSet.of(new Message(Collections.emptyList(), message, cause));
     }
 
     public ProvisionException(String message) {

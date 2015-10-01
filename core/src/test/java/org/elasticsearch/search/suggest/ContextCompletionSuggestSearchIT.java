@@ -21,9 +21,9 @@ package org.elasticsearch.search.suggest;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -419,7 +419,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .field("input", "suggestion" + i)
                     .field("weight", i + 1)
                     .startObject("contexts")
-                    .field("geo", GeoHashUtils.encode(1.2, 1.3))
+                    .field("geo", XGeoHashUtils.stringEncode(1.2, 1.3))
                     .endObject()
                     .endObject().endObject();
             indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)

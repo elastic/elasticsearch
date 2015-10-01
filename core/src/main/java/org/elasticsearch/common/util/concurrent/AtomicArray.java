@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchGenerationException;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -93,7 +93,7 @@ public class AtomicArray<E> {
     public List<Entry<E>> asList() {
         if (nonNullList == null) {
             if (array == null || array.length() == 0) {
-                nonNullList = ImmutableList.of();
+                nonNullList = Collections.emptyList();
             } else {
                 List<Entry<E>> list = new ArrayList<>(array.length());
                 for (int i = 0; i < array.length(); i++) {

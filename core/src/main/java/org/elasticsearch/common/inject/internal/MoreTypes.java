@@ -17,7 +17,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.ConfigurationException;
@@ -29,6 +28,7 @@ import java.lang.reflect.*;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -192,7 +192,7 @@ public class MoreTypes {
             // TODO: save a .clone() call
             ParameterizedType pa = (ParameterizedType) a;
             ParameterizedType pb = (ParameterizedType) b;
-            return Objects.equal(pa.getOwnerType(), pb.getOwnerType())
+            return Objects.equals(pa.getOwnerType(), pb.getOwnerType())
                     && pa.getRawType().equals(pb.getRawType())
                     && Arrays.equals(pa.getActualTypeArguments(), pb.getActualTypeArguments());
 

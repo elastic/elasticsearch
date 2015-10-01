@@ -187,7 +187,7 @@ final class CompletionFieldsConsumer extends FieldsConsumer {
      * Writes all postings (surface form, weight, document id) for <code>term</code>
      */
     public void write(BytesRef term, TermsEnum termsEnum) throws IOException {
-      postingsEnum = termsEnum.postings(null, postingsEnum, PostingsEnum.PAYLOADS);
+      postingsEnum = termsEnum.postings(postingsEnum, PostingsEnum.PAYLOADS);
       builder.startTerm(term);
       int docFreq = 0;
       while (postingsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {

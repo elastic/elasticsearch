@@ -30,72 +30,75 @@
 
 # Load test utilities
 load packaging_test_utils
+load os_package
 
 # Cleans everything for the 1st execution
 setup() {
-    if [ "$BATS_TEST_NUMBER" -eq 1 ]; then
-        clean_before_test
-    fi
+    skip_not_sysvinit
+    skip_not_dpkg_or_rpm
+    export_elasticsearch_paths
+}
 
-    # Installs a package before test
-    if is_dpkg; then
-        dpkg -i elasticsearch*.deb >&2 || true
-    fi
-    if is_rpm; then
-        rpm -i elasticsearch*.rpm >&2 || true
-    fi
+@test "[INIT.D] remove any leftover configuration to start elasticsearch on restart" {
+    # This configuration can be added with a command like:
+    # $ sudo update-rc.d elasticsearch defaults 95 10
+    # but we want to test that the RPM and deb _don't_ add it on its own.
+    # Note that it'd be incorrect to use:
+    # $ sudo update-rc.d elasticsearch disable
+    # here because that'd prevent elasticsearch from installing the symlinks
+    # that cause it to be started on restart.
+    sudo update-rc.d -f elasticsearch remove || true
+    sudo chkconfig elasticsearch off || true
+}
+
+@test "[INIT.D] install elasticsearch" {
+    clean_before_test
+    install_package
+}
+
+@test "[INIT.D] daemon isn't enabled on restart" {
+    # Rather than restart the VM which would be slow we check for the symlinks
+    # that init.d uses to restart the application on startup.
+    ! find /etc/rc[0123456].d | grep elasticsearch
+    # Note that we don't use -iname above because that'd have to look like:
+    # [ $(find /etc/rc[0123456].d -iname "elasticsearch*" | wc -l) -eq 0 ]
+    # Which isn't really clearer than what we do use.
 }
 
 @test "[INIT.D] start" {
-    skip_not_sysvinit
-
-    run service elasticsearch start
-    [ "$status" -eq 0 ]
-
+    # Install scripts used to test script filters and search templates before
+    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
+    # them.
+    install_elasticsearch_test_scripts
+    service elasticsearch start
     wait_for_elasticsearch_status
-
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
 }
 
 @test "[INIT.D] status (running)" {
-    skip_not_sysvinit
-
-    run service elasticsearch status
-    [ "$status" -eq 0 ]
+    service elasticsearch status
 }
 
 ##################################
 # Check that Elasticsearch is working
 ##################################
 @test "[INIT.D] test elasticsearch" {
-    skip_not_sysvinit
-
     run_elasticsearch_tests
 }
 
 @test "[INIT.D] restart" {
-    skip_not_sysvinit
-
-    run service elasticsearch restart
-    [ "$status" -eq 0 ]
+    service elasticsearch restart
 
     wait_for_elasticsearch_status
 
-    run service elasticsearch status
-    [ "$status" -eq 0 ]
+    service elasticsearch status
 }
 
 @test "[INIT.D] stop (running)" {
-    skip_not_sysvinit
-
-    run service elasticsearch stop
-    [ "$status" -eq 0 ]
-
+    service elasticsearch stop
 }
 
 @test "[INIT.D] status (stopped)" {
-    skip_not_sysvinit
-
     run service elasticsearch status
     # precise returns 4, trusty 3
     [ "$status" -eq 3 ] || [ "$status" -eq 4 ]
@@ -106,19 +109,13 @@ setup() {
 # but it should not block ES from starting
 # see https://github.com/elastic/elasticsearch/issues/11594
 @test "[INIT.D] delete PID_DIR and restart" {
-    skip_not_sysvinit
+    rm -rf /var/run/elasticsearch
 
-    run rm -rf /var/run/elasticsearch
-    [ "$status" -eq 0 ]
-
-
-    run service elasticsearch start
-    [ "$status" -eq 0 ]
+    service elasticsearch start
 
     wait_for_elasticsearch_status
 
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
 
-    run service elasticsearch stop
-    [ "$status" -eq 0 ]
+    service elasticsearch stop
 }

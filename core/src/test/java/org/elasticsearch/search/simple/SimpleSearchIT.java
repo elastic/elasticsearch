@@ -22,11 +22,13 @@ package org.elasticsearch.search.simple;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,12 +40,12 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 
 public class SimpleSearchIT extends ESIntegTestCase {
-
-    @Test
     public void testSearchNullIndex() {
         try {
             client().prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
@@ -60,7 +62,6 @@ public class SimpleSearchIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testSearchRandomPreference() throws InterruptedException, ExecutionException {
         createIndex("test");
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("field", "value"),
@@ -84,8 +85,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void simpleIpTests() throws Exception {
+    public void testSimpleIp() throws Exception {
         createIndex("test");
 
         client().admin().indices().preparePutMapping("test").setType("type1")
@@ -104,8 +104,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertHitCount(search, 1l);
     }
 
-    @Test
-    public void simpleIdTests() {
+    public void testSimpleId() {
         createIndex("test");
 
         client().prepareIndex("test", "type", "XXX1").setSource("field", "value").setRefresh(true).execute().actionGet();
@@ -124,8 +123,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
     }
 
-    @Test
-    public void simpleDateRangeTests() throws Exception {
+    public void testSimpleDateRange() throws Exception {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
@@ -150,9 +148,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("field:[2010-01-03||+2d TO 2010-01-04||+2d/d]")).execute().actionGet();
         assertHitCount(searchResponse, 2l);
     }
-    
-    @Test
-    public void localeDependentDateTests() throws Exception {
+
+    public void testLocaleDependentDate() throws Exception {
         assumeFalse("Locals are buggy on JDK9EA", Constants.JRE_IS_MINIMUM_JAVA9 && systemPropertyAsBoolean("tests.security.manager", false));
         assertAcked(prepareCreate("test")
                 .addMapping("type1",
@@ -189,8 +186,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void simpleTerminateAfterCountTests() throws Exception {
+    public void testSimpleTerminateAfterCount() throws Exception {
         prepareCreate("test").setSettings(
                 SETTING_NUMBER_OF_SHARDS, 1,
                 SETTING_NUMBER_OF_REPLICAS, 0).get();
@@ -225,16 +221,76 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertFalse(searchResponse.isTerminatedEarly());
     }
 
-    @Test
-    public void testInsaneFrom() throws Exception {
+    public void testInsaneFromAndSize() throws Exception {
         createIndex("idx");
         indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
 
+        assertWindowFails(client().prepareSearch("idx").setFrom(Integer.MAX_VALUE));
+        assertWindowFails(client().prepareSearch("idx").setSize(Integer.MAX_VALUE));
+    }
+
+    public void testTooLargeFromAndSize() throws Exception {
+        createIndex("idx");
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+
+        assertWindowFails(client().prepareSearch("idx").setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW));
+        assertWindowFails(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW + 1));
+        assertWindowFails(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW)
+                .setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW));
+    }
+
+    public void testLargeFromAndSizeSucceeds() throws Exception {
+        createIndex("idx");
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+
+        assertHitCount(client().prepareSearch("idx").setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW - 10).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW / 2)
+                .setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW / 2 - 1).get(), 1);
+    }
+
+    public void testTooLargeFromAndSizeOkBySetting() throws Exception {
+        prepareCreate("idx").setSettings(DefaultSearchContext.MAX_RESULT_WINDOW, DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 2).get();
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+
+        assertHitCount(client().prepareSearch("idx").setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW + 1).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW)
+                .setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW).get(), 1);
+    }
+
+    public void testTooLargeFromAndSizeOkByDynamicSetting() throws Exception {
+        createIndex("idx");
+        assertAcked(client().admin().indices().prepareUpdateSettings("idx")
+                .setSettings(
+                        Settings.builder().put(DefaultSearchContext.MAX_RESULT_WINDOW, DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 2))
+                .get());
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+
+        assertHitCount(client().prepareSearch("idx").setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW + 1).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW)
+                .setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW).get(), 1);
+    }
+
+    public void testTooLargeFromAndSizeBackwardsCompatibilityRecommendation() throws Exception {
+        prepareCreate("idx").setSettings(DefaultSearchContext.MAX_RESULT_WINDOW, Integer.MAX_VALUE).get();
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+
+        assertHitCount(client().prepareSearch("idx").setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 10).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 10).get(), 1);
+        assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 10)
+                .setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 10).get(), 1);
+    }
+
+    private void assertWindowFails(SearchRequestBuilder search) {
         try {
-            client().prepareSearch("idx").setFrom(Integer.MAX_VALUE).get();
+            search.get();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString(), containsString("Result window is too large, from + size must be less than or equal to:"));
+            assertThat(e.toString(), containsString("Result window is too large, from + size must be less than or equal to: ["
+                    + DefaultSearchContext.Defaults.MAX_RESULT_WINDOW));
+            assertThat(e.toString(), containsString("See the scroll api for a more efficient way to request large data sets"));
         }
     }
 }

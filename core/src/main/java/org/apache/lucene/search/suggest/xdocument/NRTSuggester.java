@@ -17,25 +17,22 @@ package org.apache.lucene.search.suggest.xdocument;
  * limitations under the License.
  */
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-
 import org.apache.lucene.search.suggest.analyzing.FSTUtil;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.fst.ByteSequenceOutputs;
-import org.apache.lucene.util.fst.FST;
-import org.apache.lucene.util.fst.PairOutputs;
+import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
-import org.apache.lucene.util.fst.PositiveIntOutputs;
-import org.apache.lucene.util.fst.XUtil;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 import static org.apache.lucene.search.suggest.xdocument.NRTSuggester.PayLoadProcessor.parseDocID;
 import static org.apache.lucene.search.suggest.xdocument.NRTSuggester.PayLoadProcessor.parseSurfaceForm;
@@ -44,7 +41,7 @@ import static org.apache.lucene.search.suggest.xdocument.NRTSuggester.PayLoadPro
  * <p>
  * NRTSuggester executes Top N search on a weighted FST specified by a {@link CompletionScorer}
  * <p>
- * See {@link #lookup(CompletionScorer, TopSuggestDocsCollector)} for more implementation
+ * See {@link #lookup(CompletionScorer, Bits, TopSuggestDocsCollector)} for more implementation
  * details.
  * <p>
  * FST Format:
@@ -56,7 +53,7 @@ import static org.apache.lucene.search.suggest.xdocument.NRTSuggester.PayLoadPro
  * NOTE:
  * <ul>
  *   <li>having too many deletions or using a very restrictive filter can make the search inadmissible due to
- *     over-pruning of potential paths. See {@link CompletionScorer#accept(int)}</li>
+ *     over-pruning of potential paths. See {@link CompletionScorer#accept(int, Bits)}</li>
  *   <li>when matched documents are arbitrarily filtered ({@link CompletionScorer#filtered} set to <code>true</code>,
  *     it is assumed that the filter will roughly filter out half the number of documents that match
  *     the provided automaton</li>
@@ -120,30 +117,30 @@ public final class NRTSuggester implements Accountable {
    * The {@link CompletionScorer#automaton} is intersected with the {@link #fst}.
    * {@link CompletionScorer#weight} is used to compute boosts and/or extract context
    * for each matched partial paths. A top N search is executed on {@link #fst} seeded with
-   * the matched partial paths. Upon reaching a completed path, {@link CompletionScorer#accept(int)}
+   * the matched partial paths. Upon reaching a completed path, {@link CompletionScorer#accept(int, Bits)}
    * and {@link CompletionScorer#score(float, float)} is used on the document id, index weight
    * and query boost to filter and score the entry, before being collected via
    * {@link TopSuggestDocsCollector#collect(int, CharSequence, CharSequence, float)}
    */
-  public void lookup(final CompletionScorer scorer, final TopSuggestDocsCollector collector) throws IOException {
+  public void lookup(final CompletionScorer scorer, final Bits acceptDocs, final TopSuggestDocsCollector collector) throws IOException {
     final double liveDocsRatio = calculateLiveDocRatio(scorer.reader.numDocs(), scorer.reader.maxDoc());
     if (liveDocsRatio == -1) {
       return;
     }
     final List<FSTUtil.Path<Pair<Long, BytesRef>>> prefixPaths = FSTUtil.intersectPrefixPaths(scorer.automaton, fst);
     final int queueSize = getMaxTopNSearcherQueueSize(collector.getCountToCollect() * prefixPaths.size(),
-            scorer.reader.numDocs(), liveDocsRatio, scorer.filtered);
+        scorer.reader.numDocs(), liveDocsRatio, scorer.filtered);
     Comparator<Pair<Long, BytesRef>> comparator = getComparator();
-    XUtil.TopNSearcher<Pair<Long, BytesRef>> searcher = new XUtil.TopNSearcher<Pair<Long, BytesRef>>(fst,
-            collector.getCountToCollect(), queueSize, comparator, new ScoringPathComparator(scorer)) {
+    Util.TopNSearcher<Pair<Long, BytesRef>> searcher = new Util.TopNSearcher<Pair<Long, BytesRef>>(fst,
+        collector.getCountToCollect(), queueSize, comparator, new ScoringPathComparator(scorer)) {
 
       private final CharsRefBuilder spare = new CharsRefBuilder();
 
       @Override
-      protected boolean acceptResult(XUtil.FSTPath<Pair<Long, BytesRef>> path) {
+      protected boolean acceptResult(Util.FSTPath<Pair<Long, BytesRef>> path) {
         int payloadSepIndex = parseSurfaceForm(path.cost.output2, payloadSep, spare);
         int docID = parseDocID(path.cost.output2, payloadSepIndex);
-        if (!scorer.accept(docID)) {
+        if (!scorer.accept(docID, acceptDocs)) {
           return false;
         }
         try {
@@ -158,7 +155,8 @@ public final class NRTSuggester implements Accountable {
 
     for (FSTUtil.Path<Pair<Long, BytesRef>> path : prefixPaths) {
       scorer.weight.setNextMatch(path.input.get());
-      searcher.addStartPaths(path.fstNode, path.output, false, path.input, scorer.weight.boost(), scorer.weight.context());
+      searcher.addStartPaths(path.fstNode, path.output, false, path.input, scorer.weight.boost(),
+          scorer.weight.context());
     }
     // hits are also returned by search()
     // we do not use it, instead collect at acceptResult
@@ -172,7 +170,7 @@ public final class NRTSuggester implements Accountable {
    * Compares partial completion paths using {@link CompletionScorer#score(float, float)},
    * breaks ties comparing path inputs
    */
-  private static class ScoringPathComparator implements Comparator<XUtil.FSTPath<Pair<Long, BytesRef>>> {
+  private static class ScoringPathComparator implements Comparator<Util.FSTPath<Pair<Long, BytesRef>>> {
     private final CompletionScorer scorer;
 
     public ScoringPathComparator(CompletionScorer scorer) {
@@ -180,7 +178,7 @@ public final class NRTSuggester implements Accountable {
     }
 
     @Override
-    public int compare(XUtil.FSTPath<Pair<Long, BytesRef>> first, XUtil.FSTPath<Pair<Long, BytesRef>> second) {
+    public int compare(Util.FSTPath<Pair<Long, BytesRef>> first, Util.FSTPath<Pair<Long, BytesRef>> second) {
       int cmp = Float.compare(scorer.score(decode(second.cost.output1), second.boost),
               scorer.score(decode(first.cost.output1), first.boost));
       return (cmp != 0) ? cmp : first.input.get().compareTo(second.input.get());
@@ -225,11 +223,11 @@ public final class NRTSuggester implements Accountable {
   }
 
   /**
-   * Loads a {@link NRTSuggester} from {@link org.apache.lucene.store.IndexInput}
+   * Loads a {@link NRTSuggester} from {@link IndexInput}
    */
   public static NRTSuggester load(IndexInput input) throws IOException {
     final FST<Pair<Long, BytesRef>> fst = new FST<>(input, new PairOutputs<>(
-            PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton()));
+        PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton()));
 
     /* read some meta info */
     int maxAnalyzedPathsPerOutput = input.readVInt();
@@ -252,7 +250,7 @@ public final class NRTSuggester implements Accountable {
 
   static long decode(long output) {
     assert output >= 0 && output <= Integer.MAX_VALUE :
-            "decoded output: " + output + " is not within 0 and Integer.MAX_VALUE";
+        "decoded output: " + output + " is not within 0 and Integer.MAX_VALUE";
     return Integer.MAX_VALUE - output;
   }
 
@@ -278,7 +276,7 @@ public final class NRTSuggester implements Accountable {
     static int parseDocID(final BytesRef output, int payloadSepIndex) {
       assert payloadSepIndex != -1 : "payload sep index can not be -1";
       ByteArrayDataInput input = new ByteArrayDataInput(output.bytes, payloadSepIndex + output.offset + 1,
-              output.length - (payloadSepIndex + output.offset));
+          output.length - (payloadSepIndex + output.offset));
       return input.readVInt();
     }
 

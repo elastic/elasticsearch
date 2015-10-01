@@ -91,7 +91,9 @@ public class SpanWithinQueryParser implements QueryParser {
         }
 
         Query query = new SpanWithinQuery(big, little);
-        query.setBoost(boost);
+        if (boost != 1.0F) {
+            query.setBoost(boost);
+        }
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

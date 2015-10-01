@@ -24,7 +24,6 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -50,7 +49,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
 
     }
 
-    IndicesSegmentResponse(ShardSegments[] shards, ClusterState clusterState, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    IndicesSegmentResponse(ShardSegments[] shards, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
     }
@@ -63,7 +62,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
 
         Set<String> indices = Sets.newHashSet();
         for (ShardSegments shard : shards) {
-            indices.add(shard.getIndex());
+            indices.add(shard.getShardRouting().getIndex());
         }
 
         for (String index : indices) {

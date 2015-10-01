@@ -19,20 +19,17 @@ package org.apache.lucene.search.suggest.xdocument;
 
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.util.Accountable;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 
 /**
- * Wrapped {@link org.apache.lucene.index.Terms}
+ * Wrapped {@link Terms}
  * used by {@link SuggestField} and {@link ContextSuggestField}
  * to access corresponding suggester and their attributes
  *
  * @lucene.experimental
  */
-public final class CompletionTerms extends FilterLeafReader.FilterTerms implements Accountable {
+public final class CompletionTerms extends FilterLeafReader.FilterTerms {
 
   private final CompletionsTermsReader reader;
 
@@ -73,15 +70,5 @@ public final class CompletionTerms extends FilterLeafReader.FilterTerms implemen
    */
   public NRTSuggester suggester() throws IOException {
     return (reader != null) ? reader.suggester() : null;
-  }
-
-  @Override
-  public long ramBytesUsed() {
-    return (reader != null) ? reader.ramBytesUsed() : 0;
-  }
-
-  @Override
-  public Collection<Accountable> getChildResources() {
-    return (reader != null) ? reader.getChildResources() : Collections.<Accountable>emptyList();
   }
 }

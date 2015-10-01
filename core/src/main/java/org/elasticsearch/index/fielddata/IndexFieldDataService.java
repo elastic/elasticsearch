@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -32,11 +33,12 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 
@@ -139,8 +141,18 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private final IndicesFieldDataCache indicesFieldDataCache;
     // the below map needs to be modified under a lock
     private final Map<String, IndexFieldDataCache> fieldDataCaches = Maps.newHashMap();
+    private final MapperService mapperService;
+    private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {
+        @Override
+        public void onCache(ShardId shardId, Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
+        }
 
-    IndexService indexService;
+        @Override
+        public void onRemoval(ShardId shardId, Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+        }
+    };
+    private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;
+
 
     // We need to cache fielddata on the _parent field because of 1.x indices.
     // When we don't support 1.x anymore (3.0) then remove this caching
@@ -149,15 +161,11 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
     @Inject
     public IndexFieldDataService(Index index, @IndexSettings Settings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
-                                 CircuitBreakerService circuitBreakerService) {
+                                 CircuitBreakerService circuitBreakerService, MapperService mapperService) {
         super(index, indexSettings);
         this.indicesFieldDataCache = indicesFieldDataCache;
         this.circuitBreakerService = circuitBreakerService;
-    }
-
-    // we need to "inject" the index service to not create cyclic dep
-    public void setIndexService(IndexService indexService) {
-        this.indexService = indexService;
+        this.mapperService = mapperService;
     }
 
     public synchronized void clear() {
@@ -229,7 +237,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 // this means changing the node level settings is simple, just set the bounds there
                 String cacheType = type.getSettings().get("cache", indexSettings.get(FIELDDATA_CACHE_KEY, FIELDDATA_CACHE_VALUE_NODE));
                 if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
-                    cache = indicesFieldDataCache.buildIndexFieldDataCache(indexService, index, fieldNames, type);
+                    cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index, fieldNames, type);
                 } else if ("none".equals(cacheType)){
                     cache = new IndexFieldDataCache.None();
                 } else {
@@ -243,13 +251,29 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                     && Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1);
             if (isOldParentField) {
                 if (parentIndexFieldData == null) {
-                    parentIndexFieldData = builder.build(index, indexSettings, fieldType, cache, circuitBreakerService, indexService.mapperService());
+                    parentIndexFieldData = builder.build(index, indexSettings, fieldType, cache, circuitBreakerService, mapperService);
                 }
                 return (IFD) parentIndexFieldData;
             }
         }
 
-        return (IFD) builder.build(index, indexSettings, fieldType, cache, circuitBreakerService, indexService.mapperService());
+        return (IFD) builder.build(index, indexSettings, fieldType, cache, circuitBreakerService, mapperService);
+    }
+
+    /**
+     * Sets a {@link org.elasticsearch.index.fielddata.IndexFieldDataCache.Listener} passed to each {@link IndexFieldData}
+     * creation to capture onCache and onRemoval events. Setting a listener on this method will override any previously
+     * set listeners.
+     * @throws IllegalStateException if the listener is set more than once
+     */
+    public void setListener(IndexFieldDataCache.Listener listener) {
+        if (listener == null) {
+            throw new IllegalArgumentException("listener must not be null");
+        }
+        if (this.listener != DEFAULT_NOOP_LISTENER) {
+            throw new IllegalStateException("can't set listener more than once");
+        }
+        this.listener = listener;
     }
 
 }

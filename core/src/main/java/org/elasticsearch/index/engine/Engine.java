@@ -20,11 +20,22 @@
 package org.elasticsearch.index.engine;
 
 import com.google.common.base.Preconditions;
-import org.apache.lucene.index.*;
+
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherManager;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.elasticsearch.ExceptionsHelper;
@@ -55,7 +66,11 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -487,14 +502,14 @@ public abstract class Engine implements Closeable {
     /**
      * Optimizes to 1 segment
      */
-    public void forceMerge(boolean flush) {
+    public void forceMerge(boolean flush) throws IOException {
         forceMerge(flush, 1, false, false, false);
     }
 
     /**
      * Triggers a forced merge on this engine
      */
-    public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade, boolean upgradeOnlyAncientSegments) throws EngineException;
+    public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade, boolean upgradeOnlyAncientSegments) throws EngineException, IOException;
 
     /**
      * Snapshots the index and returns a handle to it. If needed will try and "commit" the
@@ -911,13 +926,13 @@ public abstract class Engine implements Closeable {
         private final String[] filteringAliases;
         private final Query aliasFilter;
         private final String[] types;
-        private final BitDocIdSetFilter parentFilter;
+        private final BitSetProducer parentFilter;
         private final Operation.Origin origin;
 
         private final long startTime;
         private long endTime;
 
-        public DeleteByQuery(Query query, BytesReference source, @Nullable String[] filteringAliases, @Nullable Query aliasFilter, BitDocIdSetFilter parentFilter, Operation.Origin origin, long startTime, String... types) {
+        public DeleteByQuery(Query query, BytesReference source, @Nullable String[] filteringAliases, @Nullable Query aliasFilter, BitSetProducer parentFilter, Operation.Origin origin, long startTime, String... types) {
             this.query = query;
             this.source = source;
             this.types = types;
@@ -952,7 +967,7 @@ public abstract class Engine implements Closeable {
             return parentFilter != null;
         }
 
-        public BitDocIdSetFilter parentFilter() {
+        public BitSetProducer parentFilter() {
             return parentFilter;
         }
 

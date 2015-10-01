@@ -24,9 +24,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.*;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -117,14 +116,14 @@ public final class InnerHitsContext {
             } else {
                 rawParentFilter = parentObjectMapper.nestedTypeFilter();
             }
-            BitDocIdSetFilter parentFilter = context.bitsetFilterCache().getBitDocIdSetFilter(rawParentFilter);
+            BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
             Filter childFilter = childObjectMapper.nestedTypeFilter();
             Query q = Queries.filtered(query.query(), new NestedChildrenQuery(parentFilter, childFilter, hitContext));
 
             if (size() == 0) {
                 return new TopDocs(context.searcher().count(q), Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
-                int topN = from() + size();
+                int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                 TopDocsCollector topDocsCollector;
                 if (sort() != null) {
                     try {
@@ -147,12 +146,12 @@ public final class InnerHitsContext {
         // A filter that only emits the nested children docs of a specific nested parent doc
         static class NestedChildrenQuery extends Query {
 
-            private final BitDocIdSetFilter parentFilter;
+            private final BitSetProducer parentFilter;
             private final Filter childFilter;
             private final int docId;
             private final LeafReader leafReader;
 
-            NestedChildrenQuery(BitDocIdSetFilter parentFilter, Filter childFilter, FetchSubPhase.HitContext hitContext) {
+            NestedChildrenQuery(BitSetProducer parentFilter, Filter childFilter, FetchSubPhase.HitContext hitContext) {
                 this.parentFilter = parentFilter;
                 this.childFilter = childFilter;
                 this.docId = hitContext.docId();
@@ -190,7 +189,7 @@ public final class InnerHitsContext {
             public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
                 return new ConstantScoreWeight(this) {
                     @Override
-                    public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+                    public Scorer scorer(LeafReaderContext context) throws IOException {
                         // Nested docs only reside in a single segment, so no need to evaluate all segments
                         if (!context.reader().getCoreCacheKey().equals(leafReader.getCoreCacheKey())) {
                             return null;
@@ -202,14 +201,14 @@ public final class InnerHitsContext {
                             return null;
                         }
 
-                        final BitSet parents = parentFilter.getDocIdSet(context).bits();
+                        final BitSet parents = parentFilter.getBitSet(context);
                         final int firstChildDocId = parents.prevSetBit(docId - 1) + 1;
                         // A parent doc doesn't have child docs, so we can early exit here:
                         if (firstChildDocId == docId) {
                             return null;
                         }
 
-                        final DocIdSet children = childFilter.getDocIdSet(context, acceptDocs);
+                        final DocIdSet children = childFilter.getDocIdSet(context, null);
                         if (children == null) {
                             return null;
                         }
@@ -293,17 +292,18 @@ public final class InnerHitsContext {
                 return Lucene.EMPTY_TOP_DOCS;
             }
 
-            BooleanQuery q = new BooleanQuery();
-            q.add(query.query(), Occur.MUST);
-            // Only include docs that have the current hit as parent
-            q.add(new TermQuery(new Term(field, term)), Occur.MUST);
-            // Only include docs that have this inner hits type
-            q.add(documentMapper.typeFilter(), Occur.MUST);
+            BooleanQuery q = new BooleanQuery.Builder()
+                .add(query.query(), Occur.MUST)
+                // Only include docs that have the current hit as parent
+                .add(new TermQuery(new Term(field, term)), Occur.MUST)
+                // Only include docs that have this inner hits type
+                .add(documentMapper.typeFilter(), Occur.MUST)
+                .build();
             if (size() == 0) {
                 final int count = context.searcher().count(q);
                 return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
-                int topN = from() + size();
+                int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                 TopDocsCollector topDocsCollector;
                 if (sort() != null) {
                     topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());

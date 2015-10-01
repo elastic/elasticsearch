@@ -26,10 +26,9 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.test.transport.AssertingLocalTransport;
-import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
@@ -72,7 +71,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
                 .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("path.home", createTempDir().toString())
                 .build();
-        try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
+        try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("127.0.0.1"), randomPort));
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));
@@ -86,11 +85,15 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
         for (NodeInfo nodeInfo : response.getNodes()) {
             assertThat(nodeInfo.getTransport().getProfileAddresses().keySet(), hasSize(1));
             assertThat(nodeInfo.getTransport().getProfileAddresses(), hasKey("client1"));
-            assertThat(nodeInfo.getTransport().getProfileAddresses().get("client1").boundAddress(), instanceOf(InetSocketTransportAddress.class));
+            for (TransportAddress transportAddress : nodeInfo.getTransport().getProfileAddresses().get("client1").boundAddresses()) {
+                assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
+            }
 
-            // bound address
-            InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) nodeInfo.getTransport().getProfileAddresses().get("client1").boundAddress();
-            assertThat(inetSocketTransportAddress.address().getPort(), is(allOf(greaterThanOrEqualTo(randomPort), lessThanOrEqualTo(randomPort + 10))));
+            // bound addresses
+            for (TransportAddress transportAddress : nodeInfo.getTransport().getProfileAddresses().get("client1").boundAddresses()) {
+                assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
+                assertThat(((InetSocketTransportAddress) transportAddress).address().getPort(), is(allOf(greaterThanOrEqualTo(randomPort), lessThanOrEqualTo(randomPort + 10))));
+            }
 
             // publish address
             assertThat(nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress(), instanceOf(InetSocketTransportAddress.class));

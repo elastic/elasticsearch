@@ -19,12 +19,13 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.geo.GeoHashUtils;
+import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -86,31 +87,38 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
         protected long geohashAsLong;
         protected long docCount;
+        protected GeoPoint centroid;
         protected InternalAggregations aggregations;
 
         public Bucket() {
             // For Serialization only
         }
 
-        public Bucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
+        public Bucket(long geohashAsLong, long docCount, GeoPoint centroid, InternalAggregations aggregations) {
             this.docCount = docCount;
             this.aggregations = aggregations;
             this.geohashAsLong = geohashAsLong;
+            this.centroid = centroid;
         }
 
         @Override
         public String getKeyAsString() {
-            return GeoHashUtils.toString(geohashAsLong);
+            return XGeoHashUtils.stringEncode(geohashAsLong);
         }
 
         @Override
         public GeoPoint getKey() {
-            return GeoHashUtils.decode(geohashAsLong);
+            return GeoPoint.fromGeohash(geohashAsLong);
         }
 
         @Override
         public long getDocCount() {
             return docCount;
+        }
+
+        @Override
+        public GeoPoint getCentroid() {
+            return centroid;
         }
 
         @Override
@@ -132,18 +140,23 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         public Bucket reduce(List<? extends Bucket> buckets, ReduceContext context) {
             List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
             long docCount = 0;
+            double cLon = 0;
+            double cLat = 0;
             for (Bucket bucket : buckets) {
                 docCount += bucket.docCount;
+                cLon += (bucket.docCount * bucket.centroid.lon());
+                cLat += (bucket.docCount * bucket.centroid.lat());
                 aggregationsList.add(bucket.aggregations);
             }
             final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-            return new Bucket(geohashAsLong, docCount, aggs);
+            return new Bucket(geohashAsLong, docCount, new GeoPoint(cLat/docCount, cLon/docCount), aggs);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             geohashAsLong = in.readLong();
             docCount = in.readVLong();
+            centroid = GeoPoint.fromGeohash(in.readLong());
             aggregations = InternalAggregations.readAggregations(in);
         }
 
@@ -151,6 +164,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(geohashAsLong);
             out.writeVLong(docCount);
+            out.writeLong(XGeoHashUtils.longEncode(centroid.lon(), centroid.lat(), XGeoHashUtils.PRECISION));
             aggregations.writeTo(out);
         }
 
@@ -159,6 +173,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
             builder.startObject();
             builder.field(CommonFields.KEY, getKeyAsString());
             builder.field(CommonFields.DOC_COUNT, docCount);
+            builder.array(GeoFields.CENTROID, centroid.getLon(), centroid.getLat());
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
@@ -190,7 +205,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(prototype.geohashAsLong, prototype.docCount, aggregations);
+        return new Bucket(prototype.geohashAsLong, prototype.docCount, prototype.centroid, aggregations);
     }
 
     @Override
@@ -284,4 +299,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         }
     }
 
+    public static final class GeoFields {
+        public static final XContentBuilderString CENTROID = new XContentBuilderString("centroid");
+    }
 }

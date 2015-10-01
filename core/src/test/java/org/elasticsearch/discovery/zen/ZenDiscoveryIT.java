@@ -42,7 +42,11 @@ import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BytesTransportRequest;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -112,7 +116,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         createIndex("test");
         ensureSearchable("test");
         RecoveryResponse r = client().admin().indices().prepareRecoveries("test").get();
-        int numRecoveriesBeforeNewMaster = r.shardResponses().get("test").size();
+        int numRecoveriesBeforeNewMaster = r.shardRecoveryStates().get("test").size();
 
         final String oldMaster = internalCluster().getMasterName();
         internalCluster().stopCurrentMasterNode();
@@ -127,7 +131,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ensureSearchable("test");
 
         r = client().admin().indices().prepareRecoveries("test").get();
-        int numRecoveriesAfterNewMaster = r.shardResponses().get("test").size();
+        int numRecoveriesAfterNewMaster = r.shardRecoveryStates().get("test").size();
         assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
     }
 

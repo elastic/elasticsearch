@@ -21,7 +21,11 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.segments.*;
+import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
@@ -29,7 +33,10 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -120,8 +127,8 @@ public class RestSegmentsAction extends AbstractCatAction {
                     for (Segment segment : segments) {
                         table.startRow();
 
-                        table.addCell(shardSegment.getIndex());
-                        table.addCell(shardSegment.getShardId());
+                        table.addCell(shardSegment.getShardRouting().getIndex());
+                        table.addCell(shardSegment.getShardRouting().getId());
                         table.addCell(shardSegment.getShardRouting().primary() ? "p" : "r");
                         table.addCell(nodes.get(shardSegment.getShardRouting().currentNodeId()).getHostAddress());
                         table.addCell(shardSegment.getShardRouting().currentNodeId());

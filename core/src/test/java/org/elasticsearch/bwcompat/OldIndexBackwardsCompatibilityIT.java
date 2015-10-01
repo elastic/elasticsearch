@@ -99,8 +99,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     private List<String> loadIndexesList(String prefix) throws IOException {
         List<String> indexes = new ArrayList<>();
-        Path dir = getDataPath(".");
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, prefix + "-*.zip")) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), prefix + "-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path.getFileName().toString());
             }
@@ -167,7 +166,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
 
         // decompress the index
-        Path backwardsIndex = getDataPath(indexFile);
+        Path backwardsIndex = getBwcIndicesPath().resolve(indexFile);
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
             TestUtil.unzip(stream, unzipDir);
         }

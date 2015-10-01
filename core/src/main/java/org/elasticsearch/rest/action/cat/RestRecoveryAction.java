@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.cat;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -116,19 +115,19 @@ public class RestRecoveryAction extends AbstractCatAction {
 
         Table t = getTableWithHeader(request);
 
-        for (String index : response.shardResponses().keySet()) {
+        for (String index : response.shardRecoveryStates().keySet()) {
 
-            List<ShardRecoveryResponse> shardRecoveryResponses = response.shardResponses().get(index);
-            if (shardRecoveryResponses.size() == 0) {
+            List<RecoveryState> shardRecoveryStates = response.shardRecoveryStates().get(index);
+            if (shardRecoveryStates.size() == 0) {
                 continue;
             }
 
             // Sort ascending by shard id for readability
-            CollectionUtil.introSort(shardRecoveryResponses, new Comparator<ShardRecoveryResponse>() {
+            CollectionUtil.introSort(shardRecoveryStates, new Comparator<RecoveryState>() {
                 @Override
-                public int compare(ShardRecoveryResponse o1, ShardRecoveryResponse o2) {
-                    int id1 = o1.recoveryState().getShardId().id();
-                    int id2 = o2.recoveryState().getShardId().id();
+                public int compare(RecoveryState o1, RecoveryState o2) {
+                    int id1 = o1.getShardId().id();
+                    int id2 = o2.getShardId().id();
                     if (id1 < id2) {
                         return -1;
                     } else if (id1 > id2) {
@@ -139,12 +138,10 @@ public class RestRecoveryAction extends AbstractCatAction {
                 }
             });
 
-            for (ShardRecoveryResponse shardResponse : shardRecoveryResponses) {
-
-                RecoveryState state = shardResponse.recoveryState();
+            for (RecoveryState state: shardRecoveryStates) {
                 t.startRow();
                 t.addCell(index);
-                t.addCell(shardResponse.getShardId());
+                t.addCell(state.getShardId().id());
                 t.addCell(state.getTimer().time());
                 t.addCell(state.getType().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));

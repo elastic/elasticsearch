@@ -80,7 +80,7 @@ public class AggregatorParsers {
     /**
      * Returns the parser that is registered under the given pipeline aggregator
      * type.
-     * 
+     *
      * @param type
      *            The pipeline aggregator type
      * @return The parser associated with the given pipeline aggregator type.
@@ -227,6 +227,10 @@ public class AggregatorParsers {
                 if (subFactories != null) {
                     throw new SearchParseException(context, "Aggregation [" + aggregationName + "] cannot define sub-aggregations",
                             parser.getTokenLocation());
+                }
+                if (level == 0) {
+                    pipelineAggregatorFactory
+                            .validate(null, factories.getAggregatorFactories(), factories.getPipelineAggregatorFactories());
                 }
                 factories.addPipelineAggregator(pipelineAggregatorFactory);
             }

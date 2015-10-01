@@ -119,7 +119,10 @@ The available values are:
 
 If you are using a compatible EC2 or S3 service, they might be using an older API to sign the requests.
 You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.ec2.signer` and `cloud.aws.s3.signer`)
-with the right signer to use. Defaults to `AWS4SignerType`.
+with the right signer to use.
+
+If you are using a compatible S3 service which do not support Version 4 signing process, you may need to use
+`S3SignerType` for `cloud.aws.s3.signer`, which is Signature Version 2.
 
 [[cloud-aws-discovery]]
 ==== EC2 Discovery
@@ -132,6 +135,8 @@ environments). Here is a simple sample configuration:
 discovery:
     type: ec2
 ----
+
+You must also set `cloud.aws.region` if you are not using default AWS region. See <<cloud-aws-usage-region>> for details.
 
 The ec2 discovery is using the same credentials as the rest of the AWS services provided by this plugin (`repositories`).
 See <<cloud-aws-usage>> for details.

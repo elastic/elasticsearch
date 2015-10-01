@@ -331,4 +331,24 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(pathBuilder.string(), equalTo(stringBuilder.string()));
     }
 
+    public void testIndentIsPlatformIndependent() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+        builder.startObject().field("test","foo").startObject("foo").field("foobar", "boom").endObject().endObject();
+        String string = builder.string();
+        assertEquals("{\n" +
+                "  \"test\" : \"foo\",\n" +
+                "  \"foo\" : {\n" +
+                "    \"foobar\" : \"boom\"\n" +
+                "  }\n" +
+                "}", string);
+
+        builder = XContentFactory.contentBuilder(XContentType.YAML).prettyPrint();
+        builder.startObject().field("test","foo").startObject("foo").field("foobar", "boom").endObject().endObject();
+        string = builder.string();
+        assertEquals("---\n" +
+                "test: \"foo\"\n" +
+                "foo:\n" +
+                "  foobar: \"boom\"\n", string);
+    }
+
 }

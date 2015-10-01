@@ -569,7 +569,6 @@ public class Strings {
                 count++;
             }
         }
-        // TODO (MvG): No push: hppc or jcf?
         final Set<String> result = new HashSet<>(count);
         final int len = chars.length;
         int start = 0;  // starting index in chars of the current substring.
@@ -1117,5 +1116,30 @@ public class Strings {
             length--;
         }
         return s.substring(0, length);
+    }
+
+    public static boolean isNullOrEmpty(@Nullable String s) {
+        return s == null || s.isEmpty();
+    }
+
+    public static String coalesceToEmpty(@Nullable String s) {
+        return s == null ? "" : s;
+    }
+
+    public static String padStart(String s, int minimumLength, char c) {
+        if (s == null) {
+            throw new NullPointerException("s");
+        }
+        if (s.length() >= minimumLength) {
+            return s;
+        } else {
+            StringBuilder sb = new StringBuilder(minimumLength);
+            for (int i = s.length(); i < minimumLength; i++) {
+                sb.append(c);
+            }
+
+            sb.append(s);
+            return sb.toString();
+        }
     }
 }

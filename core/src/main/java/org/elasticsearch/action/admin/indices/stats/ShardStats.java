@@ -19,11 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -37,7 +37,7 @@ import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEnt
 
 /**
  */
-public class ShardStats extends BroadcastShardResponse implements ToXContent {
+public class ShardStats implements Streamable, ToXContent {
     private ShardRouting shardRouting;
     private CommonStats commonStats;
     @Nullable
@@ -49,14 +49,13 @@ public class ShardStats extends BroadcastShardResponse implements ToXContent {
     ShardStats() {
     }
 
-    public ShardStats(IndexShard indexShard, CommonStatsFlags flags) {
-        super(indexShard.shardId());
-        this.shardRouting = indexShard.routingEntry();
-        this.dataPath = indexShard.shardPath().getRootDataPath().toString();
-        this.statePath = indexShard.shardPath().getRootStatePath().toString();
-        this.isCustomDataPath = indexShard.shardPath().isCustomDataPath();
-        this.commonStats = new CommonStats(indexShard, flags);
-        this.commitStats = indexShard.commitStats();
+    public ShardStats(ShardRouting routing, ShardPath shardPath, CommonStats commonStats, CommitStats commitStats) {
+        this.shardRouting = routing;
+        this.dataPath = shardPath.getRootDataPath().toString();
+        this.statePath = shardPath.getRootStatePath().toString();
+        this.isCustomDataPath = shardPath.isCustomDataPath();
+        this.commitStats = commitStats;
+        this.commonStats = commonStats;
     }
 
     /**
@@ -94,7 +93,6 @@ public class ShardStats extends BroadcastShardResponse implements ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
         shardRouting = readShardRoutingEntry(in);
         commonStats = CommonStats.readCommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
@@ -105,7 +103,6 @@ public class ShardStats extends BroadcastShardResponse implements ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         shardRouting.writeTo(out);
         commonStats.writeTo(out);
         out.writeOptionalStreamable(commitStats);
@@ -146,5 +143,4 @@ public class ShardStats extends BroadcastShardResponse implements ToXContent {
         static final XContentBuilderString NODE = new XContentBuilderString("node");
         static final XContentBuilderString RELOCATING_NODE = new XContentBuilderString("relocating_node");
     }
-
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import com.google.common.collect.ImmutableList;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
@@ -40,6 +39,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.List;
 
 /**
  * Get index action.
@@ -71,9 +72,9 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     @Override
     protected void doMasterOperation(final GetIndexRequest request, String[] concreteIndices, final ClusterState state,
                                      final ActionListener<GetIndexResponse> listener) {
-        ImmutableOpenMap<String, ImmutableList<Entry>> warmersResult = ImmutableOpenMap.of();
+        ImmutableOpenMap<String, List<Entry>> warmersResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsResult = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliasesResult = ImmutableOpenMap.of();
+        ImmutableOpenMap<String, List<AliasMetaData>> aliasesResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
         Feature[] features = request.features();
         boolean doneAliases = false;

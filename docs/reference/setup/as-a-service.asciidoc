@@ -43,17 +43,17 @@ sudo /etc/init.d/elasticsearch start
 [float]
 ===== Installing the oracle JDK
 
-The usual recommendation is to run the Oracle JDK with elasticsearch. However Ubuntu and Debian only ship the OpenJDK due to license issues. You can easily install the oracle installer package though. In case you are missing the `add-apt-repository` command under Debian GNU/Linux, make sure have at least Debian Wheezy and the package `python-software-properties` installed
+The usual recommendation is to run the Oracle JDK with elasticsearch. However Ubuntu and Debian only ship the OpenJDK due to license issues. You can easily install the oracle installer package though. In case you are missing the `add-apt-repository` command under Debian GNU/Linux, make sure have at least Debian Jessie and the package `python-software-properties` installed
 
 [source,sh]
 --------------------------------------------------
 sudo add-apt-repository ppa:webupd8team/java
 sudo apt-get update
-sudo apt-get install oracle-java7-installer
+sudo apt-get install oracle-java8-installer
 java -version
 --------------------------------------------------
 
-The last command should verify a successful installation of the Oracle JDK. If you want to install java8, you can call `apt-get install oracle-java8-installer`
+The last command should verify a successful installation of the Oracle JDK.
 
 
 [float]

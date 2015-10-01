@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
@@ -82,7 +83,6 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
-
     private boolean mapUnmappedFieldsAsString;
 
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,

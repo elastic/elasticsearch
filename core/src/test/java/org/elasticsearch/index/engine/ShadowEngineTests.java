@@ -91,7 +91,6 @@ public class ShadowEngineTests extends ESTestCase {
     protected Engine replicaEngine;
 
     private Settings defaultSettings;
-    private int indexConcurrency;
     private String codecName;
     private Path dirPath;
 
@@ -100,7 +99,6 @@ public class ShadowEngineTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         CodecService codecService = new CodecService(shardId.index());
-        indexConcurrency = randomIntBetween(1, 20);
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -113,7 +111,6 @@ public class ShadowEngineTests extends ESTestCase {
                 .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
                 .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
-                .put(EngineConfig.INDEX_CONCURRENCY_SETTING, indexConcurrency)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
@@ -341,6 +338,7 @@ public class ShadowEngineTests extends ESTestCase {
 
 
         primaryEngine.config().setCompoundOnFlush(false);
+        primaryEngine.onSettingsChanged();
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         primaryEngine.create(new Engine.Create(newUid("3"), doc3));
@@ -413,6 +411,8 @@ public class ShadowEngineTests extends ESTestCase {
         replicaEngine.refresh("test");
 
         primaryEngine.config().setCompoundOnFlush(true);
+        primaryEngine.onSettingsChanged();
+
         ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         primaryEngine.create(new Engine.Create(newUid("4"), doc4));
         primaryEngine.refresh("test");
@@ -921,7 +921,6 @@ public class ShadowEngineTests extends ESTestCase {
     public void testSettings() {
         CodecService codecService = new CodecService(shardId.index());
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
-        assertEquals(replicaEngine.config().getIndexConcurrency(), indexConcurrency);
     }
 
     @Test

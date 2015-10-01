@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,10 +66,10 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
-                ShardStats indexShardStats = countsPerIndex.get(shardStats.getIndex());
+                ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndex());
                 if (indexShardStats == null) {
                     indexShardStats = new ShardStats();
-                    countsPerIndex.put(shardStats.getIndex(), indexShardStats);
+                    countsPerIndex.put(shardStats.getShardRouting().getIndex(), indexShardStats);
                 }
 
                 indexShardStats.total++;

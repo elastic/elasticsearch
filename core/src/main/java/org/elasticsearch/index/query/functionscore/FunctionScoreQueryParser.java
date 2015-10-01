@@ -156,10 +156,10 @@ public class FunctionScoreQueryParser implements QueryParser {
         } else if (query == null && filter != null) {
             query = new ConstantScoreQuery(filter);
         } else if (query != null && filter != null) {
-            final BooleanQuery filtered = new BooleanQuery();
+            final BooleanQuery.Builder filtered = new BooleanQuery.Builder();
             filtered.add(query, Occur.MUST);
             filtered.add(filter, Occur.FILTER);
-            query = filtered;
+            query = filtered.build();
         }
         // if all filter elements returned null, just use the query
         if (filterFunctions.isEmpty() && combineFunction == null) {

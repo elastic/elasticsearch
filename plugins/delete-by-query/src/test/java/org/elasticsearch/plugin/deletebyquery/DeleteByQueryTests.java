@@ -35,10 +35,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
+import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,12 +53,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0)
 public class DeleteByQueryTests extends ESIntegTestCase {
-    
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", DeleteByQueryPlugin.class.getName());
-        return settings.build();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(DeleteByQueryPlugin.class);
     }
 
     @Test(expected = ActionRequestValidationException.class)
@@ -66,7 +66,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
     }
 
     @Test
-    public void testDeleteByQueryWithNoIndices() {
+    public void testDeleteByQueryWithNoIndices() throws Exception {
         DeleteByQueryRequestBuilder delete = newDeleteByQuery().setQuery(QueryBuilders.matchAllQuery());
         delete.setIndicesOptions(IndicesOptions.fromOptions(false, true, true, false));
         assertDBQResponse(delete.get(), 0L, 0l, 0l, 0l);
@@ -283,7 +283,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
 
     @Test
 
-    public void testConcurrentDeleteByQueriesOnDifferentDocs() throws InterruptedException {
+    public void testConcurrentDeleteByQueriesOnDifferentDocs() throws Exception {
         createIndex("test");
         ensureGreen();
 
@@ -343,7 +343,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
     }
 
     @Test
-    public void testConcurrentDeleteByQueriesOnSameDocs() throws InterruptedException {
+    public void testConcurrentDeleteByQueriesOnSameDocs() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
         ensureGreen();
 
@@ -403,7 +403,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
     }
 
     @Test
-    public void testDeleteByQueryOnReadOnlyIndex() throws InterruptedException {
+    public void testDeleteByQueryOnReadOnlyIndex() throws Exception {
         createIndex("test");
         ensureGreen();
 
@@ -440,10 +440,18 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertThat(response.getTotalMissing(), equalTo(missing));
     }
 
-    private void assertSearchContextsClosed() {
-        NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
-        for (NodeStats nodeStat : nodesStats.getNodes()){
-            assertThat(nodeStat.getIndices().getSearch().getOpenContexts(), equalTo(0L));
-        }
+    private void assertSearchContextsClosed() throws Exception {
+        // The scroll id (and thus the underlying search context) is cleared in
+        // an async manner in TransportDeleteByQueryAction. so we need to use
+        // assertBusy() here to wait for the search context to be released.
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+                for (NodeStats nodeStat : nodesStats.getNodes()){
+                    assertThat(nodeStat.getIndices().getSearch().getOpenContexts(), equalTo(0L));
+                }
+            }
+        });
     }
 }

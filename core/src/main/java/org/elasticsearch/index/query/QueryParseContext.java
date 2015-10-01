@@ -27,7 +27,7 @@ import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -39,7 +39,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -50,7 +54,10 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 public class QueryParseContext {
 
@@ -173,8 +180,8 @@ public class QueryParseContext {
         return queryParser;
     }
 
-    public BitDocIdSetFilter bitsetFilter(Filter filter) {
-        return indexQueryParser.bitsetFilterCache.getBitDocIdSetFilter(filter);
+    public BitSetProducer bitsetFilter(Filter filter) {
+        return indexQueryParser.bitsetFilterCache.getBitSetProducer(filter);
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType mapper) {
@@ -388,5 +395,4 @@ public class QueryParseContext {
     public Version indexVersionCreated() {
         return indexVersionCreated;
     }
-
 }

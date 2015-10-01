@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 
 /**
- * Wraps an {@link org.apache.lucene.analysis.Analyzer}
+ * Wraps an {@link Analyzer}
  * to provide additional completion-only tuning
  * (e.g. preserving token separators, preserving position increments while converting
  * a token stream to an automaton)
@@ -48,7 +48,7 @@ public final class CompletionAnalyzer extends AnalyzerWrapper {
   final static int SEP_LABEL = NRTSuggesterBuilder.PAYLOAD_SEP;
 
   /**
-   * Represent a hole character, inserted by {@link org.apache.lucene.analysis.TokenStreamToAutomaton}
+   * Represent a hole character, inserted by {@link TokenStreamToAutomaton}
    */
   final static int HOLE_CHARACTER = TokenStreamToAutomaton.HOLE;
 
@@ -98,7 +98,7 @@ public final class CompletionAnalyzer extends AnalyzerWrapper {
   }
 
   /**
-   * Calls {@link #CompletionAnalyzer(org.apache.lucene.analysis.Analyzer, boolean, boolean, int)}
+   * Calls {@link #CompletionAnalyzer(Analyzer, boolean, boolean, int)}
    * preserving token separation, position increments and no limit on graph expansions
    */
   public CompletionAnalyzer(Analyzer analyzer) {
@@ -106,7 +106,7 @@ public final class CompletionAnalyzer extends AnalyzerWrapper {
   }
 
   /**
-   * Calls {@link #CompletionAnalyzer(org.apache.lucene.analysis.Analyzer, boolean, boolean, int)}
+   * Calls {@link #CompletionAnalyzer(Analyzer, boolean, boolean, int)}
    * with no limit on graph expansions
    */
   public CompletionAnalyzer(Analyzer analyzer, boolean preserveSep, boolean preservePositionIncrements) {
@@ -114,7 +114,7 @@ public final class CompletionAnalyzer extends AnalyzerWrapper {
   }
 
   /**
-   * Calls {@link #CompletionAnalyzer(org.apache.lucene.analysis.Analyzer, boolean, boolean, int)}
+   * Calls {@link #CompletionAnalyzer(Analyzer, boolean, boolean, int)}
    * preserving token separation and position increments
    */
   public CompletionAnalyzer(Analyzer analyzer, int maxGraphExpansions) {

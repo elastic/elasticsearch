@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -35,7 +36,7 @@ import java.util.List;
  */
 public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadPoolStats.Stats> {
 
-    public static class Stats implements Streamable, ToXContent {
+    public static class Stats implements Streamable, ToXContent, Comparable<Stats> {
 
         private String name;
         private int threads;
@@ -133,6 +134,23 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public int compareTo(Stats other) {
+            if ((getName() == null) && (other.getName() == null)) {
+                return 0;
+            } else if ((getName() != null) && (other.getName() == null)) {
+                return 1;
+            } else if (getName() == null) {
+                return -1;
+            } else {
+                int compare = getName().compareTo(other.getName());
+                if (compare == 0) {
+                    compare = Integer.compare(getThreads(), other.getThreads());
+                }
+                return compare;
+            }
+        }
     }
 
     private List<Stats> stats;
@@ -142,6 +160,7 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
     }
 
     public ThreadPoolStats(List<Stats> stats) {
+        Collections.sort(stats);
         this.stats = stats;
     }
 

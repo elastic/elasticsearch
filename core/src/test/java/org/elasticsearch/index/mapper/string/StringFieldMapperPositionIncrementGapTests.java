@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper.string;
 
-import com.google.common.collect.ImmutableList;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,6 +27,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -140,7 +139,7 @@ public class StringFieldMapperPositionIncrementGapTests extends ESSingleNodeTest
     }
 
     private static void testGap(Client client, String indexName, String type, int positionIncrementGap) throws IOException {
-        client.prepareIndex(indexName, type, "position_gap_test").setSource("string", ImmutableList.of("one", "two three")).setRefresh(true).get();
+        client.prepareIndex(indexName, type, "position_gap_test").setSource("string", Arrays.asList("one", "two three")).setRefresh(true).get();
 
         // Baseline - phrase query finds matches in the same field value
         assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "two three")).get(), 1);

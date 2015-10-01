@@ -25,7 +25,7 @@ import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.AbstractClientHeadersTests;
+import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +37,7 @@ import java.util.HashMap;
 /**
  *
  */
-public class NodeClientHeadersTests extends AbstractClientHeadersTests {
+public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
 
     private static final ActionFilters EMPTY_FILTERS = new ActionFilters(Collections.<ActionFilter>emptySet());
 

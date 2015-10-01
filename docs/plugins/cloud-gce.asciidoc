@@ -74,38 +74,36 @@ If you did not set it yet, you can define your default project you will work on:
 gcloud config set project es-cloud
 --------------------------------------------------
 
+[[cloud-gce-usage-discovery-long-login]]
+
+If you haven't already, login to Google Cloud
+
+[source,sh]
+--------------------------------------------------
+gcloud auth login
+--------------------------------------------------
+
+This will open your browser. You will be asked to sign-in to a Google account and
+authorize access to the Google Cloud SDK.
+
 [[cloud-gce-usage-discovery-long-first-instance]]
 ===== Creating your first instance
 
 
 [source,sh]
 --------------------------------------------------
-gcutil addinstance myesnode1 \
-       --service_account_scope=compute-rw,storage-full \
-       --persistent_boot_disk
+gcloud compute instances create myesnode1 \
+       --zone <your-zone> \
+       --scopes compute-rw
 --------------------------------------------------
-
-Then follow these steps:
-
-* You will be asked to open a link in your browser. Login and allow access to listed services.
-* You will get back a verification code. Copy and paste it in your terminal.
-* You should see an `Authentication successful.` message.
-* Choose your zone, e.g. `europe-west1-a`.
-* Choose your compute instance size, e.g. `f1-micro`.
-* Choose your OS, e.g. `projects/debian-cloud/global/images/debian-7-wheezy-v20140606`.
-* You may be asked to create a ssh key. Follow the instructions to create one.
 
 When done, a report like this one should appears:
 
 [source,text]
 --------------------------------------------------
-Table of resources:
-
-+-----------+--------------+-------+---------+--------------+----------------+----------------+----------------+---------+----------------+
-|   name    | machine-type | image | network |  network-ip  |  external-ip   |     disks      |      zone      | status  | status-message |
-+-----------+--------------+-------+---------+--------------+----------------+----------------+----------------+---------+----------------+
-| myesnode1 | f1-micro     |       | default | 10.240.20.57 | 192.158.29.199 | boot-myesnode1 | europe-west1-a | RUNNING |                |
-+-----------+--------------+-------+---------+--------------+----------------+----------------+----------------+---------+----------------+
+Created [https://www.googleapis.com/compute/v1/projects/es-cloud-1070/zones/us-central1-f/instances/myesnode1].
+NAME      ZONE          MACHINE_TYPE  PREEMPTIBLE INTERNAL_IP   EXTERNAL_IP   STATUS
+myesnode1 us-central1-f n1-standard-1             10.240.133.54 104.197.94.25 RUNNING
 --------------------------------------------------
 
 You can now connect to your instance:
@@ -127,7 +125,7 @@ It's important when creating an instance that the correct permissions are set. A
 
 [source,text]
 --------------------------------------------------
-service_account_scope=compute-rw
+scopes=compute-rw
 --------------------------------------------------
 
 Failing to set this will result in unauthorized messages when starting Elasticsearch.
@@ -145,7 +143,7 @@ sudo apt-get update
 wget https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-2.0.0.deb
 
 # Prepare Java installation
-sudo apt-get install java7-runtime-headless
+sudo apt-get install java8-runtime-headless
 
 # Prepare Elasticsearch installation
 sudo dpkg -i elasticsearch-2.0.0.deb
@@ -238,7 +236,7 @@ gsutil mb gs://esimage
 gsutil cp /tmp/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz gs://esimage
 
 # Then add your image to images collection:
-gcutil addimage elasticsearch-1-2-1 gs://esimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
+gcloud compute images create elasticsearch-2-0-0 --source-uri gs://esimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
 
 # If the previous command did not work for you, logout from your instance
 # and launch the same command from your local machine.
@@ -252,13 +250,11 @@ As you have now an image, you can create as many instances as you need:
 [source,sh]
 --------------------------------------------------
 # Just change node name (here myesnode2)
-gcutil addinstance --image=elasticsearch-1-2-1 myesnode2
+gcloud compute instances create myesnode2 --image elasticsearch-2-0-0 --zone europe-west1-a
 
 # If you want to provide all details directly, you can use:
-gcutil addinstance --image=elasticsearch-1-2-1 \
-       --kernel=projects/google/global/kernels/gce-v20130603 myesnode2 \
-       --zone europe-west1-a --machine_type f1-micro --service_account_scope=compute-rw \
-       --persistent_boot_disk
+gcloud compute instances create myesnode2 --image=elasticsearch-2-0-0 \
+       --zone europe-west1-a --machine-type f1-micro --scopes=compute-rw
 --------------------------------------------------
 
 [[cloud-gce-usage-discovery-remove-instance]]
@@ -269,11 +265,11 @@ You can use https://cloud.google.com/console[Google Cloud Console] or CLI to man
 [source,sh]
 --------------------------------------------------
 # Stopping and removing instances
-gcutil deleteinstance myesnode1 myesnode2 \
+gcloud compute instances delete myesnode1 myesnode2 \
        --zone=europe-west1-a
 
 # Consider removing disk as well if you don't need them anymore
-gcutil deletedisk boot-myesnode1 boot-myesnode2  \
+gcloud compute disks deleted boot-myesnode1 boot-myesnode2  \
        --zone=europe-west1-a
 --------------------------------------------------
 
@@ -315,9 +311,8 @@ Add your tag when building the new instance:
 
 [source,sh]
 --------------------------------------------------
-gcutil --project=es-cloud addinstance myesnode1 \
-       --service_account_scope=compute-rw \
-       --persistent_boot_disk \
+gcloud compute instances create myesnode1 --project=es-cloud \
+       --scopes=compute-rw \
        --tags=elasticsearch,dev
 --------------------------------------------------
 
@@ -344,21 +339,19 @@ But you can specify the port value elasticsearch is meant to use using google co
 [[cloud-gce-usage-discovery-port-create]]
 ===== When creating instance
 
-Add `--metadata=es_port:9301` option:
+Add `--metadata es_port=9301` option:
 
 [source,sh]
 --------------------------------------------------
 # when creating first instance
-gcutil addinstance myesnode1 \
-       --service_account_scope=compute-rw,storage-full \
-       --persistent_boot_disk \
-       --metadata=es_port:9301
+gcloud compute instances create myesnode1 \
+       --scopes=compute-rw,storage-full \
+       --metadata es_port=9301
 
 # when creating an instance from an image
-gcutil addinstance --image=elasticsearch-1-0-0-RC1 \
-       --kernel=projects/google/global/kernels/gce-v20130603 myesnode2 \
-       --zone europe-west1-a --machine_type f1-micro --service_account_scope=compute-rw \
-       --persistent_boot_disk --metadata=es_port:9301
+gcloud compute instances create myesnode2 --image=elasticsearch-1-0-0-RC1 \
+       --zone europe-west1-a --machine-type f1-micro --scopes=compute-rw \
+       --metadata es_port=9301
 --------------------------------------------------
 
 [[cloud-gce-usage-discovery-port-run]]
@@ -366,20 +359,9 @@ gcutil addinstance --image=elasticsearch-1-0-0-RC1 \
 
 [source,sh]
 --------------------------------------------------
-# Get metadata fingerprint
-gcutil getinstance myesnode1 --zone=europe-west1-a
-+------------------------+---------------------+
-|        property        | value               |
-+------------------------+---------------------+
-| metadata               |                     |
-| fingerprint            | 42WmSpB8rSM=        |
-+------------------------+---------------------+
-
-# Use that fingerprint
-gcutil setinstancemetadata myesnode1 \
-       --zone=europe-west1-a \
-       --metadata=es_port:9301 \
-       --fingerprint=42WmSpB8rSM=
+gcloud compute instances add-metadata myesnode1 \
+       --zone europe-west1-a \
+       --metadata es_port=9301
 --------------------------------------------------
 
 
@@ -389,18 +371,11 @@ gcutil setinstancemetadata myesnode1 \
 [[cloud-gce-usage-discovery-tips-projectid]]
 ===== Store project id locally
 
-If you don't want to repeat the project id each time, you can save it in `~/.gcutil.flags` file using:
+If you don't want to repeat the project id each time, you can save it in the local gcloud config
 
 [source,sh]
 --------------------------------------------------
-gcutil getproject --project=es-cloud --cache_flag_values
---------------------------------------------------
-
-`~/.gcutil.flags` file now contains:
-
-[source,text]
---------------------------------------------------
---project=es-cloud
+gcloud config set project es-cloud
 --------------------------------------------------
 
 [[cloud-gce-usage-discovery-tips-permissions]]
@@ -409,14 +384,14 @@ gcutil getproject --project=es-cloud --cache_flag_values
 If you have created a machine without the correct permissions, you will see `403 unauthorized` error messages. The only
 way to alter these permissions is to delete the instance (NOT THE DISK). Then create another with the correct permissions.
 
-Creating machines with gcutil::
+Creating machines with gcloud::
 +
 --
 Ensure the following flags are set:
 
 [source,text]
 --------------------------------------------------
---service_account_scope=compute-rw
+--scopes=compute-rw
 --------------------------------------------------
 --
 
@@ -437,7 +412,7 @@ Set the service account scopes when creating the machine:
 --------------------------------------------------
 knife google server create www1 \
     -m n1-standard-1 \
-    -I debian-7-wheezy-v20131120 \
+    -I debian-8 \
     -Z us-central1-a \
     -i ~/.ssh/id_rsa \
     -x jdoe \

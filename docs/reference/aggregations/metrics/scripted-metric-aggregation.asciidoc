@@ -79,7 +79,16 @@ The above example can also be specified using file scripts as follows:
 
 <1> script parameters for init, map and combine scripts must be specified in a global `params` object so that it can be share between the scripts
 
-For more details on specifying scripts see <<modules-scripting, script documentation>>. 
+For more details on specifying scripts see <<modules-scripting, script documentation>>.
+
+==== Allowed return types
+
+Whilst and valid script object can be used within a single script. the scripts must return or store in the `_agg` object only the following types:
+
+* primitive types
+* String
+* Map (containing only keys and values of the types listed here)
+* Array (containing elements of only the types listed here) 
 
 ==== Scope of scripts
 

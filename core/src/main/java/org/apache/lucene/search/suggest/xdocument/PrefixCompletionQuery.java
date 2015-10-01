@@ -19,9 +19,9 @@ package org.apache.lucene.search.suggest.xdocument;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.suggest.BitsProducer;
 
 import java.io.IOException;
 
@@ -42,7 +42,7 @@ public class PrefixCompletionQuery extends CompletionQuery {
   protected final CompletionAnalyzer analyzer;
 
   /**
-   * Calls {@link PrefixCompletionQuery#PrefixCompletionQuery(Analyzer, Term, Filter)}
+   * Calls {@link PrefixCompletionQuery#PrefixCompletionQuery(Analyzer, Term, BitsProducer)}
    * with no filter
    */
   public PrefixCompletionQuery(Analyzer analyzer, Term term) {
@@ -57,7 +57,7 @@ public class PrefixCompletionQuery extends CompletionQuery {
    *             is analyzed with <code>analyzer</code>
    * @param filter used to query on a sub set of documents
    */
-  public PrefixCompletionQuery(Analyzer analyzer, Term term, Filter filter) {
+  public PrefixCompletionQuery(Analyzer analyzer, Term term, BitsProducer filter) {
     super(term, filter);
     if (!(analyzer instanceof CompletionAnalyzer)) {
       this.analyzer = new CompletionAnalyzer(analyzer);

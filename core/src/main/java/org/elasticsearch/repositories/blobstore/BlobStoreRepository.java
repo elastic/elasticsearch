@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.blobstore;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.io.ByteStreams;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchParseException;
@@ -330,13 +329,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             // Delete snapshot from the snapshot list
             List<SnapshotId> snapshotIds = snapshots();
             if (snapshotIds.contains(snapshotId)) {
-                ImmutableList.Builder<SnapshotId> builder = ImmutableList.builder();
+                List<SnapshotId> builder = new ArrayList<>();
                 for (SnapshotId id : snapshotIds) {
                     if (!snapshotId.equals(id)) {
                         builder.add(id);
                     }
                 }
-                snapshotIds = builder.build();
+                snapshotIds = Collections.unmodifiableList(builder);
             }
             writeSnapshotList(snapshotIds);
             // Now delete all indices
@@ -377,7 +376,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             snapshotFormat.write(blobStoreSnapshot, snapshotsBlobContainer, snapshotId.getSnapshot());
             List<SnapshotId> snapshotIds = snapshots();
             if (!snapshotIds.contains(snapshotId)) {
-                snapshotIds = ImmutableList.<SnapshotId>builder().addAll(snapshotIds).add(snapshotId).build();
+                snapshotIds = new ArrayList<>(snapshotIds);
+                snapshotIds.add(snapshotId);
+                snapshotIds = Collections.unmodifiableList(snapshotIds);
             }
             writeSnapshotList(snapshotIds);
             return blobStoreSnapshot;
@@ -416,7 +417,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 }
                 snapshots.add(new SnapshotId(repositoryName, name));
             }
-            return ImmutableList.copyOf(snapshots);
+            return Collections.unmodifiableList(snapshots);
         } catch (IOException ex) {
             throw new RepositoryException(repositoryName, "failed to list snapshots in repository", ex);
         }
@@ -576,9 +577,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         if (snapshotsBlobContainer.blobExists(SNAPSHOTS_FILE)) {
             snapshotsBlobContainer.deleteBlob(SNAPSHOTS_FILE);
         }
-        try (OutputStream output = snapshotsBlobContainer.createOutput(SNAPSHOTS_FILE)) {
-            bRef.writeTo(output);
-        }
+        snapshotsBlobContainer.writeBlob(SNAPSHOTS_FILE, bRef);
     }
 
     /**
@@ -590,7 +589,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * @throws IOException I/O errors
      */
     protected List<SnapshotId> readSnapshotList() throws IOException {
-        try (InputStream blob = snapshotsBlobContainer.openInput(SNAPSHOTS_FILE)) {
+        try (InputStream blob = snapshotsBlobContainer.readBlob(SNAPSHOTS_FILE)) {
             final byte[] data = ByteStreams.toByteArray(blob);
             ArrayList<SnapshotId> snapshots = new ArrayList<>();
             try (XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
@@ -607,7 +606,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                     }
                 }
             }
-            return ImmutableList.copyOf(snapshots);
+            return Collections.unmodifiableList(snapshots);
         }
     }
 
@@ -642,9 +641,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
                 BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
                 String blobName = "master.dat";
-                try (OutputStream outputStream = testContainer.createOutput(blobName + "-temp")) {
-                    outputStream.write(testBytes);
-                }
+                testContainer.writeBlob(blobName + "-temp", new BytesArray(testBytes));
                 // Make sure that move is supported
                 testContainer.move(blobName + "-temp", blobName);
                 return seed;

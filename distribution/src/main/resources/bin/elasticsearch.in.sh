@@ -62,7 +62,7 @@ if [ -n "$ES_GC_LOG_FILE" ]; then
   JAVA_OPTS="$JAVA_OPTS -XX:+PrintClassHistogram"
   JAVA_OPTS="$JAVA_OPTS -XX:+PrintTenuringDistribution"
   JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCApplicationStoppedTime"
-  JAVA_OPTS="$JAVA_OPTS -Xloggc:\"$ES_GC_LOG_FILE\""
+  JAVA_OPTS="$JAVA_OPTS -Xloggc:$ES_GC_LOG_FILE"
 
   # Ensure that the directory for the log file exists: the JVM will not create it.
   mkdir -p "`dirname \"$ES_GC_LOG_FILE\"`"

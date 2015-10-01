@@ -128,8 +128,8 @@ public class FunctionScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs);
+        public Scorer scorer(LeafReaderContext context) throws IOException {
+            Scorer subQueryScorer = subQueryWeight.scorer(context);
             if (subQueryScorer == null) {
                 return null;
             }

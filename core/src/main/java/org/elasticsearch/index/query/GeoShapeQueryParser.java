@@ -159,12 +159,12 @@ public class GeoShapeQueryParser implements QueryParser {
         if (strategy instanceof RecursivePrefixTreeStrategy && shapeRelation == ShapeRelation.DISJOINT) {
             // this strategy doesn't support disjoint anymore: but it did before, including creating lucene fieldcache (!)
             // in this case, execute disjoint as exists && !intersects
-            BooleanQuery bool = new BooleanQuery();
+            BooleanQuery.Builder bool = new BooleanQuery.Builder();
             Query exists = ExistsQueryParser.newFilter(parseContext, fieldName, null);
             Filter intersects = strategy.makeFilter(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);
-            query = new ConstantScoreQuery(bool);
+            query = new ConstantScoreQuery(bool.build());
         } else {
             query = strategy.makeQuery(getArgs(shape, shapeRelation));
         }

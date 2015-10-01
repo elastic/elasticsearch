@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -57,7 +56,7 @@ public class GeoPolygonQueryBuilder extends QueryBuilder {
     }
 
     public GeoPolygonQueryBuilder addPoint(String geohash) {
-        return addPoint(GeoHashUtils.decode(geohash));
+        return addPoint(GeoPoint.fromGeohash(geohash));
     }
 
     public GeoPolygonQueryBuilder addPoint(GeoPoint point) {

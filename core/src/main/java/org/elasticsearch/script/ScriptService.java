@@ -25,6 +25,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -37,6 +38,7 @@ import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -114,21 +116,25 @@ public class ScriptService extends AbstractComponent implements Closeable {
      * @deprecated Use {@link org.elasticsearch.script.Script.ScriptField} instead. This should be removed in
      *             2.0
      */
+    @Deprecated
     public static final ParseField SCRIPT_LANG = new ParseField("lang","script_lang");
     /**
      * @deprecated Use {@link ScriptType#getParseField()} instead. This should
      *             be removed in 2.0
      */
+    @Deprecated
     public static final ParseField SCRIPT_FILE = new ParseField("script_file");
     /**
      * @deprecated Use {@link ScriptType#getParseField()} instead. This should
      *             be removed in 2.0
      */
+    @Deprecated
     public static final ParseField SCRIPT_ID = new ParseField("script_id");
     /**
      * @deprecated Use {@link ScriptType#getParseField()} instead. This should
      *             be removed in 2.0
      */
+    @Deprecated
     public static final ParseField SCRIPT_INLINE = new ParseField("script");
 
     @Inject
@@ -220,7 +226,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
      */
-    public CompiledScript compile(Script script, ScriptContext scriptContext) {
+    public CompiledScript compile(Script script, ScriptContext scriptContext, HasContextAndHeaders headersContext) {
         if (script == null) {
             throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
@@ -248,14 +254,14 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");
         }
 
-        return compileInternal(script);
+        return compileInternal(script, headersContext);
     }
 
     /**
      * Compiles a script straight-away, or returns the previously compiled and cached script,
      * without checking if it can be executed based on settings.
      */
-    public CompiledScript compileInternal(Script script) {
+    public CompiledScript compileInternal(Script script, HasContextAndHeaders context) {
         if (script == null) {
             throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
@@ -292,7 +298,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
             //the script has been updated in the index since the last look up.
             final IndexedScript indexedScript = new IndexedScript(lang, name);
             name = indexedScript.id;
-            code = getScriptFromIndex(indexedScript.lang, indexedScript.id);
+            code = getScriptFromIndex(indexedScript.lang, indexedScript.id, context);
         }
 
         String cacheKey = getCacheKey(scriptEngineService, type == ScriptType.INLINE ? null : name, code);
@@ -333,13 +339,13 @@ public class ScriptService extends AbstractComponent implements Closeable {
         return scriptLang;
     }
 
-    String getScriptFromIndex(String scriptLang, String id) {
+    String getScriptFromIndex(String scriptLang, String id, HasContextAndHeaders context) {
         if (client == null) {
             throw new IllegalArgumentException("Got an indexed script with no Client registered.");
         }
         scriptLang = validateScriptLanguage(scriptLang);
         GetRequest getRequest = new GetRequest(SCRIPT_INDEX, scriptLang, id);
-        getRequest.copyContextAndHeadersFrom(SearchContext.current());
+        getRequest.copyContextAndHeadersFrom(context);
         GetResponse responseFields = client.get(getRequest).actionGet();
         if (responseFields.isExists()) {
             return getScriptFromResponse(responseFields);
@@ -432,8 +438,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided script
      */
-    public ExecutableScript executable(Script script, ScriptContext scriptContext) {
-        return executable(compile(script, scriptContext), script.getParams());
+    public ExecutableScript executable(Script script, ScriptContext scriptContext, HasContextAndHeaders headersContext) {
+        return executable(compile(script, scriptContext, headersContext), script.getParams());
     }
 
     /**
@@ -447,7 +453,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
      * Compiles (or retrieves from cache) and executes the provided search script
      */
     public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext) {
-        CompiledScript compiledScript = compile(script, scriptContext);
+        CompiledScript compiledScript = compile(script, scriptContext, SearchContext.current());
         return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript, lookup, script.getParams());
     }
 

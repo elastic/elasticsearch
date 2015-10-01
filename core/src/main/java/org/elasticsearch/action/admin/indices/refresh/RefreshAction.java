@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.refresh;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class RefreshAction extends Action<RefreshRequest, RefreshResponse, RefreshRequestBuilder> {
 
     public static final RefreshAction INSTANCE = new RefreshAction();

@@ -67,6 +67,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -79,6 +80,7 @@ import java.nio.file.Path;
 import java.util.*;
 
 import static com.google.common.base.Predicates.isNull;
+import static com.google.common.base.Predicates.notNull;
 import static org.elasticsearch.test.ESTestCase.*;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -124,6 +126,22 @@ public class ElasticsearchAssertions {
      */
     public static void assertBlocked(ActionRequestBuilder builder) {
         assertBlocked(builder, null);
+    }
+
+    /**
+     * Checks that all shard requests of a replicated brodcast request failed due to a cluster block
+     *
+     * @param replicatedBroadcastResponse the response that should only contain failed shard responses
+     *
+     * */
+    public static void assertBlocked(BroadcastResponse replicatedBroadcastResponse) {
+        assertThat("all shard requests should have failed", replicatedBroadcastResponse.getFailedShards(), Matchers.equalTo(replicatedBroadcastResponse.getTotalShards()));
+        for (ShardOperationFailedException exception : replicatedBroadcastResponse.getShardFailures()) {
+            ClusterBlockException clusterBlockException = (ClusterBlockException) ExceptionsHelper.unwrap(exception.getCause(), ClusterBlockException.class);
+            assertNotNull("expected the cause of failure to be a ClusterBlockException but got " + exception.getCause().getMessage(), clusterBlockException);
+            assertThat(clusterBlockException.blocks().size(), greaterThan(0));
+            assertThat(clusterBlockException.status(), CoreMatchers.equalTo(RestStatus.FORBIDDEN));
+        }
     }
 
     /**
@@ -738,8 +756,8 @@ public class ElasticsearchAssertions {
 
         FluentIterable<String> jvmUrls = FluentIterable.from(plugins.getInfos())
                 .filter(Predicates.and(jvmPluginPredicate, Predicates.not(sitePluginPredicate)))
-                .filter(isNull())
-                .transform(urlFunction);
+                .transform(urlFunction)
+                .filter(notNull());
         Assert.assertThat(Iterables.size(jvmUrls), is(0));
 
         List<String> sitePluginNames = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(nameFunction).toList();

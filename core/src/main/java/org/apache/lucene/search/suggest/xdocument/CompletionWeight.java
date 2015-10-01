@@ -21,7 +21,11 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.suggest.BitsProducer;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.automaton.Automaton;
@@ -65,7 +69,7 @@ public class CompletionWeight extends Weight {
   }
 
   @Override
-  public BulkScorer bulkScorer(final LeafReaderContext context, Bits acceptDocs) throws IOException {
+  public BulkScorer bulkScorer(final LeafReaderContext context) throws IOException {
     final LeafReader reader = context.reader();
     final Terms terms;
     final NRTSuggester suggester;
@@ -83,19 +87,15 @@ public class CompletionWeight extends Weight {
       throw new IllegalArgumentException(completionQuery.getField() + " is not a SuggestField");
     }
 
-    DocIdSet docIdSet = null;
-    Filter filter = completionQuery.getFilter();
+    BitsProducer filter = completionQuery.getFilter();
+    Bits filteredDocs = null;
     if (filter != null) {
-      docIdSet = filter.getDocIdSet(context, acceptDocs);
-      if (docIdSet == null || docIdSet.iterator() == null) {
-        // filter matches no docs in current leave
+      filteredDocs = filter.getBits(context);
+      if (filteredDocs.getClass() == Bits.MatchNoBits.class) {
         return null;
-      } else if (docIdSet.bits() == null) {
-        throw new IllegalArgumentException("DocIDSet does not provide random access interface");
       }
     }
-    Bits acceptDocBits = (docIdSet != null) ? docIdSet.bits() : acceptDocs;
-    return new CompletionScorer(this, suggester, reader, acceptDocBits, filter != null, automaton);
+    return new CompletionScorer(this, suggester, reader, filteredDocs, filter != null, automaton);
   }
 
   /**
@@ -107,7 +107,7 @@ public class CompletionWeight extends Weight {
    *
    * @param pathPrefix the prefix of a matched path
    */
-  protected void setNextMatch(final IntsRef pathPrefix) {
+  protected void setNextMatch(IntsRef pathPrefix) {
   }
 
   /**
@@ -129,7 +129,7 @@ public class CompletionWeight extends Weight {
   }
 
   @Override
-  public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+  public Scorer scorer(LeafReaderContext context) throws IOException {
     throw new UnsupportedOperationException();
   }
 
@@ -150,6 +150,6 @@ public class CompletionWeight extends Weight {
   }
 
   @Override
-  public void normalize(float norm, float topLevelBoost) {
+  public void normalize(float norm, float boost) {
   }
 }

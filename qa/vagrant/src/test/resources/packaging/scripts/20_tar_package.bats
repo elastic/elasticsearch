@@ -30,9 +30,12 @@
 
 # Load test utilities
 load packaging_test_utils
+load tar
 
 setup() {
     skip_not_tar_gz
+    export ESHOME=/tmp/elasticsearch
+    export_elasticsearch_paths
 }
 
 ##################################
@@ -61,19 +64,34 @@ setup() {
 
     count=$(find /tmp -type d -name 'elasticsearch*' | wc -l)
     [ "$count" -eq 1 ]
+
+    # Its simpler to check that the install was correct in this test rather
+    # than in another test because install_archive sets a number of path
+    # variables that verify_archive_installation reads. To separate this into
+    # another test you'd have to recreate the variables.
+    verify_archive_installation
 }
 
-##################################
-# Check that the archive is correctly installed
-##################################
-@test "[TAR] verify archive installation" {
-    verify_archive_installation "/tmp/elasticsearch"
+@test "[TAR] elasticsearch fails if java executable is not found" {
+  local JAVA=$(which java)
+
+  sudo chmod -x $JAVA
+  run "$ESHOME/bin/elasticsearch"
+  sudo chmod +x $JAVA
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"* ]]
 }
 
 ##################################
 # Check that Elasticsearch is working
 ##################################
 @test "[TAR] test elasticsearch" {
+    # Install scripts used to test script filters and search templates before
+    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
+    # them.
+    install_elasticsearch_test_scripts
+
     start_elasticsearch_service
 
     run_elasticsearch_tests

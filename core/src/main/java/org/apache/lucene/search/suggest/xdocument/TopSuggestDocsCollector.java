@@ -99,14 +99,14 @@ public class TopSuggestDocsCollector extends SimpleCollector {
   }
 
   /**
-   * Returns at most <code>num</code> Top scoring {@link org.apache.lucene.search.suggest.xdocument.TopSuggestDocs}s
+   * Returns at most <code>num</code> Top scoring {@link TopSuggestDocs}s
    */
-  public org.apache.lucene.search.suggest.xdocument.TopSuggestDocs get() throws IOException {
+  public TopSuggestDocs get() throws IOException {
     SuggestScoreDoc[] suggestScoreDocs = priorityQueue.getResults();
     if (suggestScoreDocs.length > 0) {
-      return new org.apache.lucene.search.suggest.xdocument.TopSuggestDocs(suggestScoreDocs.length, suggestScoreDocs, suggestScoreDocs[0].score);
+      return new TopSuggestDocs(suggestScoreDocs.length, suggestScoreDocs, suggestScoreDocs[0].score);
     } else {
-      return org.apache.lucene.search.suggest.xdocument.TopSuggestDocs.EMPTY;
+      return TopSuggestDocs.EMPTY;
     }
   }
 

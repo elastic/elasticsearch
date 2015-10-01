@@ -73,7 +73,7 @@ public class IndexAliasesService extends AbstractIndexComponent {
             return parse(alias);
         } else {
             // we need to bench here a bit, to see maybe it makes sense to use OrFilter
-            BooleanQuery combined = new BooleanQuery();
+            BooleanQuery.Builder combined = new BooleanQuery.Builder();
             for (String aliasName : aliasNames) {
                 AliasMetaData alias = this.aliases.get(aliasName);
                 if (alias == null) {
@@ -88,7 +88,7 @@ public class IndexAliasesService extends AbstractIndexComponent {
                     return null;
                 }
             }
-            return combined;
+            return combined.build();
         }
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search.type;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -39,8 +40,8 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
@@ -210,7 +211,8 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
                 @Override
                 public void doRun() throws IOException {
-                    final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
+                    final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults,
+                            fetchResults, request);
                     String scrollId = null;
                     if (request.scroll() != null) {
                         scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);

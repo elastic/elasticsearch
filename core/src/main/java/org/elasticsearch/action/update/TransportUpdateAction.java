@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.update;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -58,6 +57,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -153,10 +153,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         ShardRouting shard;
         while ((shard = shardIterator.nextOrNull()) != null) {
             if (shard.primary()) {
-                return new PlainShardIterator(shardIterator.shardId(), ImmutableList.of(shard));
+                return new PlainShardIterator(shardIterator.shardId(), Collections.singletonList(shard));
             }
         }
-        return new PlainShardIterator(shardIterator.shardId(), ImmutableList.<ShardRouting>of());
+        return new PlainShardIterator(shardIterator.shardId(), Collections.<ShardRouting>emptyList());
     }
 
     @Override

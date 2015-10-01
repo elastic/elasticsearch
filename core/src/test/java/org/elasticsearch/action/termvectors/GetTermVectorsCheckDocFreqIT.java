@@ -119,7 +119,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
                 assertThat("expected ttf of " + string, numDocs, equalTo((int) iterator.totalTermFreq()));
             }
 
-            PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
+            PostingsEnum docsAndPositions = iterator.postings(null, PostingsEnum.ALL);
             assertThat(docsAndPositions.nextDoc(), equalTo(0));
             assertThat(freq[j], equalTo(docsAndPositions.freq()));
             assertThat(iterator.docFreq(), equalTo(numDocs));
@@ -176,7 +176,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
 
             assertThat("expected ttf of " + string, -1, equalTo((int) iterator.totalTermFreq()));
 
-            PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
+            PostingsEnum docsAndPositions = iterator.postings(null, PostingsEnum.ALL);
             assertThat(docsAndPositions.nextDoc(), equalTo(0));
             assertThat(freq[j], equalTo(docsAndPositions.freq()));
             assertThat(iterator.docFreq(), equalTo(-1));
@@ -236,7 +236,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
                 assertThat("expected ttf of " + string, numDocs, equalTo((int) iterator.totalTermFreq()));
             }
 
-            PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
+            PostingsEnum docsAndPositions = iterator.postings(null, PostingsEnum.ALL);
             assertThat(docsAndPositions.nextDoc(), equalTo(0));
             assertThat(freq[j], equalTo(docsAndPositions.freq()));
             assertThat(iterator.docFreq(), equalTo(numDocs));

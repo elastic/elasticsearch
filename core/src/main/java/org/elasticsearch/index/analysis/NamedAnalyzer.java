@@ -22,6 +22,8 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 
+import java.util.Objects;
+
 /**
  * Named analyzer is an analyzer wrapper around an actual analyzer ({@link #analyzer} that is associated
  * with a name ({@link #name()}.
@@ -104,4 +106,17 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
             throw new IllegalStateException("NamedAnalyzer cannot be wrapped with a wrapper, only a delegator");
         }
     };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof NamedAnalyzer)) return false;
+        NamedAnalyzer that = (NamedAnalyzer) o;
+        return Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name);
+    }
 }

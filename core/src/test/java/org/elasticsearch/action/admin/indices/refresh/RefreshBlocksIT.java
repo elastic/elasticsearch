@@ -57,7 +57,7 @@ public class RefreshBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                assertBlocked(client().admin().indices().prepareRefresh("test"));
+                assertBlocked(client().admin().indices().prepareRefresh("test").get());
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
@@ -70,7 +70,7 @@ public class RefreshBlocksIT extends ESIntegTestCase {
             assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
             setClusterReadOnly(true);
-            assertBlocked(client().admin().indices().prepareRefresh());
+            assertBlocked(client().admin().indices().prepareRefresh().get());
         } finally {
             setClusterReadOnly(false);
         }

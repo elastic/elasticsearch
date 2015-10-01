@@ -62,12 +62,12 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
             // Configure using path.repo
             return settingsBuilder()
                     .put(super.nodeSettings(nodeOrdinal))
-                    .put("path.repo", reposRoot())
+                    .put("path.repo", getBwcIndicesPath())
                     .build();
         } else {
             // Configure using url white list
             try {
-                URI repoJarPatternUri = new URI("jar:" + reposRoot().toUri().toString() + "*.zip!/repo/");
+                URI repoJarPatternUri = new URI("jar:" + getBwcIndicesPath().toUri().toString() + "*.zip!/repo/");
                 return settingsBuilder()
                         .put(super.nodeSettings(nodeOrdinal))
                         .putArray("repositories.url.allowed_urls", repoJarPatternUri.toString())
@@ -128,10 +128,6 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private Path reposRoot() {
-        return getDataPath(".");
-    }
-
     private List<String> repoVersions() throws Exception {
         return listRepoVersions("repo");
     }
@@ -142,7 +138,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
 
     private List<String> listRepoVersions(String prefix) throws Exception {
         List<String> repoVersions = new ArrayList<>();
-        Path repoFiles = reposRoot();
+        Path repoFiles = getBwcIndicesPath();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(repoFiles, prefix + "-*.zip")) {
             for (Path entry : stream) {
                 String fileName = entry.getFileName().toString();
@@ -155,8 +151,8 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void createRepo(String prefix, String version, String repo) throws Exception {
-        String repoFile = prefix + "-" + version + ".zip";
-        URI repoFileUri = getDataPath(repoFile).toUri();
+        Path repoFile = getBwcIndicesPath().resolve(prefix + "-" + version + ".zip");
+        URI repoFileUri = repoFile.toUri();
         URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
         logger.info("-->  creating repository [{}] for version [{}]", repo, version);
         assertAcked(client().admin().cluster().preparePutRepository(repo)

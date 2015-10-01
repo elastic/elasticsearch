@@ -245,7 +245,7 @@ public class RootObjectMapper extends ObjectMapper {
         if (dynamicTemplate == null) {
             return null;
         }
-        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
+        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(name);
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {

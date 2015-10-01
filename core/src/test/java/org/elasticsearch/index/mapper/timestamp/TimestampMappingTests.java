@@ -579,11 +579,10 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
 
         MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), true, false);
         List<String> expectedConflicts = new ArrayList<>(Arrays.asList(
-            "mapper [_timestamp] has different index values",
-            "mapper [_timestamp] has different store values",
+            "mapper [_timestamp] has different [index] values",
+            "mapper [_timestamp] has different [store] values",
             "Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02",
-            "Cannot update path in _timestamp value. Value is foo path in merged mapping is bar",
-            "mapper [_timestamp] has different tokenize values"));
+            "Cannot update path in _timestamp value. Value is foo path in merged mapping is bar"));
 
         for (String conflict : mergeResult.buildConflicts()) {
             assertTrue("found unexpected conflict [" + conflict + "]", expectedConflicts.remove(conflict));
@@ -618,12 +617,12 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
 
         MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), true, false);
         List<String> expectedConflicts = new ArrayList<>();
-        expectedConflicts.add("mapper [_timestamp] has different index values");
-        expectedConflicts.add("mapper [_timestamp] has different tokenize values");
+        expectedConflicts.add("mapper [_timestamp] has different [index] values");
+        expectedConflicts.add("mapper [_timestamp] has different [tokenize] values");
         if (indexValues.get(0).equals("not_analyzed") == false) {
             // if the only index value left is not_analyzed, then the doc values setting will be the same, but in the
             // other two cases, it will change
-            expectedConflicts.add("mapper [_timestamp] has different doc_values values");
+            expectedConflicts.add("mapper [_timestamp] has different [doc_values] values");
         }
 
         for (String conflict : mergeResult.buildConflicts()) {

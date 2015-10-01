@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -86,7 +85,7 @@ public class MultiDataPathUpgrader {
         ShardStateMetaData.FORMAT.write(loaded, loaded.version, targetPath.getShardStatePath());
         Files.createDirectories(targetPath.resolveIndex());
         try (SimpleFSDirectory directory = new SimpleFSDirectory(targetPath.resolveIndex())) {
-            try (final Lock lock = Lucene.acquireWriteLock(directory)) {
+            try (final Lock lock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
                 upgradeFiles(shard, targetPath, targetPath.resolveIndex(), ShardPath.INDEX_FOLDER_NAME, paths);
             } catch (LockObtainFailedException ex) {
                 throw new IllegalStateException("Can't obtain lock on " + targetPath.resolveIndex(), ex);

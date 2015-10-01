@@ -189,7 +189,7 @@ PUT my_index/_mapping/type_one?update_all_types <3>
 -----------------------------------
 // AUTOSENSE
 <1> Create an index with two types, both of which contain a `text` field which have the same mapping.
-<2> Tring to update the `search_analyzer` just for `type_one` throws an exception like `"Merge failed with failures..."`.
+<2> Trying to update the `search_analyzer` just for `type_one` throws an exception like `"Merge failed with failures..."`.
 <3> Adding the `update_all_types` parameter updates the `text` field in `type_one` and `type_two`.
 
 

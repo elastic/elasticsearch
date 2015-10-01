@@ -313,13 +313,16 @@ public class DiskThresholdDecider extends AllocationDecider {
      * If subtractShardsMovingAway is set then the size of shards moving away is subtracted from the total size
      * of all shards
      */
-    public static long sizeOfRelocatingShards(RoutingNode node, ClusterInfo clusterInfo, boolean subtractShardsMovingAway) {
+    public static long sizeOfRelocatingShards(RoutingNode node, ClusterInfo clusterInfo, boolean subtractShardsMovingAway, String dataPath) {
         long totalSize = 0;
         for (ShardRouting routing : node.shardsWithState(ShardRoutingState.RELOCATING, ShardRoutingState.INITIALIZING)) {
-            if (routing.initializing() && routing.relocatingNodeId() != null) {
-                totalSize += getShardSize(routing, clusterInfo);
-            } else if (subtractShardsMovingAway && routing.relocating()) {
-                totalSize -= getShardSize(routing, clusterInfo);
+            String actualPath = clusterInfo.getDataPath(routing);
+            if (dataPath.equals(actualPath)) {
+                if (routing.initializing() && routing.relocatingNodeId() != null) {
+                    totalSize += getShardSize(routing, clusterInfo);
+                } else if (subtractShardsMovingAway && routing.relocating()) {
+                    totalSize -= getShardSize(routing, clusterInfo);
+                }
             }
         }
         return totalSize;
@@ -332,15 +335,16 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final Decision decision = earlyTerminate(allocation);
+        ClusterInfo clusterInfo = allocation.clusterInfo();
+        Map<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
+        final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
         }
 
         final double usedDiskThresholdLow = 100.0 - DiskThresholdDecider.this.freeDiskThresholdLow;
         final double usedDiskThresholdHigh = 100.0 - DiskThresholdDecider.this.freeDiskThresholdHigh;
-        ClusterInfo clusterInfo = allocation.clusterInfo();
-        Map<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
+
         DiskUsage usage = getDiskUsage(node, allocation, usages);
         // First, check that the node currently over the low watermark
         double freeDiskPercentage = usage.getFreeDiskAsPercentage();
@@ -446,18 +450,23 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (shardRouting.currentNodeId().equals(node.nodeId()) == false) {
             throw new IllegalArgumentException("Shard [" + shardRouting + "] is not allocated on node: [" + node.nodeId() + "]");
         }
-        final Decision decision = earlyTerminate(allocation);
+        final ClusterInfo clusterInfo = allocation.clusterInfo();
+        final Map<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
+        final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
         }
-        ClusterInfo clusterInfo = allocation.clusterInfo();
-        Map<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
-        DiskUsage usage = getDiskUsage(node, allocation, usages);
+
+        final DiskUsage usage = getDiskUsage(node, allocation, usages);
+        final String dataPath = clusterInfo.getDataPath(shardRouting);
         // If this node is already above the high threshold, the shard cannot remain (get it off!)
-        double freeDiskPercentage = usage.getFreeDiskAsPercentage();
-        long freeBytes = usage.getFreeBytes();
+        final double freeDiskPercentage = usage.getFreeDiskAsPercentage();
+        final long freeBytes = usage.getFreeBytes();
         if (logger.isDebugEnabled()) {
             logger.debug("node [{}] has {}% free disk ({} bytes)", node.nodeId(), freeDiskPercentage, freeBytes);
+        }
+        if (dataPath == null || usage.getPath().equals(dataPath) == false) {
+            return allocation.decision(Decision.YES, NAME, "shard is not allocated on the most utilized disk");
         }
         if (freeBytes < freeBytesThresholdHigh.bytes()) {
             if (logger.isDebugEnabled()) {
@@ -493,8 +502,8 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         if (includeRelocations) {
-            long relocatingShardsSize = sizeOfRelocatingShards(node, clusterInfo, true);
-            DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().name(), "_na_",
+            long relocatingShardsSize = sizeOfRelocatingShards(node, clusterInfo, true, usage.getPath());
+            DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().name(), usage.getPath(),
                     usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
             if (logger.isTraceEnabled()) {
                 logger.trace("usage without relocations: {}", usage);
@@ -583,7 +592,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
     }
 
-    private Decision earlyTerminate(RoutingAllocation allocation) {
+    private Decision earlyTerminate(RoutingAllocation allocation, final Map<String, DiskUsage> usages) {
         // Always allow allocation if the decider is disabled
         if (!enabled) {
             return allocation.decision(Decision.YES, NAME, "disk threshold decider disabled");
@@ -606,7 +615,6 @@ public class DiskThresholdDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "cluster info unavailable");
         }
 
-        final Map<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
         // Fail open if there are no disk usages available
         if (usages.isEmpty()) {
             if (logger.isTraceEnabled()) {

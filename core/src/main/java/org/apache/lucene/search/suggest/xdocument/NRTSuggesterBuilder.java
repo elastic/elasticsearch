@@ -77,7 +77,7 @@ final class NRTSuggesterBuilder {
 
   /**
    * Adds an entry for the latest input term, should be called after
-   * {@link #startTerm(org.apache.lucene.util.BytesRef)} on the desired input
+   * {@link #startTerm(BytesRef)} on the desired input
    */
   public void addEntry(int docID, BytesRef surfaceForm, long weight) throws IOException {
     BytesRef payloadRef = NRTSuggester.PayLoadProcessor.make(surfaceForm, docID, payloadSep);
@@ -101,7 +101,7 @@ final class NRTSuggesterBuilder {
         numDedupBytes++;
       }
       analyzed.setByteAt(analyzed.length() - 1, (byte) numArcs++);
-      XUtil.toIntsRef(analyzed.get(), scratchInts);
+      Util.toIntsRef(analyzed.get(), scratchInts);
       builder.add(scratchInts.get(), outputs.newPair(entry.weight, entry.payload));
     }
     maxAnalyzedPathsPerOutput = Math.max(maxAnalyzedPathsPerOutput, entries.size());

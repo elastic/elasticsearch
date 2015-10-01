@@ -119,9 +119,10 @@ public class AggregationPhase implements SearchPhase {
             Query query = Queries.newMatchAllQuery();
             Query searchFilter = context.searchFilter(context.types());
             if (searchFilter != null) {
-                BooleanQuery filtered = new BooleanQuery();
-                filtered.add(query, Occur.MUST);
-                filtered.add(searchFilter, Occur.FILTER);
+                BooleanQuery filtered = new BooleanQuery.Builder()
+                    .add(query, Occur.MUST)
+                    .add(searchFilter, Occur.FILTER)
+                    .build();
                 query = filtered;
             }
             try {

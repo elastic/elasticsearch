@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest.term;
 
+import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -39,7 +40,7 @@ public final class TermSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexQueryParserService queryParserService, IndexFieldDataService indexFieldDataService) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexQueryParserService queryParserService, IndexFieldDataService indexFieldDataService, HasContextAndHeaders headersContext) throws IOException {
         XContentParser.Token token;
         String fieldName = null;
         TermSuggestionContext suggestion = new TermSuggestionContext(suggester);

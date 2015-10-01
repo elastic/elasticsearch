@@ -28,6 +28,92 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettingsService;
 
+/**
+ * A shard in elasticsearch is a Lucene index, and a Lucene index is broken
+ * down into segments. Segments are internal storage elements in the index
+ * where the index data is stored, and are immutable up to delete markers.
+ * Segments are, periodically, merged into larger segments to keep the
+ * index size at bay and expunge deletes.
+ * 
+ * <p>
+ * Merges select segments of approximately equal size, subject to an allowed
+ * number of segments per tier. The merge policy is able to merge
+ * non-adjacent segments, and separates how many segments are merged at once from how many
+ * segments are allowed per tier. It also does not over-merge (i.e., cascade merges).
+ * 
+ * <p>
+ * All merge policy settings are <b>dynamic</b> and can be updated on a live index.
+ * The merge policy has the following settings:
+ * 
+ * <ul>
+ * <li><code>index.merge.policy.expunge_deletes_allowed</code>:
+ * 
+ *     When expungeDeletes is called, we only merge away a segment if its delete
+ *     percentage is over this threshold. Default is <code>10</code>.
+ * 
+ * <li><code>index.merge.policy.floor_segment</code>:
+ * 
+ *     Segments smaller than this are "rounded up" to this size, i.e. treated as
+ *     equal (floor) size for merge selection. This is to prevent frequent
+ *     flushing of tiny segments, thus preventing a long tail in the index. Default
+ *     is <code>2mb</code>.
+ * 
+ * <li><code>index.merge.policy.max_merge_at_once</code>:
+ * 
+ *     Maximum number of segments to be merged at a time during "normal" merging.
+ *     Default is <code>10</code>.
+ * 
+ * <li><code>index.merge.policy.max_merge_at_once_explicit</code>:
+ * 
+ *     Maximum number of segments to be merged at a time, during optimize or
+ *     expungeDeletes. Default is <code>30</code>.
+ * 
+ * <li><code>index.merge.policy.max_merged_segment</code>:
+ * 
+ *     Maximum sized segment to produce during normal merging (not explicit
+ *     optimize). This setting is approximate: the estimate of the merged segment
+ *     size is made by summing sizes of to-be-merged segments (compensating for
+ *     percent deleted docs). Default is <code>5gb</code>.
+ * 
+ * <li><code>index.merge.policy.segments_per_tier</code>:
+ * 
+ *     Sets the allowed number of segments per tier. Smaller values mean more
+ *     merging but fewer segments. Default is <code>10</code>. Note, this value needs to be
+ *     >= than the <code>max_merge_at_once</code> otherwise you'll force too many merges to
+ *     occur.
+ * 
+ * <li><code>index.merge.policy.reclaim_deletes_weight</code>:
+ * 
+ *     Controls how aggressively merges that reclaim more deletions are favored.
+ *     Higher values favor selecting merges that reclaim deletions. A value of
+ *     <code>0.0</code> means deletions don't impact merge selection. Defaults to <code>2.0</code>.
+ * </ul>
+ * 
+ * <p>
+ * For normal merging, the policy first computes a "budget" of how many
+ * segments are allowed to be in the index. If the index is over-budget,
+ * then the policy sorts segments by decreasing size (proportionally considering percent
+ * deletes), and then finds the least-cost merge. Merge cost is measured by
+ * a combination of the "skew" of the merge (size of largest seg divided by
+ * smallest seg), total merge size and pct deletes reclaimed, so that
+ * merges with lower skew, smaller size and those reclaiming more deletes,
+ * are favored.
+ * 
+ * <p>
+ * If a merge will produce a segment that's larger than
+ * <code>max_merged_segment</code> then the policy will merge fewer segments (down to
+ * 1 at once, if that one has deletions) to keep the segment size under
+ * budget.
+ * 
+ * <p>
+ * Note, this can mean that for large shards that holds many gigabytes of
+ * data, the default of <code>max_merged_segment</code> (<code>5gb</code>) can cause for many
+ * segments to be in an index, and causing searches to be slower. Use the
+ * indices segments API to see the segments that an index has, and
+ * possibly either increase the <code>max_merged_segment</code> or issue an optimize
+ * call for the index (try and aim to issue it on a low traffic time).
+ */
+
 public final class MergePolicyConfig implements IndexSettingsService.Listener{
     private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
     private final ESLogger logger;

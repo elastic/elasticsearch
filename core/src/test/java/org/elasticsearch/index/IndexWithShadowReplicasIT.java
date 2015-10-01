@@ -38,11 +38,13 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -52,6 +54,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -81,6 +84,11 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put("path.shared_data", dataPath)
                 .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockTransportService.TestPlugin.class);
     }
 
     public void testCannotCreateWithBadPath() throws Exception {
@@ -419,7 +427,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()
                 .put("node.add_id_to_custom_path", false)
-                .put("plugin.types", MockTransportService.TestPlugin.class.getName())
                 .put("path.shared_data", dataPath)
                 .build();
 
@@ -752,5 +759,53 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         assertShardCountOn(newFooNode, 5);
         assertNoShardsOn(barNodes.get());
+    }
+
+    public void testDeletingClosedIndexRemovesFiles() throws Exception {
+        Path dataPath = createTempDir();
+        Path dataPath2 = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath.getParent());
+
+        internalCluster().startNodesAsync(2, nodeSettings).get();
+        String IDX = "test";
+        String IDX2 = "test2";
+
+        Settings idxSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
+                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
+                .build();
+        Settings idx2Settings = Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_DATA_PATH, dataPath2.toAbsolutePath().toString())
+                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
+                .build();
+
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX2).setSettings(idx2Settings).addMapping("doc", "foo", "type=string").get();
+        ensureGreen(IDX, IDX2);
+
+        int docCount = randomIntBetween(10, 100);
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < docCount; i++) {
+            builders.add(client().prepareIndex(IDX, "doc", i + "").setSource("foo", "bar"));
+            builders.add(client().prepareIndex(IDX2, "doc", i + "").setSource("foo", "bar"));
+        }
+        indexRandom(true, true, true, builders);
+        flushAndRefresh(IDX, IDX2);
+
+        logger.info("--> closing index {}", IDX);
+        client().admin().indices().prepareClose(IDX).get();
+
+        logger.info("--> deleting non-closed index");
+        client().admin().indices().prepareDelete(IDX2).get();
+        assertPathHasBeenCleared(dataPath2);
+        logger.info("--> deleting closed index");
+        client().admin().indices().prepareDelete(IDX).get();
+        assertPathHasBeenCleared(dataPath);
     }
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.index.query.support;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -53,7 +53,7 @@ public class NestedInnerQueryParseSupport {
     protected boolean queryFound = false;
     protected boolean filterFound = false;
 
-    protected BitDocIdSetFilter parentFilter;
+    protected BitSetProducer parentFilter;
     protected Filter childFilter;
 
     protected ObjectMapper nestedObjectMapper;

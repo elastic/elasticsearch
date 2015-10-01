@@ -27,9 +27,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.Collection;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -39,9 +42,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class CustomQueryParserIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", DummyQueryParserPlugin.class.getName()).build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(DummyQueryParserPlugin.class);
     }
 
     @Before

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.warmer.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,6 +29,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Holds a warmer-name to a list of {@link IndexWarmersMetaData} mapping for each warmer specified
@@ -38,20 +40,20 @@ import java.io.IOException;
  */
 public class GetWarmersResponse extends ActionResponse {
 
-    private ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> warmers = ImmutableOpenMap.of();
+    private ImmutableOpenMap<String, List<IndexWarmersMetaData.Entry>> warmers = ImmutableOpenMap.of();
 
-    GetWarmersResponse(ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> warmers) {
+    GetWarmersResponse(ImmutableOpenMap<String, List<IndexWarmersMetaData.Entry>> warmers) {
         this.warmers = warmers;
     }
 
     GetWarmersResponse() {
     }
 
-    public ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> warmers() {
+    public ImmutableOpenMap<String, List<IndexWarmersMetaData.Entry>> warmers() {
         return warmers;
     }
 
-    public ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> getWarmers() {
+    public ImmutableOpenMap<String, List<IndexWarmersMetaData.Entry>> getWarmers() {
         return warmers();
     }
 
@@ -59,11 +61,11 @@ public class GetWarmersResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        ImmutableOpenMap.Builder<String, ImmutableList<IndexWarmersMetaData.Entry>> indexMapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<IndexWarmersMetaData.Entry>> indexMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < size; i++) {
             String key = in.readString();
             int valueSize = in.readVInt();
-            ImmutableList.Builder<IndexWarmersMetaData.Entry> warmerEntryBuilder = ImmutableList.builder();
+            List<IndexWarmersMetaData.Entry> warmerEntryBuilder = new ArrayList<>();
             for (int j = 0; j < valueSize; j++) {
                 String name = in.readString();
                 String[] types = in.readStringArray();
@@ -77,7 +79,7 @@ public class GetWarmersResponse extends ActionResponse {
                                 source)
                 );
             }
-            indexMapBuilder.put(key, warmerEntryBuilder.build());
+            indexMapBuilder.put(key, Collections.unmodifiableList(warmerEntryBuilder));
         }
         warmers = indexMapBuilder.build();
     }
@@ -86,7 +88,7 @@ public class GetWarmersResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(warmers.size());
-        for (ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> indexEntry : warmers) {
+        for (ObjectObjectCursor<String, List<IndexWarmersMetaData.Entry>> indexEntry : warmers) {
             out.writeString(indexEntry.key);
             out.writeVInt(indexEntry.value.size());
             for (IndexWarmersMetaData.Entry warmerEntry : indexEntry.value) {

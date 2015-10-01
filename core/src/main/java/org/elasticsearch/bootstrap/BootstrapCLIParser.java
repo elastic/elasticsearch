@@ -19,10 +19,10 @@
 
 package org.elasticsearch.bootstrap;
 
-import com.google.common.base.Strings;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.elasticsearch.Build;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
@@ -128,7 +128,13 @@ final class BootstrapCLIParser extends CliTool {
             while (iterator.hasNext()) {
                 String arg = iterator.next();
                 if (!arg.startsWith("--")) {
-                    throw new IllegalArgumentException("Parameter [" + arg + "]does not start with --");
+                    if (arg.startsWith("-D") || arg.startsWith("-d") || arg.startsWith("-p")) {
+                        throw new IllegalArgumentException(
+                                "Parameter [" + arg + "] starting with \"-D\", \"-d\" or \"-p\" must be before any parameters starting with --"
+                        );
+                    } else {
+                        throw new IllegalArgumentException("Parameter [" + arg + "]does not start with --");
+                    }
                 }
                 // if there is no = sign, we have to get the next argu
                 arg = arg.replace("--", "");

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.bwcompat;
 
-import com.google.common.collect.ImmutableList;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -32,6 +31,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.junit.Test;
+
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
@@ -46,10 +47,10 @@ public class GetIndexBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertAcked(createIndexResponse);
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures(Feature.ALIASES)
                 .execute().actionGet();
-        ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliasesMap = getIndexResponse.aliases();
+        ImmutableOpenMap<String, List<AliasMetaData>> aliasesMap = getIndexResponse.aliases();
         assertThat(aliasesMap, notNullValue());
         assertThat(aliasesMap.size(), equalTo(1));
-        ImmutableList<AliasMetaData> aliasesList = aliasesMap.get("test");
+        List<AliasMetaData> aliasesList = aliasesMap.get("test");
         assertThat(aliasesList, notNullValue());
         assertThat(aliasesList.size(), equalTo(1));
         AliasMetaData alias = aliasesList.get(0);
@@ -100,10 +101,10 @@ public class GetIndexBackwardsCompatibilityIT extends ESBackcompatTestCase {
         ensureSearchable("test");
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures(Feature.WARMERS)
                 .execute().actionGet();
-        ImmutableOpenMap<String, ImmutableList<Entry>> warmersMap = getIndexResponse.warmers();
+        ImmutableOpenMap<String, List<Entry>> warmersMap = getIndexResponse.warmers();
         assertThat(warmersMap, notNullValue());
         assertThat(warmersMap.size(), equalTo(1));
-        ImmutableList<Entry> warmersList = warmersMap.get("test");
+        List<Entry> warmersList = warmersMap.get("test");
         assertThat(warmersList, notNullValue());
         assertThat(warmersList.size(), equalTo(1));
         Entry warmer = warmersList.get(0);

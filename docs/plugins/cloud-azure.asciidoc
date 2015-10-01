@@ -54,6 +54,18 @@ discovery:
     type: azure
 ----
 
+
+[IMPORTANT]
+.Binding the network host
+==============================================
+
+It's important to define `network.host` as by default it's bound to `localhost`.
+
+You can use {ref}/modules-network.html[core network host settings]. For example `_non_loopback_` or `_en0_`.
+
+==============================================
+
+
 [[cloud-azure-discovery-short]]
 ===== How to start (short story)
 
@@ -345,14 +357,14 @@ Once connected, install Elasticsearch:
 [source,sh]
 ----
 # Install Latest Java version
-# Read http://www.webupd8.org/2012/01/install-oracle-java-jdk-7-in-ubuntu-via.html for details
+# Read http://www.webupd8.org/2012/09/install-oracle-java-8-in-ubuntu-via-ppa.html for details
 sudo add-apt-repository ppa:webupd8team/java
 sudo apt-get update
-sudo apt-get install oracle-java7-installer
+sudo apt-get install oracle-java8-installer
 
 # If you want to install OpenJDK instead
 # sudo apt-get update
-# sudo apt-get install openjdk-7-jre-headless
+# sudo apt-get install openjdk-8-jre-headless
 
 # Download Elasticsearch
 curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-2.0.0.deb -o elasticsearch-2.0.0.deb

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.get;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
 import org.apache.lucene.index.Term;
@@ -49,6 +48,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -258,7 +258,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                         if (value instanceof List) {
                             fields.put(field, new GetField(field, (List) value));
                         } else {
-                            fields.put(field, new GetField(field, ImmutableList.of(value)));
+                            fields.put(field, new GetField(field, Collections.singletonList(value)));
                         }
                     }
                 }
@@ -383,7 +383,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     if (value instanceof List) {
                         fields.put(field, new GetField(field, (List) value));
                     } else {
-                        fields.put(field, new GetField(field, ImmutableList.of(value)));
+                        fields.put(field, new GetField(field, Collections.singletonList(value)));
                     }
                 }
             }

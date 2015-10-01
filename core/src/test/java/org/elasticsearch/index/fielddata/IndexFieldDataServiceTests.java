@@ -25,6 +25,9 @@ import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.lucene.index.ESDirectoryReaderTests;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -33,12 +36,16 @@ import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -156,6 +163,79 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         reader2.close();
         writer.close();
         writer.getDirectory().close();
+    }
+
+    public void testFieldDataCacheListener() throws Exception {
+        final IndexService indexService = createIndex("test");
+        IndexFieldDataService shardPrivateService = indexService.fieldData();
+        // copy the ifdService since we can set the listener only once.
+        final IndexFieldDataService ifdService = new IndexFieldDataService(shardPrivateService.index(), shardPrivateService.indexSettings(),
+                getInstanceFromNode(IndicesFieldDataCache.class), getInstanceFromNode(CircuitBreakerService.class), indexService.mapperService());
+
+        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
+        final MappedFieldType mapper1 = MapperBuilders.stringField("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
+        final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
+        Document doc = new Document();
+        doc.add(new StringField("s", "thisisastring", Store.NO));
+        writer.addDocument(doc);
+        DirectoryReader open = DirectoryReader.open(writer, true);
+        final boolean wrap = randomBoolean();
+        final IndexReader reader = wrap ? ElasticsearchDirectoryReader.wrap(open, new ShardId("test", 1)) : open;
+        final AtomicInteger onCacheCalled = new AtomicInteger();
+        final AtomicInteger onRemovalCalled = new AtomicInteger();
+        ifdService.setListener(new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
+                if (wrap) {
+                    assertEquals(new ShardId("test", 1), shardId);
+                } else {
+                    assertNull(shardId);
+                }
+                onCacheCalled.incrementAndGet();
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+                if (wrap) {
+                    assertEquals(new ShardId("test", 1), shardId);
+                } else {
+                    assertNull(shardId);
+                }
+                onRemovalCalled.incrementAndGet();
+            }
+        });
+        IndexFieldData<?> ifd = ifdService.getForField(mapper1);
+        LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
+        AtomicFieldData load = ifd.load(leafReaderContext);
+        assertEquals(1, onCacheCalled.get());
+        assertEquals(0, onRemovalCalled.get());
+        reader.close();
+        load.close();
+        writer.close();
+        assertEquals(1, onCacheCalled.get());
+        assertEquals(1, onRemovalCalled.get());
+        ifdService.clear();
+    }
+
+    public void testSetCacheListenerTwice() {
+        final IndexService indexService = createIndex("test");
+        IndexFieldDataService shardPrivateService = indexService.fieldData();
+        try {
+            shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
+                @Override
+                public void onCache(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
+
+                }
+
+                @Override
+                public void onRemoval(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+
+                }
+            });
+            fail("listener already set");
+        } catch (IllegalStateException ex) {
+            // all well
+        }
     }
 
 }

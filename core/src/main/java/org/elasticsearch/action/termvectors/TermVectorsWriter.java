@@ -151,7 +151,7 @@ final class TermVectorsWriter {
     }
 
     private PostingsEnum writeTermWithDocsOnly(TermsEnum iterator, PostingsEnum docsEnum) throws IOException {
-        docsEnum = iterator.postings(null, docsEnum);
+        docsEnum = iterator.postings(docsEnum);
         int nextDoc = docsEnum.nextDoc();
         assert nextDoc != DocIdSetIterator.NO_MORE_DOCS;
         writeFreq(docsEnum.freq());
@@ -162,7 +162,7 @@ final class TermVectorsWriter {
 
     private PostingsEnum writeTermWithDocsAndPos(TermsEnum iterator, PostingsEnum docsAndPosEnum, boolean positions,
                                                          boolean offsets, boolean payloads) throws IOException {
-        docsAndPosEnum = iterator.postings(null, docsAndPosEnum, PostingsEnum.ALL);
+        docsAndPosEnum = iterator.postings(docsAndPosEnum, PostingsEnum.ALL);
         // for each term (iterator next) in this field (field)
         // iterate over the docs (should only be one)
         int nextDoc = docsAndPosEnum.nextDoc();

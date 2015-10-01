@@ -29,7 +29,10 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.fst.Util;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.TreeSet;
 
 /**
  * A {@link CompletionQuery} that match documents specified by
@@ -64,7 +67,7 @@ import java.util.*;
  *     Use {@link #addContext(CharSequence, float, boolean)} with the common
  *     context prefix, boost and set <code>exact</code> to false.
  *   <li>
- *     Using this query against a {@link org.apache.lucene.search.suggest.document.SuggestField} (not context enabled),
+ *     Using this query against a {@link SuggestField} (not context enabled),
  *     would yield results ignoring any context filtering/boosting
  *   </li>
  * </ul>
@@ -120,7 +123,7 @@ public class ContextQuery extends CompletionQuery {
     for (int i = 0; i < context.length(); i++) {
       if (ContextSuggestField.CONTEXT_SEPARATOR == context.charAt(i)) {
         throw new IllegalArgumentException("Illegal value [" + context + "] UTF-16 codepoint [0x"
-                + Integer.toHexString((int) context.charAt(i))+ "] at position " + i + " is a reserved character");
+            + Integer.toHexString((int) context.charAt(i))+ "] at position " + i + " is a reserved character");
       }
     }
     contexts.put(IntsRef.deepCopyOf(Util.toIntsRef(new BytesRef(context), scratch)), new ContextMetaData(boost, exact));

@@ -21,34 +21,18 @@ package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
  * The response of a refresh action.
- *
- *
  */
 public class RefreshResponse extends BroadcastResponse {
 
     RefreshResponse() {
-
     }
 
     RefreshResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
     }
 }

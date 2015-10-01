@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -36,6 +35,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -98,8 +98,8 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     public void facetByTokenCount() throws IOException {
         init();
 
-        String facetField = randomFrom(ImmutableList.of(
-                "foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
+        String facetField = randomFrom(Arrays.asList(
+            "foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
         SearchResponse result = searchByNumericRange(1, 10)
                 .addAggregation(AggregationBuilders.terms("facet").field(facetField)).get();
         assertSearchReturns(result, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
@@ -166,7 +166,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
 
     private SearchRequestBuilder searchByNumericRange(int low, int high) {
         return prepareSearch().setQuery(QueryBuilders.rangeQuery(randomFrom(
-                ImmutableList.of("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values")
+                Arrays.asList("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values")
         )).gte(low).lte(high));
     }
 

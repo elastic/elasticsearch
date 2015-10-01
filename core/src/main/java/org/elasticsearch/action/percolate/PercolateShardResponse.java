@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.percolate;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,6 +34,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +45,7 @@ public class PercolateShardResponse extends BroadcastShardResponse {
 
     private static final BytesRef[] EMPTY_MATCHES = new BytesRef[0];
     private static final float[] EMPTY_SCORES = new float[0];
-    private static final List<Map<String, HighlightField>> EMPTY_HL = ImmutableList.of();
+    private static final List<Map<String, HighlightField>> EMPTY_HL = Collections.emptyList();
 
     private long count;
     private float[] scores;

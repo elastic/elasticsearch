@@ -24,17 +24,21 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -81,8 +85,9 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     }
 
+    @Override
     public void initialize(InternalAggregation.ReduceContext context) {
-        searchScript = context.scriptService().executable(script, ScriptContext.Standard.AGGS);
+        searchScript = context.scriptService().executable(script, ScriptContext.Standard.AGGS, context);
         searchScript.setNextVar("_subset_freq", subsetDfHolder);
         searchScript.setNextVar("_subset_size", subsetSizeHolder);
         searchScript.setNextVar("_superset_freq", supersetDfHolder);
@@ -129,7 +134,8 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         }
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException, QueryParsingException {
+        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, SearchContext context)
+                throws IOException, QueryParsingException {
             String heuristicName = parser.currentName();
             Script script = null;
             XContentParser.Token token;
@@ -169,7 +175,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             }
             ExecutableScript searchScript;
             try {
-                searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS);
+                searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, context);
             } catch (Exception e) {
                 throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. the script [{}] could not be loaded", e, script, heuristicName);
             }
@@ -204,21 +210,23 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     public final class LongAccessor extends Number {
         public long value;
+        @Override
         public int intValue() {
             return (int)value;
         }
+        @Override
         public long longValue() {
             return value;
         }
 
         @Override
         public float floatValue() {
-            return (float)value;
+            return value;
         }
 
         @Override
         public double doubleValue() {
-            return (double)value;
+            return value;
         }
 
         @Override

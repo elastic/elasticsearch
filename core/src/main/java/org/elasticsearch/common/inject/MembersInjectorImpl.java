@@ -16,13 +16,14 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.InternalContext;
 import org.elasticsearch.common.inject.spi.InjectionListener;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
+
+import java.util.List;
 
 /**
  * Injects members of instances of a given type.
@@ -32,12 +33,12 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 class MembersInjectorImpl<T> implements MembersInjector<T> {
     private final TypeLiteral<T> typeLiteral;
     private final InjectorImpl injector;
-    private final ImmutableList<SingleMemberInjector> memberInjectors;
-    private final ImmutableList<MembersInjector<? super T>> userMembersInjectors;
-    private final ImmutableList<InjectionListener<? super T>> injectionListeners;
+    private final List<SingleMemberInjector> memberInjectors;
+    private final List<MembersInjector<? super T>> userMembersInjectors;
+    private final List<InjectionListener<? super T>> injectionListeners;
 
     MembersInjectorImpl(InjectorImpl injector, TypeLiteral<T> typeLiteral,
-                        EncounterImpl<T> encounter, ImmutableList<SingleMemberInjector> memberInjectors) {
+                        EncounterImpl<T> encounter, List<SingleMemberInjector> memberInjectors) {
         this.injector = injector;
         this.typeLiteral = typeLiteral;
         this.memberInjectors = memberInjectors;
@@ -45,7 +46,7 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
         this.injectionListeners = encounter.getInjectionListeners();
     }
 
-    public ImmutableList<SingleMemberInjector> getMemberInjectors() {
+    public List<SingleMemberInjector> getMemberInjectors() {
         return memberInjectors;
     }
 

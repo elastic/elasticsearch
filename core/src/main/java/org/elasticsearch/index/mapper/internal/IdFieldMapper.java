@@ -189,7 +189,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 return super.prefixQuery(value, method, context);
             }
             Collection<String> queryTypes = context.queryTypes();
-            BooleanQuery query = new BooleanQuery();
+            BooleanQuery.Builder query = new BooleanQuery.Builder();
             for (String queryType : queryTypes) {
                 PrefixQuery prefixQuery = new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))));
                 if (method != null) {
@@ -197,7 +197,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 }
                 query.add(prefixQuery, BooleanClause.Occur.SHOULD);
             }
-            return query;
+            return query.build();
         }
 
         @Override
@@ -214,7 +214,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 }
                 return regexpQuery;
             }
-            BooleanQuery query = new BooleanQuery();
+            BooleanQuery.Builder query = new BooleanQuery.Builder();
             for (String queryType : queryTypes) {
                 RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags, maxDeterminizedStates);
                 if (method != null) {
@@ -222,7 +222,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 }
                 query.add(regexpQuery, BooleanClause.Occur.SHOULD);
             }
-            return query;
+            return query.build();
         }
     }
 

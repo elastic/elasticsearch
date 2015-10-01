@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -49,12 +50,13 @@ public final class PhraseSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexQueryParserService queryParserService, IndexFieldDataService indexFieldDataService) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService,
+            IndexQueryParserService queryParserService,IndexFieldDataService indexFieldDataService, HasContextAndHeaders headersContext) throws IOException {
         PhraseSuggestionContext suggestion = new PhraseSuggestionContext(suggester);
         suggestion.setQueryParserService(queryParserService);
         XContentParser.Token token;
         String fieldName = null;
-        boolean gramSizeSet = false; 
+        boolean gramSizeSet = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -141,7 +143,8 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                                 throw new IllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
                             Template template = Template.parse(parser, queryParserService.parseFieldMatcher());
-                            CompiledScript compiledScript = suggester.scriptService().compile(template, ScriptContext.Standard.SEARCH);
+                            CompiledScript compiledScript = suggester.scriptService().compile(template, ScriptContext.Standard.SEARCH,
+                                    headersContext);
                             suggestion.setCollateQueryScript(compiledScript);
                         } else if ("params".equals(fieldName)) {
                             suggestion.setCollateScriptParams(parser.map());
@@ -163,7 +166,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                 throw new IllegalArgumentException("suggester[phrase] doesn't support field [" + fieldName + "]");
             }
         }
-        
+
         if (suggestion.getField() == null) {
             throw new IllegalArgumentException("The required field option is missing");
         }
@@ -179,11 +182,11 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                 suggestion.setAnalyzer(fieldType.searchAnalyzer());
             }
         }
-        
+
         if (suggestion.model() == null) {
             suggestion.setModel(StupidBackoffScorer.FACTORY);
         }
-        
+
         if (!gramSizeSet || suggestion.generators().isEmpty()) {
             final ShingleTokenFilterFactory.Factory shingleFilterFactory = SuggestUtils.getShingleFilterFactory(suggestion.getAnalyzer());
             if (!gramSizeSet) {
@@ -205,9 +208,9 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                 suggestion.addGenerator(generator);
             }
         }
-        
-        
-        
+
+
+
         return suggestion;
     }
 

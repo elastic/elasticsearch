@@ -21,22 +21,20 @@
 package org.elasticsearch.test.disruption;
 
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collection;
 
 public class NetworkPartitionIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put("plugin.types", MockTransportService.TestPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockTransportService.TestPlugin.class);
     }
 
     @Test

@@ -61,7 +61,8 @@ public class FlushBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                assertBlocked(client().admin().indices().prepareFlush("test"));
+                FlushResponse flushResponse = client().admin().indices().prepareFlush("test").get();
+                assertBlocked(flushResponse);
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
@@ -74,7 +75,7 @@ public class FlushBlocksIT extends ESIntegTestCase {
             assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
             setClusterReadOnly(true);
-            assertBlocked(client().admin().indices().prepareFlush());
+            assertBlocked(client().admin().indices().prepareFlush().get());
         } finally {
             setClusterReadOnly(false);
         }

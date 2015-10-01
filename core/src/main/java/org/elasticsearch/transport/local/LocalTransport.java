@@ -105,7 +105,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         if (previous != null) {
             throw new ElasticsearchException("local address [" + address + "] is already bound");
         }
-        boundAddress = new BoundTransportAddress(localAddress, localAddress);
+        boundAddress = new BoundTransportAddress(new TransportAddress[] { localAddress }, localAddress);
     }
 
     @Override

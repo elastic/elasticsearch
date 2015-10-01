@@ -40,7 +40,7 @@ A `moving_avg` aggregation looks like this in isolation:
 .`moving_avg` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
-|`buckets_path` |Path to the metric of interest (see <<bucket-path-syntax, `buckets_path` Syntax>> for more details |Required |
+|`buckets_path` |Path to the metric of interest (see <<buckets-path-syntax, `buckets_path` Syntax>> for more details |Required |
 |`model` |The moving average weighting model that we wish to use |Optional |`simple`
 |`gap_policy` |Determines what should happen when a gap in the data is encountered. |Optional |`insert_zero`
 |`window` |The size of window to "slide" across the histogram. |Optional |`5`
@@ -78,7 +78,7 @@ embedded like any other metric aggregation:
 Moving averages are built by first specifying a `histogram` or `date_histogram` over a field.  You can then optionally
 add normal metrics, such as a `sum`, inside of that histogram.  Finally, the `moving_avg` is embedded inside the histogram.
 The `buckets_path` parameter is then used to "point" at one of the sibling metrics inside of the histogram (see
-<<bucket-path-syntax>> for a description of the syntax for `buckets_path`.
+<<buckets-path-syntax>> for a description of the syntax for `buckets_path`.
 
 
 ==== Models

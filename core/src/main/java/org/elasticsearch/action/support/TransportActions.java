@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action.support;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -34,7 +36,9 @@ public class TransportActions {
         if (actual instanceof ShardNotFoundException ||
                 actual instanceof IndexNotFoundException ||
                 actual instanceof IllegalIndexShardStateException ||
-                actual instanceof NoShardAvailableActionException) {
+                actual instanceof NoShardAvailableActionException ||
+                actual instanceof UnavailableShardsException ||
+                actual instanceof AlreadyClosedException) {
             return true;
         }
         return false;

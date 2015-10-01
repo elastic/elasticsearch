@@ -203,7 +203,33 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         // now assert that we actually generate the same JSON
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         queryBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(query.trim(), builder.string().trim());
+        logger.info(msg(query, builder.string()));
+        assertEquals(query, builder.string());
+    }
+
+    private String msg(String left, String right) {
+        int size = Math.min(left.length(), right.length());
+        StringBuilder builder = new StringBuilder("size: " + left.length() + " vs. " + right.length());
+        builder.append(" content: <<");
+        for (int i = 0; i < size; i++) {
+            if (left.charAt(i) == right.charAt(i)) {
+                builder.append(left.charAt(i));
+            } else {
+                builder.append(">> ").append("until offset: ").append(i)
+                        .append(" [").append(left.charAt(i)).append(" vs.").append(right.charAt(i))
+                        .append("] [").append((int)left.charAt(i) ).append(" vs.").append((int)right.charAt(i)).append(']');
+                return builder.toString();
+            }
+        }
+        if (left.length() != right.length()) {
+            int leftEnd = Math.max(size, left.length()) - 1;
+            int rightEnd = Math.max(size, right.length()) - 1;
+            builder.append(">> ").append("until offset: ").append(size)
+                    .append(" [").append(left.charAt(leftEnd)).append(" vs.").append(right.charAt(rightEnd))
+                    .append("] [").append((int)left.charAt(leftEnd)).append(" vs.").append((int)right.charAt(rightEnd)).append(']');
+            return builder.toString();
+        }
+        return "";
     }
 
     public void testToQueryInnerQueryType() throws IOException {

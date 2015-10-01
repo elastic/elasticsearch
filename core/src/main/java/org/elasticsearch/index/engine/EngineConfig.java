@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.indexing.ShardIndexingService;
+import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -378,14 +379,6 @@ public final class EngineConfig {
      */
     public QueryCachingPolicy getQueryCachingPolicy() {
         return queryCachingPolicy;
-    }
-
-    IndexSearcherWrapper getSearcherWrapper() {
-        return searcherWrapper.get();
-    }
-
-    public void setSearcherWrapper(IndexSearcherWrapper searcherWrapper) {
-        this.searcherWrapper.set(searcherWrapper);
     }
 
     /**

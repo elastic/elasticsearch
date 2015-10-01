@@ -1048,7 +1048,7 @@ public final class InternalTestCluster extends TestCluster {
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
                     try {
-                        CommitStats commitStats = indexShard.engine().commitStats();
+                        CommitStats commitStats = indexShard.commitStats();
                         String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);
                         if (syncId != null) {
                             long liveDocsOnShard = commitStats.getNumDocs();

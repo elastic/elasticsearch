@@ -97,7 +97,7 @@ public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction
     protected ShardUpgradeStatus shardOperation(UpgradeStatusRequest request, ShardRouting shardRouting) {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(shardRouting.shardId().id());
-        List<Segment> segments = indexShard.engine().segments(false);
+        List<Segment> segments = indexShard.segments(false);
         long total_bytes = 0;
         long to_upgrade_bytes = 0;
         long to_upgrade_bytes_ancient = 0;

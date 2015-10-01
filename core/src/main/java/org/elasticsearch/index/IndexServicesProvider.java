@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.aliases.IndexAliasesService;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesLifecycle;
@@ -56,8 +58,12 @@ public final class IndexServicesProvider {
     private final EngineFactory factory;
     private final BigArrays bigArrays;
 
+
+
+    private final IndexSearcherWrapper indexSearcherWrapper;
+
     @Inject
-    public IndexServicesProvider(IndicesLifecycle indicesLifecycle, ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, IndicesQueryCache indicesQueryCache, CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory, BigArrays bigArrays) {
+    public IndexServicesProvider(IndicesLifecycle indicesLifecycle, ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, IndicesQueryCache indicesQueryCache, CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory, BigArrays bigArrays, @Nullable IndexSearcherWrapper indexSearcherWrapper) {
         this.indicesLifecycle = indicesLifecycle;
         this.threadPool = threadPool;
         this.mapperService = mapperService;
@@ -72,6 +78,7 @@ public final class IndexServicesProvider {
         this.similarityService = similarityService;
         this.factory = factory;
         this.bigArrays = bigArrays;
+        this.indexSearcherWrapper = indexSearcherWrapper;
     }
 
     public IndicesLifecycle getIndicesLifecycle() {
@@ -129,4 +136,6 @@ public final class IndexServicesProvider {
     public BigArrays getBigArrays() {
         return bigArrays;
     }
+
+    public IndexSearcherWrapper getIndexSearcherWrapper() { return indexSearcherWrapper; }
 }

@@ -215,10 +215,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return instanceFromNode.indexServiceSafe(index);
     }
 
-    protected static org.elasticsearch.index.engine.Engine engine(IndexService service) {
-        return service.shard(0).engine();
-    }
-
     /**
      * Create a new search context.
      */

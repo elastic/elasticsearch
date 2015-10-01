@@ -95,6 +95,6 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
     protected ShardSegments shardOperation(IndicesSegmentsRequest request, ShardRouting shardRouting) {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardRouting.id());
-        return new ShardSegments(indexShard.routingEntry(), indexShard.engine().segments(request.verbose()));
+        return new ShardSegments(indexShard.routingEntry(), indexShard.segments(request.verbose()));
     }
 }

@@ -390,23 +390,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    /**
-     * Closes an optional resource. Returns true if the resource was found;
-     * NOTE: this method swallows all exceptions thrown from the close method of the injector and logs them as debug log
-     */
-    private boolean closeInjectorOptionalResource(ShardId shardId, Injector shardInjector, Class<? extends Closeable> toClose) {
-        try {
-            final Closeable instance = shardInjector.getInstance(toClose);
-            if (instance == null) {
-                return false;
-            }
-            IOUtils.close(instance);
-        } catch (Throwable t) {
-            logger.debug("{} failed to close {}", t, shardId, Strings.toUnderscoreCase(toClose.getSimpleName()));
-        }
-        return true;
-    }
-
 
     private void onShardClose(ShardLock lock, boolean ownsShard) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted

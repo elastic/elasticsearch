@@ -20,10 +20,8 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.index.*;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -188,7 +186,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     private final IndexShardOperationCounter indexShardOperationCounter;
 
-    private EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
+    private final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
+
+    private final IndexSearcherWrapper searcherWrapper;
 
     @Inject
     public IndexShard(ShardId shardId, @IndexSettings Settings indexSettings, ShardPath path, Store store, IndexServicesProvider provider) {
@@ -244,6 +244,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.flushThresholdSize = indexSettings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
         this.disableFlush = indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
+        this.searcherWrapper = provider.getIndexSearcherWrapper();
     }
 
     public Store store() {
@@ -739,7 +740,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public Engine.Searcher acquireSearcher(String source) {
         readAllowed();
-        return engine().acquireSearcher(source);
+        Engine engine = engine();
+        return searcherWrapper == null ? engine.acquireSearcher(source) : searcherWrapper.wrap(engineConfig, engine.acquireSearcher(source));
     }
 
     public void close(String reason, boolean flushEngine) throws IOException {
@@ -1167,6 +1169,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         }
     }
 
+    public Translog.View acquireTranslogView() {
+        Engine engine = engine();
+        assert engine.getTranslog() != null : "translog must not be null";
+        return engine.getTranslog().newView();
+    }
+
+    public List<Segment> segments(boolean verbose) {
+        return engine().segments(verbose);
+    }
+
+    public void flushAndCloseEngine() throws IOException {
+        engine().flushAndClose();
+    }
+
+    public Translog getTranslog() {
+        return engine().getTranslog();
+    }
+
     class EngineRefresher implements Runnable {
         @Override
         public void run() {
@@ -1292,7 +1312,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
     }
 
-    public Engine engine() {
+    Engine engine() {
         Engine engine = engineUnsafe();
         if (engine == null) {
             throw new EngineClosedException(shardId);
@@ -1507,4 +1527,5 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         }
         return false;
     }
+
 }

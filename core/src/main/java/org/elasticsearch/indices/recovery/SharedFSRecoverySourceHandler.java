@@ -52,7 +52,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                     // if we relocate we need to close the engine in order to open a new
                     // IndexWriter on the other end of the relocation
                     engineClosed = true;
-                    shard.engine().flushAndClose();
+                    shard.flushAndCloseEngine();
                 } catch (IOException e) {
                     logger.warn("close engine failed", e);
                     shard.failShard("failed to close engine (phase1)", e);

@@ -67,10 +67,7 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
@@ -491,8 +488,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
         assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
         assertThat(stats2.getUserData().get(Translog.TRANSLOG_GENERATION_KEY), not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
-        assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)))
-        ;
+        assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
     }
 
     @Test
@@ -516,9 +512,9 @@ public class InternalEngineTests extends ESTestCase {
         Path translog = createTempDir("translog-test");
         InternalEngine engine = createEngine(store, translog);
         engine.close();
-        engine.config().setSearcherWrapper(wrapper);
+
         engine = new InternalEngine(engine.config(), false);
-        Engine.Searcher searcher = engine.acquireSearcher("test");
+        Engine.Searcher searcher = wrapper.wrap(engine.config(), engine.acquireSearcher("test"));
         assertThat(counter.get(), equalTo(2));
         searcher.close();
         IOUtils.close(store, engine);

@@ -257,7 +257,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
             shard.refresh("percolator_load_queries");
             // NOTE: we acquire the searcher via the engine directly here since this is executed right
             // before the shard is marked as POST_RECOVERY
-            try (Engine.Searcher searcher = shard.engine().acquireSearcher("percolator_load_queries")) {
+            try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries")) {
                 Query query = new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME));
                 QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
                 IndexSearcher indexSearcher = new IndexSearcher(searcher.reader());

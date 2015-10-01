@@ -1292,6 +1292,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 final int index = Math.toIntExact(writtenBytes - checksumPosition);
                 if (index < footerChecksum.length) {
                     footerChecksum[index] = b;
+                    if (index == footerChecksum.length-1) {
+                        verify();// we have recorded the entire checksum
+                    }
                 } else {
                     verify(); // fail if we write more than expected
                     throw new AssertionError("write past EOF expected length: " + metadata.length() + " writtenBytes: " + writtenBytes);

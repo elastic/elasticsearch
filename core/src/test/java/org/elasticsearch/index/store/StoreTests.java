@@ -184,6 +184,7 @@ public class StoreTests extends ESTestCase {
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long length = indexInput.length();
         IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, checksum), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+        length -= 8; // we write the checksum in the try / catch block below
         while (length > 0) {
             if (random().nextInt(10) == 0) {
                 verifyingOutput.writeByte(indexInput.readByte());
@@ -197,6 +198,16 @@ public class StoreTests extends ESTestCase {
         }
 
         try {
+            BytesRef checksumBytes = new BytesRef(8);
+            checksumBytes.length = 8;
+            indexInput.readBytes(checksumBytes.bytes, checksumBytes.offset, checksumBytes.length);
+            if (randomBoolean()) {
+                verifyingOutput.writeBytes(checksumBytes.bytes, checksumBytes.offset, checksumBytes.length);
+            } else {
+                for (int i = 0; i < checksumBytes.length; i++) {
+                    verifyingOutput.writeByte(checksumBytes.bytes[i]);
+                }
+            }
             if (randomBoolean()) {
                appendRandomData(verifyingOutput);
             } else {

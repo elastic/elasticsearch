@@ -70,6 +70,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -94,7 +95,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
 
     private final Condition shutdownCondition = shutdownLock.newCondition();
 
-    private volatile Map<SnapshotId, SnapshotShards> shardSnapshots = ImmutableMap.of();
+    private volatile Map<SnapshotId, SnapshotShards> shardSnapshots = emptyMap();
 
     private final BlockingQueue<UpdateIndexShardSnapshotStatusRequest> updatedSnapshotStateQueue = ConcurrentCollections.newBlockingQueue();
 

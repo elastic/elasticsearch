@@ -20,6 +20,7 @@
 package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
@@ -52,6 +53,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
@@ -78,7 +80,7 @@ public class InternalSearchHit implements SearchHit {
 
     private BytesReference source;
 
-    private Map<String, SearchHitField> fields = ImmutableMap.of();
+    private Map<String, SearchHitField> fields = emptyMap();
 
     private Map<String, HighlightField> highlightFields = null;
 
@@ -292,15 +294,12 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public Map<String, SearchHitField> fields() {
-        if (fields == null) {
-            return ImmutableMap.of();
-        }
-        return fields;
+        return fields == null ? emptyMap() : fields;
     }
 
     // returns the fields without handling null cases
     public Map<String, SearchHitField> fieldsOrNull() {
-        return this.fields;
+        return fields;
     }
 
     @Override

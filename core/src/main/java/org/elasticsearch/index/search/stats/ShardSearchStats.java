@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.search.stats;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -31,6 +30,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyMap;
+
 /**
  */
 public final class ShardSearchStats {
@@ -38,7 +39,7 @@ public final class ShardSearchStats {
     private final SearchSlowLog slowLogSearchService;
     private final StatsHolder totalStats = new StatsHolder();
     private final CounterMetric openContexts = new CounterMetric();
-    private volatile Map<String, StatsHolder> groupsStats = ImmutableMap.of();
+    private volatile Map<String, StatsHolder> groupsStats = emptyMap();
 
     public ShardSearchStats(Settings indexSettings) {
         this.slowLogSearchService = new SearchSlowLog(indexSettings);

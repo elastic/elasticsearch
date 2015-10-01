@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +35,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * Meta data about restore processes that are currently executing
@@ -123,12 +126,12 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
          * @param indices    list of indices being restored
          * @param shards     list of shards being restored and thier current restore status
          */
-        public Entry(SnapshotId snapshotId, State state, List<String> indices, ImmutableMap<ShardId, ShardRestoreStatus> shards) {
+        public Entry(SnapshotId snapshotId, State state, List<String> indices, Map<ShardId, ShardRestoreStatus> shards) {
             this.snapshotId = snapshotId;
             this.state = state;
             this.indices = indices;
             if (shards == null) {
-                this.shards = ImmutableMap.of();
+                this.shards = emptyMap();
             } else {
                 this.shards = shards;
             }

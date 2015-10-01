@@ -4,9 +4,9 @@
     "methods": ["GET"],
     "url": {
       "path": "/_cat/fielddata",
-      "paths": ["/_cat/fielddata", "/_cat/fielddata/{fields}"],
+      "paths": ["/_cat/fielddata", "/_cat/fielddata/{field}"],
       "parts": {
-        "fields": {
+        "field": {
           "type": "list",
           "description": "A comma-separated list of fields to return the fielddata size"
         }

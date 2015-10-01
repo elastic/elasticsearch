@@ -29,10 +29,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.cache.RemovalListener;
-import org.elasticsearch.common.cache.RemovalNotification;
+import org.elasticsearch.common.cache.*;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -263,7 +260,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         }
     }
 
-    private static class Loader implements Function<Key, Value> {
+    private static class Loader implements CacheLoader<Key, Value> {
 
         private final QueryPhase queryPhase;
         private final SearchContext context;
@@ -279,7 +276,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         }
 
         @Override
-        public Value apply(Key key) {
+        public Value load(Key key) throws Exception {
             queryPhase.execute(context);
 
             /* BytesStreamOutput allows to pass the expected size but by default uses
@@ -299,8 +296,6 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
                 Value value = new Value(reference, out.ramBytesUsed());
                 key.shard.requestCache().onCached(key, value);
                 return value;
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             }
         }
     }

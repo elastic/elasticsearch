@@ -24,6 +24,7 @@ import org.junit.Before;
 
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -448,10 +449,14 @@ public class CacheTests extends ESTestCase {
             Thread thread = new Thread(() -> {
                 latch.countDown();
                 for (int j = 0; j < numberOfEntries; j++) {
-                    cache.computeIfAbsent(j, key -> {
-                        assertTrue(flags.compareAndSet(key, false, true));
-                        return Integer.toString(key);
-                    });
+                    try {
+                        cache.computeIfAbsent(j, key -> {
+                            assertTrue(flags.compareAndSet(key, false, true));
+                            return Integer.toString(key);
+                        });
+                    } catch (ExecutionException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             });
             threads.add(thread);

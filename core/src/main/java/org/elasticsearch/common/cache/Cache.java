@@ -23,6 +23,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -275,12 +276,13 @@ public class Cache<K, V> {
      * If the specified key is not already associated with a value (or is mapped to null), attempts to compute its
      * value using the given mapping function and enters it into this map unless null.
      *
-     * @param key             the key whose associated value is to be returned or computed for if non-existant
-     * @param mappingFunction the function to compute a value given a key
+     * @param key    the key whose associated value is to be returned or computed for if non-existant
+     * @param loader the function to compute a value given a key
      * @return the current (existing or computed) value associated with the specified key, or null if the computed
      * value is null
+     * @throws ExecutionException thrown if loader throws an exception
      */
-    public V computeIfAbsent(K key, Function<K, V> mappingFunction) {
+    public V computeIfAbsent(K key, CacheLoader<K, V> loader) throws ExecutionException {
         long now = now();
         V value = get(key, now);
         if (value == null) {
@@ -288,7 +290,11 @@ public class Cache<K, V> {
             try (ReleasableLock ignored = segment.writeLock.acquire()) {
                 value = get(key, now);
                 if (value == null) {
-                    value = mappingFunction.apply(key);
+                    try {
+                        value = loader.load(key);
+                    } catch (Exception e) {
+                        throw new ExecutionException(e);
+                    }
                 }
                 if (value != null) {
                     put(key, value, now);

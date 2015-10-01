@@ -152,12 +152,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                 for (Listener listener : this.listeners) {
                     k.listeners.add(listener);
                 }
-                final AtomicFieldData fieldData;
-                try {
-                    fieldData = indexFieldData.loadDirect(context);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
+                final AtomicFieldData fieldData = indexFieldData.loadDirect(context);
                 for (Listener listener : k.listeners) {
                     try {
                         listener.onCache(shardId, fieldNames, fieldDataType, fieldData);
@@ -181,12 +176,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                 for (Listener listener : this.listeners) {
                     k.listeners.add(listener);
                 }
-                final Accountable ifd;
-                try {
-                    ifd = (Accountable) indexFieldData.localGlobalDirect(indexReader);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
+                final Accountable ifd = (Accountable) indexFieldData.localGlobalDirect(indexReader);
                 for (Listener listener : k.listeners) {
                     try {
                         listener.onCache(shardId, fieldNames, fieldDataType, ifd);

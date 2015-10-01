@@ -151,25 +151,21 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         });
 
         return filterToFbs.computeIfAbsent(query, key -> {
-            try {
-                final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
-                final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-                searcher.setQueryCache(null);
-                final Weight weight = searcher.createNormalizedWeight(query, false);
-                final DocIdSetIterator it = weight.scorer(context);
-                final BitSet bitSet;
-                if (it == null) {
-                    bitSet = null;
-                } else {
-                    bitSet = BitSet.of(it, context.reader().maxDoc());
-                }
-
-                Value value = new Value(bitSet, shardId);
-                listener.onCache(shardId, value.bitset);
-                return value;
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
+            final IndexSearcher searcher = new IndexSearcher(topLevelContext);
+            searcher.setQueryCache(null);
+            final Weight weight = searcher.createNormalizedWeight(query, false);
+            final DocIdSetIterator it = weight.scorer(context);
+            final BitSet bitSet;
+            if (it == null) {
+                bitSet = null;
+            } else {
+                bitSet = BitSet.of(it, context.reader().maxDoc());
             }
+
+            Value value = new Value(bitSet, shardId);
+            listener.onCache(shardId, value.bitset);
+            return value;
         }).bitset;
     }
 

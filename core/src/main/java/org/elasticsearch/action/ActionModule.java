@@ -134,8 +134,6 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
-import org.elasticsearch.action.exists.ExistsAction;
-import org.elasticsearch.action.exists.TransportExistsAction;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
@@ -314,7 +312,6 @@ public class ActionModule extends AbstractModule {
         registerAction(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
                 TransportShardMultiTermsVectorAction.class);
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class);
-        registerAction(ExistsAction.INSTANCE, TransportExistsAction.class);
         registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);
         registerAction(UpdateAction.INSTANCE, TransportUpdateAction.class);
         registerAction(MultiGetAction.INSTANCE, TransportMultiGetAction.class,

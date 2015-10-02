@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
@@ -99,6 +97,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
@@ -389,11 +388,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 }
 
                 logger.debug("[{}] closing ... (reason [{}])", index, reason);
-                Map<String, IndexServiceInjectorPair> tmpMap = new HashMap<>(indices);
-                IndexServiceInjectorPair remove = tmpMap.remove(index);
+                Map<String, IndexServiceInjectorPair> newIndices = new HashMap<>(indices);
+                IndexServiceInjectorPair remove = newIndices.remove(index);
                 indexService = remove.getIndexService();
                 indexInjector = remove.getInjector();
-                indices = ImmutableMap.copyOf(tmpMap);
+                indices = unmodifiableMap(newIndices);
             }
 
             indicesLifecycle.beforeIndexClosed(indexService);

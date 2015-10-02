@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,10 +31,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Meta data about restore processes that are currently executing
@@ -419,14 +419,14 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
             for (int j = 0; j < indices; j++) {
                 indexBuilder.add(in.readString());
             }
-            ImmutableMap.Builder<ShardId, ShardRestoreStatus> builder = ImmutableMap.<ShardId, ShardRestoreStatus>builder();
+            Map<ShardId, ShardRestoreStatus> builder = new HashMap<>();
             int shards = in.readVInt();
             for (int j = 0; j < shards; j++) {
                 ShardId shardId = ShardId.readShardId(in);
                 ShardRestoreStatus shardState = ShardRestoreStatus.readShardRestoreStatus(in);
                 builder.put(shardId, shardState);
             }
-            entries[i] = new Entry(snapshotId, state, Collections.unmodifiableList(indexBuilder), builder.build());
+            entries[i] = new Entry(snapshotId, state, Collections.unmodifiableList(indexBuilder), unmodifiableMap(builder));
         }
         return new RestoreInProgress(entries);
     }

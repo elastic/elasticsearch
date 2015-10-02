@@ -22,7 +22,6 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -91,6 +90,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -237,7 +237,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     Set<String> aliases = new HashSet<>();
                     if (!renamedIndices.isEmpty()) {
                         // We have some indices to restore
-                        ImmutableMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableMap.builder();
+                        Map<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = new HashMap<>();
                         for (Map.Entry<String, String> indexEntry : renamedIndices.entrySet()) {
                             String index = indexEntry.getValue();
                             boolean partial = checkPartial(index);
@@ -308,7 +308,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             }
                         }
 
-                        shards = shardsBuilder.build();
+                        shards = unmodifiableMap(shardsBuilder);
                         RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshotId, RestoreInProgress.State.INIT, Collections.unmodifiableList(new ArrayList<>(renamedIndices.keySet())), shards);
                         builder.putCustom(RestoreInProgress.TYPE, new RestoreInProgress(restoreEntry));
                     } else {
@@ -574,7 +574,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                         if (shards != null) {
                             if (!completed(shards)) {
-                                entries.add(new RestoreInProgress.Entry(entry.snapshotId(), RestoreInProgress.State.STARTED, entry.indices(), ImmutableMap.copyOf(shards)));
+                                entries.add(new RestoreInProgress.Entry(entry.snapshotId(), RestoreInProgress.State.STARTED, entry.indices(), unmodifiableMap(shards)));
                             } else {
                                 logger.info("restore [{}] is done", entry.snapshotId());
                                 if (batchedRestoreInfo == null) {
@@ -746,7 +746,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             // Some indices were deleted, let's make sure all indices that we are restoring still exist
             for (RestoreInProgress.Entry entry : restore.entries()) {
                 List<ShardId> shardsToFail = null;
-                for (ImmutableMap.Entry<ShardId, ShardRestoreStatus> shard : entry.shards().entrySet()) {
+                for (Map.Entry<ShardId, ShardRestoreStatus> shard : entry.shards().entrySet()) {
                     if (!shard.getValue().state().completed()) {
                         if (!event.state().metaData().hasIndex(shard.getKey().getIndex())) {
                             if (shardsToFail == null) {

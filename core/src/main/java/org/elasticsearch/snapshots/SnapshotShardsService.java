@@ -20,7 +20,6 @@
 package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ExceptionsHelper;
@@ -71,6 +70,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -227,15 +227,15 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                         newSnapshots.put(entry.snapshotId(), startedShards);
                         if (snapshotShards != null) {
                             // We already saw this snapshot but we need to add more started shards
-                            ImmutableMap.Builder<ShardId, IndexShardSnapshotStatus> shards = ImmutableMap.builder();
+                            Map<ShardId, IndexShardSnapshotStatus> shards = new HashMap<>();
                             // Put all shards that were already running on this node
                             shards.putAll(snapshotShards.shards);
                             // Put all newly started shards
                             shards.putAll(startedShards);
-                            survivors.put(entry.snapshotId(), new SnapshotShards(shards.build()));
+                            survivors.put(entry.snapshotId(), new SnapshotShards(unmodifiableMap(shards)));
                         } else {
                             // Brand new snapshot that we haven't seen before
-                            survivors.put(entry.snapshotId(), new SnapshotShards(ImmutableMap.copyOf(startedShards)));
+                            survivors.put(entry.snapshotId(), new SnapshotShards(unmodifiableMap(startedShards)));
                         }
                     }
                 } else if (entry.state() == SnapshotsInProgress.State.ABORTED) {
@@ -277,7 +277,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
         // If startup of these shards fails later, we don't want to try starting these shards again
         shutdownLock.lock();
         try {
-            shardSnapshots = ImmutableMap.copyOf(survivors);
+            shardSnapshots = unmodifiableMap(survivors);
             if (shardSnapshots.isEmpty()) {
                 // Notify all waiting threads that no more snapshots
                 shutdownCondition.signalAll();
@@ -404,7 +404,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
     private static class SnapshotShards {
         private final Map<ShardId, IndexShardSnapshotStatus> shards;
 
-        private SnapshotShards(ImmutableMap<ShardId, IndexShardSnapshotStatus> shards) {
+        private SnapshotShards(Map<ShardId, IndexShardSnapshotStatus> shards) {
             this.shards = shards;
         }
     }

@@ -117,7 +117,7 @@ public class Cache<K, V> {
      */
     protected long now() {
         // System.nanoTime takes non-negligible time, so we only use it if we need it
-        return expireAfterAccess == -1 ? 0 : System.nanoTime();
+        return expireAfterWrite != -1 || expireAfterAccess != -1 ? System.nanoTime() : 0;
     }
 
     public void setExpireAfterWrite(long expireAfterWrite) {

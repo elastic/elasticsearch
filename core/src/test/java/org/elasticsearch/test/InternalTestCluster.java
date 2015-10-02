@@ -1047,8 +1047,8 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    try {
-                        CommitStats commitStats = indexShard.commitStats();
+                    CommitStats commitStats = indexShard.commitStats();
+                    if (commitStats != null) { // null if the engine is closed or if the shard is recovering
                         String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);
                         if (syncId != null) {
                             long liveDocsOnShard = commitStats.getNumDocs();
@@ -1058,8 +1058,6 @@ public final class InternalTestCluster extends TestCluster {
                                 docsOnShards.put(syncId, liveDocsOnShard);
                             }
                         }
-                    } catch (EngineClosedException e) {
-                        // nothing to do, shard is closed
                     }
                 }
             }

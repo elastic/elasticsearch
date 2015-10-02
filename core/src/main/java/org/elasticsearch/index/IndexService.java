@@ -324,9 +324,8 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
             indicesLifecycle.indexShardStateChanged(indexShard, null, "shard created");
             indicesLifecycle.afterIndexShardCreated(indexShard);
-
-            shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
             settingsService.addListener(indexShard);
+            shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
             success = true;
             return indexShard;
         } catch (IOException e) {
@@ -347,7 +346,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     public synchronized void removeShard(int shardId, String reason) {
         final ShardId sId = new ShardId(index, shardId);
-        final Injector shardInjector;
         final IndexShard indexShard;
         if (shards.containsKey(shardId) == false) {
             return;

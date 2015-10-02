@@ -21,7 +21,6 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -73,8 +72,8 @@ import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.percolator.PercolateStats;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
-import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -102,6 +101,7 @@ import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -134,7 +134,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     private final ShardRequestCache shardQueryCache;
     private final ShardFieldData shardFieldData;
     private final PercolatorQueriesRegistry percolatorQueriesRegistry;
-    private final ShardPercolateService shardPercolateService;
     private final TermVectorsService termVectorsService;
     private final IndexFieldDataService indexFieldDataService;
     private final ShardSuggestMetric shardSuggestMetric = new ShardSuggestMetric();
@@ -215,9 +214,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.indicesQueryCache =  provider.getIndicesQueryCache();
         this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
         this.shardFieldData = new ShardFieldData();
-        this.shardPercolateService = new ShardPercolateService(shardId, indexSettings);
         this.indexFieldDataService =  provider.getIndexFieldDataService();
-        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryParserService, indexingService, indicesLifecycle, mapperService, indexFieldDataService, shardPercolateService);
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
@@ -245,6 +242,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.disableFlush = indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
         this.searcherWrapper = provider.getIndexSearcherWrapper();
+        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryParserService, indexingService, mapperService, indexFieldDataService);
+        if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
+            percolatorQueriesRegistry.enableRealTimePercolator();
+        }
     }
 
     public Store store() {
@@ -614,10 +615,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         return percolatorQueriesRegistry;
     }
 
-    public ShardPercolateService shardPercolateService() {
-        return shardPercolateService;
-    }
-
     public TranslogStats translogStats() {
         return engine().getTranslog().stats();
     }
@@ -768,8 +765,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         }
     }
 
+
     public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
         indicesLifecycle.beforeIndexShardPostRecovery(this);
+        if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
+            refresh("percolator_load_queries");
+            try (Engine.Searcher searcher = engine().acquireSearcher("percolator_load_queries")) {
+                this.percolatorQueriesRegistry.loadQueries(searcher.reader());
+            }
+        }
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -1185,6 +1189,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public Translog getTranslog() {
         return engine().getTranslog();
+    }
+
+    public PercolateStats percolateStats() {
+        return percolatorQueriesRegistry.stats();
     }
 
     class EngineRefresher implements Runnable {

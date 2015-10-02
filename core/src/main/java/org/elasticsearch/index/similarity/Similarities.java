@@ -19,11 +19,12 @@
 
 package org.elasticsearch.index.similarity;
 
-import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.elasticsearch.common.collect.MapBuilder;
+
+import java.util.Collection;
 
 /**
  * Cache of pre-defined Similarities
@@ -49,7 +50,7 @@ public class Similarities {
      *
      * @return Pre-defined SimilarityProvider Factories
      */
-    public static ImmutableCollection<PreBuiltSimilarityProvider.Factory> listFactories() {
+    public static Collection<PreBuiltSimilarityProvider.Factory> listFactories() {
         return PRE_BUILT_SIMILARITIES.values();
     }
 }

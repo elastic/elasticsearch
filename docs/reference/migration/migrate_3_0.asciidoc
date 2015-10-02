@@ -63,6 +63,11 @@ Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
 
+==== search exists api removed
+
+The search exists api has been removed in favour of using the search api with
+`size` set to `0` and `terminate_after` set to `1`.
+
 === Parent/Child changes
 
 The `children` aggregation, parent child inner hits and `has_child` and `has_parent` queries will not work on indices

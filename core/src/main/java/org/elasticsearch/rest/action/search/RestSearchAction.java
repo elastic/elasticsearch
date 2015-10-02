@@ -38,7 +38,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.exists.RestExistsAction;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.script.Template;
@@ -80,14 +79,6 @@ public class RestSearchAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_search/template", this);
         controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
         controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
-
-        RestExistsAction restExistsAction = new RestExistsAction(settings, controller, client);
-        controller.registerHandler(GET, "/_search/exists", restExistsAction);
-        controller.registerHandler(POST, "/_search/exists", restExistsAction);
-        controller.registerHandler(GET, "/{index}/_search/exists", restExistsAction);
-        controller.registerHandler(POST, "/{index}/_search/exists", restExistsAction);
-        controller.registerHandler(GET, "/{index}/{type}/_search/exists", restExistsAction);
-        controller.registerHandler(POST, "/{index}/{type}/_search/exists", restExistsAction);
     }
 
     @Override

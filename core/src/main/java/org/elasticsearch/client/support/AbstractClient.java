@@ -232,10 +232,6 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.exists.ExistsAction;
-import org.elasticsearch.action.exists.ExistsRequest;
-import org.elasticsearch.action.exists.ExistsRequestBuilder;
-import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
@@ -599,21 +595,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public MultiSearchRequestBuilder prepareMultiSearch() {
         return new MultiSearchRequestBuilder(this, MultiSearchAction.INSTANCE);
-    }
-
-    @Override
-    public ActionFuture<ExistsResponse> exists(final ExistsRequest request) {
-        return execute(ExistsAction.INSTANCE, request);
-    }
-
-    @Override
-    public void exists(final ExistsRequest request, final ActionListener<ExistsResponse> listener) {
-        execute(ExistsAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public ExistsRequestBuilder prepareExists(String... indices) {
-        return new ExistsRequestBuilder(this, ExistsAction.INSTANCE).setIndices(indices);
     }
 
     @Override

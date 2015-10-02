@@ -59,8 +59,6 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.exists.ExistsAction;
-import org.elasticsearch.action.exists.ExistsRequest;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.get.GetAction;
@@ -361,17 +359,6 @@ public class IndicesRequestTests extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertIndicesSubset(indices, multiGetShardAction);
-    }
-
-    public void testExists() {
-        String existsShardAction = ExistsAction.NAME + "[s]";
-        interceptTransportActions(existsShardAction);
-
-        ExistsRequest existsRequest = new ExistsRequest(randomIndicesOrAliases());
-        internalCluster().clientNodeClient().exists(existsRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(existsRequest, existsShardAction);
     }
 
     public void testFlush() {

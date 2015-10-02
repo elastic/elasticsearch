@@ -130,6 +130,11 @@ com.google.common.primitives.Ints
 com.google.common.collect.ImmutableSet
 com.google.common.collect.ImmutableSet$Builder
 com.google.common.collect.ImmutableMap#of()
+com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object)
+com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)
+com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)
+com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)
+com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)
 
 @defaultMessage Do not violate java's access system
 java.lang.reflect.AccessibleObject#setAccessible(boolean)

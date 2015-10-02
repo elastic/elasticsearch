@@ -19,11 +19,9 @@
 
 package org.elasticsearch.search.fetch.innerhits;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchParseElement;
@@ -43,32 +41,24 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+
 /**
  */
 public class InnerHitsFetchSubPhase implements FetchSubPhase {
-
-    private final SortParseElement sortParseElement;
-    private final FetchSourceParseElement sourceParseElement;
-    private final HighlighterParseElement highlighterParseElement;
-    private final FieldDataFieldsParseElement fieldDataFieldsParseElement;
-    private final ScriptFieldsParseElement scriptFieldsParseElement;
+    private final Map<String, ? extends SearchParseElement> parseElements;
 
     private FetchPhase fetchPhase;
 
     @Inject
     public InnerHitsFetchSubPhase(SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement, ScriptFieldsParseElement scriptFieldsParseElement) {
-        this.sortParseElement = sortParseElement;
-        this.sourceParseElement = sourceParseElement;
-        this.highlighterParseElement = highlighterParseElement;
-        this.fieldDataFieldsParseElement = fieldDataFieldsParseElement;
-        this.scriptFieldsParseElement = scriptFieldsParseElement;
+        parseElements = singletonMap("inner_hits", new InnerHitsParseElement(sortParseElement, sourceParseElement, highlighterParseElement,
+                fieldDataFieldsParseElement, scriptFieldsParseElement));
     }
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of("inner_hits", new InnerHitsParseElement(
-                sortParseElement, sourceParseElement, highlighterParseElement, fieldDataFieldsParseElement, scriptFieldsParseElement
-        ));
+        return parseElements;
     }
 
     @Override

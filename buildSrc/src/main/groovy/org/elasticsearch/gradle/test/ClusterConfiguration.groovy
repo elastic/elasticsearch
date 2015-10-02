@@ -1,5 +1,6 @@
 package org.elasticsearch.gradle.test
 
+import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 
 /** Configuration for an elasticsearch cluster, used for integration tests. */
@@ -21,15 +22,24 @@ class ClusterConfiguration {
         systemProperties.put(property, value)
     }
 
-    LinkedHashMap<String, String[]> setupCommands = new LinkedHashMap<>()
+    LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
     @Input
-    void plugin(String name, File file) {
-        setupCommands.put(name, ['bin/plugin', 'install', "file://${file}"])
+    void plugin(String name, FileCollection file) {
+        setupCommands.put(name, ['bin/plugin', 'install', new LazyFileUri(file: file)])
+    }
+
+    static class LazyFileUri {
+        FileCollection file
+        @Override
+        String toString() {
+            return "file://${file.singleFile}"
+        }
+
     }
 
     @Input
-    void setupCommand(String name, String[] args) {
+    void setupCommand(String name, Object... args) {
         setupCommands.put(name, args)
     }
 }

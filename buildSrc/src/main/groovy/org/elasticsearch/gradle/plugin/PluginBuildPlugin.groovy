@@ -29,14 +29,14 @@ class PluginBuildPlugin extends BuildPlugin {
             project.integTest.configure {
                 dependsOn project.bundlePlugin
                 cluster {
-                    plugin 'installPlugin', project.bundlePlugin.outputs.files.singleFile
+                    plugin 'installPlugin', project.bundlePlugin.outputs.files
                 }
             }
         }
         Task bundle = configureBundleTask(project)
         RestIntegTestTask.configure(project)
         project.configurations.archives.artifacts.removeAll { it.archiveTask.is project.jar }
-        project.configurations.runtime.artifacts.removeAll { it.archiveTask.is project.jar }
+        project.configurations.getByName('default').extendsFrom = []
         project.artifacts {
             archives bundle
             'default' bundle
@@ -61,9 +61,10 @@ class PluginBuildPlugin extends BuildPlugin {
         PluginPropertiesTask buildProperties = project.tasks.create(name: 'pluginProperties', type: PluginPropertiesTask)
         Task bundle = project.tasks.create(name: 'bundlePlugin', type: Zip, dependsOn: [project.jar, buildProperties])
         bundle.configure {
-            from project.jar
             from buildProperties
+            from project.jar
             from bundle.project.configurations.runtime - bundle.project.configurations.provided
+            from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {
                 include 'config/**'
                 include 'bin/**'

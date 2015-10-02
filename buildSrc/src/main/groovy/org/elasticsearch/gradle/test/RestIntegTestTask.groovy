@@ -65,4 +65,8 @@ class RestIntegTestTask extends RandomizedTestingTask {
     void cluster(Closure closure) {
         ConfigureUtil.configure(closure, clusterConfig)
     }
+
+    ClusterConfiguration getCluster() {
+        return clusterConfig
+    }
 }

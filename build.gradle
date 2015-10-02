@@ -66,7 +66,7 @@ subprojects {
   }
 
   // define a nice artifacts task to list all artifacts of a project
-  task artifacts {
+  /*task artifacts {
     group = "Help"
     description = "Displays the artifacts associated with each configuration of " + project
     doFirst {
@@ -76,7 +76,7 @@ subprojects {
         println ' '
       }
     }
-  }
+  }*/
 }
 
 /*idea {

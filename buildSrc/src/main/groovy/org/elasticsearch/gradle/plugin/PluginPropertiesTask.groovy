@@ -1,19 +1,20 @@
 package org.elasticsearch.gradle.plugin
 
 import org.elasticsearch.gradle.ElasticsearchProperties
+import org.gradle.api.DefaultTask
 import org.gradle.api.InvalidUserDataException
-import org.gradle.api.internal.AbstractTask
-import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.TaskAction
 
 /**
  * Creates a plugin descriptor.
  *
  * TODO: copy the example properties file to plugin documentation
  */
-class PluginPropertiesTask extends AbstractTask {
+class PluginPropertiesTask extends DefaultTask {
 
     PluginPropertiesExtension extension
+    Map<String, String> properties = new HashMap<>()
 
     PluginPropertiesTask() {
         extension = project.extensions.create('esplugin', PluginPropertiesExtension, project)
@@ -25,7 +26,11 @@ class PluginPropertiesTask extends AbstractTask {
                 throw new InvalidUserDataException('classname is a required setting for esplugin with jvm=true')
             }
             if (extension.jvm) {
-                dependsOn(project.tasks.getByName('classes')) // so we can check for the classname
+                dependsOn(project.classes) // so we can check for the classname
+            }
+            fillProperties()
+            configure {
+                inputs.properties(properties)
             }
         }
     }
@@ -33,28 +38,38 @@ class PluginPropertiesTask extends AbstractTask {
     @OutputFile
     File propertiesFile = new File(project.buildDir, "plugin" + File.separator + "plugin-descriptor.properties")
 
+    void fillProperties() {
+        // TODO: need to copy the templated plugin-descriptor with a dependent task, since copy requires a file (not uri)
+        properties = [
+            'name': extension.name,
+            'description': extension.description,
+            'version': extension.version,
+            'elasticsearch.version': ElasticsearchProperties.version,
+            'jvm': extension.jvm as String,
+            'site': extension.site as String
+        ]
+        if (extension.jvm) {
+            properties['classname'] = extension.classname
+            properties['isolated'] = extension.isolated as String
+            properties['java.version'] = project.targetCompatibility as String
+        }
+    }
+
     @TaskAction
     void buildProperties() {
-        Properties props = new Properties()
-        props.setProperty('name', extension.name)
-        props.setProperty('version', extension.version)
-        props.setProperty('description', extension.description)
-        props.setProperty('jvm', extension.jvm as String)
-        if (extension.jvm) {
-            File classesDir = project.sourceSets.main.output.classesDir
-            File classFile = new File(classesDir, extension.classname.replace('.', File.separator) + '.class')
-            if (classFile.exists() == false) {
-                throw new InvalidUserDataException('classname ' + extension.classname + ' does not exist')
-            }
-            props.setProperty('classname', extension.classname)
-            props.setProperty('isolated', extension.isolated as String)
-            if (extension.isolated == false) {
-                logger.warn('Disabling isolation is deprecated and will be removed in the future')
-            }
-            props.setProperty('java.version', project.targetCompatibility as String)
+        File classesDir = project.sourceSets.main.output.classesDir
+        File classFile = new File(classesDir, extension.classname.replace('.', File.separator) + '.class')
+        if (classFile.exists() == false) {
+            throw new InvalidUserDataException('classname ' + extension.classname + ' does not exist')
         }
-        props.setProperty('site', extension.site as String)
-        props.setProperty('elasticsearch.version', ElasticsearchProperties.version)
+        if (extension.isolated == false) {
+            logger.warn('Disabling isolation is deprecated and will be removed in the future')
+        }
+
+        Properties props = new Properties()
+        for (Map.Entry<String, String> prop : properties) {
+            props.put(prop.getKey(), prop.getValue())
+        }
         props.store(propertiesFile.newWriter(), null)
     }
 }

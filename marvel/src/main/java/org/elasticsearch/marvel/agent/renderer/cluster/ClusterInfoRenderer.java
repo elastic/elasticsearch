@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.renderer.cluster;
 
-import com.google.common.hash.Hashing;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -15,7 +15,9 @@ import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.AbstractRenderer;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.io.UnsupportedEncodingException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
 public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> {
@@ -64,7 +66,17 @@ public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> 
 
     public static String hash(String licenseStatus, String licenseUid, String licenseType, String licenseExpiryDate, String clusterUUID) {
         String toHash = licenseStatus + licenseUid + licenseType + licenseExpiryDate + clusterUUID;
-        return Hashing.sha256().hashString(toHash, StandardCharsets.UTF_8).toString();
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] sha256Bytes = md.digest(toHash.getBytes("UTF-8"));
+            StringBuffer hash = new StringBuffer();
+            for (int i = 0; i < sha256Bytes.length; i++) {
+                hash.append(Integer.toHexString(0xff & sha256Bytes[i]));
+            }
+            return hash.toString();
+        } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
+            throw new ElasticsearchException("Unexpected error computing SHA-256 hash", e);
+        }
     }
 
     static final class Fields {

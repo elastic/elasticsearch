@@ -44,12 +44,7 @@ import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -58,12 +53,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class UpdateTests extends ESIntegTestCase {
 
@@ -258,23 +248,24 @@ public class UpdateTests extends ESIntegTestCase {
                         .setVersionType(VersionType.EXTERNAL).execute(),
                 ActionRequestValidationException.class);
 
+
+        // With force version
+        client().prepareUpdate(indexOrAlias(), "type", "2")
+                .setScript(new Script("ctx._source.text = 'v10'", ScriptService.ScriptType.INLINE, null, null))
+                .setVersion(10).setVersionType(VersionType.FORCE).get();
+
+        GetResponse get = get("test", "type", "2");
+        assertThat(get.getVersion(), equalTo(10l));
+        assertThat((String) get.getSource().get("text"), equalTo("v10"));
+
         // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
 
         // With internal versions, tt means "if object is there with version X, update it or explode. If it is not there, index.
         client().prepareUpdate(indexOrAlias(), "type", "3")
                 .setScript(new Script("ctx._source.text = 'v2'", ScriptService.ScriptType.INLINE, null, null))
                 .setVersion(10).setUpsert("{ \"text\": \"v0\" }").get();
-        GetResponse get = get("test", "type", "3");
+        get = get("test", "type", "3");
         assertThat(get.getVersion(), equalTo(1l));
-        assertThat((String) get.getSource().get("text"), equalTo("v0"));
-
-        // With force version
-        client().prepareUpdate(indexOrAlias(), "type", "4")
-                .setScript(new Script("ctx._source.text = 'v2'", ScriptService.ScriptType.INLINE, null, null))
-                .setVersion(10).setVersionType(VersionType.FORCE).setUpsert("{ \"text\": \"v0\" }").get();
-
-        get = get("test", "type", "4");
-        assertThat(get.getVersion(), equalTo(10l));
         assertThat((String) get.getSource().get("text"), equalTo("v0"));
 
 

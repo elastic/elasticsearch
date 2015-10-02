@@ -47,9 +47,6 @@ public enum VersionType implements Writeable<VersionType> {
             if (expectedVersion == Versions.MATCH_ANY) {
                 return false;
             }
-            if (currentVersion == Versions.NOT_FOUND) {
-                return true;
-            }
             if (currentVersion != expectedVersion) {
                 return true;
             }

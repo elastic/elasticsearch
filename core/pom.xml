@@ -341,6 +341,7 @@
                         <!-- netty pipelining -->
                         <exclude>src/main/java/org/elasticsearch/http/netty/pipelining/**</exclude>
                         <exclude>src/test/java/org/elasticsearch/common/network/InetAddressesTests.java</exclude>
+                        <exclude>src/test/java/org/elasticsearch/common/collect/EvictingQueueTests.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>

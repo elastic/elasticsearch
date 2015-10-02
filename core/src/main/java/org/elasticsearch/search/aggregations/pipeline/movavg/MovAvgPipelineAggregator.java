@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.movavg;
 
-import com.google.common.collect.EvictingQueue;
+import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -102,7 +102,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         InternalHistogram.Factory<? extends InternalHistogram.Bucket> factory = histo.getFactory();
 
         List newBuckets = new ArrayList<>();
-        EvictingQueue<Double> values = EvictingQueue.create(this.window);
+        EvictingQueue<Double> values = new EvictingQueue<>(this.window);
 
         long lastValidKey = 0;
         int lastValidPosition = 0;
@@ -202,7 +202,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
     private MovAvgModel minimize(List<? extends InternalHistogram.Bucket> buckets, InternalHistogram histo, MovAvgModel model) {
 
         int counter = 0;
-        EvictingQueue<Double> values = EvictingQueue.create(window);
+        EvictingQueue<Double> values = new EvictingQueue<>(this.window);
 
         double[] test = new double[window];
         ListIterator<? extends InternalHistogram.Bucket> iter = buckets.listIterator(buckets.size());

@@ -17,31 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.discovery.ec2;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.cloud.aws.Ec2Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.ec2.Ec2Discovery;
+import org.elasticsearch.test.ESTestCase;
 
-public class Ec2Module extends AbstractModule {
+import static org.hamcrest.Matchers.is;
 
-    @Override
-    protected void configure() {
-        bind(AwsEc2Service.class).to(AwsEc2ServiceImpl.class).asEagerSingleton();
+public class Ec2DiscoverySettingsTests extends ESTestCase {
+
+    public void testDiscoveryReady() {
+        Settings settings = Settings.builder()
+                .put("discovery.type", "ec2")
+                .build();
+        boolean discoveryReady = Ec2Module.isEc2DiscoveryActive(settings, logger);
+        assertThat(discoveryReady, is(true));
     }
 
-    /**
-     * Check if discovery is meant to start
-     * @return true if we can start discovery features
-     */
-    public static boolean isEc2DiscoveryActive(Settings settings, ESLogger logger) {
-        // User set discovery.type: ec2
-        if (!Ec2Discovery.EC2.equalsIgnoreCase(settings.get("discovery.type"))) {
-            logger.trace("discovery.type not set to {}", Ec2Discovery.EC2);
-            return false;
-        }
-
-        return true;
+    public void testDiscoveryNotReady() {
+        Settings settings = Settings.EMPTY;
+        boolean discoveryReady = Ec2Module.isEc2DiscoveryActive(settings, logger);
+        assertThat(discoveryReady, is(false));
     }
+
 }

@@ -148,7 +148,7 @@ public class TransportExistsAction extends TransportBroadcastAction<ExistsReques
     @Override
     protected ShardExistsResponse shardOperation(ShardExistsRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
+        IndexShard indexShard = indexService.getShard(request.shardId().id());
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         SearchContext context = new DefaultSearchContext(0,

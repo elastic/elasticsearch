@@ -34,7 +34,7 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
     public void testSettingsUpdate() {
         final IndexService service = createIndex("foo");
         // INDEX_COMPOUND_ON_FLUSH
-        InternalEngine engine = ((InternalEngine) EngineAccess.engine(service.shard(0)));
+        InternalEngine engine = ((InternalEngine) EngineAccess.engine(service.getShardOrNull(0)));
         assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(true));
         client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, false).build()).get();
         assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(false));

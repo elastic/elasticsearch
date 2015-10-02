@@ -137,8 +137,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         IndexService test = createIndex("test");
 
         assertTrue(test.hasShard(0));
-        ShardPath path = test.shard(0).shardPath();
-        assertTrue(test.shard(0).routingEntry().started());
+        ShardPath path = test.getShardOrNull(0).shardPath();
+        assertTrue(test.getShardOrNull(0).routingEntry().started());
         ShardPath shardPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0), test.getIndexSettings());
         assertEquals(shardPath, path);
         try {

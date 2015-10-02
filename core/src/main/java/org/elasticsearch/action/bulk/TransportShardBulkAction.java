@@ -116,7 +116,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
     protected Tuple<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         final BulkShardRequest request = shardRequest.request;
         final IndexService indexService = indicesService.indexServiceSafe(request.index());
-        final IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
+        final IndexShard indexShard = indexService.getShard(shardRequest.shardId.id());
 
         long[] preVersions = new long[request.items().length];
         VersionType[] preVersionTypes = new VersionType[request.items().length];
@@ -447,7 +447,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
     @Override
     protected void shardOperationOnReplica(ShardId shardId, BulkShardRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardId.id());
+        IndexShard indexShard = indexService.getShard(shardId.id());
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];

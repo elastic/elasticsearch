@@ -152,7 +152,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         try {
             IndexService indexService = indicesService.indexService(shardId.index().name());
             if (indexService != null) {
-                IndexShard indexShard = indexService.shard(shardId.id());
+                IndexShard indexShard = indexService.getShardOrNull(shardId.id());
                 if (indexShard != null) {
                     final Store store = indexShard.store();
                     store.incRef();

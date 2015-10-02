@@ -433,7 +433,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             client().prepareIndex(index, "type").setSource("foo", "bar").get();
             client().admin().indices().prepareRefresh(index).get();
             Query query = indexService.mapperService().documentMapper("type").allFieldMapper().fieldType().termQuery("bar", null);
-            try (Searcher searcher = indexService.shard(0).acquireSearcher("tests")) {
+            try (Searcher searcher = indexService.getShardOrNull(0).acquireSearcher("tests")) {
                 query = searcher.searcher().rewrite(query);
                 final Class<?> expected = boost ? AllTermQuery.class : TermQuery.class;
                 assertThat(query, Matchers.instanceOf(expected));

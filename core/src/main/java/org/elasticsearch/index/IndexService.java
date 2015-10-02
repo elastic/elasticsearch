@@ -67,21 +67,15 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 public class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard> {
 
     private final Settings indexSettings;
-
     private final InternalIndicesLifecycle indicesLifecycle;
-
     private final AnalysisService analysisService;
-
     private final IndexFieldDataService indexFieldData;
-
     private final BitsetFilterCache bitsetFilterCache;
-
     private final IndexSettingsService settingsService;
     private final NodeEnvironment nodeEnv;
     private final IndicesService indicesServices;
     private final IndexServicesProvider indexServicesProvider;
     private final IndexStore indexStore;
-
     private volatile ImmutableMap<Integer, IndexShard> shards = ImmutableMap.of();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
@@ -131,15 +125,15 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
      * Return the shard with the provided id, or null if there is no such shard.
      */
     @Nullable
-    public IndexShard shard(int shardId) {
+    public IndexShard getShardOrNull(int shardId) {
          return shards.get(shardId);
     }
 
     /**
      * Return the shard with the provided id, or throw an exception if it doesn't exist.
      */
-    public IndexShard shardSafe(int shardId) {
-        IndexShard indexShard = shard(shardId);
+    public IndexShard getShard(int shardId) {
+        IndexShard indexShard = getShardOrNull(shardId);
         if (indexShard == null) {
             throw new ShardNotFoundException(new ShardId(index, shardId));
         }
@@ -420,7 +414,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         @Override
         public void onCache(ShardId shardId, Accountable accountable) {
             if (shardId != null) {
-                final IndexShard shard = indexService.shard(shardId.id());
+                final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
                     long ramBytesUsed = accountable != null ? accountable.ramBytesUsed() : 0l;
                     shard.shardBitsetFilterCache().onCached(ramBytesUsed);
@@ -431,7 +425,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         @Override
         public void onRemoval(ShardId shardId, Accountable accountable) {
             if (shardId != null) {
-                final IndexShard shard = indexService.shard(shardId.id());
+                final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
                     long ramBytesUsed = accountable != null ? accountable.ramBytesUsed() : 0l;
                     shard.shardBitsetFilterCache().onRemoval(ramBytesUsed);
@@ -450,7 +444,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         @Override
         public void onCache(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
             if (shardId != null) {
-                final IndexShard shard = indexService.shard(shardId.id());
+                final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
                     shard.fieldData().onCache(shardId, fieldNames, fieldDataType, ramUsage);
                 }
@@ -460,7 +454,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         @Override
         public void onRemoval(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
             if (shardId != null) {
-                final IndexShard shard = indexService.shard(shardId.id());
+                final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
                     shard.fieldData().onRemoval(shardId, fieldNames, fieldDataType, wasEvicted, sizeInBytes);
                 }

@@ -26,6 +26,6 @@ import org.elasticsearch.index.engine.Engine;
 public final class EngineAccess {
 
     public static Engine engine(IndexShard shard) {
-        return shard.engine();
+        return shard.getEngine();
     }
 }

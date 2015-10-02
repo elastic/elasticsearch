@@ -176,7 +176,7 @@ public class PercolatorService extends AbstractComponent {
 
     public PercolateShardResponse percolate(PercolateShardRequest request) {
         IndexService percolateIndexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = percolateIndexService.shardSafe(request.shardId().id());
+        IndexShard indexShard = percolateIndexService.getShard(request.shardId().id());
         indexShard.readAllowed(); // check if we can read the shard...
         PercolatorQueriesRegistry percolateQueryRegistry = indexShard.percolateRegistry();
         percolateQueryRegistry.prePercolate();

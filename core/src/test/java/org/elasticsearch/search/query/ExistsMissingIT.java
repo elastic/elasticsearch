@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -92,12 +94,12 @@ public class ExistsMissingIT extends ESIntegTestCase {
         @SuppressWarnings("unchecked")
         final Map<String, Object>[] sources = new Map[] {
                 // simple property
-                ImmutableMap.of("foo", "bar"),
+                singletonMap("foo", "bar"),
                 // object fields
-                ImmutableMap.of("bar", ImmutableMap.of("foo", "bar", "bar", ImmutableMap.of("bar", "foo"))),
-                ImmutableMap.of("bar", ImmutableMap.of("baz", 42)),
+                singletonMap("bar", ImmutableMap.of("foo", "bar", "bar", singletonMap("bar", "foo"))),
+                singletonMap("bar", singletonMap("baz", 42)),
                 // empty doc
-                ImmutableMap.of()
+                emptyMap()
         };
         List<IndexRequestBuilder> reqs = new ArrayList<IndexRequestBuilder>();
         for (Map<String, Object> source : sources) {

@@ -43,7 +43,7 @@ class ClusterFormationTasks {
         List setupDependsOn = [project.configurations.elasticsearchZip]
         setupDependsOn.addAll(task.dependsOn)
         Task setup = project.tasks.create(name: task.name + '#setup', type: Copy, dependsOn: setupDependsOn) {
-            from { project.configurations.elasticsearchZip.singleFile }
+            from { project.zipTree(project.configurations.elasticsearchZip.singleFile) }
             into baseDir
         }
         // chain setup tasks to maintain their order

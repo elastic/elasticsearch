@@ -33,7 +33,7 @@ dependencies {
     transitive = false
   }
   //compile 'de.thetaphi:forbiddenapis:2.0-SNAPSHOT'
-  compile group: 'de.thetaphi', name: 'forbiddenapis', version: '2.0-SNAPSHOT', changing: true
+  compile group: 'de.thetaphi', name: 'forbiddenapis', version: '2.0', changing: true
 }
 
 Properties props = new Properties()

@@ -23,6 +23,8 @@ import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
@@ -41,6 +43,7 @@ import java.util.Collection;
 public class CloudAwsPlugin extends Plugin {
 
     private final Settings settings;
+    protected final ESLogger logger = Loggers.getLogger(CloudAwsPlugin.class);
 
     public CloudAwsPlugin(Settings settings) {
         this.settings = settings;
@@ -82,7 +85,9 @@ public class CloudAwsPlugin extends Plugin {
     }
 
     public void onModule(DiscoveryModule discoveryModule) {
-        discoveryModule.addDiscoveryType("ec2", Ec2Discovery.class);
-        discoveryModule.addUnicastHostProvider(AwsEc2UnicastHostsProvider.class);
+        if (AwsModule.isEc2DiscoveryActive(settings, logger)) {
+            discoveryModule.addDiscoveryType("ec2", Ec2Discovery.class);
+            discoveryModule.addUnicastHostProvider(AwsEc2UnicastHostsProvider.class);
+        }
     }
 }

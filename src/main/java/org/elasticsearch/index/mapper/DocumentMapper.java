@@ -154,15 +154,18 @@ public class DocumentMapper implements ToXContent {
 
         private final Settings indexSettings;
 
+        private final MapperService mapperService;
+
         private final RootObjectMapper rootObjectMapper;
 
         private ImmutableMap<String, Object> meta = ImmutableMap.of();
 
         private final Mapper.BuilderContext builderContext;
 
-        public Builder(String index, Settings indexSettings, RootObjectMapper.Builder builder) {
+        public Builder(String index, Settings indexSettings, MapperService mapperService, RootObjectMapper.Builder builder) {
             this.index = index;
             this.indexSettings = indexSettings;
+            this.mapperService = mapperService;
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
             IdFieldMapper idFieldMapper = new IdFieldMapper();
@@ -245,7 +248,7 @@ public class DocumentMapper implements ToXContent {
 
         public DocumentMapper build(DocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new DocumentMapper(index, indexSettings, docMapperParser, rootObjectMapper, meta,
+            return new DocumentMapper(index, indexSettings, mapperService, docMapperParser, rootObjectMapper, meta,
                     indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer, rootMappers, sourceTransforms);
         }
     }
@@ -263,6 +266,8 @@ public class DocumentMapper implements ToXContent {
     private final String index;
 
     private final Settings indexSettings;
+
+    private final MapperService mapperService;
 
     private final String type;
     private final StringAndBytesText typeText;
@@ -300,13 +305,14 @@ public class DocumentMapper implements ToXContent {
 
     private final List<SourceTransform> sourceTransforms;
 
-    public DocumentMapper(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
+    public DocumentMapper(String index, @Nullable Settings indexSettings, MapperService mapperService, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
                           NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer,
                           Map<Class<? extends RootMapper>, RootMapper> rootMappers, List<SourceTransform> sourceTransforms) {
         this.index = index;
         this.indexSettings = indexSettings;
+        this.mapperService = mapperService;
         this.type = rootObjectMapper.name();
         this.typeText = new StringAndBytesText(this.type);
         this.docMapperParser = docMapperParser;
@@ -479,6 +485,10 @@ public class DocumentMapper implements ToXContent {
 
     public ImmutableMap<String, ObjectMapper> objectMappers() {
         return this.objectMappers;
+    }
+
+    public MapperService mapperService() {
+        return this.mapperService;
     }
 
     public ParsedDocument parse(BytesReference source) throws MapperParsingException {

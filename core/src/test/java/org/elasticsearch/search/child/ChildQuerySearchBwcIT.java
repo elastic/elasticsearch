@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.child;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.startsWith;
  *
  */
 @ClusterScope(scope = Scope.SUITE)
-public class ChildQuerySearchBwcTests extends ChildQuerySearchTests {
+public class ChildQuerySearchBwcIT extends ChildQuerySearchIT {
 
     @Override
     public Settings indexSettings() {

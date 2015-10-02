@@ -371,8 +371,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request The exists request
      * @return The result future
-     * @see Requests#existsRequest(String...)
+     * @deprecated use {@link #search(SearchRequest)} instead and set `size` to `0` and `terminate_after` to `1`
      */
+    @Deprecated
     ActionFuture<ExistsResponse> exists(ExistsRequest request);
 
     /**
@@ -380,13 +381,16 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request The exists request
      * @param listener A listener to be notified of the result
-     * @see Requests#existsRequest(String...)
+     * @deprecated use {@link #search(SearchRequest, ActionListener)} instead and set `size` to `0` and `terminate_after` to `1`
      */
+    @Deprecated
     void exists(ExistsRequest request, ActionListener<ExistsResponse> listener);
 
     /**
      * Checks existence of any documents matching a specific query.
+     * @deprecated use {@link #prepareSearch(String...)} instead and set `size` to `0` and `terminate_after` to `1`
      */
+    @Deprecated
     ExistsRequestBuilder prepareExists(String... indices);
 
     /**

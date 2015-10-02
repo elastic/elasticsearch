@@ -144,8 +144,9 @@ public class Requests {
      *
      * @param indices The indices to count matched documents against a query. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The exists request
-     * @see org.elasticsearch.client.Client#exists(org.elasticsearch.action.exists.ExistsRequest)
+     * @deprecated use {@link org.elasticsearch.action.search.SearchRequest} instead and set `size` to `0` and `terminate_after` to `1`
      */
+    @Deprecated
     public static ExistsRequest existsRequest(String... indices) {
         return new ExistsRequest(indices);
     }

@@ -38,6 +38,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+/**
+ * @deprecated use {@link org.elasticsearch.action.search.SearchRequest} instead and set `size` to `0` and `terminate_after` to `1`
+ */
+@Deprecated
 public class ExistsRequest extends BroadcastRequest<ExistsRequest> {
 
     public static final float DEFAULT_MIN_SCORE = -1f;

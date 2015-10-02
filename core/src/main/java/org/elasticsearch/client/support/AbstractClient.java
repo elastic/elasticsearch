@@ -637,16 +637,19 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
     @Override
     public ActionFuture<ExistsResponse> exists(final ExistsRequest request) {
+        deprecationLogger.deprecated("search exists api is deprecated and will be removed in the next major version, use search with size set to 0 and terminate_after set to 1 instead");
         return execute(ExistsAction.INSTANCE, request);
     }
 
     @Override
     public void exists(final ExistsRequest request, final ActionListener<ExistsResponse> listener) {
+        deprecationLogger.deprecated("search exists api is deprecated and will be removed in the next major version, use search with size set to 0 and terminate_after set to 1 instead");
         execute(ExistsAction.INSTANCE, request, listener);
     }
 
     @Override
     public ExistsRequestBuilder prepareExists(String... indices) {
+        deprecationLogger.deprecated("search exists api is deprecated and will be removed in the next major version, use search with size set to 0 and terminate_after set to 1 instead");
         return new ExistsRequestBuilder(this, ExistsAction.INSTANCE).setIndices(indices);
     }
 

@@ -22,6 +22,28 @@ import java.util.List;
 
 public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> {
 
+    static final class MessageDigestSHA256Provider {
+        private static final MessageDigest digest;
+
+        static {
+            try {
+                digest = MessageDigest.getInstance("SHA-256");
+            } catch (NoSuchAlgorithmException e) {
+                throw new ElasticsearchException("Unexpected exception creating MessageDigest instance", e);
+            }
+        }
+
+        private static MessageDigest sha256() {
+            try {
+                MessageDigest sha = (MessageDigest) digest.clone();
+                sha.reset();
+                return sha;
+            } catch (CloneNotSupportedException e) {
+                throw new ElasticsearchException("Unexpected exception creating MessageDigest instance", e);
+            }
+        }
+    }
+
     public ClusterInfoRenderer() {
         super(null, false);
     }
@@ -67,15 +89,14 @@ public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> 
     public static String hash(String licenseStatus, String licenseUid, String licenseType, String licenseExpiryDate, String clusterUUID) {
         String toHash = licenseStatus + licenseUid + licenseType + licenseExpiryDate + clusterUUID;
         try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] sha256Bytes = md.digest(toHash.getBytes("UTF-8"));
+            byte[] sha256Bytes = MessageDigestSHA256Provider.sha256().digest(toHash.getBytes("UTF-8"));
             StringBuffer hash = new StringBuffer();
             for (int i = 0; i < sha256Bytes.length; i++) {
                 hash.append(Integer.toHexString(0xff & sha256Bytes[i]));
             }
             return hash.toString();
-        } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
-            throw new ElasticsearchException("Unexpected error computing SHA-256 hash", e);
+        } catch (UnsupportedEncodingException e) {
+            throw new ElasticsearchException("Unexpected error calculating SHA-256 MessageDigest", e);
         }
     }
 

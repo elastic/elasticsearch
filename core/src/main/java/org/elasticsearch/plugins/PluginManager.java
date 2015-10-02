@@ -19,8 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.collect.Iterators;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchCorruptionException;
@@ -30,6 +28,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -56,6 +55,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -437,7 +437,7 @@ public class PluginManager {
         }
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
-            return Iterators.toArray(stream.iterator(), Path.class);
+            return StreamSupport.stream(stream.spliterator(), false).toArray(length -> new Path[length]);
         }
     }
 

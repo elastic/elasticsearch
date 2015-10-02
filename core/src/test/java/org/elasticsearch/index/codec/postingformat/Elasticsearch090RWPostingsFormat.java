@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.codec.postingformat;
 
-import com.google.common.collect.Iterators;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.Fields;
@@ -32,6 +31,7 @@ import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsForm
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.stream.StreamSupport;
 
@@ -61,7 +61,7 @@ public class Elasticsearch090RWPostingsFormat extends Elasticsearch090PostingsFo
                 maskedFields = new FilterLeafReader.FilterFields(fields) {
                     @Override
                     public Iterator<String> iterator() {
-                        return Iterators.singletonIterator(UidFieldMapper.NAME);
+                        return Collections.singleton(UidFieldMapper.NAME).iterator();
                     }
                 };
                 // only go through bloom for the UID field

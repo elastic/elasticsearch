@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.Iterators;
-
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -33,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -59,6 +58,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -535,7 +535,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
     public Path[] content(String glob, Path dir) throws IOException {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, glob)) {
-            return Iterators.toArray(stream.iterator(), Path.class);
+            return StreamSupport.stream(stream.spliterator(), false).toArray(length -> new Path[length]);
         }
     }
 

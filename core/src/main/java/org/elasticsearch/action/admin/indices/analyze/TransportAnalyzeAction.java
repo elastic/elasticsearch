@@ -217,12 +217,10 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         }
 
         List<AnalyzeResponse.AnalyzeToken> tokens = new ArrayList<>();
-        TokenStream stream = null;
         int lastPosition = -1;
         int lastOffset = 0;
         for (String text : request.text()) {
-            try {
-                stream = analyzer.tokenStream(field, text);
+            try (TokenStream stream = analyzer.tokenStream(field, text)) {
                 stream.reset();
                 CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
                 PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
@@ -243,11 +241,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
 
                 lastPosition += analyzer.getPositionIncrementGap(field);
                 lastOffset += analyzer.getOffsetGap(field);
-
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to analyze", e);
-            } finally {
-                IOUtils.closeWhileHandlingException(stream);
             }
         }
 

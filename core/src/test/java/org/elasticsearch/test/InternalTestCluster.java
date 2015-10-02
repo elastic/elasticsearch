@@ -1739,7 +1739,7 @@ public final class InternalTestCluster extends TestCluster {
             IndexService indexService = indicesService.indexService(index);
             if (indexService != null) {
                 assertThat(indexService.settingsService().getSettings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), greaterThan(shard));
-                OperationRouting operationRouting = indexService.injector().getInstance(OperationRouting.class);
+                OperationRouting operationRouting = getInstanceFromNode(OperationRouting.class, node);
                 while (true) {
                     String routing = RandomStrings.randomAsciiOfLength(random, 10);
                     final int targetShard = operationRouting.indexShards(clusterService.state(), index, type, null, routing).shardId().getId();

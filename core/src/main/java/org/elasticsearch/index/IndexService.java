@@ -26,9 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -48,11 +46,8 @@ import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
-import org.elasticsearch.plugins.PluginsService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -71,69 +66,48 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
  */
 public class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard> {
 
-    private final Injector injector;
-
     private final Settings indexSettings;
-
-    private final PluginsService pluginsService;
 
     private final InternalIndicesLifecycle indicesLifecycle;
 
     private final AnalysisService analysisService;
-
-    private final MapperService mapperService;
-
-    private final IndexQueryParserService queryParserService;
-
-    private final SimilarityService similarityService;
-
-    private final IndexAliasesService aliasesService;
-
-    private final IndexCache indexCache;
 
     private final IndexFieldDataService indexFieldData;
 
     private final BitsetFilterCache bitsetFilterCache;
 
     private final IndexSettingsService settingsService;
-
     private final NodeEnvironment nodeEnv;
     private final IndicesService indicesServices;
+    private final IndexServicesProvider indexServicesProvider;
+    private final IndexStore indexStore;
 
     private volatile ImmutableMap<Integer, IndexShard> shards = ImmutableMap.of();
-
-
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
 
     @Inject
-    public IndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
-                        AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
-                        SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache,
+    public IndexService(Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
+                        AnalysisService analysisService,
                         IndexSettingsService settingsService,
-                        IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache, IndicesService indicesServices) {
-
+                        IndexFieldDataService indexFieldData,
+                        BitsetFilterCache bitSetFilterCache,
+                        IndicesService indicesServices,
+                        IndexServicesProvider indexServicesProvider,
+                        IndexStore indexStore) {
         super(index, indexSettings);
-        this.injector = injector;
         this.indexSettings = indexSettings;
         this.analysisService = analysisService;
-        this.mapperService = mapperService;
-        this.queryParserService = queryParserService;
-        this.similarityService = similarityService;
-        this.aliasesService = aliasesService;
-        this.indexCache = indexCache;
         this.indexFieldData = indexFieldData;
         this.settingsService = settingsService;
         this.bitsetFilterCache = bitSetFilterCache;
-
-        this.pluginsService = injector.getInstance(PluginsService.class);
         this.indicesServices = indicesServices;
-        this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
-
-        // inject workarounds for cyclic dep
+        this.indicesLifecycle = (InternalIndicesLifecycle) indexServicesProvider.getIndicesLifecycle();
+        this.nodeEnv = nodeEnv;
+        this.indexServicesProvider = indexServicesProvider;
+        this.indexStore = indexStore;
         indexFieldData.setListener(new FieldDataCacheListener(this));
         bitSetFilterCache.setListener(new BitsetCacheListener(this));
-        this.nodeEnv = nodeEnv;
     }
 
     public int numberOfShards() {
@@ -176,16 +150,12 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return shards.keySet();
     }
 
-    public Injector injector() {
-        return injector;
-    }
-
     public IndexSettingsService settingsService() {
         return this.settingsService;
     }
 
     public IndexCache cache() {
-        return indexCache;
+        return indexServicesProvider.getIndexCache();
     }
 
     public IndexFieldDataService fieldData() {
@@ -201,19 +171,19 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     }
 
     public MapperService mapperService() {
-        return mapperService;
+        return indexServicesProvider.getMapperService();
     }
 
     public IndexQueryParserService queryParserService() {
-        return queryParserService;
+        return indexServicesProvider.getQueryParserService();
     }
 
     public SimilarityService similarityService() {
-        return similarityService;
+        return indexServicesProvider.getSimilarityService();
     }
 
     public IndexAliasesService aliasesService() {
-        return aliasesService;
+        return indexServicesProvider.getIndexAliasesService();
     }
 
     public synchronized void close(final String reason, boolean delete) {
@@ -288,7 +258,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             if (path == null) {
                 // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
                 // that's being relocated/replicated we know how large it will become once it's done copying:
-
                 // Count up how many shards are currently on each data path:
                 Map<Path,Integer> dataPathToShardCount = new HashMap<>();
                 for(IndexShard shard : this) {
@@ -314,12 +283,11 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
                     (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
-            IndexStore indexStore = injector.getInstance(IndexStore.class);
-            store = new Store(shardId, indexSettings, indexStore.newDirectoryService(path), lock, new StoreCloseListener(shardId, canDeleteShardContent, () -> injector.getInstance(IndicesQueryCache.class).onClose(shardId)));
+            store = new Store(shardId, indexSettings, indexStore.newDirectoryService(path), lock, new StoreCloseListener(shardId, canDeleteShardContent, () -> indexServicesProvider.getIndicesQueryCache().onClose(shardId)));
             if (useShadowEngine(primary, indexSettings)) {
-                indexShard = new ShadowIndexShard(shardId, indexSettings, path, store, injector.getInstance(IndexServicesProvider.class));
+                indexShard = new ShadowIndexShard(shardId, indexSettings, path, store, indexServicesProvider);
             } else {
-                indexShard = new IndexShard(shardId, indexSettings, path, store, injector.getInstance(IndexServicesProvider.class));
+                indexShard = new IndexShard(shardId, indexSettings, path, store, indexServicesProvider);
             }
 
             indicesLifecycle.indexShardStateChanged(indexShard, null, "shard created");
@@ -405,6 +373,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 logger.debug("[{}] failed to delete shard content - scheduled a retry", e, lock.getShardId().id());
             }
         }
+    }
+
+    public IndexServicesProvider getIndexServices() {
+        return indexServicesProvider;
     }
 
     private class StoreCloseListener implements Store.OnClose {

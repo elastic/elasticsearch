@@ -41,6 +41,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -219,10 +220,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * Create a new search context.
      */
     protected static SearchContext createSearchContext(IndexService indexService) {
-        BigArrays bigArrays = indexService.injector().getInstance(BigArrays.class);
-        ThreadPool threadPool = indexService.injector().getInstance(ThreadPool.class);
-        PageCacheRecycler pageCacheRecycler = indexService.injector().getInstance(PageCacheRecycler.class);
-        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, indexService);
+        BigArrays bigArrays = indexService.getIndexServices().getBigArrays();
+        ThreadPool threadPool = indexService.getIndexServices().getThreadPool();
+        PageCacheRecycler pageCacheRecycler = node().injector().getInstance(PageCacheRecycler.class);
+        ScriptService scriptService = node().injector().getInstance(ScriptService.class);
+        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, scriptService, indexService);
     }
 
     /**

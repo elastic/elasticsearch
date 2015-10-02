@@ -57,9 +57,6 @@ public final class IndexServicesProvider {
     private final SimilarityService similarityService;
     private final EngineFactory factory;
     private final BigArrays bigArrays;
-
-
-
     private final IndexSearcherWrapper indexSearcherWrapper;
 
     @Inject

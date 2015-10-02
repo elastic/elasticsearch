@@ -767,7 +767,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
 
     public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
-        indicesLifecycle.beforeIndexShardPostRecovery(this);
         if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
             refresh("percolator_load_queries");
             try (Engine.Searcher searcher = engine().acquireSearcher("percolator_load_queries")) {
@@ -787,7 +786,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             recoveryState.setStage(RecoveryState.Stage.DONE);
             changeState(IndexShardState.POST_RECOVERY, reason);
         }
-        indicesLifecycle.afterIndexShardPostRecovery(this);
         return this;
     }
 

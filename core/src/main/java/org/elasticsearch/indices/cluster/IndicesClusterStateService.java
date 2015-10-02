@@ -327,7 +327,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // already deleted on us, ignore it
                 continue;
             }
-            IndexSettingsService indexSettingsService = indexService.injector().getInstance(IndexSettingsService.class);
+            IndexSettingsService indexSettingsService = indexService.settingsService();
             indexSettingsService.refreshSettings(indexMetaData.settings());
         }
     }

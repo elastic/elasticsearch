@@ -62,8 +62,7 @@ public class DFRSimilarityProvider extends AbstractSimilarityProvider {
 
     private final DFRSimilarity similarity;
 
-    @Inject
-    public DFRSimilarityProvider(@Assisted String name, @Assisted Settings settings) {
+    public DFRSimilarityProvider(String name, Settings settings) {
         super(name);
         BasicModel basicModel = parseBasicModel(settings);
         AfterEffect afterEffect = parseAfterEffect(settings);

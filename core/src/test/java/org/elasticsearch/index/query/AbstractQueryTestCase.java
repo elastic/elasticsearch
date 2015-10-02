@@ -215,7 +215,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 new IndexSettingsModule(index, indexSettings),
                 new IndexCacheModule(indexSettings),
                 new AnalysisModule(indexSettings, new IndicesAnalysisService(indexSettings)),
-                new SimilarityModule(indexSettings),
+                new SimilarityModule(index, indexSettings),
                 new IndexNameModule(index),
         new AbstractModule() {
                     @Override

@@ -24,6 +24,10 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
 
+/**
+ * @deprecated use {@link org.elasticsearch.action.search.SearchRequestBuilder} instead and set `size` to `0` and `terminate_after` to `1`
+ */
+@Deprecated
 public class ExistsRequestBuilder extends BroadcastOperationRequestBuilder<ExistsRequest, ExistsResponse, ExistsRequestBuilder> {
 
     private QuerySourceBuilder sourceBuilder;

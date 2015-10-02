@@ -37,7 +37,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * Action for /_search/exists endpoint
+ * @deprecated use {@link org.elasticsearch.rest.action.search.RestSearchAction} instead and set `size` to `0` and `terminate_after` to `1`
  */
+@Deprecated
 public class RestExistsAction extends BaseRestHandler {
 
     public RestExistsAction(Settings settings, RestController controller, Client client) {

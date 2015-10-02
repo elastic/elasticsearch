@@ -2,7 +2,9 @@ import com.carrotsearch.gradle.randomizedtesting.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
 
 plugins {
+  id 'nebula.optional-base' version '3.0.2'
   id 'nebula.source-jar' version '4.2.1'
+  id 'nebula.maven-publish' version '4.2.1'
 }
 apply plugin: 'elasticsearch.build'
 
@@ -11,8 +13,6 @@ tasks.withType(Jar) {
 }
 
 configurations {
-  optional // these are used at compile time (and test) but excluded from runtime
-  compile.extendsFrom(optional)
   restSpec2 // the rest spec is copied independently to the test classes dir
 }
 
@@ -63,26 +63,23 @@ dependencies {
   // precentil ranks aggregation
   compile 'org.hdrhistogram:HdrHistogram:2.1.6'
 
-  /* ===== OPTIONAL DEPS =====
-   * These are included in distributions, but not required for the jar to run as a "client".
-   */
-
   // lucene spatial
-  optional 'com.spatial4j:spatial4j:0.4.1'
-  optional 'com.vividsolutions:jts:1.13'
+  compile 'com.spatial4j:spatial4j:0.4.1', optional
+  compile 'com.vividsolutions:jts:1.13', optional
 
   // templating
-  optional('com.github.spullara.mustache.java:compiler:0.8.13') {
-    transitive = false
+  compile('com.github.spullara.mustache.java:compiler:0.8.13') { dep ->
+    dep.transitive = false
+    optional(dep)
   }
 
   // logging
-  optional "log4j:log4j:${versions.log4j}"
-  optional "log4j:apache-log4j-extras:${versions.log4j}"
-  optional "org.slf4j:slf4j-api:${versions.slf4j}"
+  compile "log4j:log4j:${versions.log4j}", optional
+  compile "log4j:apache-log4j-extras:${versions.log4j}", optional
+  compile "org.slf4j:slf4j-api:${versions.slf4j}", optional
 
   // TODO: why are we using jna
-  optional 'net.java.dev.jna:jna:4.1.0'
+  compile 'net.java.dev.jna:jna:4.1.0', optional
 
   // TODO: remove these test deps and just dpeend on test-framework
   testCompile(group: 'junit', name: 'junit', version: '4.11') {
@@ -98,8 +95,6 @@ dependencies {
   }
   testCompile 'com.google.jimfs:jimfs:1.0'
   testCompile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-
-  testCompile configurations.optional // optional deps are pulled into tests
 
   restSpec2 "org.elasticsearch:rest-api-spec:${version}" //project("${projectsPrefix}:rest-api-spec") // for rest tests
 }
@@ -132,7 +127,7 @@ task integTest(type: RandomizedTestingTask,
 
 idea {
   module {
-    scopes.COMPILE.plus.add(configurations.optional)
+    //scopes.COMPILE.plus.add(configurations.optional)
     scopes.TEST.plus.add(configurations.restSpec2)
   }
 }

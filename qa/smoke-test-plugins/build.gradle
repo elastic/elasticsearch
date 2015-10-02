@@ -10,7 +10,7 @@ for (Project subproj : project.rootProject.subprojects) {
       String camelName = subproj.name.replaceAll(/-(\w)/) { _, c -> c.toUpperCase() }
       dependsOn bundlePlugin
       cluster {
-        plugin "install${camelName.capitalize()}", bundlePlugin.outputs.files.singleFile
+        plugin "install${camelName.capitalize()}", bundlePlugin.outputs.files
       }
     }
     pluginCount += 1

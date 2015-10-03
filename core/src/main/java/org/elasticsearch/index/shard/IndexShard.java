@@ -1000,7 +1000,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     }
 
     /** Returns true if the indexing buffer size did change */
-    public boolean updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
+    public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
 
         final EngineConfig config = engineConfig;
         final ByteSizeValue preValue = config.getIndexingBufferSize();
@@ -1010,7 +1010,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         Engine engine = engineUnsafe();
         if (engine == null) {
             logger.debug("updateBufferSize: engine is closed; skipping");
-            return false;
+            return;
         }
 
         // update engine if it is already started.

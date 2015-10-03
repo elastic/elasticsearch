@@ -22,13 +22,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -43,13 +47,14 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         final Map<ShardId, ByteSizeValue> translogBuffers = new HashMap<>();
 
         final Map<ShardId, Long> lastIndexTimeNanos = new HashMap<>();
+        final Set<ShardId> activeShards = new HashSet<>();
 
         long currentTimeSec = TimeValue.timeValueNanos(System.nanoTime()).seconds();
 
         public MockController(Settings settings) {
             super(Settings.builder()
                             .put(SHARD_INACTIVE_INTERVAL_TIME_SETTING, "200h") // disable it
-                            .put(SHARD_INACTIVE_TIME_SETTING, "0s") // immediate
+                            .put(SHARD_INACTIVE_TIME_SETTING, "1ms") // nearly immediate
                             .put(settings)
                             .build(),
                     null, null, 100 * 1024 * 1024); // fix jvm mem size to 100mb
@@ -58,11 +63,6 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         public void deleteShard(ShardId id) {
             indexingBuffers.remove(id);
             translogBuffers.remove(id);
-        }
-
-        public void assertActive(ShardId id) {
-            assertThat(indexingBuffers.get(id), not(equalTo(INACTIVE)));
-            assertThat(translogBuffers.get(id), not(equalTo(INACTIVE)));
         }
 
         public void assertBuffers(ShardId id, ByteSizeValue indexing, ByteSizeValue translog) {
@@ -94,11 +94,12 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         protected void markShardAsInactive(ShardId shardId) {
             indexingBuffers.put(shardId, INACTIVE);
             translogBuffers.put(shardId, INACTIVE);
+            activeShards.remove(shardId);
         }
 
         @Override
         protected Boolean getShardActive(ShardId shardId) {
-            return INACTIVE.equals(indexingBuffers.get(shardId));
+            return activeShards.contains(shardId);
         }
 
         @Override
@@ -118,6 +119,12 @@ public class IndexingMemoryControllerTests extends ESTestCase {
 
         public void simulateIndexing(ShardId shardId) {
             lastIndexTimeNanos.put(shardId, currentTimeInNanos());
+            if (indexingBuffers.containsKey(shardId) == false) {
+                // First time we are indexing into this shard; start it off with default indexing buffer:
+                indexingBuffers.put(shardId, EngineConfig.DEFAULT_INDEX_BUFFER_SIZE);
+                translogBuffers.put(shardId, TranslogConfig.DEFAULT_SHARD_TRANSLOG_BUFFER_SIZE);
+            }
+            activeShards.add(shardId);
         }
     }
 
@@ -171,31 +178,35 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         // index into both shards, move the clock and see that they are still active
         controller.simulateIndexing(shard1);
         controller.simulateIndexing(shard2);
-        // the controller doesn't know when the ops happened, so even if this is more
-        // than the inactive time the shard is still marked as active
+
         controller.incrementTimeSec(10);
         controller.forceCheck();
-        controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
-        controller.assertBuffers(shard2, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
 
-        // index into one shard only, see other shard is made inactive correctly
+        // both shards now inactive
+        controller.assertInActive(shard1);
+        controller.assertInActive(shard2);
+
+        // index into one shard only, see it becomes active
         controller.simulateIndexing(shard1);
         controller.forceCheck(); // register what happened with the controller (shard is still active)
-        controller.incrementTimeSec(3); // increment but not enough
+        controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
+        controller.assertInActive(shard2);
+
+        controller.incrementTimeSec(3); // increment but not enough to become inactive
         controller.forceCheck();
-        controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
-        controller.assertBuffers(shard2, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
+        controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
+        controller.assertInActive(shard2);
 
         controller.incrementTimeSec(3); // increment some more
         controller.forceCheck();
-        controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
+        controller.assertInActive(shard1);
         controller.assertInActive(shard2);
 
         // index some and shard becomes immediately active
         controller.simulateIndexing(shard2);
         controller.forceCheck();
-        controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
-        controller.assertBuffers(shard2, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
+        controller.assertInActive(shard1);
+        controller.assertBuffers(shard2, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
     }
 
     public void testMinShardBufferSizes() {

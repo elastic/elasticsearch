@@ -86,8 +86,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.Store.MetadataSnapshot;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
@@ -103,6 +103,7 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
@@ -119,6 +120,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
 
 public class IndexShard extends AbstractIndexShardComponent implements IndexSettingsService.Listener {
 
@@ -192,13 +194,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     private EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
 
+    private final AtomicBoolean active = new AtomicBoolean();
+    private volatile long lastWriteNS;
+    private final IndexingMemoryController indexingMemoryController;
+
     @Inject
     public IndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndicesLifecycle indicesLifecycle, Store store,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
                       IndicesQueryCache indicesQueryCache, CodecService codecService,
                       TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
                       @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory,
-                      ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) {
+                      ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService,
+                      IndexingMemoryController indexingMemoryController) {
         super(shardId, indexSettings);
         this.codecService = codecService;
         this.warmer = warmer;
@@ -252,6 +259,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.flushThresholdSize = indexSettings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
         this.disableFlush = indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
+        this.indexingMemoryController = indexingMemoryController;
+
+        // TODO: can we somehow call IMC.forceCheck here?  Since we just became active, it can divvy up the RAM
+        active.set(true);
     }
 
     public Store store() {
@@ -447,7 +458,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     }
 
     public void create(Engine.Create create) {
-        writeAllowed(create.origin());
+        ensureWriteAllowed(create);
         create = indexingService.preCreate(create);
         try {
             if (logger.isTraceEnabled()) {
@@ -485,7 +496,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
      * updated.
      */
     public boolean index(Engine.Index index) {
-        writeAllowed(index.origin());
+        ensureWriteAllowed(index);
         index = indexingService.preIndex(index);
         final boolean created;
         try {
@@ -509,7 +520,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     }
 
     public void delete(Engine.Delete delete) {
-        writeAllowed(delete.origin());
+        ensureWriteAllowed(delete);
         delete = indexingService.preDelete(delete);
         try {
             if (logger.isTraceEnabled()) {
@@ -913,7 +924,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         }
     }
 
-    private void writeAllowed(Engine.Operation.Origin origin) throws IllegalIndexShardStateException {
+    /** Returns timestamp of last indexing operation */
+    public long getLastWriteNS() {
+        return lastWriteNS;
+    }
+
+    private void ensureWriteAllowed(Engine.Operation op) throws IllegalIndexShardStateException {
+        if (active.getAndSet(true) == false) {
+            // We are currently inactive, but a new write operation just showed up, so we now notify IMC
+            // to wake up and fix our indexing buffer.  We could do this async instead, but cost should
+            // be low, and it's rare this happens.
+            indexingMemoryController.forceCheck();
+        }
+        lastWriteNS = op.startTime();
+        Engine.Operation.Origin origin = op.origin();
         IndexShardState state = this.state; // one time volatile read
 
         if (origin == Engine.Operation.Origin.PRIMARY) {
@@ -975,7 +999,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.failedEngineListener.delegates.add(failedEngineListener);
     }
 
-    public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
+    /** Returns true if the indexing buffer size did change */
+    public boolean updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
 
         final EngineConfig config = engineConfig;
         final ByteSizeValue preValue = config.getIndexingBufferSize();
@@ -985,26 +1010,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         Engine engine = engineUnsafe();
         if (engine == null) {
             logger.debug("updateBufferSize: engine is closed; skipping");
-            return;
+            return false;
         }
 
         // update engine if it is already started.
         if (preValue.bytes() != shardIndexingBufferSize.bytes()) {
             // so we push changes these changes down to IndexWriter:
             engine.onSettingsChanged();
+            logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, shardIndexingBufferSize);
 
-            if (shardIndexingBufferSize == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER) {
-                // it's inactive: make sure we do a refresh / full IW flush in this case, since the memory
-                // changes only after a "data" change has happened to the writer
-                // the index writer lazily allocates memory and a refresh will clean it all up.
-                logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, shardIndexingBufferSize);
+            long iwBytesUsed = engine.indexWriterRAMBytesUsed();
+            if (shardIndexingBufferSize.bytes() < iwBytesUsed) {
+                // our allowed buffer was changed to less than we are currently using; we ask IW to refresh
+                // so it clears its buffers (otherwise it won't clear until the next indexing/delete op)
+                logger.debug("refresh because index buffer decreased to [{}] and IndexWriter is now using [{}] bytes",
+                             shardIndexingBufferSize, iwBytesUsed);
+
+                // TODO: should IW have an API to move segments to disk, but not refresh?
                 try {
                     refresh("update index buffer");
                 } catch (Throwable e) {
-                    logger.warn("failed to refresh after setting shard to inactive", e);
+                    logger.warn("failed to refresh after decreasing index buffer", e);
                 }
-            } else {
-                logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, shardIndexingBufferSize);
             }
         }
 
@@ -1012,8 +1039,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     }
 
     public void markAsInactive() {
-        updateBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER, TranslogConfig.INACTIVE_SHARD_TRANSLOG_BUFFER);
-        indicesLifecycle.onShardInactive(this);
+        if (active.getAndSet(false)) {
+            updateBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER, TranslogConfig.INACTIVE_SHARD_TRANSLOG_BUFFER);
+            logger.debug("shard is now inactive");
+            indicesLifecycle.onShardInactive(this);
+        }
+    }
+
+    public boolean getActive() {
+        return active.get();
     }
 
     public final boolean isFlushOnClose() {

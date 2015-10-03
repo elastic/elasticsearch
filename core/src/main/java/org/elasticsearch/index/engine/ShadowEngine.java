@@ -244,4 +244,9 @@ public class ShadowEngine extends Engine {
         return lastCommittedSegmentInfos;
     }
 
+    @Override
+    public long indexWriterRAMBytesUsed() {
+        // No IndexWriter
+        return 0L;
+    }
 }

@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.shard;
 
+import java.io.IOException;
+
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
@@ -27,10 +29,10 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.engine.IndexSearcherWrappingService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.IndexSearcherWrappingService;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
@@ -43,9 +45,8 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.IOException;
 
 /**
  * ShadowIndexShard extends {@link IndexShard} to add file synchronization
@@ -65,13 +66,15 @@ public final class ShadowIndexShard extends IndexShard {
                             @Nullable IndicesWarmer warmer,
                             SimilarityService similarityService,
                             EngineFactory factory,
-                            ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) throws IOException {
+                            ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService,
+                            IndexingMemoryController indexingMemoryController) throws IOException {
         super(shardId, indexSettings, indicesLifecycle, store,
-                threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
-                indicesQueryCache, codecService,
-                termVectorsService, indexFieldDataService,
-                warmer, similarityService,
-                factory, path, bigArrays, wrappingService);
+              threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
+              indicesQueryCache, codecService,
+              termVectorsService, indexFieldDataService,
+              warmer, similarityService,
+              factory, path, bigArrays, wrappingService,
+              indexingMemoryController);
     }
 
     /**

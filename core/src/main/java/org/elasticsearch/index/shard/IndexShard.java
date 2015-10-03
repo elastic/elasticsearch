@@ -930,13 +930,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     }
 
     private void ensureWriteAllowed(Engine.Operation op) throws IllegalIndexShardStateException {
+        lastWriteNS = op.startTime();
         if (active.getAndSet(true) == false) {
             // We are currently inactive, but a new write operation just showed up, so we now notify IMC
             // to wake up and fix our indexing buffer.  We could do this async instead, but cost should
             // be low, and it's rare this happens.
             indexingMemoryController.forceCheck();
         }
-        lastWriteNS = op.startTime();
         Engine.Operation.Origin origin = op.origin();
         IndexShardState state = this.state; // one time volatile read
 

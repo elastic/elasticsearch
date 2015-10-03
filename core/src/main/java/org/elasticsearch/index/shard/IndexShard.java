@@ -520,7 +520,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
-        return getEngine().get(get);
+        return getEngine().get(get, this::acquireSearcher);
     }
 
     public void refresh(String source) {

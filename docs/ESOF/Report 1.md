@@ -16,8 +16,8 @@ Elasticsearch employs a development model similar to other open source projects,
 
 In contrast, the constant adding of new features, pushed exclusively by the users of the software, and the ever expanding requirements for increasingly complex use cases, originating from large and small clients alike, invariably drive the developers to rethink and restructure both their software and their understanding of the problem at hand, bringing the project more in line with more modern methodologies.
 
-Its nature as a distributed piece of software mandates a high level of control and correctness in the program, and the developers fulfill this requirement with a comprehensive suite of tests each patch must pass in order to be accepted and integrated.
+Its nature as a distributed piece of software mandates a high level of control and correctness in the program, and the developers fulfill this requirement with a comprehensive suite of tests each patch must pass in order to be accepted and integrated. It does not, however, fit into a test-driven paradigm as tests are not required to be written first.
 
-Unlike most other other open source projects, however, their resources allow them to meet in person a few times a year, which allows for a higher degree of coordination and focus.
+Unlike most other other open source projects, their resources allow them to meet in person a few times a year, which allows for a higher degree of coordination and focus.
 
 This paradigm allows the developers to stay invested in the project while empowering them with the flexibility to shape it to meet the diverse needs of a fast growing market that now includes some of the biggest software companies in the world such as Facebook.

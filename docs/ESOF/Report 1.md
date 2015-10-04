@@ -20,6 +20,6 @@ In contrast, the constant adding of new features, pushed exclusively by the user
 
 Its nature as a distributed piece of software mandates a high level of control and correctness in the program, and the developers fulfill this requirement with a comprehensive suite of tests each patch must pass in order to be accepted and integrated. It does not, however, fit into a test-driven paradigm as tests are not required to be written first.
 
-Unlike most other other open source projects, their resources allow them to meet in person a few times a year, which allows for a higher degree of coordination and focus.
+Unlike most other open source projects, their resources allow them to meet in person a few times a year, which allows for a higher degree of coordination and focus.
 
 This agile paradigm allows the developers to stay invested in the project while empowering them with the flexibility to shape it to meet the diverse needs of a fast growing market that now includes some of the biggest software companies in the world such as Facebook.

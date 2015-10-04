@@ -57,13 +57,15 @@ class PluginPropertiesTask extends DefaultTask {
 
     @TaskAction
     void buildProperties() {
-        File classesDir = project.sourceSets.main.output.classesDir
-        File classFile = new File(classesDir, extension.classname.replace('.', File.separator) + '.class')
-        if (classFile.exists() == false) {
-            throw new InvalidUserDataException('classname ' + extension.classname + ' does not exist')
-        }
-        if (extension.isolated == false) {
-            logger.warn('Disabling isolation is deprecated and will be removed in the future')
+        if (extension.jvm) {
+            File classesDir = project.sourceSets.main.output.classesDir
+            File classFile = new File(classesDir, extension.classname.replace('.', File.separator) + '.class')
+            if (classFile.exists() == false) {
+                throw new InvalidUserDataException('classname ' + extension.classname + ' does not exist')
+            }
+            if (extension.isolated == false) {
+                logger.warn('Disabling isolation is deprecated and will be removed in the future')
+            }
         }
 
         Properties props = new Properties()

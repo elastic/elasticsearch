@@ -22,6 +22,7 @@ package org.elasticsearch.script.javascript;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -36,6 +37,10 @@ import org.mozilla.javascript.*;
 import org.mozilla.javascript.Script;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.security.CodeSource;
+import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -105,7 +110,11 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         try {
             ctx.setWrapFactory(wrapFactory);
             ctx.setOptimizationLevel(optimizationLevel);
-            return ctx.compileString(script, generateScriptName(), 1, null);
+            ctx.setSecurityController(new PolicySecurityController());
+            return ctx.compileString(script, generateScriptName(), 1, 
+                      new CodeSource(new URL("file:" + BootstrapInfo.UNTRUSTED_CODEBASE), (Certificate[]) null));
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
         } finally {
             Context.exit();
         }

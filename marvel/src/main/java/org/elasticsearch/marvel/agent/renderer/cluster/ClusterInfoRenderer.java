@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.marvel.agent.renderer.cluster;
 
-import com.google.common.hash.Hashing;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -15,11 +16,13 @@ import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.AbstractRenderer;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
 public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> {
-
     public ClusterInfoRenderer() {
         super(null, false);
     }
@@ -64,7 +67,7 @@ public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> 
 
     public static String hash(String licenseStatus, String licenseUid, String licenseType, String licenseExpiryDate, String clusterUUID) {
         String toHash = licenseStatus + licenseUid + licenseType + licenseExpiryDate + clusterUUID;
-        return Hashing.sha256().hashString(toHash, StandardCharsets.UTF_8).toString();
+        return MessageDigests.toHexString(MessageDigests.sha256().digest(toHash.getBytes(StandardCharsets.UTF_8)));
     }
 
     static final class Fields {

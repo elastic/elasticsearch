@@ -18,8 +18,8 @@
  */
  
 /*
- * Limited security policy for groovy scripts.
- * This is what is needed for its invokeDynamic functionality to work.
+ * Limited security policy for scripts.
+ * This is what is needed for invokeDynamic functionality to work.
  */
 grant {
   

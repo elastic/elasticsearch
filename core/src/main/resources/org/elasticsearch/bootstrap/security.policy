@@ -69,8 +69,8 @@ grant codeBase "${es.security.plugin.lang-groovy}" {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   // needed by GroovyScriptEngineService to close its classloader (why?)
   permission java.lang.RuntimePermission "closeClassLoader";
-  // Allow executing groovy scripts with codesource of /groovy/script
-  permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
+  // Allow executing groovy scripts with codesource of /untrusted
+  permission groovy.security.GroovyCodeSourcePermission "/untrusted";
 };
 
 grant codeBase "${es.security.plugin.lang-javascript}" {

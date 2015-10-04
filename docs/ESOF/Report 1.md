@@ -14,7 +14,7 @@ Project Methodology
 -------------------
 Elasticsearch employs a development model similar to other open source projects, in which a large number of motivated developers all over the world contribute on the features they want implemented. As such, there is no clear precedence in the various tasks that are undertaken, resulting in a great degree of concurrency in the project, thus diverging greatly from the waterfall model. 
 
-In contrast, the constant adding of new features, pushed exclusively by the users of the software, and the ever expanding requirements for increasingly complex use cases, originating from large and small clients alike, invariably drive the developers to rethink and restructure both their software and their understanding of the problem at hand, bringing the project more in line with more modern agile methodologies, despite the lack of the element of co-location <!--- alterar?-->.
+In contrast, the constant adding of new features, pushed exclusively by the users of the software, and the ever expanding requirements for increasingly complex use cases, originating from large and small clients alike, invariably drive the developers to rethink and restructure both their software and their understanding of the problem at hand, bringing the project more in line with more modern agile methodologies, despite the lack of the element of co-location.
 
 Its nature as a distributed piece of software mandates a high level of control and correctness in the program, and the developers fulfill this requirement with a comprehensive suite of tests each patch must pass in order to be accepted and integrated. It does not, however, fit into a test-driven paradigm as tests are not required to be written first.
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.*;
@@ -114,10 +115,14 @@ public class PercolatorQueryTests extends ESTestCase {
 
     void addPercolatorQuery(String id, Query query, IndexWriter writer, QueryMetadataService queryMetadataService, Map<BytesRef, Query> queries) throws IOException {
         queries.put(new BytesRef(id), query);
-        List<Field> doc = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(query, doc);
-        doc.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorService.TYPE_NAME, id)));
-        writer.addDocument(doc);
+        Document document = new Document();
+        List<Term> queryTerms = new ArrayList<>();
+        queryMetadataService.extractQueryMetadata(query, queryTerms);
+        for (Term term : queryTerms) {
+            document.add(new Field(term.field(), term.bytes(), QueryMetadataService.QUERY_METADATA_FIELD_TYPE));
+        }
+        document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorService.TYPE_NAME, id)));
+        writer.addDocument(document);
     }
 
 }

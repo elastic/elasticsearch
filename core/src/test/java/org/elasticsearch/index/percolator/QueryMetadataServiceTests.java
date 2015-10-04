@@ -40,22 +40,20 @@ public class QueryMetadataServiceTests extends ESTestCase {
 
     public void testExtractQueryMetadata_termQuery() {
         TermQuery termQuery = new TermQuery(new Term("_field", "_term"));
-        List<Field> fields = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(termQuery, fields);
-        assertThat(fields.size(), equalTo(1));
-        assertThat(fields.get(0).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery.getTerm().field()));
-        assertThat(fields.get(0).binaryValue(), equalTo(termQuery.getTerm().bytes()));
+        List<Term> terms = new ArrayList<>();
+        queryMetadataService.extractQueryMetadata(termQuery, terms);
+        assertThat(terms.size(), equalTo(1));
+        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery.getTerm().field()));
+        assertThat(terms.get(0).bytes(), equalTo(termQuery.getTerm().bytes()));
     }
 
     public void testExtractQueryMetadata_phraseQuery() {
         PhraseQuery phraseQuery = new PhraseQuery("_field", "_term1", "term2");
-        List<Field> fields = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(phraseQuery, fields);
-        assertThat(fields.size(), equalTo(2));
-        assertThat(fields.get(0).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + phraseQuery.getTerms()[0].field()));
-        assertThat(fields.get(0).binaryValue(), equalTo(phraseQuery.getTerms()[0].bytes()));
-        assertThat(fields.get(1).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + phraseQuery.getTerms()[1].field()));
-        assertThat(fields.get(1).binaryValue(), equalTo(phraseQuery.getTerms()[1].bytes()));
+        List<Term> terms = new ArrayList<>();
+        queryMetadataService.extractQueryMetadata(phraseQuery, terms);
+        assertThat(terms.size(), equalTo(1));
+        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + phraseQuery.getTerms()[0].field()));
+        assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
     }
 
     public void testExtractQueryMetadata_booleanQuery() {
@@ -68,24 +66,48 @@ public class QueryMetadataServiceTests extends ESTestCase {
         BooleanQuery.Builder subBuilder = new BooleanQuery.Builder();
         TermQuery termQuery2 = new TermQuery(new Term("_field1", "_term"));
         subBuilder.add(termQuery2, BooleanClause.Occur.MUST);
-        TermQuery termQuery3 = new TermQuery(new Term("_field3", "_term"));
+        TermQuery termQuery3 = new TermQuery(new Term("_field3", "_long_term"));
         subBuilder.add(termQuery3, BooleanClause.Occur.MUST);
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Field> fields = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(booleanQuery, fields);
-        assertThat(fields.size(), equalTo(5));
-        assertThat(fields.get(0).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery1.getTerm().field()));
-        assertThat(fields.get(0).binaryValue(), equalTo(termQuery1.getTerm().bytes()));
-        assertThat(fields.get(1).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + phraseQuery.getTerms()[0].field()));
-        assertThat(fields.get(1).binaryValue(), equalTo(phraseQuery.getTerms()[0].bytes()));
-        assertThat(fields.get(2).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + phraseQuery.getTerms()[1].field()));
-        assertThat(fields.get(2).binaryValue(), equalTo(phraseQuery.getTerms()[1].bytes()));
-        assertThat(fields.get(3).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery2.getTerm().field()));
-        assertThat(fields.get(3).binaryValue(), equalTo(termQuery2.getTerm().bytes()));
-        assertThat(fields.get(4).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery3.getTerm().field()));
-        assertThat(fields.get(4).binaryValue(), equalTo(termQuery3.getTerm().bytes()));
+        List<Term> terms = new ArrayList<>();
+        queryMetadataService.extractQueryMetadata(booleanQuery, terms);
+        assertThat(terms.size(), equalTo(3));
+        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery1.getTerm().field()));
+        assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
+        assertThat(terms.get(1).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + phraseQuery.getTerms()[0].field()));
+        assertThat(terms.get(1).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
+        assertThat(terms.get(2).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery3.getTerm().field()));
+        assertThat(terms.get(2).bytes(), equalTo(termQuery3.getTerm().bytes()));
+    }
+
+    public void testExtractQueryMetadata_booleanQuery_onlyShould() {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
+        builder.add(termQuery1, BooleanClause.Occur.SHOULD);
+        TermQuery termQuery2 = new TermQuery(new Term("_field", "_term"));
+        builder.add(termQuery2, BooleanClause.Occur.SHOULD);
+
+        BooleanQuery.Builder subBuilder = new BooleanQuery.Builder();
+        TermQuery termQuery3 = new TermQuery(new Term("_field1", "_term"));
+        subBuilder.add(termQuery3, BooleanClause.Occur.SHOULD);
+        TermQuery termQuery4 = new TermQuery(new Term("_field3", "_long_term"));
+        subBuilder.add(termQuery4, BooleanClause.Occur.SHOULD);
+        builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
+
+        BooleanQuery booleanQuery = builder.build();
+        List<Term> terms = new ArrayList<>();
+        queryMetadataService.extractQueryMetadata(booleanQuery, terms);
+        assertThat(terms.size(), equalTo(4));
+        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery1.getTerm().field()));
+        assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
+        assertThat(terms.get(1).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery2.getTerm().field()));
+        assertThat(terms.get(1).bytes(), equalTo(termQuery2.getTerm().bytes()));
+        assertThat(terms.get(2).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery3.getTerm().field()));
+        assertThat(terms.get(2).bytes(), equalTo(termQuery3.getTerm().bytes()));
+        assertThat(terms.get(3).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery4.getTerm().field()));
+        assertThat(terms.get(3).bytes(), equalTo(termQuery4.getTerm().bytes()));
     }
 
     public void testExtractQueryMetadata_booleanQueryWithMustNot() {
@@ -96,44 +118,42 @@ public class QueryMetadataServiceTests extends ESTestCase {
         builder.add(phraseQuery, BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Field> fields = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(booleanQuery, fields);
-        assertThat(fields.size(), equalTo(2));
-        assertThat(fields.get(0).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + phraseQuery.getTerms()[0].field()));
-        assertThat(fields.get(0).binaryValue(), equalTo(phraseQuery.getTerms()[0].bytes()));
-        assertThat(fields.get(1).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + phraseQuery.getTerms()[1].field()));
-        assertThat(fields.get(1).binaryValue(), equalTo(phraseQuery.getTerms()[1].bytes()));
+        List<Term> terms = new ArrayList<>();
+        queryMetadataService.extractQueryMetadata(booleanQuery, terms);
+        assertThat(terms.size(), equalTo(1));
+        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + phraseQuery.getTerms()[0].field()));
+        assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
     }
 
     public void testExtractQueryMetadata_constantScoreQuery() {
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         ConstantScoreQuery constantScoreQuery = new ConstantScoreQuery(termQuery1);
-        List<Field> fields = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(constantScoreQuery, fields);
-        assertThat(fields.size(), equalTo(1));
-        assertThat(fields.get(0).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery1.getTerm().field()));
-        assertThat(fields.get(0).binaryValue(), equalTo(termQuery1.getTerm().bytes()));
+        List<Term> terms = new ArrayList<>();
+        queryMetadataService.extractQueryMetadata(constantScoreQuery, terms);
+        assertThat(terms.size(), equalTo(1));
+        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery1.getTerm().field()));
+        assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
     }
 
     public void testExtractQueryMetadata_unsupportedQuery() {
         TermRangeQuery termRangeQuery = new TermRangeQuery("_field", null, null, true, false);
 
-        List<Field> fields = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(termRangeQuery, fields);
-        assertThat(fields.size(), equalTo(1));
-        assertThat(fields.get(0).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN));
-        assertThat(fields.get(0).binaryValue(), equalTo(new BytesRef()));
+        List<Term> terms = new ArrayList<>();
+        queryMetadataService.extractQueryMetadata(termRangeQuery, terms);
+        assertThat(terms.size(), equalTo(1));
+        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN));
+        assertThat(terms.get(0).bytes(), equalTo(new BytesRef()));
 
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         BooleanQuery.Builder builder = new BooleanQuery.Builder();;
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         builder.add(termRangeQuery, BooleanClause.Occur.SHOULD);
 
-        fields = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(builder.build(), fields);
-        assertThat(fields.size(), equalTo(1));
-        assertThat(fields.get(0).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN));
-        assertThat(fields.get(0).binaryValue(), equalTo(new BytesRef()));
+        terms = new ArrayList<>();
+        queryMetadataService.extractQueryMetadata(builder.build(), terms);
+        assertThat(terms.size(), equalTo(1));
+        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN));
+        assertThat(terms.get(0).bytes(), equalTo(new BytesRef()));
     }
 
     public void testCreateQueryMetadataQuery() throws Exception {

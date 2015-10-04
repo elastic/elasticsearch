@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -74,8 +75,13 @@ final class PercolatorQuery extends Query {
             }
 
             @Override
-            public Explanation explain(LeafReaderContext leafReaderContext, int i) throws IOException {
-                return null;
+            public Explanation explain(LeafReaderContext leafReaderContext, int docId) throws IOException {
+                boolean match = matchDocId(docId, leafReaderContext.reader());
+                if (match) {
+                    return Explanation.match(getBoost(), "PercolatorQuery");
+                } else {
+                    return Explanation.noMatch("PercolatorQuery");
+                }
             }
 
             @Override

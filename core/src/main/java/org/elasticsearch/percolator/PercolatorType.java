@@ -59,6 +59,10 @@ abstract class PercolatorType<C extends Collector> {
     abstract PercolatorService.ReduceResult reduce(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext);
 
     C doPercolate(Query percolateQuery, Query aliasQuery, Query percolateTypeQuery, PercolatorQueriesRegistry queriesRegistry, IndexSearcher shardSearcher, IndexSearcher percolateSearcher, int size, Collector... extraCollectors) throws IOException {
+        if (size > shardSearcher.getIndexReader().numDocs()) {
+            // prevent easy OOM if more than the total number of docs that exist is requested...
+            size = shardSearcher.getIndexReader().numDocs();
+        }
         C typeCollector = getCollector(size);
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         if (queriesRegistry.indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_2_1_0)) {
@@ -82,11 +86,11 @@ abstract class PercolatorType<C extends Collector> {
         return typeCollector;
     }
 
-    protected abstract C getCollector(int size);
+    abstract C getCollector(int size);
 
-    protected abstract PercolateShardResponse processResults(PercolateContext context, PercolatorQueriesRegistry registry, C collector) throws IOException;
+    abstract PercolateShardResponse processResults(PercolateContext context, PercolatorQueriesRegistry registry, C collector) throws IOException;
 
-    protected InternalAggregations reduceAggregations(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {
+    InternalAggregations reduceAggregations(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {
         if (shardResults.get(0).aggregations() == null) {
             return null;
         }

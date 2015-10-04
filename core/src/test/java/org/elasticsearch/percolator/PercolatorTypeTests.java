@@ -20,6 +20,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.*;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.percolator.QueryMetadataService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.test.ESTestCase;
@@ -114,10 +116,14 @@ public class PercolatorTypeTests extends ESTestCase {
 
     void addPercolatorQuery(String id, Query query, IndexWriter writer, PercolatorQueriesRegistry registry) throws IOException {
         registry.getPercolateQueries().put(new BytesRef(id), query);
-        List<Field> doc = new ArrayList<>();
-        registry.getQueryMetadataService().extractQueryMetadata(query, doc);
-        doc.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorService.TYPE_NAME, id)));
-        writer.addDocument(doc);
+        Document document = new Document();
+        List<Term> queryTerms = new ArrayList<>();
+        registry.getQueryMetadataService().extractQueryMetadata(query, queryTerms);
+        for (Term term : queryTerms) {
+            document.add(new Field(term.field(), term.bytes(), QueryMetadataService.QUERY_METADATA_FIELD_TYPE));
+        }
+        document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorService.TYPE_NAME, id)));
+        writer.addDocument(document);
     }
 
     PercolatorQueriesRegistry createRegistry() {

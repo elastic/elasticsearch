@@ -18,16 +18,12 @@
  */
 package org.elasticsearch.index.percolator;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
@@ -37,9 +33,9 @@ import java.util.List;
 public class QueryMetadataService {
 
     public static String QUERY_METADATA = "_query_metadata_";
-    static String QUERY_METADATA_FIELD_PREFIX = QUERY_METADATA + "field_";
-    static String QUERY_METADATA_FIELD_UNKNOWN = QUERY_METADATA + "unknown";
-    private static FieldType QUERY_METADATA_FIELD_TYPE = new FieldType();
+    public static String QUERY_METADATA_FIELD_PREFIX = QUERY_METADATA + "field_";
+    public static String QUERY_METADATA_FIELD_UNKNOWN = QUERY_METADATA + "unknown";
+    public static FieldType QUERY_METADATA_FIELD_TYPE = new FieldType();
 
     static {
         QUERY_METADATA_FIELD_TYPE.setTokenized(false);
@@ -48,39 +44,84 @@ public class QueryMetadataService {
     }
 
     public void extractQueryMetadata(Query query, ParseContext.Document document) {
-        List<Field> queryMetaDataFields = new ArrayList<>();
-        extractQueryMetadata(query, queryMetaDataFields);
-        for (Field field : queryMetaDataFields) {
-            document.add(field);
+        List<Term> queryTerms = new ArrayList<>();
+        extractQueryMetadata(query, queryTerms);
+        for (Term term : queryTerms) {
+            document.add(new Field(term.field(), term.bytes(), QUERY_METADATA_FIELD_TYPE));
         }
     }
 
-    public void extractQueryMetadata(Query query, List<Field> queryMetaDataFields) {
+    public void extractQueryMetadata(Query query, List<Term> queryTerms) {
         if (query instanceof TermQuery) {
             Term term = ((TermQuery) query).getTerm();
-            addField(term, queryMetaDataFields);
+            queryTerms.add(new Term(QUERY_METADATA_FIELD_PREFIX + term.field(), term.bytes()));
         } else if (query instanceof PhraseQuery) {
             Term[] terms = ((PhraseQuery) query).getTerms();
-            for (Term term : terms) {
-                addField(term, queryMetaDataFields);
+            if (terms.length == 0) {
+                return;
             }
+
+            Term longestTerm = terms[0];
+            for (Term term : terms) {
+                if (longestTerm.bytes().length < term.bytes().length) {
+                    longestTerm = term;
+                }
+            }
+            queryTerms.add(new Term(QUERY_METADATA_FIELD_PREFIX + longestTerm.field(), longestTerm.bytes()));
         } else if (query instanceof BooleanQuery) {
             List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
+            boolean noShouldClauses = true;
             for (BooleanClause clause : clauses) {
-                if (clause.isProhibited()) {
-                    // we don't need to remember the things that do *not* match...
-                    continue;
+                if (clause.getOccur() == BooleanClause.Occur.SHOULD) {
+                    noShouldClauses = false;
+                    break;
                 }
-                // TODO optimize boolean query with only required clauses
-                // in this case only one term needs to be added.
-                extractQueryMetadata(clause.getQuery(), queryMetaDataFields);
+            }
+            if (noShouldClauses) {
+                List<Term> bestClause = null;
+                for (BooleanClause clause : clauses) {
+                    if (clause.isProhibited()) {
+                        // we don't need to remember the things that do *not* match...
+                        continue;
+                    }
+
+                    List<Term> temp = new ArrayList<>();
+                    extractQueryMetadata(clause.getQuery(), temp);
+                    if (bestClause == null) {
+                        bestClause = temp;
+                    } else {
+                        int currentSize = 0;
+                        for (Term term : bestClause) {
+                            currentSize += term.bytes().length;
+                        }
+                        int otherSize = 0;
+                        for (Term term : temp) {
+                            otherSize += term.bytes().length;
+                        }
+                        // keep the clause with longest terms, this likely to be rarest.
+                        if (otherSize > currentSize) {
+                            bestClause = temp;
+                        }
+                    }
+                }
+                if (bestClause != null) {
+                    queryTerms.addAll(bestClause);
+                }
+            } else {
+                for (BooleanClause clause : clauses) {
+                    if (clause.isProhibited()) {
+                        // we don't need to remember the things that do *not* match...
+                        continue;
+                    }
+                    extractQueryMetadata(clause.getQuery(), queryTerms);
+                }
             }
         } else if (query instanceof ConstantScoreQuery) {
             Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
-            extractQueryMetadata(wrappedQuery, queryMetaDataFields);
+            extractQueryMetadata(wrappedQuery, queryTerms);
         } else {
-            queryMetaDataFields.clear();
-            queryMetaDataFields.add(new Field(QUERY_METADATA_FIELD_UNKNOWN, new BytesRef(), QUERY_METADATA_FIELD_TYPE));
+            queryTerms.clear();
+            queryTerms.add(new Term(QUERY_METADATA_FIELD_UNKNOWN));
         }
     }
 
@@ -105,10 +146,6 @@ public class QueryMetadataService {
             }
         }
         return new TermsQuery(extractedTerms);
-    }
-
-    private static void addField(Term term, List<Field> queryMetaDataFields) {
-        queryMetaDataFields.add(new Field(QUERY_METADATA_FIELD_PREFIX + term.field(), term.bytes(), QUERY_METADATA_FIELD_TYPE));
     }
 
 }

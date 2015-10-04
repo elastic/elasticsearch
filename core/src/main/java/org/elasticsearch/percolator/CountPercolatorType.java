@@ -19,7 +19,6 @@
 
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
 import org.elasticsearch.common.HasContextAndHeaders;
@@ -32,17 +31,17 @@ import java.util.List;
 
 class CountPercolatorType extends PercolatorType<TotalHitCountCollector> {
 
-    public CountPercolatorType(BigArrays bigArrays, ScriptService scriptService) {
+    CountPercolatorType(BigArrays bigArrays, ScriptService scriptService) {
         super(bigArrays, scriptService);
     }
 
     @Override
-    public byte id() {
+    byte id() {
         return 0x02;
     }
 
     @Override
-    public PercolatorService.ReduceResult reduce(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {
+    PercolatorService.ReduceResult reduce(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {
         long finalCount = 0;
         for (PercolateShardResponse shardResponse : shardResults) {
             finalCount += shardResponse.count();
@@ -54,12 +53,12 @@ class CountPercolatorType extends PercolatorType<TotalHitCountCollector> {
     }
 
     @Override
-    public TotalHitCountCollector getCollector(int size) {
+    TotalHitCountCollector getCollector(int size) {
         return new TotalHitCountCollector();
     }
 
     @Override
-    public PercolateShardResponse processResults(PercolateContext context, PercolatorQueriesRegistry registry, TotalHitCountCollector collector) {
+    PercolateShardResponse processResults(PercolateContext context, PercolatorQueriesRegistry registry, TotalHitCountCollector collector) {
         return new PercolateShardResponse(collector.getTotalHits(), context);
     }
 

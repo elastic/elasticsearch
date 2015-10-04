@@ -49,18 +49,18 @@ class TopMatchingPercolatorType extends PercolatorType<TopScoreDocCollector> {
 
     private final HighlightPhase highlightPhase;
 
-    public TopMatchingPercolatorType(BigArrays bigArrays, ScriptService scriptService, HighlightPhase highlightPhase) {
+    TopMatchingPercolatorType(BigArrays bigArrays, ScriptService scriptService, HighlightPhase highlightPhase) {
         super(bigArrays, scriptService);
         this.highlightPhase = highlightPhase;
     }
 
     @Override
-    public byte id() {
+    byte id() {
         return 0x06;
     }
 
     @Override
-    public PercolatorService.ReduceResult reduce(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {
+    PercolatorService.ReduceResult reduce(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {
         long foundMatches = 0;
         int nonEmptyResponses = 0;
         int firstNonEmptyIndex = 0;
@@ -144,12 +144,12 @@ class TopMatchingPercolatorType extends PercolatorType<TopScoreDocCollector> {
     }
 
     @Override
-    public TopScoreDocCollector getCollector(int size) {
+    TopScoreDocCollector getCollector(int size) {
         return TopScoreDocCollector.create(size);
     }
 
     @Override
-    public PercolateShardResponse processResults(PercolateContext context, PercolatorQueriesRegistry registry, TopScoreDocCollector collector) throws IOException {
+    PercolateShardResponse processResults(PercolateContext context, PercolatorQueriesRegistry registry, TopScoreDocCollector collector) throws IOException {
         TopDocs topDocs = collector.topDocs();
         long count = topDocs.totalHits;
         List<BytesRef> matches = new ArrayList<>(topDocs.scoreDocs.length);
@@ -183,6 +183,5 @@ class TopMatchingPercolatorType extends PercolatorType<TopScoreDocCollector> {
             return new PercolateShardResponse(matches.toArray(new BytesRef[matches.size()]), count, scores, context);
         }
     }
-
 
 }

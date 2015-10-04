@@ -5,7 +5,7 @@ Introduction
 -------------
 Elasticsearch is a distributed, document-oriented search server based on the open-source information retrieval library Lucene. It's currently the second most used search engine only behind Apache Solr, another search platform based on Lucene.
 
-Elasticsearch is one of its company (Elastic) 3 big open source along with Logstash and Kibana.
+Elasticsearch is one of its company's (Elastic) 3 big open source projects alongside Logstash and Kibana.
 
 Project Activity
 ----------------

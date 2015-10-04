@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.renderer.cluster;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -16,10 +15,7 @@ import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.AbstractRenderer;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
 public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> {

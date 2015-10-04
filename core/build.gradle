@@ -4,7 +4,7 @@ import org.elasticsearch.gradle.BuildPlugin
 plugins {
   id 'nebula.optional-base' version '3.0.2'
   id 'nebula.source-jar' version '4.2.1'
-  id 'nebula.maven-publish' version '4.2.1'
+  //id 'nebula.maven-publish' version '4.2.1'
 }
 apply plugin: 'elasticsearch.build'
 

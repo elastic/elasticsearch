@@ -7,8 +7,8 @@ Elasticsearch is a distributed, document-oriented search server based on the ope
 
 Project Activity
 ----------------
-At of the time of writing, Elasticsearch has 16,290 commits, 55 branches, 132 releases and 522 contributors.
-There are currently 1,101 open issues, 7,288 closed ones, 170 open pull requests and 5,341 closed ones.
+At of the time of writing, Elasticsearch has 16,298 commits, 55 branches, 132 releases and 524 contributors.
+There are currently 1,104 open issues, 7,290 closed ones, 168 open pull requests and 5,345 closed ones.
 
 Project Methodology
 -------------------

@@ -130,6 +130,9 @@ com.google.common.primitives.Ints
 com.google.common.collect.ImmutableSet
 com.google.common.collect.ImmutableSet$Builder
 com.google.common.io.Resources
+com.google.common.hash.HashCode
+com.google.common.hash.HashFunction
+com.google.common.hash.Hashing
 
 @defaultMessage Do not violate java's access system
 java.lang.reflect.AccessibleObject#setAccessible(boolean)

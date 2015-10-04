@@ -18,4 +18,4 @@ Its nature as a distributed piece of software mandates a high level of control a
 
 Unlike most other other open source projects, however, their resources allow them to meet in person a few times a year, which allows for a higher degree of coordination and focus.
 
-This paradigm allows the developer to stay invested in the project while empowering them with the flexibility to shape it to the needs of a fast growing market that now includes some of the biggest software companies in the world such as Facebook.
+This paradigm allows the developers to stay invested in the project while empowering them with the flexibility to shape it to the needs of a fast growing market that now includes some of the biggest software companies in the world such as Facebook.

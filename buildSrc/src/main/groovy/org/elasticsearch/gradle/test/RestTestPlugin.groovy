@@ -29,8 +29,9 @@ class RestTestPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
-        project.pluginManager.apply('java-base')
+        project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomizedtesting')
+        project.pluginManager.apply('idea')
 
         // remove some unnecessary tasks for a qa test
         project.tasks.removeAll { it.name in ['assemble', 'buildDependents'] }

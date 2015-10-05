@@ -63,11 +63,11 @@ class RestSpecHack {
             }
             into project.sourceSets.test.output.resourcesDir
         }
-        /*project.idea {
+        project.idea {
             module {
                 scopes.TEST.plus.add(project.configurations.restSpec)
             }
-        }*/
+        }
         return copyRestSpec
     }
 }

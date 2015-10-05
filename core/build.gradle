@@ -1,19 +1,20 @@
 import com.carrotsearch.gradle.randomizedtesting.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.test.RestSpecHack
 
-plugins {
-  id 'nebula.optional-base' version '3.0.2'
-  id 'nebula.source-jar' version '4.2.1'
-  //id 'nebula.maven-publish' version '4.2.1'
-}
 apply plugin: 'elasticsearch.build'
 
-tasks.withType(Jar) {
+archivesBaseName = 'elasticsearch'
+
+/*tasks.withType(Jar) {
   baseName = 'elasticsearch'
 }
+*/
 
 configurations {
-  restSpec2 // the rest spec is copied independently to the test classes dir
+  optional // these are used at compile time (and test) but excluded from runtime
+  compile.extendsFrom(optional)
+  //restSpec2 // the rest spec is copied independently to the test classes dir
 }
 
 versions << [
@@ -64,22 +65,20 @@ dependencies {
   compile 'org.hdrhistogram:HdrHistogram:2.1.6'
 
   // lucene spatial
-  compile 'com.spatial4j:spatial4j:0.4.1', optional
-  compile 'com.vividsolutions:jts:1.13', optional
+  optional 'com.spatial4j:spatial4j:0.4.1'
+  optional 'com.vividsolutions:jts:1.13'
 
   // templating
-  compile('com.github.spullara.mustache.java:compiler:0.8.13') { dep ->
-    dep.transitive = false
-    optional(dep)
+  optional('com.github.spullara.mustache.java:compiler:0.8.13') {
+    transitive = false
   }
 
   // logging
-  compile "log4j:log4j:${versions.log4j}", optional
-  compile "log4j:apache-log4j-extras:${versions.log4j}", optional
-  compile "org.slf4j:slf4j-api:${versions.slf4j}", optional
+  optional "log4j:log4j:${versions.log4j}"
+  optional "log4j:apache-log4j-extras:${versions.log4j}"
+  optional "org.slf4j:slf4j-api:${versions.slf4j}"
 
-  // TODO: why are we using jna
-  compile 'net.java.dev.jna:jna:4.1.0', optional
+  optional 'net.java.dev.jna:jna:4.1.0'
 
   // TODO: remove these test deps and just dpeend on test-framework
   testCompile(group: 'junit', name: 'junit', version: '4.11') {
@@ -96,7 +95,7 @@ dependencies {
   testCompile 'com.google.jimfs:jimfs:1.0'
   testCompile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
 
-  restSpec2 "org.elasticsearch:rest-api-spec:${version}" //project("${projectsPrefix}:rest-api-spec") // for rest tests
+  //restSpec2 "org.elasticsearch:rest-api-spec:${version}" //project("${projectsPrefix}:rest-api-spec") // for rest tests
 }
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
@@ -108,12 +107,13 @@ forbiddenPatterns {
   exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
 }
 
-task copyRestSpec(type: Copy, dependsOn: configurations.restSpec2) {
+/*task copyRestSpec(type: Copy, dependsOn: configurations.restSpec2) {
   from { zipTree(configurations.restSpec2.singleFile) }
   into sourceSets.test.output.resourcesDir
 }
 // TODO: remove this once test-the-tester rest tests are moved out of core
 test.dependsOn copyRestSpec
+*/
 
 task integTest(type: RandomizedTestingTask,
                group: JavaBasePlugin.VERIFICATION_GROUP,
@@ -124,10 +124,14 @@ task integTest(type: RandomizedTestingTask,
   testClassesDir = project.test.testClassesDir
   include '**/*IT.class'
 }
+RestSpecHack.configureDependencies(project)
+Task copyRestSpec = RestSpecHack.configureTask(project, true)
+integTest.dependsOn copyRestSpec
+test.dependsOn copyRestSpec
 
 idea {
   module {
-    //scopes.COMPILE.plus.add(configurations.optional)
-    scopes.TEST.plus.add(configurations.restSpec2)
+    scopes.COMPILE.plus.add(configurations.optional)
+
   }
 }

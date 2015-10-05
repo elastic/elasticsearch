@@ -13,7 +13,8 @@
         },
         "feature":{
           "type":"list",
-          "description":"A comma-separated list of features"
+          "description":"A comma-separated list of features",
+          "options": ["_settings", "_mappings", "_warmers", "_aliases"]
         }
       },
       "params":{

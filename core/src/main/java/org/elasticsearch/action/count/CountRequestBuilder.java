@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.DelegatingActionListener;
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -107,9 +106,6 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
 
     @Override
     public String toString() {
-        if (request != null) {
-            return request.toString();
-        }
-        return new QuerySourceBuilder().toString();
+        return request.sourceBuilderString();
     }
 }

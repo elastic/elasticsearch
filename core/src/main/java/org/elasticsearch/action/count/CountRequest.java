@@ -58,7 +58,7 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
 
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
 
-    private QueryBuilder<?> queryBuilder = null;
+    private SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
     /**
      * Constructs a new count request against the provided indices. No indices provided means it will
@@ -88,12 +88,10 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
     /**
      * The query to execute
      */
-    public CountRequest query(QueryBuilder<?> queryBuilder) {
-        this.queryBuilder = queryBuilder;
+    public CountRequest query(QueryBuilder queryBuilder) {
+        this.searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
         return this;
     }
-
-
 
     /**
      * The types of documents the query will run against. Defaults to all types.
@@ -171,16 +169,18 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
     public String toString() {
         String sSource = "_na_";
         try {
-            sSource = XContentHelper.toString(queryBuilder);
+            sSource = XContentHelper.toString(searchSourceBuilder);
         } catch (Exception e) {
             // ignore
         }
         return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", source[" + sSource + "]";
     }
 
+    public String sourceBuilderString() {
+        return searchSourceBuilder.toString();
+    }
+
     public SearchRequest toSearchRequest() {
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.query(queryBuilder);
         searchSourceBuilder.size(0);
         if (minScore() != DEFAULT_MIN_SCORE) {
             searchSourceBuilder.minScore(minScore());

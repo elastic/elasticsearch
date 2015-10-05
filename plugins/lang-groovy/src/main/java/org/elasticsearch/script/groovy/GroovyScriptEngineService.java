@@ -21,6 +21,7 @@ package org.elasticsearch.script.groovy;
 
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
+import groovy.lang.GroovyCodeSource;
 import groovy.lang.Script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
@@ -36,6 +37,8 @@ import org.codehaus.groovy.control.SourceUnit;
 import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -168,7 +171,15 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             if (sm != null) {
                 sm.checkPermission(new SpecialPermission());
             }
-            return loader.parseClass(script, MessageDigests.toHexString(MessageDigests.sha1().digest(script.getBytes(StandardCharsets.UTF_8))));
+            String fake = MessageDigests.toHexString(MessageDigests.sha1().digest(script.getBytes(StandardCharsets.UTF_8)));
+            // same logic as GroovyClassLoader.parseClass() but with a different codesource string:
+            GroovyCodeSource gcs = AccessController.doPrivileged(new PrivilegedAction<GroovyCodeSource>() {
+                public GroovyCodeSource run() {
+                    return new GroovyCodeSource(script, fake, BootstrapInfo.UNTRUSTED_CODEBASE);
+                }
+            });
+            gcs.setCachable(false);
+            return loader.parseClass(gcs);
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {
                 logger.trace("exception compiling Groovy script:", e);

@@ -19,26 +19,29 @@
 
 package org.elasticsearch.index.similarity;
 
-import com.google.common.collect.ImmutableCollection;
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
-import org.elasticsearch.common.collect.MapBuilder;
+
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Cache of pre-defined Similarities
  */
 public class Similarities {
 
-    private static final ImmutableMap<String, PreBuiltSimilarityProvider.Factory> PRE_BUILT_SIMILARITIES;
+    private static final Map<String, PreBuiltSimilarityProvider.Factory> PRE_BUILT_SIMILARITIES;
 
     static {
-        MapBuilder<String, PreBuiltSimilarityProvider.Factory> similarities = MapBuilder.newMapBuilder();
+        Map<String, PreBuiltSimilarityProvider.Factory> similarities = new HashMap<>();
         similarities.put(SimilarityLookupService.DEFAULT_SIMILARITY,
                 new PreBuiltSimilarityProvider.Factory(SimilarityLookupService.DEFAULT_SIMILARITY, new DefaultSimilarity()));
         similarities.put("BM25", new PreBuiltSimilarityProvider.Factory("BM25", new BM25Similarity()));
 
-        PRE_BUILT_SIMILARITIES = similarities.immutableMap();
+        PRE_BUILT_SIMILARITIES = unmodifiableMap(similarities);
     }
 
     private Similarities() {
@@ -49,7 +52,7 @@ public class Similarities {
      *
      * @return Pre-defined SimilarityProvider Factories
      */
-    public static ImmutableCollection<PreBuiltSimilarityProvider.Factory> listFactories() {
+    public static Collection<PreBuiltSimilarityProvider.Factory> listFactories() {
         return PRE_BUILT_SIMILARITIES.values();
     }
 }

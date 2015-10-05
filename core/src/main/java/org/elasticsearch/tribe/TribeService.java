@@ -19,8 +19,6 @@
 
 package org.elasticsearch.tribe;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -38,7 +36,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -57,6 +54,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * The tribe service holds a list of node clients connected to a list of tribe members, and uses their
@@ -243,8 +242,9 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     for (DiscoveryNode tribe : tribeState.nodes()) {
                         if (currentState.nodes().get(tribe.id()) == null) {
                             // a new node, add it, but also add the tribe name to the attributes
-                            ImmutableMap<String, String> tribeAttr = MapBuilder.newMapBuilder(tribe.attributes()).put(TRIBE_NAME, tribeName).immutableMap();
-                            DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.id(), tribe.getHostName(), tribe.getHostAddress(), tribe.address(), tribeAttr, tribe.version());
+                            Map<String, String> tribeAttr = new HashMap<>(tribe.attributes());
+                            tribeAttr.put(TRIBE_NAME, tribeName);
+                            DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.id(), tribe.getHostName(), tribe.getHostAddress(), tribe.address(), unmodifiableMap(tribeAttr), tribe.version());
                             logger.info("[{}] adding node [{}]", tribeName, discoNode);
                             nodes.put(discoNode);
                         }

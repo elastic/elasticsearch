@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -89,14 +88,14 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
             private final MapperService mapperService;
 
-            private final ImmutableMap<String, TypeParser> typeParsers;
+            private final Map<String, TypeParser> typeParsers;
 
             private final Version indexVersionCreated;
 
             private final ParseFieldMatcher parseFieldMatcher;
 
             public ParserContext(String type, AnalysisService analysisService, SimilarityLookupService similarityLookupService,
-                                 MapperService mapperService, ImmutableMap<String, TypeParser> typeParsers,
+                                 MapperService mapperService, Map<String, TypeParser> typeParsers,
                                  Version indexVersionCreated, ParseFieldMatcher parseFieldMatcher) {
                 this.type = type;
                 this.analysisService = analysisService;

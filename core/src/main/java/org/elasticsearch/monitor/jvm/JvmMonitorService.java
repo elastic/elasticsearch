@@ -19,20 +19,20 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
 import static org.elasticsearch.monitor.jvm.JvmStats.jvmStats;
 
 /**
@@ -43,7 +43,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     private final ThreadPool threadPool;
     private final boolean enabled;
     private final TimeValue interval;
-    private final ImmutableMap<String, GcThreshold> gcThresholds;
+    private final Map<String, GcThreshold> gcThresholds;
 
     private volatile ScheduledFuture scheduledFuture;
 
@@ -79,7 +79,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         this.enabled = this.settings.getAsBoolean("monitor.jvm.enabled", true);
         this.interval = this.settings.getAsTime("monitor.jvm.interval", timeValueSeconds(1));
 
-        MapBuilder<String, GcThreshold> gcThresholds = MapBuilder.newMapBuilder();
+        Map<String, GcThreshold> gcThresholds = new HashMap<>();
         Map<String, Settings> gcThresholdGroups = this.settings.getGroups("monitor.jvm.gc");
         for (Map.Entry<String, Settings> entry : gcThresholdGroups.entrySet()) {
             String name = entry.getKey();
@@ -92,17 +92,10 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
                 gcThresholds.put(name, new GcThreshold(name, warn.millis(), info.millis(), debug.millis()));
             }
         }
-        if (!gcThresholds.containsKey(GcNames.YOUNG)) {
-            gcThresholds.put(GcNames.YOUNG, new GcThreshold(GcNames.YOUNG, 1000, 700, 400));
-        }
-        if (!gcThresholds.containsKey(GcNames.OLD)) {
-            gcThresholds.put(GcNames.OLD, new GcThreshold(GcNames.OLD, 10000, 5000, 2000));
-        }
-        if (!gcThresholds.containsKey("default")) {
-            gcThresholds.put("default", new GcThreshold("default", 10000, 5000, 2000));
-        }
-
-        this.gcThresholds = gcThresholds.immutableMap();
+        gcThresholds.putIfAbsent(GcNames.YOUNG, new GcThreshold(GcNames.YOUNG, 1000, 700, 400));
+        gcThresholds.putIfAbsent(GcNames.OLD, new GcThreshold(GcNames.OLD, 10000, 5000, 2000));
+        gcThresholds.putIfAbsent("default", new GcThreshold("default", 10000, 5000, 2000));
+        this.gcThresholds = unmodifiableMap(gcThresholds);
 
         logger.debug("enabled [{}], interval [{}], gc_threshold [{}]", enabled, interval, this.gcThresholds);
     }

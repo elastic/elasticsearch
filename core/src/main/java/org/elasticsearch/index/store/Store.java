@@ -1286,14 +1286,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public void writeByte(byte b) throws IOException {
             final long writtenBytes = this.writtenBytes++;
-            if (writtenBytes == checksumPosition) {
-                readAndCompareChecksum();
-            } else if (writtenBytes > checksumPosition) { // we are writing parts of the checksum....
+            if (writtenBytes >= checksumPosition) { // we are writing parts of the checksum....
+                if (writtenBytes == checksumPosition) {
+                    readAndCompareChecksum();
+                }
                 final int index = Math.toIntExact(writtenBytes - checksumPosition);
                 if (index < footerChecksum.length) {
                     footerChecksum[index] = b;
                     if (index == footerChecksum.length-1) {
-                        verify();// we have recorded the entire checksum
+                        verify(); // we have recorded the entire checksum
                     }
                 } else {
                     verify(); // fail if we write more than expected
@@ -1315,16 +1316,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public void writeBytes(byte[] b, int offset, int length) throws IOException {
             if (writtenBytes + length > checksumPosition) {
-                if (actualChecksum == null) {
-                    assert writtenBytes <= checksumPosition;
-                    final int bytesToWrite = (int) (checksumPosition - writtenBytes);
-                    out.writeBytes(b, offset, bytesToWrite);
-                    readAndCompareChecksum();
-                    offset += bytesToWrite;
-                    length -= bytesToWrite;
-                    writtenBytes += bytesToWrite;
-                }
-                for (int i = 0; i < length; i++) {
+                for (int i = 0; i < length; i++) { // don't optimze writing the last block of bytes
                     writeByte(b[offset+i]);
                 }
             } else {
@@ -1332,7 +1324,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 writtenBytes += length;
             }
         }
-
     }
 
     /**

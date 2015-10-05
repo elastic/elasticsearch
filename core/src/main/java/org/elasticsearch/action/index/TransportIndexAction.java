@@ -56,7 +56,7 @@ import org.elasticsearch.transport.TransportService;
 
 /**
  * Performs the index operation.
- * <p/>
+ *
  * Allows for the following settings:
  * <ul>
  * <li><b>autoCreateIndex</b>: When set to <tt>true</tt>, will automatically create an index if one does not exists.

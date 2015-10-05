@@ -27,7 +27,6 @@ public abstract class IndexingOperationListener {
 
     /**
      * Called before the indexing occurs.
-     * @param operation
      */
     public Engine.Index preIndex(Engine.Index operation) {
         return operation;

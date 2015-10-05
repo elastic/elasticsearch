@@ -41,9 +41,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -168,17 +166,8 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardRequest.shardId.id());
 
-        final WriteResult<IndexResponse> result;
-        try {
-            result = executeIndexRequestOnPrimary(null, request, indexShard);
-        } catch (VersionConflictEngineException e) {
-            if (request.opType() == IndexRequest.OpType.CREATE) {
-                // nocommit: do we want to just remove this exception?
-                throw new DocumentAlreadyExistsException(e.getShardId(), request.type(), request.id(), e);
-            } else {
-                throw e;
-            }
-        }
+        final WriteResult<IndexResponse> result = executeIndexRequestOnPrimary(null, request, indexShard);
+
         final IndexResponse response = result.response;
         final Translog.Location location = result.location;
         processAfter(request.refresh(), indexShard, location);

@@ -515,7 +515,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         INDEX_SHARD_ALREADY_EXISTS_EXCEPTION(org.elasticsearch.index.IndexShardAlreadyExistsException.class, org.elasticsearch.index.IndexShardAlreadyExistsException::new, 51),
         VERSION_CONFLICT_ENGINE_EXCEPTION(org.elasticsearch.index.engine.VersionConflictEngineException.class, org.elasticsearch.index.engine.VersionConflictEngineException::new, 52),
         ENGINE_EXCEPTION(org.elasticsearch.index.engine.EngineException.class, org.elasticsearch.index.engine.EngineException::new, 53),
-        DOCUMENT_ALREADY_EXISTS_EXCEPTION(org.elasticsearch.index.engine.DocumentAlreadyExistsException.class, org.elasticsearch.index.engine.DocumentAlreadyExistsException::new, 54),
+        // 54 was DocumentAlreadyExistsException, which is superseded by VersionConflictEngineException
         NO_SUCH_NODE_EXCEPTION(org.elasticsearch.action.NoSuchNodeException.class, org.elasticsearch.action.NoSuchNodeException::new, 55),
         SETTINGS_EXCEPTION(org.elasticsearch.common.settings.SettingsException.class, org.elasticsearch.common.settings.SettingsException::new, 56),
         INDEX_TEMPLATE_MISSING_EXCEPTION(org.elasticsearch.indices.IndexTemplateMissingException.class, org.elasticsearch.indices.IndexTemplateMissingException::new, 57),

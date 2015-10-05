@@ -244,7 +244,8 @@ public abstract class Engine implements Closeable {
             if (get.versionType().isVersionConflictForReads(docIdAndVersion.version, get.version())) {
                 Releasables.close(searcher);
                 Uid uid = Uid.createUid(get.uid().text());
-                throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), docIdAndVersion.version, get.version());
+                throw new VersionConflictEngineException(shardId, uid.type(), uid.id(),
+                        get.versionType().explainConflictForReads(docIdAndVersion.version, get.version()));
             }
         }
 

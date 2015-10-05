@@ -316,7 +316,8 @@ public class InternalEngine extends Engine {
                     }
                     if (get.versionType().isVersionConflictForReads(versionValue.version(), get.version())) {
                         Uid uid = Uid.createUid(get.uid().text());
-                        throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), versionValue.version(), get.version());
+                        throw new VersionConflictEngineException(shardId, uid.type(), uid.id(),
+                                get.versionType().explainConflictForReads(versionValue.version(), get.version()));
                     }
                     Translog.Operation op = translog.read(versionValue.translogLocation());
                     if (op != null) {
@@ -331,33 +332,33 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean index(Index operation) {
+    public boolean index(Index index) {
         final boolean created;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            if (operation.origin() == Operation.Origin.RECOVERY) {
+            if (index.origin() == Operation.Origin.RECOVERY) {
                 // Don't throttle recovery operations
-                created = innerIndex(operation);
+                created = innerIndex(index);
             } else {
                 try (Releasable r = throttle.acquireThrottle()) {
-                    created = innerIndex(operation);
+                    created = innerIndex(index);
                 }
             }
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine("index", t);
-            throw new IndexFailedEngineException(shardId, operation.type(), operation.id(), t);
+            throw new IndexFailedEngineException(shardId, index.type(), index.id(), t);
         }
         checkVersionMapRefresh();
         return created;
     }
 
-    private boolean innerIndex(Index operation) throws IOException {
-        synchronized (dirtyLock(operation.uid())) {
+    private boolean innerIndex(Index index) throws IOException {
+        synchronized (dirtyLock(index.uid())) {
             final long currentVersion;
             final boolean deleted;
-            VersionValue versionValue = versionMap.getUnderLock(operation.uid().bytes());
+            VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
             if (versionValue == null) {
-                currentVersion = loadCurrentVersionFromIndex(operation.uid());
+                currentVersion = loadCurrentVersionFromIndex(index.uid());
                 deleted = currentVersion == Versions.NOT_FOUND;
             } else {
                 deleted = versionValue.delete();
@@ -368,26 +369,27 @@ public class InternalEngine extends Engine {
                 }
             }
 
-            long expectedVersion = operation.version();
-            if (operation.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
-                if (operation.origin() == Operation.Origin.RECOVERY) {
+            long expectedVersion = index.version();
+            if (index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
+                if (index.origin() == Operation.Origin.RECOVERY) {
                     return false;
                 } else {
-                    throw new VersionConflictEngineException(shardId, operation.type(), operation.id(), currentVersion, expectedVersion);
+                    throw new VersionConflictEngineException(shardId, index.type(), index.id(),
+                            index.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
                 }
             }
-            long updatedVersion = operation.versionType().updateVersion(currentVersion, expectedVersion);
+            long updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
 
             final boolean created;
-            operation.updateVersion(updatedVersion);
+            index.updateVersion(updatedVersion);
 
             if (currentVersion == Versions.NOT_FOUND) {
                 // document does not exists, we can optimize for create
                 created = true;
-                if (operation.docs().size() > 1) {
-                    indexWriter.addDocuments(operation.docs());
+                if (index.docs().size() > 1) {
+                    indexWriter.addDocuments(index.docs());
                 } else {
-                    indexWriter.addDocument(operation.docs().get(0));
+                    indexWriter.addDocument(index.docs().get(0));
                 }
             } else {
                 if (versionValue != null) {
@@ -395,18 +397,18 @@ public class InternalEngine extends Engine {
                 } else {
                     created = false;
                 }
-                if (operation.docs().size() > 1) {
-                    indexWriter.updateDocuments(operation.uid(), operation.docs());
+                if (index.docs().size() > 1) {
+                    indexWriter.updateDocuments(index.uid(), index.docs());
                 } else {
-                    indexWriter.updateDocument(operation.uid(), operation.docs().get(0));
+                    indexWriter.updateDocument(index.uid(), index.docs().get(0));
                 }
             }
-            Translog.Location translogLocation = translog.add(new Translog.Index(operation));
+            Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
-            versionMap.putUnderLock(operation.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
-            operation.setTranslogLocation(translogLocation);
+            versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
+            index.setTranslogLocation(translogLocation);
 
-            indexingService.postIndexUnderLock(operation);
+            indexingService.postIndexUnderLock(index);
             return created;
         }
     }
@@ -484,7 +486,8 @@ public class InternalEngine extends Engine {
                 if (delete.origin() == Operation.Origin.RECOVERY) {
                     return;
                 } else {
-                    throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion, expectedVersion);
+                    throw new VersionConflictEngineException(shardId, delete.type(), delete.id(),
+                            delete.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
                 }
             }
             updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);

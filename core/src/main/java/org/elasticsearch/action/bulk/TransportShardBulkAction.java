@@ -47,7 +47,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.Mapping;
@@ -336,17 +335,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             indexRequest.process(clusterState.metaData(), mappingMd, allowIdGeneration, request.index());
         }
 
-        try {
-            return executeIndexRequestOnPrimary(request, indexRequest, indexShard);
-        } catch (VersionConflictEngineException e) {
-            if (indexRequest.opType() == IndexRequest.OpType.CREATE) {
-                // nocommit: do we want to just remove this exception?
-                throw new DocumentAlreadyExistsException(e.getShardId(), indexRequest.type(), indexRequest.id(), e);
-            } else {
-                throw e;
-            }
-        }
-
+        return executeIndexRequestOnPrimary(request, indexRequest, indexShard);
     }
 
     private WriteResult<DeleteResponse> shardDeleteOperation(BulkShardRequest request, DeleteRequest deleteRequest, IndexShard indexShard) {

@@ -28,7 +28,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -262,7 +261,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
         assertThrows(
                 client().prepareIndex("test", "type", "1").setCreate(true).setSource("field1", "value1_1").execute(),
-                DocumentAlreadyExistsException.class);
+                VersionConflictEngineException.class);
 
 
         assertThrows(client().prepareDelete("test", "type", "1").setVersion(1).execute(), VersionConflictEngineException.class);

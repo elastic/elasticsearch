@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.renderer.indices;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -18,6 +19,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.greaterThan;
 
+@AwaitsFix(bugUrl="https://github.com/elastic/x-plugins/issues/729")
 public class IndicesStatsIT extends MarvelIntegTestCase {
 
     @Override

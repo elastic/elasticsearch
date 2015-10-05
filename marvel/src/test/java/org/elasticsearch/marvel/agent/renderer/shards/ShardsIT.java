@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.renderer.shards;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.shards.ShardsCollector;
@@ -17,6 +18,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.greaterThan;
 
+@AwaitsFix(bugUrl="https://github.com/elastic/x-plugins/issues/729")
 public class ShardsIT extends MarvelIntegTestCase {
 
     @Override

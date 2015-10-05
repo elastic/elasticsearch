@@ -173,8 +173,14 @@ public class VersionTypeTests extends ESTestCase {
 
         assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_FOUND, 10, randomBoolean()));
         assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_SET, 10, randomBoolean()));
-        // MATCH_ANY must throw an exception in the case of external version, as the version must be set! it used as the new value
-        assertTrue(VersionType.FORCE.isVersionConflictForWrites(10, Versions.MATCH_ANY, randomBoolean()));
+
+        // MATCH_ANY must throw an exception in the case of force version, as the version must be set! it used as the new value
+        try {
+            VersionType.FORCE.isVersionConflictForWrites(10, Versions.MATCH_ANY, randomBoolean());
+            fail();
+        } catch (IllegalStateException e) {
+            //yes!!
+        }
 
         // if we didn't find a version (but the index does support it), we always accept
         assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.NOT_FOUND, randomBoolean()));

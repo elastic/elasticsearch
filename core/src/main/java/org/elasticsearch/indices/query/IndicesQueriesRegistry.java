@@ -37,7 +37,7 @@ public class IndicesQueriesRegistry extends AbstractComponent {
     private Map<String, QueryParser<?>> queryParsers;
 
     @Inject
-    public IndicesQueriesRegistry(Settings settings, Set<QueryParser<?>> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
+    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
         Map<String, QueryParser<?>> queryParsers = new HashMap<>();
         for (QueryParser<?> queryParser : injectedQueryParsers) {

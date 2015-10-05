@@ -58,7 +58,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomReason;
@@ -680,7 +679,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 new SnapshotId(randomName("repo"), randomName("snap")),
                                 RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
                                 emptyList(),
-                                emptyMap()));
+                                ImmutableOpenMap.of()));
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
                 }

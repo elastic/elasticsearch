@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -75,6 +73,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
@@ -410,11 +409,11 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
-        HashMap<Integer, IndexShardInjectorPair> tmpShardsMap = new HashMap<>(shards);
-        IndexShardInjectorPair indexShardInjectorPair = tmpShardsMap.remove(shardId);
+        HashMap<Integer, IndexShardInjectorPair> newShards = new HashMap<>(shards);
+        IndexShardInjectorPair indexShardInjectorPair = newShards.remove(shardId);
         indexShard = indexShardInjectorPair.getIndexShard();
         shardInjector = indexShardInjectorPair.getInjector();
-        shards = ImmutableMap.copyOf(tmpShardsMap);
+        shards = unmodifiableMap(newShards);
         closeShardInjector(reason, sId, shardInjector, indexShard);
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }

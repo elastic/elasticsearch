@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.serialization;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -36,6 +37,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class DiffableTests extends ESTestCase {
@@ -52,7 +54,7 @@ public class DiffableTests extends ESTestCase {
         map.remove("bar");
         map.put("baz", new TestDiffable("4"));
         map.put("new", new TestDiffable("5"));
-        ImmutableMap<String, TestDiffable> after = ImmutableMap.copyOf(map);
+        Map<String, TestDiffable> after = unmodifiableMap(new HashMap<>(map));
         Diff diff = DiffableUtils.diff(before, after);
         BytesStreamOutput out = new BytesStreamOutput();
         diff.writeTo(out);

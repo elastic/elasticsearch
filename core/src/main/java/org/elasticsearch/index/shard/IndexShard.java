@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -738,7 +739,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     public Engine.Searcher acquireSearcher(String source) {
         readAllowed();
         Engine engine = getEngine();
-        return searcherWrapper == null ? engine.acquireSearcher(source) : searcherWrapper.wrap(engineConfig, engine.acquireSearcher(source));
+        try {
+            return searcherWrapper == null ? engine.acquireSearcher(source) : searcherWrapper.wrap(engineConfig, engine.acquireSearcher(source));
+        } catch (IOException ex) {
+            throw new ElasticsearchException("failed to wrap searcher", ex);
+        }
     }
 
     public void close(String reason, boolean flushEngine) throws IOException {

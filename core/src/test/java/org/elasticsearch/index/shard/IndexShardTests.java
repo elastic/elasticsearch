@@ -20,9 +20,10 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Constants;
@@ -58,7 +59,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexServicesProvider;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
 import org.elasticsearch.index.indexing.ShardIndexingService;
@@ -917,5 +921,88 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertTrue(settingsService.isRegistered(shard));
         indexService.removeShard(0, "simon says so");
         assertFalse(settingsService.isRegistered(shard));
+    }
+
+    public void testSearcherWrapperIsUsed() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexService("test");
+        IndexShard shard = indexService.getShardOrNull(0);
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefresh(randomBoolean()).get();
+        client().prepareIndex("test", "test", "1").setSource("{\"foobar\" : \"bar\"}").setRefresh(true).get();
+
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            TopDocs search = searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10);
+            assertEquals(search.totalHits, 1);
+            search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
+            assertEquals(search.totalHits, 1);
+        }
+
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        shard.close("simon says", true);
+        IndexServicesProvider indexServices = indexService.getIndexServices();
+        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
+            @Override
+            public DirectoryReader wrap(DirectoryReader reader) throws IOException {
+                return new FieldMaskingReader("foo", reader);
+            }
+
+            @Override
+            public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
+                return searcher;
+            }
+        };
+
+        IndexServicesProvider newProvider = new IndexServicesProvider(indexServices.getIndicesLifecycle(), indexServices.getThreadPool(), indexServices.getMapperService(), indexServices.getQueryParserService(), indexServices.getIndexCache(), indexServices.getIndexAliasesService(), indexServices.getIndicesQueryCache(), indexServices.getCodecService(), indexServices.getTermVectorsService(), indexServices.getIndexFieldDataService(), indexServices.getWarmer(), indexServices.getSimilarityService(), indexServices.getFactory(), indexServices.getBigArrays(), wrapper);
+        IndexShard newShard = new IndexShard(shard.shardId(), shard.indexSettings, shard.shardPath(), shard.store(), newProvider);
+
+        ShardRoutingHelper.reinit(routing);
+        newShard.updateRoutingEntry(routing, false);
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        assertTrue(newShard.recoverFromStore(routing, localNode));
+        routing = new ShardRouting(routing);
+        ShardRoutingHelper.moveToStarted(routing);
+        newShard.updateRoutingEntry(routing, true);
+        try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
+            TopDocs search = searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10);
+            assertEquals(search.totalHits, 0);
+            search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
+            assertEquals(search.totalHits, 1);
+        }
+        newShard.close("just do it", randomBoolean());
+    }
+
+    private static class FieldMaskingReader extends FilterDirectoryReader {
+
+
+        private final String field;
+
+        public FieldMaskingReader(String field, DirectoryReader in) throws IOException {
+            super(in, new SubReaderWrapper() {
+                private final String filteredField = field;
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return new FilterLeafReader(reader) {
+                        @Override
+                        public Fields fields() throws IOException {
+                            return new FilterFields(super.fields()) {
+                                @Override
+                                public Terms terms(String field) throws IOException {
+                                    return filteredField.equals(field) ? null : super.terms(field);
+                                }
+                            };
+                        }
+                    };
+                }
+            });
+            this.field = field;
+
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new FieldMaskingReader(field, in);
+        }
     }
 }

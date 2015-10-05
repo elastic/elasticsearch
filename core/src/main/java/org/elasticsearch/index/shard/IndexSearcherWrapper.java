@@ -26,6 +26,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 
+import java.io.IOException;
+
 /**
  * Extension point to add custom functionality at request time to the {@link DirectoryReader}
  * and {@link IndexSearcher} managed by the {@link Engine}.
@@ -37,7 +39,7 @@ public interface IndexSearcherWrapper {
      * @return a new directory reader wrapping the provided directory reader or if no wrapping was performed
      *         the provided directory reader
      */
-    DirectoryReader wrap(DirectoryReader reader);
+    DirectoryReader wrap(DirectoryReader reader) throws IOException;
 
     /**
      * @param engineConfig  The engine config which can be used to get the query cache and query cache policy from
@@ -46,7 +48,7 @@ public interface IndexSearcherWrapper {
      * @return a new index searcher wrapping the provided index searcher or if no wrapping was performed
      *         the provided index searcher
      */
-    IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException;
+    IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws IOException;
 
     /**
      * If there are configured {@link IndexSearcherWrapper} instances, the {@link IndexSearcher} of the provided engine searcher
@@ -54,7 +56,7 @@ public interface IndexSearcherWrapper {
      *
      * This is invoked each time a {@link Engine.Searcher} is requested to do an operation. (for example search)
      */
-    default Engine.Searcher wrap(EngineConfig engineConfig, Engine.Searcher engineSearcher) {
+    default Engine.Searcher wrap(EngineConfig engineConfig, Engine.Searcher engineSearcher) throws IOException {
         DirectoryReader reader = wrap((DirectoryReader) engineSearcher.reader());
         IndexSearcher innerIndexSearcher = new IndexSearcher(reader);
         innerIndexSearcher.setQueryCache(engineConfig.getQueryCache());

@@ -41,7 +41,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -54,7 +56,7 @@ import org.elasticsearch.transport.TransportService;
 
 /**
  * Performs the index operation.
- * <p>
+ * <p/>
  * Allows for the following settings:
  * <ul>
  * <li><b>autoCreateIndex</b>: When set to <tt>true</tt>, will automatically create an index if one does not exists.
@@ -166,7 +168,17 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardRequest.shardId.id());
 
-        final WriteResult<IndexResponse> result = executeIndexRequestOnPrimary(null, request, indexShard);
+        final WriteResult<IndexResponse> result;
+        try {
+            result = executeIndexRequestOnPrimary(null, request, indexShard);
+        } catch (VersionConflictEngineException e) {
+            if (request.opType() == IndexRequest.OpType.CREATE) {
+                // nocommit: do we want to just remove this exception?
+                throw new DocumentAlreadyExistsException(e.getShardId(), request.type(), request.id(), e);
+            } else {
+                throw e;
+            }
+        }
         final IndexResponse response = result.response;
         final Translog.Location location = result.location;
         processAfter(request.refresh(), indexShard, location);
@@ -180,18 +192,12 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).index(shardId.getIndex()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
 
-        final Engine.IndexingOperation operation;
-        if (request.opType() == IndexRequest.OpType.INDEX) {
-            operation = indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
-        } else {
-            assert request.opType() == IndexRequest.OpType.CREATE : request.opType();
-            operation = indexShard.prepareCreate(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
-        }
+        final Engine.Index operation = indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         if (update != null) {
             throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
         }
-        operation.execute(indexShard);
+        indexShard.index(operation);
         processAfter(request.refresh(), indexShard, operation.getTranslogLocation());
     }
 

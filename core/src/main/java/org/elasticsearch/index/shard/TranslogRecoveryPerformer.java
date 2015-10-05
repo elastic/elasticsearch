@@ -145,19 +145,7 @@ public class TranslogRecoveryPerformer {
     public void performRecoveryOperation(Engine engine, Translog.Operation operation, boolean allowMappingUpdates) {
         try {
             switch (operation.opType()) {
-                case CREATE:
-                    Translog.Create create = (Translog.Create) operation;
-                    Engine.Create engineCreate = IndexShard.prepareCreate(docMapper(create.type()),
-                            source(create.source()).index(shardId.getIndex()).type(create.type()).id(create.id())
-                                    .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()),
-                            create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
-                    maybeAddMappingUpdate(engineCreate.type(), engineCreate.parsedDoc().dynamicMappingsUpdate(), engineCreate.id(), allowMappingUpdates);
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("[translog] recover [create] op of [{}][{}]", create.type(), create.id());
-                    }
-                    engine.create(engineCreate);
-                    break;
-                case SAVE:
+                case INDEX:
                     Translog.Index index = (Translog.Index) operation;
                     Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(index.type()), source(index.source()).type(index.type()).id(index.id())
                                     .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),

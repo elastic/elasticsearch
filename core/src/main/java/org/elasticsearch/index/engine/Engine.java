@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -206,7 +205,7 @@ public abstract class Engine implements Closeable {
 
     //public abstract void create(Create create) throws EngineException;
 
-    public abstract boolean index(IndexingOperation operation) throws EngineException;
+    public abstract boolean index(Index operation) throws EngineException;
 
     public abstract void delete(Delete delete) throws EngineException;
 
@@ -680,17 +679,21 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static abstract class IndexingOperation extends Operation {
+    public static class Index extends Operation {
 
         private final ParsedDocument doc;
 
-        public IndexingOperation(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime) {
+        public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime) {
             super(uid, version, versionType, origin, startTime);
             this.doc = doc;
         }
 
-        public IndexingOperation(Term uid, ParsedDocument doc) {
-            this(uid, doc, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+        public Index(Term uid, ParsedDocument doc) {
+            this(uid, doc, Versions.MATCH_ANY);
+        }
+
+        public Index(Term uid, ParsedDocument doc, long version) {
+            this(uid, doc, version, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
         }
 
         public ParsedDocument parsedDoc() {
@@ -733,45 +736,6 @@ public abstract class Engine implements Closeable {
 
         public BytesReference source() {
             return this.doc.source();
-        }
-
-        /**
-         * Execute this operation against the provided {@link IndexShard} and
-         * return whether the document was created.
-         */
-        public abstract boolean execute(IndexShard shard);
-    }
-
-    public static final class Create extends IndexingOperation {
-
-        public Create(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime) {
-            super(uid, doc, version, versionType, origin, startTime);
-        }
-
-        public Create(Term uid, ParsedDocument doc) {
-            super(uid, doc);
-        }
-
-        @Override
-        public boolean execute(IndexShard shard) {
-            shard.create(this);
-            return true;
-        }
-    }
-
-    public static final class Index extends IndexingOperation {
-
-        public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime) {
-            super(uid, doc, version, versionType, origin, startTime);
-        }
-
-        public Index(Term uid, ParsedDocument doc) {
-            super(uid, doc);
-        }
-
-        @Override
-        public boolean execute(IndexShard shard) {
-            return shard.index(this);
         }
     }
 

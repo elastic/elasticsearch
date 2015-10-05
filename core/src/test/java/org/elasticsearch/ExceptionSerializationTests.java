@@ -20,7 +20,6 @@ package org.elasticsearch;
 
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
@@ -31,12 +30,7 @@ import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
-import org.elasticsearch.cluster.routing.RoutingTableValidation;
-import org.elasticsearch.cluster.routing.RoutingValidationException;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.PathUtils;
@@ -55,7 +49,6 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.CreateFailedEngineException;
 import org.elasticsearch.index.engine.IndexFailedEngineException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -280,20 +273,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(-2, alreadyExpiredException.ttl());
         assertEquals(-1, alreadyExpiredException.timestamp());
         assertEquals(-3, alreadyExpiredException.now());
-    }
-
-    public void testCreateFailedEngineException() throws IOException {
-        CreateFailedEngineException ex = serialize(new CreateFailedEngineException(new ShardId("idx", 2), "type", "id", null));
-        assertEquals(ex.getShardId(), new ShardId("idx", 2));
-        assertEquals("type", ex.type());
-        assertEquals("id", ex.id());
-        assertNull(ex.getCause());
-
-        ex = serialize(new CreateFailedEngineException(null, "type", "id", new NullPointerException()));
-        assertNull(ex.getShardId());
-        assertEquals("type", ex.type());
-        assertEquals("id", ex.id());
-        assertTrue(ex.getCause() instanceof NullPointerException);
     }
 
     public void testMergeMappingException() throws IOException {
@@ -684,7 +663,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(19, org.elasticsearch.ResourceNotFoundException.class);
         ids.put(20, org.elasticsearch.transport.ActionTransportException.class);
         ids.put(21, org.elasticsearch.ElasticsearchGenerationException.class);
-        ids.put(22, org.elasticsearch.index.engine.CreateFailedEngineException.class);
         ids.put(23, org.elasticsearch.index.shard.IndexShardStartedException.class);
         ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
         ids.put(25, org.elasticsearch.script.ScriptException.class);

@@ -625,7 +625,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
         shardIndexingService.addListener(new IndexingOperationListener() {
             @Override
-            public Engine.IndexingOperation preIndex(Engine.IndexingOperation operation) {
+            public Engine.Index preIndex(Engine.Index operation) {
                 preIndexCalled.set(true);
                 return super.preIndex(operation);
             }

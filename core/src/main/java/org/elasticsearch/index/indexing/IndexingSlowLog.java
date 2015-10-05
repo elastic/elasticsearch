@@ -128,10 +128,6 @@ public final class IndexingSlowLog {
         postIndexing(index.parsedDoc(), tookInNanos);
     }
 
-    void postCreate(Engine.Create create, long tookInNanos) {
-        postIndexing(create.parsedDoc(), tookInNanos);
-    }
-
     /**
      * Reads how much of the source to log. The user can specify any value they
      * like and numbers are interpreted the maximum number of characters to log

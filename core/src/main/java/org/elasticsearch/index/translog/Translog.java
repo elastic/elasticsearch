@@ -465,11 +465,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Adds a created / delete / index operations to the transaction log.
+     * Adds a delete / index operations to the transaction log.
      *
      * @see org.elasticsearch.index.translog.Translog.Operation
-     * @see org.elasticsearch.index.translog.Translog.Create
-     * @see org.elasticsearch.index.translog.Translog.Index
+     * @see Index
      * @see org.elasticsearch.index.translog.Translog.Delete
      */
     public Location add(Operation operation) throws TranslogException {
@@ -874,8 +873,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public interface Operation extends Streamable {
         enum Type {
+            @Deprecated
             CREATE((byte) 1),
-            SAVE((byte) 2),
+            INDEX((byte) 2),
             DELETE((byte) 3),
             DELETE_BY_QUERY((byte) 4);
 
@@ -894,7 +894,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     case 1:
                         return CREATE;
                     case 2:
-                        return SAVE;
+                        return INDEX;
                     case 3:
                         return DELETE;
                     case 4:
@@ -926,199 +926,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.parent = parent;
             this.timestamp = timestamp;
             this.ttl = ttl;
-        }
-    }
-
-    public static class Create implements Operation {
-        public static final int SERIALIZATION_FORMAT = 6;
-
-        private String id;
-        private String type;
-        private BytesReference source;
-        private String routing;
-        private String parent;
-        private long timestamp;
-        private long ttl;
-        private long version = Versions.MATCH_ANY;
-        private VersionType versionType = VersionType.INTERNAL;
-
-        public Create() {
-        }
-
-        public Create(Engine.Create create) {
-            this.id = create.id();
-            this.type = create.type();
-            this.source = create.source();
-            this.routing = create.routing();
-            this.parent = create.parent();
-            this.timestamp = create.timestamp();
-            this.ttl = create.ttl();
-            this.version = create.version();
-            this.versionType = create.versionType();
-        }
-
-        public Create(String type, String id, byte[] source) {
-            this.id = id;
-            this.type = type;
-            this.source = new BytesArray(source);
-        }
-
-        @Override
-        public Type opType() {
-            return Type.CREATE;
-        }
-
-        @Override
-        public long estimateSize() {
-            return ((id.length() + type.length()) * 2) + source.length() + 12;
-        }
-
-        public String id() {
-            return this.id;
-        }
-
-        public BytesReference source() {
-            return this.source;
-        }
-
-        public String type() {
-            return this.type;
-        }
-
-        public String routing() {
-            return this.routing;
-        }
-
-        public String parent() {
-            return this.parent;
-        }
-
-        public long timestamp() {
-            return this.timestamp;
-        }
-
-        public long ttl() {
-            return this.ttl;
-        }
-
-        public long version() {
-            return this.version;
-        }
-
-        public VersionType versionType() {
-            return versionType;
-        }
-
-        @Override
-        public Source getSource() {
-            return new Source(source, routing, parent, timestamp, ttl);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            int version = in.readVInt(); // version
-            id = in.readString();
-            type = in.readString();
-            source = in.readBytesReference();
-            if (version >= 1) {
-                if (in.readBoolean()) {
-                    routing = in.readString();
-                }
-            }
-            if (version >= 2) {
-                if (in.readBoolean()) {
-                    parent = in.readString();
-                }
-            }
-            if (version >= 3) {
-                this.version = in.readLong();
-            }
-            if (version >= 4) {
-                this.timestamp = in.readLong();
-            }
-            if (version >= 5) {
-                this.ttl = in.readLong();
-            }
-            if (version >= 6) {
-                this.versionType = VersionType.fromValue(in.readByte());
-            }
-
-            assert versionType.validateVersionForWrites(version);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(SERIALIZATION_FORMAT);
-            out.writeString(id);
-            out.writeString(type);
-            out.writeBytesReference(source);
-            if (routing == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeString(routing);
-            }
-            if (parent == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeString(parent);
-            }
-            out.writeLong(version);
-            out.writeLong(timestamp);
-            out.writeLong(ttl);
-            out.writeByte(versionType.getValue());
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            Create create = (Create) o;
-
-            if (timestamp != create.timestamp ||
-                    ttl != create.ttl ||
-                    version != create.version ||
-                    id.equals(create.id) == false ||
-                    type.equals(create.type) == false ||
-                    source.equals(create.source) == false) {
-                return false;
-            }
-            if (routing != null ? !routing.equals(create.routing) : create.routing != null) {
-                return false;
-            }
-            if (parent != null ? !parent.equals(create.parent) : create.parent != null) {
-                return false;
-            }
-            return versionType == create.versionType;
-
-        }
-
-        @Override
-        public int hashCode() {
-            int result = id.hashCode();
-            result = 31 * result + type.hashCode();
-            result = 31 * result + source.hashCode();
-            result = 31 * result + (routing != null ? routing.hashCode() : 0);
-            result = 31 * result + (parent != null ? parent.hashCode() : 0);
-            result = 31 * result + (int) (timestamp ^ (timestamp >>> 32));
-            result = 31 * result + (int) (ttl ^ (ttl >>> 32));
-            result = 31 * result + (int) (version ^ (version >>> 32));
-            result = 31 * result + versionType.hashCode();
-            return result;
-        }
-
-        @Override
-        public String toString() {
-            return "Create{" +
-                    "id='" + id + '\'' +
-                    ", type='" + type + '\'' +
-                    '}';
         }
     }
 
@@ -1158,7 +965,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public Type opType() {
-            return Type.SAVE;
+            return Type.INDEX;
         }
 
         @Override
@@ -1667,13 +1474,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     static Translog.Operation newOperationFromType(Translog.Operation.Type type) throws IOException {
         switch (type) {
             case CREATE:
-                return new Translog.Create();
+                // the deserialization logic in Index was identical to that of Create when create was deprecated
+                return new Index();
             case DELETE:
                 return new Translog.Delete();
             case DELETE_BY_QUERY:
                 return new Translog.DeleteByQuery();
-            case SAVE:
-                return new Translog.Index();
+            case INDEX:
+                return new Index();
             default:
                 throw new IOException("No type for [" + type + "]");
         }

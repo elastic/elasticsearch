@@ -242,7 +242,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
     private class RealTimePercolatorOperationListener extends IndexingOperationListener {
 
         @Override
-        public Engine.IndexingOperation preIndex(Engine.IndexingOperation operation) {
+        public Engine.Index preIndex(Engine.Index operation) {
             // validate the query here, before we index
             if (PercolatorService.TYPE_NAME.equals(operation.type())) {
                 parsePercolatorDocument(operation.id(), operation.source());

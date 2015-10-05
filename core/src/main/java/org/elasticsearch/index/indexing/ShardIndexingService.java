@@ -93,7 +93,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         totalStats.setThrottled(false);
     }
 
-    public Engine.IndexingOperation preIndex(Engine.IndexingOperation operation) {
+    public Engine.Index preIndex(Engine.Index operation) {
         totalStats.indexCurrent.inc();
         typeStats(operation.type()).indexCurrent.inc();
         for (IndexingOperationListener listener : listeners) {

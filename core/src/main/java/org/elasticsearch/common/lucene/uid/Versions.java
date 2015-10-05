@@ -33,9 +33,23 @@ import java.util.concurrent.ConcurrentMap;
 /** Utility class to resolve the Lucene doc ID and version for a given uid. */
 public class Versions {
 
-    public static final long MATCH_ANY = -3L; // Version was not specified by the user
+    /** used to indicate the write operation should succeed regardless of current version **/
+    public static final long MATCH_ANY = -3L;
+
+    /** indicates that the current document was not found in lucene and in the version map */
     public static final long NOT_FOUND = -1L;
+
+    /**
+     * used when the document is old and doesn't contain any version information in the index
+     * see {@link PerThreadIDAndVersionLookup#lookup(org.apache.lucene.util.BytesRef)}
+     */
     public static final long NOT_SET = -2L;
+
+    /**
+     * used to indicate that the write operation should be executed if the document is currently deleted
+     * i.e., not found in the index and/or found as deleted (with version) in the version map
+     */
+    public static final long MATCH_DELETED = -4L;
 
     // TODO: is there somewhere else we can store these?
     private static final ConcurrentMap<IndexReader, CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();

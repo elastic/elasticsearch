@@ -27,13 +27,13 @@ import java.io.IOException;
 /**
  *
  */
-public class DocumentAlreadyExistsException extends EngineException {
+public class DocumentAlreadyExistsException extends VersionConflictEngineException {
 
-    public DocumentAlreadyExistsException(ShardId shardId, String type, String id) {
-        super(shardId, "[" + type + "][" + id + "]: document already exists");
+    public DocumentAlreadyExistsException(ShardId shardId, String type, String id, VersionConflictEngineException cause) {
+        super(shardId, "[{}][{}]: document already exists", cause, type, id);
     }
 
-    public DocumentAlreadyExistsException(StreamInput in) throws IOException{
+    public DocumentAlreadyExistsException(StreamInput in) throws IOException {
         super(in);
     }
 

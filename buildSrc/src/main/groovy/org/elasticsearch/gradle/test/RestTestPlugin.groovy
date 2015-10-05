@@ -49,5 +49,11 @@ class RestTestPlugin implements Plugin<Project> {
             classpath = project.sourceSets.test.runtimeClasspath
             testClassesDir project.sourceSets.test.output.classesDir
         }
+
+        project.eclipse {
+            classpath {
+                sourceSets = [project.sourceSets.test]
+            }
+        }
     }
 }

@@ -77,6 +77,12 @@ subprojects {
       }
     }
   }*/
+  
+  eclipse {
+    classpath {
+      defaultOutputDir = new File(file('build'), 'eclipse')
+    }
+  }
 }
 
 /*idea {
@@ -86,4 +92,5 @@ subprojects {
   }
 }
 */
+
 

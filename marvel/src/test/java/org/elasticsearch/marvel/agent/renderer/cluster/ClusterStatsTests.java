@@ -34,6 +34,7 @@ public class ClusterStatsTests extends MarvelIntegTestCase {
                 .build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/729")
     @Test
     public void testClusterStats() throws Exception {
 

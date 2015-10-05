@@ -83,6 +83,13 @@ public class MapBuilder<K, V> {
         return this.map;
     }
 
+    /**
+     * Build an immutable copy of the map under construction.
+     *
+     * @deprecated always copies the map under construction. prefer building a
+     *             HashMap by hand and wrapping it in an unmodifiableMap
+     */
+    @Deprecated
     public ImmutableMap<K, V> immutableMap() {
         // Note that this whole method is going to have to go next but we're changing it like this here just to keep the commit smaller.
         return ImmutableMap.<K, V>builder().putAll(map).build();

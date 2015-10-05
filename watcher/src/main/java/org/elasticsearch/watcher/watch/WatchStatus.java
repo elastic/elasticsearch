@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.watch;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -26,9 +25,15 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.*;
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.parseDate;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.readDate;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.readOptionalDate;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.writeDate;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.writeOptionalDate;
 
 /**
  *
@@ -226,12 +231,12 @@ public class WatchStatus implements ToXContent, Streamable {
         version = in.readLong();
         lastChecked = readOptionalDate(in, DateTimeZone.UTC);
         lastMetCondition = readOptionalDate(in, DateTimeZone.UTC);
-        ImmutableMap.Builder<String, ActionStatus> builder = ImmutableMap.builder();
         int count = in.readInt();
+        Map<String, ActionStatus> actions = new HashMap<>(count);
         for (int i = 0; i < count; i++) {
-            builder.put(in.readString(), ActionStatus.readFrom(in));
+            actions.put(in.readString(), ActionStatus.readFrom(in));
         }
-        actions = builder.build();
+        this.actions = unmodifiableMap(actions);
         if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
             state = new State(in.readBoolean(), readDate(in, DateTimeZone.UTC));
         } else {
@@ -273,7 +278,7 @@ public class WatchStatus implements ToXContent, Streamable {
         State state = null;
         DateTime lastChecked = null;
         DateTime lastMetCondition = null;
-        ImmutableMap.Builder<String, ActionStatus> actions = null;
+        Map<String, ActionStatus> actions = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -299,7 +304,7 @@ public class WatchStatus implements ToXContent, Streamable {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date value, found [{}] instead", watchId, currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIONS)) {
-                actions = ImmutableMap.builder();
+                actions = new HashMap<>();
                 if (token == XContentParser.Token.START_OBJECT) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -322,7 +327,7 @@ public class WatchStatus implements ToXContent, Streamable {
             state = new State(true, WatcherXContentParser.clock(parser).nowUTC());
         }
 
-        return new WatchStatus(-1, state, lastChecked, lastMetCondition, actions.build());
+        return new WatchStatus(-1, state, lastChecked, lastMetCondition, unmodifiableMap(actions));
     }
 
     public static class State implements ToXContent {

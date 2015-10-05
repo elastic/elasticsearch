@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.watch;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -42,14 +41,15 @@ import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.joda.time.PeriodType;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.Exceptions.ioException;
 
@@ -85,10 +85,12 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         this.status = status;
     }
 
+    @Override
     public String id() {
         return id;
     }
 
+    @Override
     public Trigger trigger() {
         return trigger;
     }
@@ -343,12 +345,12 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                 }
             } else {
                 // we need to create the initial statuses for the actions
-                ImmutableMap.Builder<String, ActionStatus> actionsStatuses = ImmutableMap.builder();
+                Map<String, ActionStatus> actionsStatuses = new HashMap<>();
                 DateTime now = WatcherXContentParser.clock(parser).nowUTC();
                 for (ActionWrapper action : actions) {
                     actionsStatuses.put(action.id(), new ActionStatus(now));
                 }
-                status = new WatchStatus(WatcherXContentParser.clock(parser).nowUTC(), actionsStatuses.build());
+                status = new WatchStatus(WatcherXContentParser.clock(parser).nowUTC(), unmodifiableMap(actionsStatuses));
             }
 
             return new Watch(id, trigger, input, condition, transform, throttlePeriod, actions, metatdata, status);

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.slack;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -32,12 +31,21 @@ import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.actions.ActionBuilders.slackAction;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -82,20 +90,18 @@ public class SlackActionTests extends ESTestCase {
                 .metadata(metadata)
                 .buildMock();
 
-        Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
-                .put("ctx", ImmutableMap.<String, Object>builder()
-                        .put("id", ctx.id().value())
-                        .put("watch_id", wid.watchId())
-                        .put("payload", data)
-                        .put("metadata", metadata)
-                        .put("execution_time", now)
-                        .put("trigger", ImmutableMap.<String, Object>builder()
-                                .put("triggered_time", now)
-                                .put("scheduled_time", now)
-                                .build())
-                        .put("vars", Collections.emptyMap())
-                        .build())
-                .build();
+        Map<String, Object> triggerModel = new HashMap<>();
+        triggerModel.put("triggered_time", now);
+        triggerModel.put("scheduled_time", now);
+        Map<String, Object> ctxModel = new HashMap<>();
+        ctxModel.put("id", ctx.id().value());
+        ctxModel.put("watch_id", wid.watchId());
+        ctxModel.put("payload", data);
+        ctxModel.put("metadata", metadata);
+        ctxModel.put("execution_time", now);
+        ctxModel.put("trigger", triggerModel);
+        ctxModel.put("vars", emptyMap());
+        Map<String, Object> expectedModel = singletonMap("ctx", ctxModel);
 
         when(messageTemplate.render(eq(wid.watchId()), eq("_action"), eq(templateEngine), eq(expectedModel), any(SlackMessageDefaults.class))).thenReturn(message);
         SlackAccount account = mock(SlackAccount.class);

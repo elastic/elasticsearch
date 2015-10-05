@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.watcher.transform.script;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -33,6 +31,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
@@ -81,9 +80,7 @@ public class ScriptTransformTests extends ESTestCase {
 
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
-        Map<String, Object> transformed = ImmutableMap.<String, Object>builder()
-                .put("key", "value")
-                .build();
+        Map<String, Object> transformed = singletonMap("key", "value");
 
         ExecutableScript executable = mock(ExecutableScript.class);
         when(executable.run()).thenReturn(transformed);
@@ -165,7 +162,7 @@ public class ScriptTransformTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
-        Script script = scriptBuilder(type, "_script").lang("_lang").params(ImmutableMap.<String, Object>builder().put("key", "value").build()).build();
+        Script script = scriptBuilder(type, "_script").lang("_lang").params(singletonMap("key", "value")).build();
         assertThat(transform.transform().getScript(), equalTo(script));
     }
 

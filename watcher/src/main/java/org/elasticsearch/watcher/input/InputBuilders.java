@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.input;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -45,10 +44,6 @@ public final class InputBuilders {
 
     public static SimpleInput.Builder simpleInput(String key, Object value) {
         return simpleInput(MapBuilder.<String, Object>newMapBuilder().put(key, value));
-    }
-
-    public static SimpleInput.Builder simpleInput(ImmutableMap.Builder<String, Object> data) {
-        return simpleInput(data.build());
     }
 
     public static SimpleInput.Builder simpleInput(MapBuilder<String, Object> data) {

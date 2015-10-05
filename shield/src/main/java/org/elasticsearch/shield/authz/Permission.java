@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -346,7 +344,7 @@ public interface Permission {
             }
 
             @Override
-            public ImmutableMap<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData) {
+            public Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData) {
                 // now... every index that is associated with the request, must be granted
                 // by at least one indices permission group
 
@@ -398,7 +396,7 @@ public interface Permission {
                     }
                 }
 
-                ImmutableMap.Builder<String, IndicesAccessControl.IndexAccessControl> indexPermissions = ImmutableMap.builder();
+                Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = new HashMap<>();
                 for (Map.Entry<String, Boolean> entry : grantedBuilder.entrySet()) {
                     String index = entry.getKey();
                     Set<BytesReference> roleQueries = roleQueriesByIndex.get(index);
@@ -411,7 +409,7 @@ public interface Permission {
                     }
                     indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(entry.getValue(), roleFields, roleQueries));
                 }
-                return indexPermissions.build();
+                return unmodifiableMap(indexPermissions);
             }
 
         }

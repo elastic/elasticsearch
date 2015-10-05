@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.hipchat;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -36,9 +35,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -83,20 +87,18 @@ public class HipChatActionTests extends ESTestCase {
                 .metadata(metadata)
                 .buildMock();
 
-        Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
-                .put("ctx", ImmutableMap.<String, Object>builder()
-                        .put("id", ctx.id().value())
-                        .put("watch_id", wid.watchId())
-                        .put("payload", data)
-                        .put("metadata", metadata)
-                        .put("execution_time", now)
-                        .put("trigger", ImmutableMap.<String, Object>builder()
-                                .put("triggered_time", now)
-                                .put("scheduled_time", now)
-                                .build())
-                        .put("vars", Collections.emptyMap())
-                        .build())
-                .build();
+        Map<String, Object> triggerModel = new HashMap<>();
+        triggerModel.put("triggered_time", now);
+        triggerModel.put("scheduled_time", now);
+        Map<String, Object> ctxModel = new HashMap<>();
+        ctxModel.put("id", ctx.id().value());
+        ctxModel.put("watch_id", wid.watchId());
+        ctxModel.put("payload", data);
+        ctxModel.put("metadata", metadata);
+        ctxModel.put("execution_time", now);
+        ctxModel.put("trigger", triggerModel);
+        ctxModel.put("vars", Collections.emptyMap());
+        Map<String, Object> expectedModel = singletonMap("ctx", ctxModel);
 
         if (body != null) {
             when(templateEngine.render(body, expectedModel)).thenReturn(body.getTemplate());

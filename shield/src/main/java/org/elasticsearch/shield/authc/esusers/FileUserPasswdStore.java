@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.authc.esusers;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -28,12 +26,14 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.shield.support.ShieldFiles.openAtomicMoveWriter;
 
 /**
@@ -137,7 +137,7 @@ public class FileUserPasswdStore {
             throw new IllegalStateException("could not read users file [" + path.toAbsolutePath() + "]", ioe);
         }
 
-        ImmutableMap.Builder<String, char[]> users = ImmutableMap.builder();
+        Map<String, char[]> users = new HashMap<>();
 
         int lineNr = 0;
         for (String line : lines) {
@@ -164,11 +164,10 @@ public class FileUserPasswdStore {
             users.put(username, hash.toCharArray());
         }
 
-        ImmutableMap<String, char[]> usersMap = users.build();
-        if (usersMap.isEmpty()){
+        if (users.isEmpty()){
             logger.warn("no users found in users file [{}]. use bin/shield/esusers to add users and role mappings", path.toAbsolutePath());
         }
-        return usersMap;
+        return unmodifiableMap(users);
     }
 
     public static void writeFile(Map<String, char[]> esUsers, Path path) {

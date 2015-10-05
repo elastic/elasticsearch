@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.authc.esusers;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.internal.Nullable;
@@ -36,6 +34,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.shield.support.ShieldFiles.openAtomicMoveWriter;
 
 /**
@@ -173,17 +172,16 @@ public class FileUserRolesStore {
             }
         }
 
-        ImmutableMap.Builder<String, String[]> builder = ImmutableMap.builder();
+        Map<String, String[]> usersRoles = new HashMap<>();
         for (Map.Entry<String, List<String>> entry : userToRoles.entrySet()) {
-            builder.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
+            usersRoles.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
         }
 
-        ImmutableMap<String, String[]> usersRoles = builder.build();
         if (usersRoles.isEmpty()){
             logger.warn("no entries found in users_roles file [{}]. use bin/shield/esusers to add users and role mappings", path.toAbsolutePath());
         }
 
-        return usersRoles;
+        return unmodifiableMap(usersRoles);
     }
 
     /**

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import com.google.common.collect.ImmutableMap;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionWrapper;
@@ -14,9 +12,13 @@ import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  */
@@ -100,7 +102,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
         private final TimeValue defaultThrottlePeriod;
         protected DateTime executionTime;
         private boolean recordExecution = false;
-        private ImmutableMap.Builder<String, ActionExecutionMode> actionModes = ImmutableMap.builder();
+        private Map<String, ActionExecutionMode> actionModes = new HashMap<>();
         private Input.Result inputResult;
         private Condition.Result conditionResult;
 
@@ -127,8 +129,11 @@ public class ManualExecutionContext extends WatchExecutionContext {
         }
 
         public Builder actionMode(String id, ActionExecutionMode mode) {
+            if (actionModes == null) {
+                throw new IllegalStateException("ManualExecutionContext has already been built!");
+            }
             if (ALL.equals(id)) {
-                actionModes = ImmutableMap.builder();
+                actionModes = new HashMap<>();
             }
             actionModes.put(id, mode);
             return this;
@@ -148,7 +153,9 @@ public class ManualExecutionContext extends WatchExecutionContext {
             if (executionTime == null) {
                 executionTime = DateTime.now(DateTimeZone.UTC);
             }
-            return new ManualExecutionContext(watch, knownWatch, executionTime, triggerEvent, defaultThrottlePeriod, inputResult, conditionResult, actionModes.build(), recordExecution);
+            ManualExecutionContext context = new ManualExecutionContext(watch, knownWatch, executionTime, triggerEvent, defaultThrottlePeriod, inputResult, conditionResult, unmodifiableMap(actionModes), recordExecution);
+            actionModes = null;
+            return context;
         }
     }
 }

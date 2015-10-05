@@ -86,11 +86,9 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         mapperService = new MapperService(index, settings, analysisService, similarityLookupService, scriptService);
 
         shardId = new ShardId(index, 0);
-        InternalIndicesLifecycle indicesLifecycle = new InternalIndicesLifecycle(settings);
-        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(shardId, settings, null, indicesLifecycle, mapperService, null);
+        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(settings, null, mapperService, null);
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
-        indicesLifecycle.afterIndexShardPostRecovery(indexShard);
 
         request = new TransportRequest.Empty();
         RequestContext.setCurrent(new RequestContext(request));
@@ -227,7 +225,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testDelegateSimilarity() throws Exception {
         ShardId shardId = new ShardId("_index", 0);
-        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(shardId.index(), Settings.EMPTY), QueryCachingPolicy.ALWAYS_CACHE, null, null); // can't mock...
+        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(shardId.index(), Settings.EMPTY), QueryCachingPolicy.ALWAYS_CACHE, null); // can't mock...
 
         BitsetFilterCache bitsetFilterCache = mock(BitsetFilterCache.class);
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());

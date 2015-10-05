@@ -129,6 +129,10 @@ com.google.common.io.Files
 com.google.common.primitives.Ints
 com.google.common.collect.ImmutableSet
 com.google.common.collect.ImmutableSet$Builder
+com.google.common.io.Resources
+com.google.common.hash.HashCode
+com.google.common.hash.HashFunction
+com.google.common.hash.Hashing
 com.google.common.collect.ImmutableMap#of()
 com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object)
 com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)

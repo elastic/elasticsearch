@@ -181,7 +181,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             DiscoveryNode discoveryNode = state.getNodes().get(nodeId);
             IndicesService indicesService = internalTestCluster.getInstance(IndicesService.class, discoveryNode.getName());
             IndexService indexService = indicesService.indexService(shard.index());
-            IndexShard indexShard = indexService.shard(shard.id());
+            IndexShard indexShard = indexService.getShardOrNull(shard.id());
             assertEquals(indexShard.shardPath().getRootDataPath().toString(), dataPath);
         }
 

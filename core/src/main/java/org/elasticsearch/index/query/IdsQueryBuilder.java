@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -47,9 +46,19 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     static final IdsQueryBuilder PROTOTYPE = new IdsQueryBuilder();
 
     /**
-     * Creates a new IdsQueryBuilder by optionally providing the types of the documents to look for
+     * Creates a new IdsQueryBuilder without providing the types of the documents to look for
      */
-    public IdsQueryBuilder(@Nullable String... types) {
+    public IdsQueryBuilder() {
+        this.types = new String[0];
+    }
+
+    /**
+     * Creates a new IdsQueryBuilder by providing the types of the documents to look for
+     */
+    public IdsQueryBuilder(String... types) {
+        if (types == null) {
+            throw new IllegalArgumentException("[ids] types cannot be null");
+        }
         this.types = types;
     }
 
@@ -64,30 +73,11 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
      * Adds ids to the query.
      */
     public IdsQueryBuilder addIds(String... ids) {
+        if (ids == null) {
+            throw new IllegalArgumentException("[ids] ids cannot be null");
+        }
         Collections.addAll(this.ids, ids);
         return this;
-    }
-
-    /**
-     * Adds ids to the query.
-     */
-    public IdsQueryBuilder addIds(Collection<String> ids) {
-        this.ids.addAll(ids);
-        return this;
-    }
-
-    /**
-     * Adds ids to the filter.
-     */
-    public IdsQueryBuilder ids(String... ids) {
-        return addIds(ids);
-    }
-
-    /**
-     * Adds ids to the filter.
-     */
-    public IdsQueryBuilder ids(Collection<String> ids) {
-        return addIds(ids);
     }
 
     /**
@@ -100,13 +90,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (types != null) {
-            if (types.length == 1) {
-                builder.field("type", types[0]);
-            } else {
-                builder.array("types", types);
-            }
-        }
+        builder.array("types", types);
         builder.startArray("values");
         for (String value : ids) {
             builder.value(value);
@@ -128,7 +112,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
              query = Queries.newMatchNoDocsQuery();
         } else {
             Collection<String> typesForQuery;
-            if (types == null || types.length == 0) {
+            if (types.length == 0) {
                 typesForQuery = context.queryTypes();
             } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
                 typesForQuery = context.mapperService().types();

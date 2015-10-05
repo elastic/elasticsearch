@@ -319,7 +319,9 @@ public class Analysis {
      * @see #isCharacterTokenStream(TokenStream)
      */
     public static boolean generatesCharacterTokenStream(Analyzer analyzer, String fieldName) throws IOException {
-        return isCharacterTokenStream(analyzer.tokenStream(fieldName, ""));
+        try (TokenStream ts = analyzer.tokenStream(fieldName, "")) {
+            return isCharacterTokenStream(ts);
+        }
     }
 
 }

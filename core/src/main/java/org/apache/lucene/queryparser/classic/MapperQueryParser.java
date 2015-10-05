@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -484,30 +485,31 @@ public class MapperQueryParser extends QueryParser {
         if (!settings.analyzeWildcard()) {
             return super.getPrefixQuery(field, termStr);
         }
+        List<String> tlist;
         // get Analyzer from superclass and tokenize the term
-        TokenStream source;
+        TokenStream source = null;
         try {
-            source = getAnalyzer().tokenStream(field, termStr);
-            source.reset();
-        } catch (IOException e) {
-            return super.getPrefixQuery(field, termStr);
-        }
-        List<String> tlist = new ArrayList<>();
-        CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
-
-        while (true) {
             try {
-                if (!source.incrementToken()) break;
+                source = getAnalyzer().tokenStream(field, termStr);
+                source.reset();
             } catch (IOException e) {
-                break;
+                return super.getPrefixQuery(field, termStr);
             }
-            tlist.add(termAtt.toString());
-        }
+            tlist = new ArrayList<>();
+            CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
 
-        try {
-            source.close();
-        } catch (IOException e) {
-            // ignore
+            while (true) {
+                try {
+                    if (!source.incrementToken()) break;
+                } catch (IOException e) {
+                    break;
+                }
+                tlist.add(termAtt.toString());
+            }
+        } finally {
+            if (source != null) {
+                IOUtils.closeWhileHandlingException(source);
+            }
         }
 
         if (tlist.size() == 1) {
@@ -617,8 +619,7 @@ public class MapperQueryParser extends QueryParser {
             char c = termStr.charAt(i);
             if (c == '?' || c == '*') {
                 if (isWithinToken) {
-                    try {
-                        TokenStream source = getAnalyzer().tokenStream(field, tmp.toString());
+                    try (TokenStream source = getAnalyzer().tokenStream(field, tmp.toString())) {
                         source.reset();
                         CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
                         if (source.incrementToken()) {
@@ -633,7 +634,6 @@ public class MapperQueryParser extends QueryParser {
                             // no tokens, just use what we have now
                             aggStr.append(tmp);
                         }
-                        source.close();
                     } catch (IOException e) {
                         aggStr.append(tmp);
                     }
@@ -648,22 +648,22 @@ public class MapperQueryParser extends QueryParser {
         }
         if (isWithinToken) {
             try {
-                TokenStream source = getAnalyzer().tokenStream(field, tmp.toString());
-                source.reset();
-                CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
-                if (source.incrementToken()) {
-                    String term = termAtt.toString();
-                    if (term.length() == 0) {
+                try (TokenStream source = getAnalyzer().tokenStream(field, tmp.toString())) {
+                    source.reset();
+                    CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
+                    if (source.incrementToken()) {
+                        String term = termAtt.toString();
+                        if (term.length() == 0) {
+                            // no tokens, just use what we have now
+                            aggStr.append(tmp);
+                        } else {
+                            aggStr.append(term);
+                        }
+                    } else {
                         // no tokens, just use what we have now
                         aggStr.append(tmp);
-                    } else {
-                        aggStr.append(term);
                     }
-                } else {
-                    // no tokens, just use what we have now
-                    aggStr.append(tmp);
                 }
-                source.close();
             } catch (IOException e) {
                 aggStr.append(tmp);
             }

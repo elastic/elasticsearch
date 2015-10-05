@@ -74,20 +74,6 @@ public abstract class Plugin {
     }
 
     /**
-     * Per index shard module.
-     */
-    public Collection<Module> shardModules(Settings indexSettings) {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Per index shard service that will be automatically closed.
-     */
-    public Collection<Class<? extends Closeable>> shardServices() {
-        return Collections.emptyList();
-    }
-
-    /**
      * Additional node settings loaded by the plugin. Note that settings that are explicit in the nodes settings can't be
      * overwritten with the additional settings. These settings added if they don't exist.
      */

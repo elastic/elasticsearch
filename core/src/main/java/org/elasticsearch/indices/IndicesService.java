@@ -51,18 +51,15 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.LocalNodeIdModule;
-import org.elasticsearch.index.aliases.IndexAliasesServiceModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.fielddata.IndexFieldDataModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -343,11 +340,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));
         modules.add(new SimilarityModule(indexSettings));
         modules.add(new IndexCacheModule(indexSettings));
-        modules.add(new IndexFieldDataModule(indexSettings));
-        modules.add(new MapperServiceModule());
-        modules.add(new IndexAliasesServiceModule());
-        modules.add(new IndexModule(indexSettings));
-
+        modules.add(new IndexModule());
         pluginsService.processModules(modules);
 
         Injector indexInjector;

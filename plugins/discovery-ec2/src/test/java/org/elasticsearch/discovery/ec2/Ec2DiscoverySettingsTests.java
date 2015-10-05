@@ -16,23 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.common.inject.AbstractModule;
+package org.elasticsearch.discovery.ec2;
+
+import org.elasticsearch.cloud.aws.Ec2Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
 
-/**
- */
-public class IndexFieldDataModule extends AbstractModule {
+import static org.hamcrest.Matchers.is;
 
-    private final Settings settings;
+public class Ec2DiscoverySettingsTests extends ESTestCase {
 
-    public IndexFieldDataModule(Settings settings) {
-        this.settings = settings;
+    public void testDiscoveryReady() {
+        Settings settings = Settings.builder()
+                .put("discovery.type", "ec2")
+                .build();
+        boolean discoveryReady = Ec2Module.isEc2DiscoveryActive(settings, logger);
+        assertThat(discoveryReady, is(true));
     }
 
-    @Override
-    protected void configure() {
-        bind(IndexFieldDataService.class).asEagerSingleton();
+    public void testDiscoveryNotReady() {
+        Settings settings = Settings.EMPTY;
+        boolean discoveryReady = Ec2Module.isEc2DiscoveryActive(settings, logger);
+        assertThat(discoveryReady, is(false));
     }
+
 }

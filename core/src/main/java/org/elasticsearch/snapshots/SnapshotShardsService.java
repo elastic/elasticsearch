@@ -293,7 +293,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                 for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : entry.getValue().entrySet()) {
                     final ShardId shardId = shardEntry.getKey();
                     try {
-                        final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).shard(shardId.id());
+                        final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
                         executor.execute(new AbstractRunnable() {
                             @Override
                             public void doRun() {

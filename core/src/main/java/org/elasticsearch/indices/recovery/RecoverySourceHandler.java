@@ -120,9 +120,7 @@ public class RecoverySourceHandler {
      * performs the recovery from the local engine to the target
      */
     public RecoveryResponse recoverToTarget() {
-        final Engine engine = shard.engine();
-        assert engine.getTranslog() != null : "translog must not be null";
-        try (Translog.View translogView = engine.getTranslog().newView()) {
+        try (Translog.View translogView = shard.acquireTranslogView()) {
             logger.trace("captured translog id [{}] for recovery", translogView.minTranslogGeneration());
             final IndexCommit phase1Snapshot;
             try {
@@ -179,7 +177,7 @@ public class RecoverySourceHandler {
             try {
                 recoverySourceMetadata = store.getMetadata(snapshot);
             } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-                shard.engine().failEngine("recovery", ex);
+                shard.failShard("recovery", ex);
                 throw ex;
             }
             for (String name : snapshot.getFileNames()) {
@@ -287,7 +285,7 @@ public class RecoverySourceHandler {
                                 for (StoreFileMetaData md : metadata) {
                                     logger.debug("{} checking integrity for file {} after remove corruption exception", shard.shardId(), md);
                                     if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
-                                        shard.engine().failEngine("recovery", corruptIndexException);
+                                        shard.failShard("recovery", corruptIndexException);
                                         logger.warn("{} Corrupted file detected {} checksum mismatch", shard.shardId(), md);
                                         throw corruptIndexException;
                                     }
@@ -641,7 +639,7 @@ public class RecoverySourceHandler {
     }
 
     protected void failEngine(IOException cause) {
-        shard.engine().failEngine("recovery", cause);
+        shard.failShard("recovery", cause);
     }
 
     Future<Void>[] asyncSendFiles(Store store, StoreFileMetaData[] files, Function<StoreFileMetaData, OutputStream> outputStreamFactory) {
@@ -674,7 +672,6 @@ public class RecoverySourceHandler {
                     try (final OutputStream outputStream = outputStreamFactory.apply(md);
                          final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
                         Streams.copy(new InputStreamIndexInput(indexInput, md.length()), outputStream);
-                        Store.verify(indexInput);
                     }
                     return null;
                 });

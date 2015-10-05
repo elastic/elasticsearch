@@ -93,12 +93,14 @@ public class LogConfigurator {
         loaded = true;
         // TODO: this is partly a copy of InternalSettingsPreparer...we should pass in Environment and not do all this...
         Environment environment = new Environment(settings);
-        Settings.Builder settingsBuilder = settingsBuilder().put(settings);
+        Settings.Builder settingsBuilder = settingsBuilder();
         resolveConfig(environment, settingsBuilder);
         settingsBuilder
                 .putProperties("elasticsearch.", System.getProperties())
-                .putProperties("es.", System.getProperties())
-                .replacePropertyPlaceholders();
+                .putProperties("es.", System.getProperties());
+        // add custom settings after config was added so that they are not overwritten by config
+        settingsBuilder.put(settings);
+        settingsBuilder.replacePropertyPlaceholders();
         Properties props = new Properties();
         for (Map.Entry<String, String> entry : settingsBuilder.build().getAsMap().entrySet()) {
             String key = "log4j." + entry.getKey();

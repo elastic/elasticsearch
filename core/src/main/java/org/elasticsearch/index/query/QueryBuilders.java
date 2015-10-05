@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -110,11 +109,18 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * Constructs a query that will match only specific ids within all types.
+     */
+    public static IdsQueryBuilder idsQuery() {
+        return new IdsQueryBuilder();
+    }
+
+    /**
      * Constructs a query that will match only specific ids within types.
      *
      * @param types The mapping/doc type
      */
-    public static IdsQueryBuilder idsQuery(@Nullable String... types) {
+    public static IdsQueryBuilder idsQuery(String... types) {
         return new IdsQueryBuilder(types);
     }
 

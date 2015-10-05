@@ -559,7 +559,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     final SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(request.shardId());
+        IndexShard indexShard = indexService.getShard(request.shardId());
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
 

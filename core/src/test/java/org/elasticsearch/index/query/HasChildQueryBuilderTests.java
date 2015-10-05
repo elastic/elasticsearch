@@ -190,7 +190,36 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     public void testParseFromJSON() throws IOException {
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/has-child-with-inner-hits.json");
+        String query = "{\n" +
+                "  \"has_child\" : {\n" +
+                "    \"query\" : {\n" +
+                "      \"range\" : {\n" +
+                "        \"mapped_string\" : {\n" +
+                "          \"from\" : \"agJhRET\",\n" +
+                "          \"to\" : \"zvqIq\",\n" +
+                "          \"include_lower\" : true,\n" +
+                "          \"include_upper\" : true,\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"child_type\" : \"child\",\n" +
+                "    \"score_mode\" : \"avg\",\n" +
+                "    \"min_children\" : 883170873,\n" +
+                "    \"max_children\" : 1217235442,\n" +
+                "    \"boost\" : 2.0,\n" +
+                "    \"_name\" : \"WNzYMJKRwePuRBh\",\n" +
+                "    \"inner_hits\" : {\n" +
+                "      \"name\" : \"inner_hits_name\",\n" +
+                "      \"size\" : 100,\n" +
+                "      \"sort\" : [ {\n" +
+                "        \"mapped_string\" : {\n" +
+                "          \"order\" : \"asc\"\n" +
+                "        }\n" +
+                "      } ]\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
         HasChildQueryBuilder queryBuilder = (HasChildQueryBuilder) parseQuery(query);
         assertEquals(query, queryBuilder.maxChildren(), 1217235442);
         assertEquals(query, queryBuilder.minChildren(), 883170873);

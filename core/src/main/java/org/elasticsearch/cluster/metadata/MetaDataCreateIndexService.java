@@ -204,6 +204,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (state.metaData().hasAlias(index)) {
             throw new InvalidIndexNameException(new Index(index), index, "already exists as alias");
         }
+        if (index.equals(".") || index.equals("..")) {
+            throw new InvalidIndexNameException(new Index(index), index, "must not be '.' or '..'");
+        }
     }
 
     private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {

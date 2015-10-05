@@ -28,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -116,22 +117,34 @@ public final class SuggestUtils {
     }
     
     public static int analyze(Analyzer analyzer, CharsRef toAnalyze, String field, TokenConsumer consumer) throws IOException {
-        TokenStream ts = analyzer.tokenStream(
-                field, new FastCharArrayReader(toAnalyze.chars, toAnalyze.offset, toAnalyze.length)
-        );
-        return analyze(ts, consumer);
+        try (TokenStream ts = analyzer.tokenStream(
+                                  field, new FastCharArrayReader(toAnalyze.chars, toAnalyze.offset, toAnalyze.length))) {
+             return analyze(ts, consumer);
+        }
     }
     
+    /** NOTE: this method closes the TokenStream, even on exception, which is awkward
+     *  because really the caller who called {@link Analyzer#tokenStream} should close it,
+     *  but when trying that there are recursion issues when we try to use the same
+     *  TokenStrem twice in the same recursion... */
     public static int analyze(TokenStream stream, TokenConsumer consumer) throws IOException {
-        stream.reset();
-        consumer.reset(stream);
         int numTokens = 0;
-        while (stream.incrementToken()) {
-            consumer.nextToken();
-            numTokens++;
+        boolean success = false;
+        try {
+            stream.reset();
+            consumer.reset(stream);
+            while (stream.incrementToken()) {
+                consumer.nextToken();
+                numTokens++;
+            }
+            consumer.end();
+        } finally {
+            if (success) {
+                stream.close();
+            } else {
+                IOUtils.closeWhileHandlingException(stream);
+            }
         }
-        consumer.end();
-        stream.close();
         return numTokens;
     }
     

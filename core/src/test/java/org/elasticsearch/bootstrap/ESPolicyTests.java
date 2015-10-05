@@ -24,7 +24,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.FilePermission;
 import java.security.AccessControlContext;
 import java.security.AccessController;
+import java.security.AllPermission;
 import java.security.CodeSource;
+import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
@@ -48,8 +50,13 @@ public class ESPolicyTests extends ESTestCase {
      */
     public void testNullCodeSource() throws Exception {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
+        // create a policy with AllPermission
+        Permission all = new AllPermission();
+        PermissionCollection allCollection = all.newPermissionCollection();
+        allCollection.add(all);
+        ESPolicy policy = new ESPolicy(allCollection);
+        // restrict ourselves to NoPermission
         PermissionCollection noPermissions = new Permissions();
-        ESPolicy policy = new ESPolicy(noPermissions);
         assertFalse(policy.implies(new ProtectionDomain(null, noPermissions), new FilePermission("foo", "read")));
     }
 

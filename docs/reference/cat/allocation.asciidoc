@@ -7,10 +7,10 @@ and how much disk space they are using.
 [source,sh]
 --------------------------------------------------
 % curl '192.168.56.10:9200/_cat/allocation?v'
-shards diskUsed diskAvail diskRatio ip            node
-     1    5.6gb    72.2gb      7.8% 192.168.56.10 Jarella
-     1    5.6gb    72.2gb      7.8% 192.168.56.30 Solarr
-     1    5.5gb    72.3gb      7.6% 192.168.56.20 Adam II
+shards disk.indices disk.used disk.avail disk.total disk.percent host          ip            node
+     1        3.1gb     5.6gb     72.2gb     77.8gb          7.8 192.168.56.10 192.168.56.10 Jarella
+     1        3.1gb     5.6gb     72.2gb     77.8gb          7.8 192.168.56.30 192.168.56.30 Solarr
+     1        3.0gb     5.5gb     72.3gb     77.8gb          7.6 192.168.56.20 192.168.56.20 Adam II
 --------------------------------------------------
 
 Here we can see that each node has been allocated a single shard and

@@ -83,10 +83,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
@@ -260,15 +257,15 @@ public class InternalEngineTests extends ESTestCase {
         return new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
     }
 
-    protected InternalEngine createEngine(Store store, Path translogPath, IndexSearcherWrapper... wrappers) {
-        return createEngine(defaultSettings, store, translogPath, new MergeSchedulerConfig(defaultSettings), newMergePolicy(), wrappers);
+    protected InternalEngine createEngine(Store store, Path translogPath) {
+        return createEngine(defaultSettings, store, translogPath, new MergeSchedulerConfig(defaultSettings), newMergePolicy());
     }
 
-    protected InternalEngine createEngine(Settings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig,  MergePolicy mergePolicy, IndexSearcherWrapper... wrappers) {
-        return new InternalEngine(config(indexSettings, store, translogPath, mergeSchedulerConfig, mergePolicy, wrappers), false);
+    protected InternalEngine createEngine(Settings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig,  MergePolicy mergePolicy) {
+        return new InternalEngine(config(indexSettings, store, translogPath, mergeSchedulerConfig, mergePolicy), false);
     }
 
-    public EngineConfig config(Settings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy, IndexSearcherWrapper... wrappers) {
+    public EngineConfig config(Settings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
 
@@ -279,7 +276,7 @@ public class InternalEngineTests extends ESTestCase {
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
             }
-        }, new TranslogHandler(shardId.index().getName(), logger), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), new IndexSearcherWrappingService(new HashSet<>(Arrays.asList(wrappers))), translogConfig);
+        }, new TranslogHandler(shardId.index().getName(), logger), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig);
         try {
             config.setCreate(Lucene.indexExists(store.directory()) == false);
         } catch (IOException e) {
@@ -519,8 +516,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
         assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
         assertThat(stats2.getUserData().get(Translog.TRANSLOG_GENERATION_KEY), not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
-        assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)))
-        ;
+        assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
     }
 
     @Test
@@ -542,8 +538,11 @@ public class InternalEngineTests extends ESTestCase {
         };
         Store store = createStore();
         Path translog = createTempDir("translog-test");
-        InternalEngine engine = createEngine(store, translog, wrapper);
-        Engine.Searcher searcher = engine.acquireSearcher("test");
+        InternalEngine engine = createEngine(store, translog);
+        engine.close();
+
+        engine = new InternalEngine(engine.config(), false);
+        Engine.Searcher searcher = wrapper.wrap(engine.config(), engine.acquireSearcher("test"));
         assertThat(counter.get(), equalTo(2));
         searcher.close();
         IOUtils.close(store, engine);
@@ -1980,7 +1979,7 @@ public class InternalEngineTests extends ESTestCase {
         EngineConfig brokenConfig = new EngineConfig(shardId, threadPool, config.getIndexingService(), config.getIndexSettings()
                 , null, store, createSnapshotDeletionPolicy(), newMergePolicy(), config.getMergeSchedulerConfig(),
                 config.getAnalyzer(), config.getSimilarity(), new CodecService(shardId.index()), config.getFailedEngineListener()
-        , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), new IndexSearcherWrappingService(), translogConfig);
+        , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig);
 
         try {
             new InternalEngine(brokenConfig, false);

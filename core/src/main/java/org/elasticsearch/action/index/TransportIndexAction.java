@@ -164,7 +164,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         }
 
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
+        IndexShard indexShard = indexService.getShard(shardRequest.shardId.id());
 
         final WriteResult<IndexResponse> result = executeIndexRequestOnPrimary(null, request, indexShard);
         final IndexResponse response = result.response;
@@ -176,7 +176,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     @Override
     protected void shardOperationOnReplica(ShardId shardId, IndexRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardId.id());
+        IndexShard indexShard = indexService.getShard(shardId.id());
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).index(shardId.getIndex()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
 

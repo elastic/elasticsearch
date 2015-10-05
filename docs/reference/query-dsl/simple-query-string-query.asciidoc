@@ -50,7 +50,7 @@ some analyzers will be not able to provide a meaningful results
 based just on the prefix of a term. Defaults to `false`.
 
 |`locale` | Locale that should be used for string conversions.
-Defaults to `ROOT`.
+Defaults to `ROOT`. deprecated[2.1.0,Properly configure the analysis chain instead]
 
 |`lenient` | If set to `true` will cause format based failures
 (like providing text to a numeric field) to be ignored.

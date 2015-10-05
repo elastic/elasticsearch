@@ -77,7 +77,7 @@ both>>.
 providing text to a numeric field) to be ignored.
 
 |`locale` | Locale that should be used for string conversions.
-Defaults to `ROOT`.
+Defaults to `ROOT`. deprecated[2.1.0,Properly configure the analysis chain instead]
 
 |`time_zone` | Time Zone to be applied to any range query related to dates. See also
 http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[JODA timezone].

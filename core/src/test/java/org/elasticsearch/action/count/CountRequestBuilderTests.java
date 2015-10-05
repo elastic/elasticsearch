@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.count;
 
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -56,14 +56,15 @@ public class CountRequestBuilderTests extends ESTestCase {
     @Test
     public void testEmptySourceToString() {
         CountRequestBuilder countRequestBuilder = client.prepareCount();
-        assertThat(countRequestBuilder.toString(), equalTo(new QuerySourceBuilder().toString()));
+        assertThat(countRequestBuilder.toString(), equalTo(new SearchSourceBuilder().size(0).toString()));
     }
 
     @Test
     public void testQueryBuilderQueryToString() {
         CountRequestBuilder countRequestBuilder = client.prepareCount();
         countRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
-        assertThat(countRequestBuilder.toString(), equalTo(new QuerySourceBuilder().setQuery(QueryBuilders.matchAllQuery()).toString()));
+        assertThat(countRequestBuilder.toString(), equalTo(new SearchSourceBuilder().size(0).query(QueryBuilders.matchAllQuery())
+                .toString()));
     }
 
     @Test

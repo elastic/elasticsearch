@@ -32,8 +32,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
-
 /**
  * A request to count the number of documents matching a specific query. Best created with
  * {@link org.elasticsearch.client.Requests#countRequest(String...)}.
@@ -46,8 +44,6 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
 
     public static final float DEFAULT_MIN_SCORE = -1f;
 
-    private float minScore = DEFAULT_MIN_SCORE;
-
     @Nullable
     protected String routing;
 
@@ -56,9 +52,11 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private int terminateAfter = DEFAULT_TERMINATE_AFTER;
-
     private SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+    public CountRequest() {
+        searchSourceBuilder.size(0);
+    }
 
     /**
      * Constructs a new count request against the provided indices. No indices provided means it will
@@ -72,7 +70,7 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
      * The minimum score of the documents to include in the count.
      */
     public float minScore() {
-        return minScore;
+        return searchSourceBuilder.minScore();
     }
 
     /**
@@ -80,7 +78,7 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
      * documents will be included in the count.
      */
     public CountRequest minScore(float minScore) {
-        this.minScore = minScore;
+        this.searchSourceBuilder.minScore(minScore);
         return this;
     }
 
@@ -88,8 +86,8 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
     /**
      * The query to execute
      */
-    public CountRequest query(QueryBuilder queryBuilder) {
-        this.searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
+    public CountRequest query(QueryBuilder<?> queryBuilder) {
+        this.searchSourceBuilder.query(queryBuilder);
         return this;
     }
 
@@ -147,12 +145,12 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
         if (terminateAfterCount <= 0) {
             throw new IllegalArgumentException("terminateAfter must be > 0");
         }
-        this.terminateAfter = terminateAfterCount;
+        this.searchSourceBuilder.terminateAfter(terminateAfterCount);
         return this;
     }
 
     public int terminateAfter() {
-        return this.terminateAfter;
+        return this.searchSourceBuilder.terminateAfter();
     }
 
     @Override
@@ -181,13 +179,6 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
     }
 
     public SearchRequest toSearchRequest() {
-        searchSourceBuilder.size(0);
-        if (minScore() != DEFAULT_MIN_SCORE) {
-            searchSourceBuilder.minScore(minScore());
-        }
-        if (terminateAfter() != DEFAULT_TERMINATE_AFTER) {
-            searchSourceBuilder.terminateAfter(terminateAfter());
-        }
         SearchRequest searchRequest = new SearchRequest(indices());
         searchRequest.source(searchSourceBuilder);
         searchRequest.indicesOptions(indicesOptions());

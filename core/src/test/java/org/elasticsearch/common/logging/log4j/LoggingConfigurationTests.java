@@ -21,20 +21,21 @@ package org.elasticsearch.common.logging.log4j;
 
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
+import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -148,7 +149,34 @@ public class LoggingConfigurationTests extends ESTestCase {
         LogConfigurator.resolveConfig(environment, builder);
 
         Settings logSettings = builder.build();
-        assertThat(logSettings.get("yml"), Matchers.nullValue());
+        assertThat(logSettings.get("yml"), nullValue());
+    }
+
+    // tests that custom settings are not overwritten by settings in the config file
+    @Test
+    public void testResolveOrder() throws Exception {
+        Path tmpDir = createTempDir();
+        Path loggingConf = tmpDir.resolve(loggingConfiguration("yaml"));
+        Files.write(loggingConf, "logger.test: INFO, file\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(loggingConf, "appender.file.type: file\n".getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
+        Environment environment = InternalSettingsPreparer.prepareEnvironment(
+                Settings.builder()
+                        .put("path.conf", tmpDir.toAbsolutePath())
+                        .put("path.home", createTempDir().toString())
+                        .put("logger.test", "TRACE, console")
+                        .put("appender.console.type", "console")
+                        .put("appender.console.layout.type", "consolePattern")
+                        .put("appender.console.layout.conversionPattern", "[%d{ISO8601}][%-5p][%-25c] %m%n")
+                        .build(), new CliToolTestCase.MockTerminal());
+        LogConfigurator.configure(environment.settings());
+        // args should overwrite whatever is in the config
+        ESLogger esLogger = Log4jESLoggerFactory.getLogger("test");
+        Logger logger = ((Log4jESLogger) esLogger).logger();
+        Appender appender = logger.getAppender("console");
+        assertThat(appender, notNullValue());
+        assertTrue(logger.isTraceEnabled());
+        appender = logger.getAppender("file");
+        assertThat(appender, nullValue());
     }
 
     private static String loggingConfiguration(String suffix) {

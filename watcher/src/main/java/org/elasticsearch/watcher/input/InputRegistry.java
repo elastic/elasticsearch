@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.input;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -18,11 +17,11 @@ import java.util.Map;
  */
 public class InputRegistry {
 
-    private final ImmutableMap<String, InputFactory> factories;
+    private final Map<String, InputFactory> factories;
 
     @Inject
     public InputRegistry(Map<String, InputFactory> factories) {
-        this.factories = ImmutableMap.copyOf(factories);
+        this.factories = factories;
     }
 
     /**

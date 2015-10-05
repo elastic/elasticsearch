@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.support.http.auth;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -20,11 +19,11 @@ import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
  */
 public class HttpAuthRegistry {
 
-    private final ImmutableMap<String, HttpAuthFactory> factories;
+    private final Map<String, HttpAuthFactory> factories;
 
     @Inject
     public HttpAuthRegistry(Map<String, HttpAuthFactory> factories) {
-        this.factories = ImmutableMap.copyOf(factories);
+        this.factories = factories;
     }
 
     public HttpAuth parse(XContentParser parser) throws IOException {

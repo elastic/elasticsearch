@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.transform;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -22,7 +21,7 @@ public class TransformRegistry {
 
     @Inject
     public TransformRegistry(Map<String, TransformFactory> factories) {
-        this.factories = ImmutableMap.copyOf(factories);
+        this.factories = factories;
     }
 
     public TransformFactory factory(String type) {

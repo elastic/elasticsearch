@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.watcher.support;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
@@ -26,11 +23,13 @@ import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
+import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 
 /**
@@ -43,7 +42,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
     private final ClusterService clusterService;
     private final Set<TemplateConfig> indexTemplates;
 
-    private volatile ImmutableMap<String, Settings> customIndexSettings;
+    private volatile Map<String, Settings> customIndexSettings;
 
     @Inject
     public WatcherIndexTemplateRegistry(Settings settings, NodeSettingsService nodeSettingsService, ClusterService clusterService,
@@ -56,12 +55,12 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         clusterService.add(this);
         nodeSettingsService.addListener(this);
 
-        ImmutableMap.Builder<String, Settings> customIndexSettingsBuilder = ImmutableMap.builder();
+        Map<String, Settings> customIndexSettings = new HashMap<>();
         for (TemplateConfig indexTemplate : indexTemplates) {
             Settings customSettings = this.settings.getAsSettings(indexTemplate.getSettingsPrefix());
-            customIndexSettings = customIndexSettingsBuilder.put(indexTemplate.getSettingsPrefix(), customSettings).build();
+            customIndexSettings.put(indexTemplate.getSettingsPrefix(), customSettings);
         }
-        customIndexSettings = customIndexSettingsBuilder.build();
+        this.customIndexSettings = unmodifiableMap(customIndexSettings);
     }
 
     @Override
@@ -142,9 +141,9 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             }
 
             if (changed) {
-                customIndexSettings = MapBuilder.newMapBuilder(customIndexSettings)
-                        .put(config.getSettingsPrefix(), builder.build())
-                        .immutableMap();
+                Map<String, Settings> customIndexSettings = new HashMap<String, Settings>(this.customIndexSettings);
+                customIndexSettings.put(config.getSettingsPrefix(), builder.build());
+                this.customIndexSettings = customIndexSettings;
                 putTemplate(config, false);
             }
         }

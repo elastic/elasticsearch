@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.logging;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -25,9 +24,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -35,7 +36,10 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 import static org.joda.time.DateTimeZone.UTC;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  */
@@ -60,20 +64,18 @@ public class LoggingActionTests extends ESTestCase {
                 .time("_watch_id", now)
                 .buildMock();
 
-        final Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
-                .put("ctx", ImmutableMap.builder()
-                        .put("id", ctx.id().value())
-                        .put("watch_id", "_watch_id")
-                        .put("execution_time", now)
-                        .put("payload", ImmutableMap.of())
-                        .put("metadata", ImmutableMap.of())
-                        .put("trigger", ImmutableMap.builder()
-                                .put("scheduled_time", now)
-                                .put("triggered_time", now)
-                                .build())
-                        .put("vars", Collections.emptyMap())
-                        .build())
-                .build();
+        Map<String, Object> triggerModel = new HashMap<>();
+        triggerModel.put("scheduled_time", now);
+        triggerModel.put("triggered_time", now);
+        Map<String, Object> ctxModel = new HashMap<>();
+        ctxModel.put("id", ctx.id().value());
+        ctxModel.put("watch_id", "_watch_id");
+        ctxModel.put("execution_time", now);
+        ctxModel.put("payload", emptyMap());
+        ctxModel.put("metadata", emptyMap());
+        ctxModel.put("vars", emptyMap());
+        ctxModel.put("trigger", triggerModel);
+        Map<String, Object> expectedModel = singletonMap("ctx", ctxModel);
 
         String text = randomAsciiOfLength(10);
         TextTemplate template = TextTemplate.inline(text).build();

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.authz.accesscontrol;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -59,6 +57,7 @@ import java.io.IOException;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.shield.authz.accesscontrol.ShieldIndexSearcherWrapper.intersectScorerAndRoleBits;
 import static org.hamcrest.Matchers.equalTo;
@@ -114,7 +113,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         mapperService.merge("type", new CompressedXContent(mappingSource.string()), false, false);
 
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, emptySet(), null);
-        request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, ImmutableMap.of("_index", indexAccessControl)));
+        request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, singletonMap("_index", indexAccessControl)));
 
         FieldSubsetReader.FieldSubsetDirectoryReader result = (FieldSubsetReader.FieldSubsetDirectoryReader) shieldIndexSearcherWrapper.wrap(esIn);
         assertThat(result.getFieldNames().size(), equalTo(11));
@@ -324,7 +323,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
     private void assertResolvedFields(String expression, String... expectedFields) {
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, singleton(expression), null);
-        request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, ImmutableMap.of("_index", indexAccessControl)));
+        request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, singletonMap("_index", indexAccessControl)));
         FieldSubsetReader.FieldSubsetDirectoryReader result = (FieldSubsetReader.FieldSubsetDirectoryReader) shieldIndexSearcherWrapper.wrap(esIn);
         assertThat(result.getFieldNames().size() - shieldIndexSearcherWrapper.getAllowedMetaFields().size(), equalTo(expectedFields.length));
         for (String expectedField : expectedFields) {

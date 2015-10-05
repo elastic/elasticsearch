@@ -5,12 +5,16 @@
  */
 package org.elasticsearch.watcher.support.xcontent;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
 
@@ -21,9 +25,7 @@ public class MapPathTests extends ESTestCase {
 
     @Test
     public void testEval() throws Exception {
-        Map<String, Object> map = ImmutableMap.<String, Object>builder()
-                .put("key", "value")
-                .build();
+        Map<String, Object> map = singletonMap("key", "value");
 
         assertThat(ObjectPath.eval("key", map), is((Object) "value"));
         assertThat(ObjectPath.eval("key1", map), nullValue());
@@ -32,9 +34,7 @@ public class MapPathTests extends ESTestCase {
     @Test
     public void testEval_List() throws Exception {
         List list = Arrays.asList(1, 2, 3, 4);
-        Map<String, Object> map = ImmutableMap.<String, Object>builder()
-                .put("key", list)
-                .build();
+        Map<String, Object> map = singletonMap("key", list);
 
         int index = randomInt(3);
         assertThat(ObjectPath.eval("key." + index, map), is(list.get(index)));
@@ -43,9 +43,7 @@ public class MapPathTests extends ESTestCase {
     @Test
     public void testEval_Array() throws Exception {
         int[] array = new int[] { 1, 2, 3, 4 };
-        Map<String, Object> map = ImmutableMap.<String, Object>builder()
-                .put("key", array)
-                .build();
+        Map<String, Object> map = singletonMap("key", array);
 
         int index = randomInt(3);
         assertThat(((Number) ObjectPath.eval("key." + index, map)).intValue(), is(array[index]));
@@ -53,9 +51,7 @@ public class MapPathTests extends ESTestCase {
 
     @Test
     public void testEval_Map() throws Exception {
-        Map<String, Object> map = ImmutableMap.<String, Object>builder()
-                .put("a", ImmutableMap.of("b", "val"))
-                .build();
+        Map<String, Object> map = singletonMap("a", singletonMap("b", "val"));
 
         assertThat(ObjectPath.eval("a.b", map), is((Object) "val"));
     }

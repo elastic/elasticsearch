@@ -6,10 +6,7 @@
 package org.elasticsearch.watcher.input.http;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -17,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
@@ -26,9 +22,14 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.InputBuilders;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.support.http.*;
+import org.elasticsearch.watcher.support.http.HttpClient;
+import org.elasticsearch.watcher.support.http.HttpContentType;
+import org.elasticsearch.watcher.support.http.HttpMethod;
+import org.elasticsearch.watcher.support.http.HttpRequest;
+import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
+import org.elasticsearch.watcher.support.http.HttpResponse;
+import org.elasticsearch.watcher.support.http.Scheme;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
-import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
@@ -41,6 +42,8 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStatus;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
+import org.joda.time.DateTime;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -48,9 +51,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Map;
 
-import static org.joda.time.DateTimeZone.UTC;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -70,7 +78,7 @@ public class HttpInputTests extends ESTestCase {
         httpClient = mock(HttpClient.class);
         templateEngine = mock(TextTemplateEngine.class);
         secretService = mock(SecretService.class);
-        HttpAuthRegistry registry = new HttpAuthRegistry(ImmutableMap.<String, HttpAuthFactory>of("basic", new BasicAuthFactory(secretService)));
+        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(secretService)));
         httpParser = new HttpInputFactory(Settings.EMPTY, httpClient, templateEngine, new HttpRequest.Parser(registry), new HttpRequestTemplate.Parser(registry));
     }
 
@@ -94,19 +102,19 @@ public class HttpInputTests extends ESTestCase {
                 httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
                 break;
             case 3:
-                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.JSON.restContentType() }));
+                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8), singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.JSON.restContentType() }));
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
             case 4:
-                response = new HttpResponse(123, "key: value".getBytes(StandardCharsets.UTF_8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.YAML.restContentType() }));
+                response = new HttpResponse(123, "key: value".getBytes(StandardCharsets.UTF_8), singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.YAML.restContentType() }));
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
             case 5:
-                response = new HttpResponse(123, "---\nkey: value".getBytes(StandardCharsets.UTF_8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
+                response = new HttpResponse(123, "---\nkey: value".getBytes(StandardCharsets.UTF_8), singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
                 httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
                 break;
             default:
-                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
+                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8), singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
         }
@@ -125,7 +133,7 @@ public class HttpInputTests extends ESTestCase {
                 null,
                 new ExecutableActions(new ArrayList<ActionWrapper>()),
                 null,
-                new WatchStatus(new DateTime(0, UTC), ImmutableMap.<String, ActionStatus>of()));
+                new WatchStatus(new DateTime(0, UTC), emptyMap()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch,
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
@@ -156,7 +164,7 @@ public class HttpInputTests extends ESTestCase {
                 null,
                 new ExecutableActions(new ArrayList<ActionWrapper>()),
                 null,
-                new WatchStatus(new DateTime(0, UTC), ImmutableMap.<String, ActionStatus>of()));
+                new WatchStatus(new DateTime(0, UTC), emptyMap()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch,
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),

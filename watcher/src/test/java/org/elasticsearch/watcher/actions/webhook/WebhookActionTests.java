@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.webhook;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
@@ -18,11 +16,18 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Action.Result.Status;
-import org.elasticsearch.watcher.actions.email.service.*;
+import org.elasticsearch.watcher.actions.email.service.Attachment;
+import org.elasticsearch.watcher.actions.email.service.Authentication;
+import org.elasticsearch.watcher.actions.email.service.Email;
+import org.elasticsearch.watcher.actions.email.service.EmailService;
+import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.support.http.*;
-import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
+import org.elasticsearch.watcher.support.http.HttpClient;
+import org.elasticsearch.watcher.support.http.HttpMethod;
+import org.elasticsearch.watcher.support.http.HttpRequest;
+import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
+import org.elasticsearch.watcher.support.http.HttpResponse;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -41,21 +46,27 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import javax.mail.internet.AddressException;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.mail.internet.AddressException;
+
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.Is.is;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 
 /**
@@ -86,7 +97,7 @@ public class WebhookActionTests extends ESTestCase {
         SecretService secretService = mock(SecretService.class);
         testBody = TextTemplate.inline(TEST_BODY_STRING).build();
         testPath = TextTemplate.inline(TEST_PATH_STRING).build();
-        authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuthFactory) new BasicAuthFactory(secretService)));
+        authRegistry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(secretService)));
     }
 
     @After

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.authz.accesscontrol;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -51,6 +49,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -76,7 +75,7 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         TransportRequest request = new TransportRequest.Empty();
         RequestContext.setCurrent(new RequestContext(request));
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, null, singleton(new BytesArray("{}")));
-        request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, ImmutableMap.of("_index", indexAccessControl)));
+        request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, singletonMap("_index", indexAccessControl)));
         IndexQueryParserService parserService = mock(IndexQueryParserService.class);
 
         IndicesLifecycle indicesLifecycle = mock(IndicesLifecycle.class);

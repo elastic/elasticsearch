@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import com.google.common.collect.ImmutableMap;
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.LDAPException;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -23,9 +23,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.dn;
 import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.relativeName;
 
@@ -44,7 +50,7 @@ public class DnRoleMapper {
     private final String realmType;
     private final Path file;
     private final boolean useUnmappedGroupsAsRoles;
-    protected volatile ImmutableMap<DN, Set<String>> dnRoles;
+    protected volatile Map<DN, Set<String>> dnRoles;
 
     private CopyOnWriteArrayList<RefreshListener> listeners;
 
@@ -86,21 +92,21 @@ public class DnRoleMapper {
      * logging the error and skipping/removing all mappings. This is aligned with how we handle other auto-loaded files
      * in shield.
      */
-    public static ImmutableMap<DN, Set<String>> parseFileLenient(Path path, ESLogger logger, String realmType, String realmName) {
+    public static Map<DN, Set<String>> parseFileLenient(Path path, ESLogger logger, String realmType, String realmName) {
         try {
             return parseFile(path, logger, realmType, realmName);
         } catch (Throwable t) {
             logger.error("failed to parse role mappings file [{}]. skipping/removing all mappings...", t, path.toAbsolutePath());
-            return ImmutableMap.of();
+            return emptyMap();
         }
     }
 
-    public static ImmutableMap<DN, Set<String>> parseFile(Path path, ESLogger logger, String realmType, String realmName) {
+    public static Map<DN, Set<String>> parseFile(Path path, ESLogger logger, String realmType, String realmName) {
 
         logger.trace("reading realm [{}/{}] role mappings file [{}]...", realmType, realmName, path.toAbsolutePath());
 
         if (!Files.exists(path)) {
-            return ImmutableMap.of();
+            return emptyMap();
         }
 
         try (InputStream in = Files.newInputStream(path)) {
@@ -131,7 +137,7 @@ public class DnRoleMapper {
                 logger.warn("no mappings found in role mappings file [{}] for realm [{}/{}]", path.toAbsolutePath(), realmType, realmName);
             }
 
-            return ImmutableMap.copyOf(dnToRoles);
+            return unmodifiableMap(dnToRoles);
 
         } catch (IOException e) {
             throw new ElasticsearchException("could not read realm [" + realmType + "/" + realmName + "] role mappings file [" + path.toAbsolutePath() + "]", e);

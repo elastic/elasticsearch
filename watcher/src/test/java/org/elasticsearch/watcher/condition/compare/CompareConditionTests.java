@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.condition.compare;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,6 +22,7 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Locale;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.is;
@@ -46,8 +46,8 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(Op.EQ.eval("a", "aa"), is(false));
         assertThat(Op.EQ.eval("a", "a"), is(true));
         assertThat(Op.EQ.eval("aa", "ab"), is(false));
-        assertThat(Op.EQ.eval(ImmutableMap.of("k", "v"), ImmutableMap.of("k", "v")), is(true));
-        assertThat(Op.EQ.eval(ImmutableMap.of("k", "v"), ImmutableMap.of("k1", "v1")), is(false));
+        assertThat(Op.EQ.eval(singletonMap("k", "v"), singletonMap("k", "v")), is(true));
+        assertThat(Op.EQ.eval(singletonMap("k", "v"), singletonMap("k1", "v1")), is(false));
         assertThat(Op.EQ.eval(Arrays.asList("k", "v"), Arrays.asList("k", "v")), is(true));
         assertThat(Op.EQ.eval(Arrays.asList("k", "v"), Arrays.asList("k1", "v1")), is(false));
     }
@@ -66,8 +66,8 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(Op.NOT_EQ.eval("a", "aa"), is(true));
         assertThat(Op.NOT_EQ.eval("a", "a"), is(false));
         assertThat(Op.NOT_EQ.eval("aa", "ab"), is(true));
-        assertThat(Op.NOT_EQ.eval(ImmutableMap.of("k", "v"), ImmutableMap.of("k", "v")), is(false));
-        assertThat(Op.NOT_EQ.eval(ImmutableMap.of("k", "v"), ImmutableMap.of("k1", "v1")), is(true));
+        assertThat(Op.NOT_EQ.eval(singletonMap("k", "v"), singletonMap("k", "v")), is(false));
+        assertThat(Op.NOT_EQ.eval(singletonMap("k", "v"), singletonMap("k1", "v1")), is(true));
         assertThat(Op.NOT_EQ.eval(Arrays.asList("k", "v"), Arrays.asList("k", "v")), is(false));
         assertThat(Op.NOT_EQ.eval(Arrays.asList("k", "v"), Arrays.asList("k1", "v1")), is(true));
     }
@@ -226,7 +226,7 @@ public class CompareConditionTests extends ESTestCase {
 
     @Test(expected = ElasticsearchParseException.class)
     public void testParse_InValid_WrongValueForOp() throws Exception {
-        Object value = randomFrom(Arrays.asList("1", "2"), ImmutableMap.of("key", "value"));
+        Object value = randomFrom(Arrays.asList("1", "2"), singletonMap("key", "value"));
         String op = randomFrom("lt", "lte", "gt", "gte");
         CompareConditionFactory factory = new CompareConditionFactory(Settings.EMPTY, SystemClock.INSTANCE);
         XContentBuilder builder = jsonBuilder();

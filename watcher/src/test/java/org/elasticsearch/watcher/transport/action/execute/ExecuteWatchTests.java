@@ -6,9 +6,6 @@
 package org.elasticsearch.watcher.transport.action.execute;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import com.google.common.collect.ImmutableMap;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.client.WatcherClient;
@@ -25,11 +22,14 @@ import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.WatchStatus;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
@@ -180,7 +180,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(putWatchResponse.isCreated(), is(true));
 
         ExecuteWatchResponse response = watcherClient.prepareExecuteWatch("_id")
-                .setAlternativeInput(ImmutableMap.<String, Object>of("foo1", "bar1"))
+                .setAlternativeInput(singletonMap("foo1", "bar1"))
                 .get();
         assertThat(response, notNullValue());
         assertThat(response.getRecordId(), notNullValue());

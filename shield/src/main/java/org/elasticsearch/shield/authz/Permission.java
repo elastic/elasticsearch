@@ -30,6 +30,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 
 /**
@@ -443,9 +445,9 @@ public interface Permission {
             }
 
             @Override
-            public ImmutableMap<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData) {
+            public Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData) {
                 if (isEmpty()) {
-                    return ImmutableMap.of();
+                    return emptyMap();
                 }
 
                 // What this code does is just merge `IndexAccessControl` instances from the permissions this class holds:
@@ -466,9 +468,9 @@ public interface Permission {
                     }
                 }
                 if (indicesAccessControl == null) {
-                    return ImmutableMap.of();
+                    return emptyMap();
                 } else {
-                    return ImmutableMap.copyOf(indicesAccessControl);
+                    return unmodifiableMap(indicesAccessControl);
                 }
             }
 

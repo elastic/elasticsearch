@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -13,7 +12,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
@@ -25,8 +23,12 @@ import org.junit.Test;
 
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -39,7 +41,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
                 .body(XContentBuilder.builder(type.xContent()).startObject().endObject())
                 .build();
-        HttpRequest request = template.render(new MockTextTemplateEngine(), ImmutableMap.<String, Object>of());
+        HttpRequest request = template.render(new MockTextTemplateEngine(), emptyMap());
         assertThat(request.headers, hasEntry(HttpHeaders.Names.CONTENT_TYPE, type.restContentType()));
     }
 
@@ -48,7 +50,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
                 .body("_body")
                 .build();
-        HttpRequest request = template.render(new MockTextTemplateEngine(), ImmutableMap.<String, Object>of());
+        HttpRequest request = template.render(new MockTextTemplateEngine(), emptyMap());
         assertThat(request.headers.size(), is(0));
     }
 
@@ -90,7 +92,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
 
         HttpRequestTemplate template = builder.build();
 
-        HttpAuthRegistry registry = new HttpAuthRegistry(ImmutableMap.<String, HttpAuthFactory>of(BasicAuth.TYPE, new BasicAuthFactory(new SecretService.PlainText())));
+        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(new SecretService.PlainText())));
         HttpRequestTemplate.Parser parser = new HttpRequestTemplate.Parser(registry);
 
         XContentBuilder xContentBuilder = template.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);

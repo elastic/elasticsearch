@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.support.text.xmustache;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -26,6 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
@@ -93,8 +93,8 @@ public class XMustacheTests extends ESTestCase {
         CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
-                new Map[] { ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar") },
-                Arrays.asList(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")));
+                new Map[] { singletonMap("key", "foo"), singletonMap("key", "bar") },
+                Arrays.asList(singletonMap("key", "foo"), singletonMap("key", "bar")));
         vars.put("data", data);
         Object output = engine.execute(mustache, vars);
         assertThat(output, notNullValue());
@@ -103,7 +103,7 @@ public class XMustacheTests extends ESTestCase {
         assertThat(bytes.toUtf8(), equalTo("foo bar"));
 
         // HashSet iteration order isn't fixed
-        vars.put("data", newHashSet(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")));
+        vars.put("data", newHashSet(singletonMap("key", "foo"), singletonMap("key", "bar")));
         output = engine.execute(mustache, vars);
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));

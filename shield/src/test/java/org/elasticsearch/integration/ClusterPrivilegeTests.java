@@ -5,22 +5,21 @@
  */
 package org.elasticsearch.integration;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.nio.file.Path;
+import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 
 @ClusterScope(scope = TEST)
@@ -83,7 +82,6 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         return super.configUsersRoles() + USERS_ROLES;
     }
 
-    @Test
     @TestLogging("org.elasticsearch.test.rest.client.http:TRACE")
     public void testThatClusterPrivilegesWorkAsExpectedViaHttp() throws Exception {
         // user_a can do all the things
@@ -124,7 +122,6 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_c", "PUT", "/_cluster/settings", "{ \"transient\" : { \"indices.ttl.interval\": \"1m\" } }");
     }
 
-    @Test
     @TestLogging("org.elasticsearch.test.rest.client.http:TRACE")
     public void testThatSnapshotAndRestore() throws Exception {
         String repoJson = jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location", repositoryLocation.toString()).endObject().endObject().string();
@@ -132,7 +129,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo", repoJson);
 
-        ImmutableMap params = ImmutableMap.of("refresh", "true");
+        Map<String, String> params = singletonMap("refresh", "true");
         assertAccessIsDenied("user_a", "PUT", "/someindex/bar/1", "{ \"name\" : \"elasticsearch\" }", params);
         assertAccessIsDenied("user_b", "PUT", "/someindex/bar/1", "{ \"name\" : \"elasticsearch\" }", params);
         assertAccessIsAllowed("user_c", "PUT", "/someindex/bar/1", "{ \"name\" : \"elasticsearch\" }", params);
@@ -152,11 +149,10 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_b", "DELETE", "/someindex");
         assertAccessIsAllowed("user_c", "DELETE", "/someindex");
 
-        ImmutableMap restoreParams = ImmutableMap.of("wait_for_completion", "true");
-        assertAccessIsDenied("user_b", "POST", "/_snapshot/my-repo/my-snapshot/_restore", null, restoreParams);
-        assertAccessIsDenied("user_c", "POST", "/_snapshot/my-repo/my-snapshot/_restore", null, restoreParams);
-
-        assertAccessIsAllowed("user_a", "POST", "/_snapshot/my-repo/my-snapshot/_restore", null, restoreParams);
+        params = singletonMap("wait_for_completion", "true");
+        assertAccessIsDenied("user_b", "POST", "/_snapshot/my-repo/my-snapshot/_restore", null, params);
+        assertAccessIsDenied("user_c", "POST", "/_snapshot/my-repo/my-snapshot/_restore", null, params);
+        assertAccessIsAllowed("user_a", "POST", "/_snapshot/my-repo/my-snapshot/_restore", null, params);
 
         assertAccessIsDenied("user_a", "GET", "/someindex/bar/1");
         assertAccessIsDenied("user_b", "GET", "/someindex/bar/1");

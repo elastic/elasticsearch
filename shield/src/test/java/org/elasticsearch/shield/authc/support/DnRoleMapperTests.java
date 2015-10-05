@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import com.google.common.collect.ImmutableMap;
 import com.unboundid.ldap.sdk.DN;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.audit.logfile.CapturingLogger;
@@ -18,7 +18,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.BufferedWriter;
 import java.nio.charset.StandardCharsets;
@@ -29,11 +28,20 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -70,7 +78,6 @@ public class DnRoleMapperTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    @Test
     public void testMapper_ConfiguredWithUnreadableFile() throws Exception {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
@@ -81,7 +88,6 @@ public class DnRoleMapperTests extends ESTestCase {
         assertThat(mapper.mappingsCount(), is(0));
     }
 
-    @Test
     public void testMapper_AutoReload() throws Exception {
         Path roleMappingFile = getDataPath("role_mapping.yml");
         Path file = env.binFile().getParent().resolve("test_role_mapping.yml");
@@ -121,7 +127,6 @@ public class DnRoleMapperTests extends ESTestCase {
         assertThat(roles, contains("fantastic_four"));
     }
 
-    @Test
     public void testMapper_AutoReload_WithParseFailures() throws Exception {
         Path roleMappingFile = getDataPath("role_mapping.yml");
         Path file = env.binFile().getParent().resolve("test_role_mapping.yml");
@@ -155,11 +160,10 @@ public class DnRoleMapperTests extends ESTestCase {
         assertThat(mapper.mappingsCount(), is(0));
     }
 
-    @Test
     public void testParseFile() throws Exception {
         Path file = getDataPath("role_mapping.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        ImmutableMap<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
+        Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), is(3));
 
@@ -185,11 +189,10 @@ public class DnRoleMapperTests extends ESTestCase {
         assertThat(roles, contains("avenger"));
     }
 
-    @Test
     public void testParseFile_Empty() throws Exception {
         Path file = createTempFile();
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        ImmutableMap<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
+        Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.WARN);
@@ -197,16 +200,14 @@ public class DnRoleMapperTests extends ESTestCase {
         assertThat(msgs.get(0).text, containsString("no mappings found"));
     }
 
-    @Test
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
         Path file = createTempDir().resolve(randomAsciiOfLength(10));
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        ImmutableMap<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
+        Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
     }
 
-    @Test
     public void testParseFile_WhenCannotReadFile() throws Exception {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
@@ -220,13 +221,12 @@ public class DnRoleMapperTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testParseFileLenient_WhenCannotReadFile() throws Exception {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        ImmutableMap<DN, Set<String>> mappings = DnRoleMapper.parseFileLenient(file, logger, "_type", "_name");
+        Map<DN, Set<String>> mappings = DnRoleMapper.parseFileLenient(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.ERROR);
@@ -234,7 +234,6 @@ public class DnRoleMapperTests extends ESTestCase {
         assertThat(msgs.get(0).text, containsString("failed to parse role mappings file"));
     }
 
-    @Test
     public void testYaml() throws Exception {
         Path file = getDataPath("role_mapping.yml");
         Settings ldapSettings = Settings.settingsBuilder()
@@ -250,7 +249,6 @@ public class DnRoleMapperTests extends ESTestCase {
         assertThat(roles, hasItems("shield", "avenger"));
     }
 
-    @Test
     public void testRelativeDN() {
         Settings ldapSettings = Settings.builder()
                 .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
@@ -263,7 +261,6 @@ public class DnRoleMapperTests extends ESTestCase {
         assertThat(roles, hasItems("genius", "billionaire", "playboy", "philanthropist", "shield", "avengers"));
     }
 
-    @Test
     public void testUserDNMapping() throws Exception {
         Path file = getDataPath("role_mapping.yml");
         Settings ldapSettings = Settings.builder()

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.transform.search;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -22,7 +21,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
@@ -52,15 +50,29 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.parseDate;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.areJsonEquivalent;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.simplePayload;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.joda.time.DateTimeZone.UTC;
 
 /**
@@ -425,7 +437,7 @@ public class SearchTransformTests extends ESIntegTestCase {
                         null,
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
-                        new WatchStatus( new DateTime(40000, UTC), ImmutableMap.<String, ActionStatus>of())),
+                        new WatchStatus( new DateTime(40000, UTC), emptyMap())),
                 new DateTime(60000, UTC),
                 new ScheduleTriggerEvent("test-watch", new DateTime(60000, UTC), new DateTime(60000, UTC)),
                 timeValueSeconds(5));

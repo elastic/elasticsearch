@@ -41,23 +41,20 @@ public class MessageDigests {
     }
 
     public static MessageDigest md5() {
-        return cloneAndReset(MD5_DIGEST);
+        return clone(MD5_DIGEST);
     }
 
-
     public static MessageDigest sha1() {
-        return cloneAndReset(SHA_1_DIGEST);
+        return clone(SHA_1_DIGEST);
     }
 
     public static MessageDigest sha256() {
-        return cloneAndReset(SHA_256_DIGEST);
+        return clone(SHA_256_DIGEST);
     }
 
-    private static MessageDigest cloneAndReset(MessageDigest messageDigest) {
+    private static MessageDigest clone(MessageDigest messageDigest) {
         try {
-            MessageDigest clone = (MessageDigest) messageDigest.clone();
-            clone.reset();
-            return clone;
+            return (MessageDigest) messageDigest.clone();
         } catch (CloneNotSupportedException e) {
             throw new ElasticsearchException("Unexpected exception cloning MessageDigest instance", e);
         }

@@ -63,7 +63,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<Repl
 
     @Override
     protected Tuple<ActionWriteResponse, ReplicationRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable {
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).getShard(shardRequest.shardId.id());
         indexShard.refresh("api");
         logger.trace("{} refresh request executed on primary", indexShard.shardId());
         return new Tuple<>(new ActionWriteResponse(), shardRequest.request);
@@ -71,7 +71,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<Repl
 
     @Override
     protected void shardOperationOnReplica(ShardId shardId, ReplicationRequest request) {
-        IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).shardSafe(shardId.id());
+        IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
         indexShard.refresh("api");
         logger.trace("{} refresh request executed on replica", indexShard.shardId());
     }

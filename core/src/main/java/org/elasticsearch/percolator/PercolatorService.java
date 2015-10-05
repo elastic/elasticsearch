@@ -71,7 +71,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.percolator.stats.ShardPercolateService;
+import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -86,7 +86,6 @@ import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
@@ -177,11 +176,10 @@ public class PercolatorService extends AbstractComponent {
 
     public PercolateShardResponse percolate(PercolateShardRequest request) {
         IndexService percolateIndexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = percolateIndexService.shardSafe(request.shardId().id());
+        IndexShard indexShard = percolateIndexService.getShard(request.shardId().id());
         indexShard.readAllowed(); // check if we can read the shard...
-
-        ShardPercolateService shardPercolateService = indexShard.shardPercolateService();
-        shardPercolateService.prePercolate();
+        PercolatorQueriesRegistry percolateQueryRegistry = indexShard.percolateRegistry();
+        percolateQueryRegistry.prePercolate();
         long startTime = System.nanoTime();
 
         // TODO: The filteringAliases should be looked up at the coordinating node and serialized with all shard request,
@@ -255,7 +253,7 @@ public class PercolatorService extends AbstractComponent {
         } finally {
             SearchContext.removeCurrent();
             context.close();
-            shardPercolateService.postPercolate(System.nanoTime() - startTime);
+            percolateQueryRegistry.postPercolate(System.nanoTime() - startTime);
         }
     }
 

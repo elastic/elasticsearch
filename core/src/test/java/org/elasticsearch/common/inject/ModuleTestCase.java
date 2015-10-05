@@ -60,6 +60,22 @@ public abstract class ModuleTestCase extends ESTestCase {
         fail("Did not find any binding to " + to.getName() + ". Found these bindings:\n" + s);
     }
 
+//    /** Configures the module and asserts "instance" is bound to "to". */
+//    public void assertInstanceBinding(Module module, Class to, Object instance) {
+//        List<Element> elements = Elements.getElements(module);
+//        for (Element element : elements) {
+//            if (element instanceof ProviderInstanceBinding) {
+//                assertEquals(instance, ((ProviderInstanceBinding) element).getProviderInstance().get());
+//                return;
+//            }
+//        }
+//        StringBuilder s = new StringBuilder();
+//        for (Element element : elements) {
+//            s.append(element + "\n");
+//        }
+//        fail("Did not find any binding to " + to.getName() + ". Found these bindings:\n" + s);
+//    }
+
     /**
      * Attempts to configure the module, and asserts an {@link IllegalArgumentException} is
      * caught, containing the given messages
@@ -164,6 +180,10 @@ public abstract class ModuleTestCase extends ESTestCase {
                         return;
                     }
                 }
+            } else  if (element instanceof ProviderInstanceBinding) {
+                ProviderInstanceBinding binding = (ProviderInstanceBinding) element;
+                assertTrue(tester.test(to.cast(binding.getProviderInstance().get())));
+                return;
             }
         }
         StringBuilder s = new StringBuilder();

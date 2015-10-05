@@ -82,7 +82,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     @Override
     protected TermVectorsResponse shardOperation(TermVectorsRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardId.id());
+        IndexShard indexShard = indexService.getShard(shardId.id());
         TermVectorsResponse response = indexShard.getTermVectors(request);
         response.updateTookInMillis(request.startTime());
         return response;

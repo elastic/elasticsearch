@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-/** Unit test(s) for IndexShardModule */
-public class IndexShardModuleTests extends ESTestCase {
+/** Unit test(s) for IndexService */
+public class IndexServiceTests extends ESTestCase {
 
     @Test
     public void testDetermineShadowEngineShouldBeUsed() {
-        ShardId shardId = new ShardId("myindex", 0);
         Settings regularSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
@@ -41,14 +41,9 @@ public class IndexShardModuleTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                 .build();
 
-        IndexShardModule ism1 = new IndexShardModule(shardId, true, regularSettings);
-        IndexShardModule ism2 = new IndexShardModule(shardId, false, regularSettings);
-        IndexShardModule ism3 = new IndexShardModule(shardId, true, shadowSettings);
-        IndexShardModule ism4 = new IndexShardModule(shardId, false, shadowSettings);
-
-        assertFalse("no shadow replicas for normal settings", ism1.useShadowEngine());
-        assertFalse("no shadow replicas for normal settings", ism2.useShadowEngine());
-        assertFalse("no shadow replicas for primary shard with shadow settings", ism3.useShadowEngine());
-        assertTrue("shadow replicas for replica shards with shadow settings", ism4.useShadowEngine());
+        assertFalse("no shadow replicas for normal settings", IndexService.useShadowEngine(true, regularSettings));
+        assertFalse("no shadow replicas for normal settings", IndexService.useShadowEngine(false, regularSettings));
+        assertFalse("no shadow replicas for primary shard with shadow settings", IndexService.useShadowEngine(true, shadowSettings));
+        assertTrue("shadow replicas for replica shards with shadow settings",IndexService.useShadowEngine(false, shadowSettings));
     }
 }

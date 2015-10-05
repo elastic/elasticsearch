@@ -234,7 +234,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     protected IndexShard getShard(ShardId shardId) {
         IndexService indexService = indicesService.indexService(shardId.index().name());
         if (indexService != null) {
-            IndexShard indexShard = indexService.shard(shardId.id());
+            IndexShard indexShard = indexService.getShardOrNull(shardId.id());
             return indexShard;
         }
         return null;
@@ -264,7 +264,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         }
         final Translog translog;
         try {
-            translog = indexShard.engine().getTranslog();
+            translog = indexShard.getTranslog();
         } catch (EngineClosedException e) {
             // not ready yet to be checked for activity
             return null;

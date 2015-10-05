@@ -27,6 +27,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.store.IndicesStore;
 
 import java.io.Closeable;
@@ -112,7 +113,7 @@ public class IndexStore extends AbstractIndexComponent implements Closeable {
     /**
      * The shard store class that should be used for each shard.
      */
-    public Class<? extends DirectoryService> shardDirectory() {
-        return FsDirectoryService.class;
+    public DirectoryService newDirectoryService(ShardPath path) {
+        return new FsDirectoryService(indexSettings, this, path);
     }
 }

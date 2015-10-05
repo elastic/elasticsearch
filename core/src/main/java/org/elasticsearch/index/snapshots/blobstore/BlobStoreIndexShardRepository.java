@@ -490,7 +490,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         public SnapshotContext(SnapshotId snapshotId, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
             super(snapshotId, Version.CURRENT, shardId);
             IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            store = indexService.shard(shardId.id()).store();
+            store = indexService.getShardOrNull(shardId.id()).store();
             this.snapshotStatus = snapshotStatus;
 
         }
@@ -774,7 +774,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public RestoreContext(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
             super(snapshotId, version, shardId, snapshotShardId);
-            store = indicesService.indexServiceSafe(shardId.getIndex()).shard(shardId.id()).store();
+            store = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id()).store();
             this.recoveryState = recoveryState;
         }
 

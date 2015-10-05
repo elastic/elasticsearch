@@ -140,6 +140,7 @@ com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object, ja
 com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)
 com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)
 com.google.common.collect.ImmutableMap#copyOf(java.util.Map)
+com.google.common.collect.ImmutableMap$Builder
 
 @defaultMessage Do not violate java's access system
 java.lang.reflect.AccessibleObject#setAccessible(boolean)

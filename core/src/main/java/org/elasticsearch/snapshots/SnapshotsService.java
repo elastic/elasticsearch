@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
@@ -66,12 +65,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -466,9 +468,9 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param snapshotId snapshot id
      * @return map of shard id to snapshot status
      */
-    public ImmutableMap<ShardId, IndexShardSnapshotStatus> snapshotShards(SnapshotId snapshotId) throws IOException {
+    public Map<ShardId, IndexShardSnapshotStatus> snapshotShards(SnapshotId snapshotId) throws IOException {
         validate(snapshotId);
-        ImmutableMap.Builder<ShardId, IndexShardSnapshotStatus> shardStatusBuilder = ImmutableMap.builder();
+        Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
         Repository repository = repositoriesService.repository(snapshotId.getRepository());
         IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(snapshotId.getRepository());
         Snapshot snapshot = repository.readSnapshot(snapshotId);
@@ -484,15 +486,15 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                         IndexShardSnapshotStatus shardSnapshotStatus = new IndexShardSnapshotStatus();
                         shardSnapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
                         shardSnapshotStatus.failure(shardFailure.reason());
-                        shardStatusBuilder.put(shardId, shardSnapshotStatus);
+                        shardStatus.put(shardId, shardSnapshotStatus);
                     } else {
                         IndexShardSnapshotStatus shardSnapshotStatus = indexShardRepository.snapshotStatus(snapshotId, snapshot.version(), shardId);
-                        shardStatusBuilder.put(shardId, shardSnapshotStatus);
+                        shardStatus.put(shardId, shardSnapshotStatus);
                     }
                 }
             }
         }
-        return shardStatusBuilder.build();
+        return unmodifiableMap(shardStatus);
     }
 
 

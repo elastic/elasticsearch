@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.store;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
@@ -97,6 +95,7 @@ import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * A Store provides plain access to files written by an elasticsearch index shard. Each shard
@@ -798,19 +797,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public MetadataSnapshot(StreamInput in) throws IOException {
             final int size = in.readVInt();
-            final ImmutableMap.Builder<String, StoreFileMetaData> metadataBuilder = ImmutableMap.builder();
+            Map<String, StoreFileMetaData> metadata = new HashMap<>();
             for (int i = 0; i < size; i++) {
                 StoreFileMetaData meta = StoreFileMetaData.readStoreFileMetaData(in);
-                metadataBuilder.put(meta.name(), meta);
+                metadata.put(meta.name(), meta);
             }
-            final ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
+            Map<String, String> commitUserData = new HashMap<>();
             int num = in.readVInt();
             for (int i = num; i > 0; i--) {
-                commitUserDataBuilder.put(in.readString(), in.readString());
+                commitUserData.put(in.readString(), in.readString());
             }
 
-            this.commitUserData = commitUserDataBuilder.build();
-            this.metadata = metadataBuilder.build();
+            this.metadata = unmodifiableMap(metadata);
+            this.commitUserData = unmodifiableMap(commitUserData);
             this.numDocs = in.readLong();
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
@@ -823,11 +822,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         static class LoadedMetadata {
-            final ImmutableMap<String, StoreFileMetaData> fileMetadata;
-            final ImmutableMap<String, String> userData;
+            final Map<String, StoreFileMetaData> fileMetadata;
+            final Map<String, String> userData;
             final long numDocs;
 
-            LoadedMetadata(ImmutableMap<String, StoreFileMetaData> fileMetadata, ImmutableMap<String, String> userData, long numDocs) {
+            LoadedMetadata(Map<String, StoreFileMetaData> fileMetadata, Map<String, String> userData, long numDocs) {
                 this.fileMetadata = fileMetadata;
                 this.userData = userData;
                 this.numDocs = numDocs;
@@ -836,9 +835,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
             long numDocs;
-            ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
+            Map<String, StoreFileMetaData> builder = new HashMap<>();
             Map<String, String> checksumMap = readLegacyChecksums(directory).v1();
-            ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
+            Map<String, String> commitUserDataBuilder = new HashMap<>();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 numDocs = Lucene.getNumDocs(segmentCommitInfos);
@@ -895,7 +894,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
                 throw ex;
             }
-            return new LoadedMetadata(builder.build(), commitUserDataBuilder.build(), numDocs);
+            return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
         }
 
         /**
@@ -952,7 +951,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
         }
 
-        private static void checksumFromLuceneFile(Directory directory, String file, ImmutableMap.Builder<String, StoreFileMetaData> builder, ESLogger logger, Version version, boolean readFileAsHash) throws IOException {
+        private static void checksumFromLuceneFile(Directory directory, String file, Map<String, StoreFileMetaData> builder,
+                ESLogger logger, Version version, boolean readFileAsHash) throws IOException {
             final String checksum;
             final BytesRefBuilder fileHash = new BytesRefBuilder();
             try (final IndexInput in = directory.openInput(file, IOContext.READONCE)) {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tribe;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -242,7 +244,10 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     for (DiscoveryNode tribe : tribeState.nodes()) {
                         if (currentState.nodes().get(tribe.id()) == null) {
                             // a new node, add it, but also add the tribe name to the attributes
-                            Map<String, String> tribeAttr = new HashMap<>(tribe.attributes());
+                            Map<String, String> tribeAttr = new HashMap<>();
+                            for (ObjectObjectCursor<String, String> attr : tribe.attributes()) {
+                                tribeAttr.put(attr.key, attr.value);
+                            }
                             tribeAttr.put(TRIBE_NAME, tribeName);
                             DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.id(), tribe.getHostName(), tribe.getHostAddress(), tribe.address(), unmodifiableMap(tribeAttr), tribe.version());
                             logger.info("[{}] adding node [{}]", tribeName, discoNode);

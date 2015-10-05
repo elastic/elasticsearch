@@ -19,12 +19,10 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.util.Version;
-
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -33,8 +31,11 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -49,12 +50,12 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
     static final Map<String, CharMatcher> MATCHERS;
 
     static {
-        ImmutableMap.Builder<String, CharMatcher> builder = ImmutableMap.builder();
-        builder.put("letter", CharMatcher.Basic.LETTER);
-        builder.put("digit", CharMatcher.Basic.DIGIT);
-        builder.put("whitespace", CharMatcher.Basic.WHITESPACE);
-        builder.put("punctuation", CharMatcher.Basic.PUNCTUATION);
-        builder.put("symbol", CharMatcher.Basic.SYMBOL);
+        Map<String, CharMatcher> matchers = new HashMap<>();
+        matchers.put("letter", CharMatcher.Basic.LETTER);
+        matchers.put("digit", CharMatcher.Basic.DIGIT);
+        matchers.put("whitespace", CharMatcher.Basic.WHITESPACE);
+        matchers.put("punctuation", CharMatcher.Basic.PUNCTUATION);
+        matchers.put("symbol", CharMatcher.Basic.SYMBOL);
         // Populate with unicode categories from java.lang.Character
         for (Field field : Character.class.getFields()) {
             if (!field.getName().startsWith("DIRECTIONALITY")
@@ -62,14 +63,14 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
                     && Modifier.isStatic(field.getModifiers())
                     && field.getType() == byte.class) {
                 try {
-                    builder.put(field.getName().toLowerCase(Locale.ROOT), CharMatcher.ByUnicodeCategory.of(field.getByte(null)));
+                    matchers.put(field.getName().toLowerCase(Locale.ROOT), CharMatcher.ByUnicodeCategory.of(field.getByte(null)));
                 } catch (Exception e) {
                     // just ignore
                     continue;
                 }
             }
         }
-        MATCHERS = builder.build();
+        MATCHERS = unmodifiableMap(matchers);
     }
 
     static CharMatcher parseTokenChars(String[] characterClasses) {

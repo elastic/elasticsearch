@@ -19,8 +19,6 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -38,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singleton;
+import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -244,14 +243,14 @@ public class ScriptModesTests extends ESTestCase {
         return ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext.getKey();
     }
 
-    static ImmutableMap<String, ScriptEngineService> buildScriptEnginesByLangMap(Set<ScriptEngineService> scriptEngines) {
-        ImmutableMap.Builder<String, ScriptEngineService> builder = ImmutableMap.builder();
+    static Map<String, ScriptEngineService> buildScriptEnginesByLangMap(Set<ScriptEngineService> scriptEngines) {
+        Map<String, ScriptEngineService> builder = new HashMap<>();
         for (ScriptEngineService scriptEngine : scriptEngines) {
             for (String type : scriptEngine.types()) {
                 builder.put(type, scriptEngine);
             }
         }
-        return builder.build();
+        return unmodifiableMap(builder);
     }
 
     private static class CustomScriptEngineService implements ScriptEngineService {

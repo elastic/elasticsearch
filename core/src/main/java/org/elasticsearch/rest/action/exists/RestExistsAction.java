@@ -58,7 +58,7 @@ public class RestExistsAction extends BaseRestHandler {
         if (RestActions.hasBodyContent(request)) {
             existsRequest.source(RestActions.getRestContent(request));
         } else {
-            QueryBuilder<?> queryBuilder = RestActions.parseQuerySource(request);
+            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
             if (queryBuilder != null) {
                 QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
                 querySourceBuilder.setQuery(queryBuilder);

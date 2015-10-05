@@ -85,7 +85,7 @@ public class RestCountAction extends BaseRestHandler {
                 throw new ElasticsearchException("failed to parse source", e);
             }
         } else {
-            QueryBuilder<?> queryBuilder = RestActions.parseQuerySource(request);
+            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
             if (queryBuilder != null) {
                 countRequest.query(queryBuilder);
             }

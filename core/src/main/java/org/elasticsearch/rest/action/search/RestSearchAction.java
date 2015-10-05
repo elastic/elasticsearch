@@ -158,7 +158,7 @@ public class RestSearchAction extends BaseRestHandler {
     public static boolean parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request) {
 
         boolean modified = false;
-        QueryBuilder<?> queryBuilder = RestActions.parseQuerySource(request);
+        QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
         if (queryBuilder != null) {
             searchSourceBuilder.query(queryBuilder);
             modified = true;

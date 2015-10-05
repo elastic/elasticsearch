@@ -81,7 +81,7 @@ public class RestCountAction extends AbstractCatAction {
                 throw new ElasticsearchException("failed to parse source", e);
             }
         } else {
-            QueryBuilder<?> queryBuilder = RestActions.parseQuerySource(request);
+            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
             if (queryBuilder != null) {
                 QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
                 querySourceBuilder.setQuery(queryBuilder);

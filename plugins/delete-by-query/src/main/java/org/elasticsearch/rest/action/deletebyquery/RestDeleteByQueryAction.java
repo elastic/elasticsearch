@@ -82,7 +82,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                 final QueryBuilder<?> builder = context.parseInnerQueryBuilder();
                 delete.query(builder);
             } else {
-                QueryBuilder<?> queryBuilder = RestActions.parseQuerySource(request);
+                QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
                 if (queryBuilder != null) {
                     delete.query(queryBuilder);
                 }

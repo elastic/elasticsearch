@@ -67,7 +67,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         if (RestActions.hasBodyContent(request)) {
             validateQueryRequest.source(RestActions.getRestContent(request));
         } else {
-            QueryBuilder<?> queryBuilder = RestActions.parseQuerySource(request);
+            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
             if (queryBuilder != null) {
                 QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
                 querySourceBuilder.setQuery(queryBuilder);

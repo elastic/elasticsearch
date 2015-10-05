@@ -93,7 +93,7 @@ public class RestActions {
         builder.endObject();
     }
 
-    public static QueryBuilder<?> parseQuerySource(RestRequest request) {
+    public static QueryBuilder<?> urlParamsToQueryBuilder(RestRequest request) {
         String queryString = request.param("q");
         if (queryString == null) {
             return null;

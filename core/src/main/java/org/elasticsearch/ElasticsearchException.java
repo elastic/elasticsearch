@@ -482,8 +482,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         RESOURCE_NOT_FOUND_EXCEPTION(org.elasticsearch.ResourceNotFoundException.class, org.elasticsearch.ResourceNotFoundException::new, 19),
         ACTION_TRANSPORT_EXCEPTION(org.elasticsearch.transport.ActionTransportException.class, org.elasticsearch.transport.ActionTransportException::new, 20),
         ELASTICSEARCH_GENERATION_EXCEPTION(org.elasticsearch.ElasticsearchGenerationException.class, org.elasticsearch.ElasticsearchGenerationException::new, 21),
-        // TODO: shift exception ids?
-//        CREATE_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.CreateFailedEngineException.class, org.elasticsearch.index.engine.CreateFailedEngineException::new, 22),
+        //      22 was CreateFailedEngineException
         INDEX_SHARD_STARTED_EXCEPTION(org.elasticsearch.index.shard.IndexShardStartedException.class, org.elasticsearch.index.shard.IndexShardStartedException::new, 23),
         SEARCH_CONTEXT_MISSING_EXCEPTION(org.elasticsearch.search.SearchContextMissingException.class, org.elasticsearch.search.SearchContextMissingException::new, 24),
         SCRIPT_EXCEPTION(org.elasticsearch.script.ScriptException.class, org.elasticsearch.script.ScriptException::new, 25),

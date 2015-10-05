@@ -663,6 +663,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(19, org.elasticsearch.ResourceNotFoundException.class);
         ids.put(20, org.elasticsearch.transport.ActionTransportException.class);
         ids.put(21, org.elasticsearch.ElasticsearchGenerationException.class);
+        ids.put(22, null); // was CreateFailedEngineException
         ids.put(23, org.elasticsearch.index.shard.IndexShardStartedException.class);
         ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
         ids.put(25, org.elasticsearch.script.ScriptException.class);

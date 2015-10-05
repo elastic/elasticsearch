@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.innerhits;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.Version;
@@ -30,8 +30,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.support.QueryInnerHits;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
@@ -69,11 +70,11 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-public class InnerHitsTests extends ESIntegTestCase {
+public class InnerHitsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(MockScriptEngine.TestPlugin.class);
     }
 
     @Test
@@ -175,15 +176,15 @@ public class InnerHitsTests extends ESIntegTestCase {
         innerHit.highlighter(new HighlightBuilder().field("comments.message"));
         innerHit.setExplain(true);
         innerHit.addFieldDataField("comments.message");
-        innerHit.addScriptField("script", new Script("doc['comments.message'].value"));
+        innerHit.addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()));
         innerHit.setSize(1);
         innerHitsBuilder = new InnerHitsBuilder();
         innerHitsBuilder.addNestedInnerHits("comments", "comments", new InnerHitsBuilder.InnerHit()
-                            .setQuery(matchQuery("comments.message", "fox"))
+                                .setQuery(matchQuery("comments.message", "fox"))
                             .highlighter(new HighlightBuilder().field("comments.message"))
-                            .setExplain(true)
-                            .addFieldDataField("comments.message")
-                            .addScriptField("script", new Script("doc['comments.message'].value"))
+                                .setExplain(true)
+                                .addFieldDataField("comments.message")
+                                .addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
                             .setSize(1));
         searchRequests = new SearchRequest[] {
                 client().prepareSearch("articles")
@@ -202,7 +203,7 @@ public class InnerHitsTests extends ESIntegTestCase {
             assertThat(innerHits.getAt(0).getHighlightFields().get("comments.message").getFragments()[0].string(), equalTo("<em>fox</em> eat quick"));
             assertThat(innerHits.getAt(0).explanation().toString(), containsString("weight(comments.message:fox in"));
             assertThat(innerHits.getAt(0).getFields().get("comments.message").getValue().toString(), equalTo("eat"));
-            assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("eat"));
+            assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("5"));
         }
     }
 
@@ -361,15 +362,15 @@ public class InnerHitsTests extends ESIntegTestCase {
         innerHit.highlighter(new HighlightBuilder().field("message"));
         innerHit.setExplain(true);
         innerHit.addFieldDataField("message");
-        innerHit.addScriptField("script", new Script("doc['message'].value"));
+        innerHit.addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()));
         innerHit.setSize(1);
         innerHitsBuilder = new InnerHitsBuilder();
         innerHitsBuilder.addParentChildInnerHits("comment", "comment", new InnerHitsBuilder.InnerHit()
-                            .setQuery(matchQuery("message", "fox"))
+                                        .setQuery(matchQuery("message", "fox"))
                             .highlighter(new HighlightBuilder().field("message"))
-                            .setExplain(true)
-                            .addFieldDataField("message")
-                            .addScriptField("script", new Script("doc['message'].value"))
+                                        .setExplain(true)
+                                        .addFieldDataField("message")
+                                        .addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
                             .setSize(1));
         searchRequests = new SearchRequest[] {
                 client().prepareSearch("articles")
@@ -390,7 +391,7 @@ public class InnerHitsTests extends ESIntegTestCase {
             assertThat(innerHits.getAt(0).getHighlightFields().get("message").getFragments()[0].string(), equalTo("<em>fox</em> eat quick"));
             assertThat(innerHits.getAt(0).explanation().toString(), containsString("weight(message:fox"));
             assertThat(innerHits.getAt(0).getFields().get("message").getValue().toString(), equalTo("eat"));
-            assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("eat"));
+            assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("5"));
         }
     }
 
@@ -1025,14 +1026,14 @@ public class InnerHitsTests extends ESIntegTestCase {
         innerInnerHitsBuilder.addParentChildInnerHits("barons", "baron", new InnerHitsBuilder.InnerHit());
         InnerHitsBuilder innerHitsBuilder = new InnerHitsBuilder();
         innerHitsBuilder.addParentChildInnerHits("earls", "earl", new InnerHitsBuilder.InnerHit()
-                .addSort(SortBuilders.fieldSort("_uid").order(SortOrder.ASC))
-                .setSize(4)
+                                .addSort(SortBuilders.fieldSort("_uid").order(SortOrder.ASC))
+                                .setSize(4)
                 .innerHits(innerInnerHitsBuilder)
         );
         innerInnerHitsBuilder = new InnerHitsBuilder();
         innerInnerHitsBuilder.addParentChildInnerHits("kings", "king", new InnerHitsBuilder.InnerHit());
         innerHitsBuilder.addParentChildInnerHits("princes", "prince",
-        new InnerHitsBuilder.InnerHit()
+                        new InnerHitsBuilder.InnerHit()
             .innerHits(innerInnerHitsBuilder)
         );
         SearchResponse response = client().prepareSearch("royals")

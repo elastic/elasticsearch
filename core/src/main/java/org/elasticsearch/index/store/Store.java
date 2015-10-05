@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -1259,27 +1260,46 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         private long writtenBytes;
         private final long checksumPosition;
         private String actualChecksum;
+        private final byte[] footerChecksum = new byte[8]; // this holds the actual footer checksum data written by to this output
 
         LuceneVerifyingIndexOutput(StoreFileMetaData metadata, IndexOutput out) {
             super(out);
             this.metadata = metadata;
-            checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum
+            checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum - we store it in footerChecksum
         }
 
         @Override
         public void verify() throws IOException {
+            String footerDigest = null;
             if (metadata.checksum().equals(actualChecksum) && writtenBytes == metadata.length()) {
-                return;
+                ByteArrayIndexInput indexInput = new ByteArrayIndexInput("checksum", this.footerChecksum);
+                footerDigest = digestToString(indexInput.readLong());
+                if (metadata.checksum().equals(footerDigest)) {
+                    return;
+                }
             }
             throw new CorruptIndexException("verification failed (hardware problem?) : expected=" + metadata.checksum() +
-                    " actual=" + actualChecksum + " writtenLength=" + writtenBytes + " expectedLength=" + metadata.length() +
+                    " actual=" + actualChecksum + " footer=" + footerDigest +" writtenLength=" + writtenBytes + " expectedLength=" + metadata.length() +
                     " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + metadata.name() + ")");
         }
 
         @Override
         public void writeByte(byte b) throws IOException {
-            if (writtenBytes++ == checksumPosition) {
-                readAndCompareChecksum();
+            final long writtenBytes = this.writtenBytes++;
+            if (writtenBytes >= checksumPosition) { // we are writing parts of the checksum....
+                if (writtenBytes == checksumPosition) {
+                    readAndCompareChecksum();
+                }
+                final int index = Math.toIntExact(writtenBytes - checksumPosition);
+                if (index < footerChecksum.length) {
+                    footerChecksum[index] = b;
+                    if (index == footerChecksum.length-1) {
+                        verify(); // we have recorded the entire checksum
+                    }
+                } else {
+                    verify(); // fail if we write more than expected
+                    throw new AssertionError("write past EOF expected length: " + metadata.length() + " writtenBytes: " + writtenBytes);
+                }
             }
             out.writeByte(b);
         }
@@ -1295,19 +1315,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         @Override
         public void writeBytes(byte[] b, int offset, int length) throws IOException {
-            if (writtenBytes + length > checksumPosition && actualChecksum == null) {
-                assert writtenBytes <= checksumPosition;
-                final int bytesToWrite = (int) (checksumPosition - writtenBytes);
-                out.writeBytes(b, offset, bytesToWrite);
-                readAndCompareChecksum();
-                offset += bytesToWrite;
-                length -= bytesToWrite;
-                writtenBytes += bytesToWrite;
+            if (writtenBytes + length > checksumPosition) {
+                for (int i = 0; i < length; i++) { // don't optimze writing the last block of bytes
+                    writeByte(b[offset+i]);
+                }
+            } else {
+                out.writeBytes(b, offset, length);
+                writtenBytes += length;
             }
-            out.writeBytes(b, offset, length);
-            writtenBytes += length;
         }
-
     }
 
     /**
@@ -1522,4 +1538,5 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return estimatedSize;
         }
     }
+
 }

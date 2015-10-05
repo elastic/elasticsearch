@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.store.IndicesStore;
@@ -37,7 +38,7 @@ public class SmbMmapFsIndexStore extends IndexStore {
     }
 
     @Override
-    public Class<? extends DirectoryService> shardDirectory() {
-        return SmbMmapFsDirectoryService.class;
+    public DirectoryService newDirectoryService(ShardPath path) {
+        return new SmbMmapFsDirectoryService(indexSettings(), this, path);
     }
 }

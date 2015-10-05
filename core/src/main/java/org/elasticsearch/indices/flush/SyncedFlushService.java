@@ -398,7 +398,7 @@ public class SyncedFlushService extends AbstractComponent {
     }
 
     private PreSyncedFlushResponse performPreSyncedFlush(PreSyncedFlushRequest request) {
-        IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
+        IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         FlushRequest flushRequest = new FlushRequest().force(false).waitIfOngoing(true);
         logger.trace("{} performing pre sync flush", request.shardId());
         Engine.CommitId commitId = indexShard.flush(flushRequest);
@@ -408,7 +408,7 @@ public class SyncedFlushService extends AbstractComponent {
 
     private SyncedFlushResponse performSyncedFlush(SyncedFlushRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
+        IndexShard indexShard = indexService.getShard(request.shardId().id());
         logger.trace("{} performing sync flush. sync id [{}], expected commit id {}", request.shardId(), request.syncId(), request.expectedCommitId());
         Engine.SyncedFlushResult result = indexShard.syncFlush(request.syncId(), request.expectedCommitId());
         logger.trace("{} sync flush done. sync id [{}], result [{}]", request.shardId(), request.syncId(), result);
@@ -426,7 +426,7 @@ public class SyncedFlushService extends AbstractComponent {
 
     private InFlightOpsResponse performInFlightOps(InFlightOpsRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
+        IndexShard indexShard = indexService.getShard(request.shardId().id());
         if (indexShard.routingEntry().primary() == false) {
             throw new IllegalStateException("[" + request.shardId() +"] expected a primary shard");
         }

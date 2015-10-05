@@ -26,6 +26,7 @@ import org.apache.lucene.expressions.js.VariableContext;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -94,6 +95,10 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     @Override
     public Object compile(String script) {
         // classloader created here
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
         return AccessController.doPrivileged(new PrivilegedAction<Expression>() {
             @Override
             public Expression run() {

@@ -150,12 +150,20 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
         }
 
         /**
-         * Return maximum number of bytes in a part
+         * Returns the size (in bytes) of a given part
          *
-         * @return maximum number of bytes in a part
+         * @return the size (in bytes) of a given part
          */
-        public long partBytes() {
-            return partBytes;
+        public long partBytes(int part) {
+            if (numberOfParts == 1) {
+                return length();
+            }
+            // First and last-but-one parts have a size equal to partBytes
+            if (part < (numberOfParts - 1)) {
+                return partBytes;
+            }
+            // Last part size is deducted from the length and the number of parts
+            return length() - (partBytes * (numberOfParts-1));
         }
 
         /**

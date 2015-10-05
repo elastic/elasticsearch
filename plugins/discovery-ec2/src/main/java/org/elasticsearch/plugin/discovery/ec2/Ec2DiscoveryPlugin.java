@@ -19,10 +19,14 @@
 
 package org.elasticsearch.plugin.discovery.ec2;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cloud.aws.Ec2Module;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
 import org.elasticsearch.discovery.ec2.Ec2Discovery;
@@ -42,6 +46,10 @@ public class Ec2DiscoveryPlugin extends Plugin {
         // This internal config is deserialized but with wrong access modifiers,
         // cannot work without suppressAccessChecks permission right now. We force
         // a one time load with elevated privileges as a workaround.
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @Override
             public Void run() {
@@ -53,6 +61,13 @@ public class Ec2DiscoveryPlugin extends Plugin {
                 return null;
             }
         });
+    }
+
+    private final Settings settings;
+    protected final ESLogger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);
+
+    public Ec2DiscoveryPlugin(Settings settings) {
+        this.settings = settings;
     }
 
     @Override
@@ -80,7 +95,9 @@ public class Ec2DiscoveryPlugin extends Plugin {
     }
 
     public void onModule(DiscoveryModule discoveryModule) {
-        discoveryModule.addDiscoveryType("ec2", Ec2Discovery.class);
-        discoveryModule.addUnicastHostProvider(AwsEc2UnicastHostsProvider.class);
+        if (Ec2Module.isEc2DiscoveryActive(settings, logger)) {
+            discoveryModule.addDiscoveryType("ec2", Ec2Discovery.class);
+            discoveryModule.addUnicastHostProvider(AwsEc2UnicastHostsProvider.class);
+        }
     }
 }

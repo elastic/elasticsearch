@@ -79,7 +79,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
             try {
                 IndexService indexService = indicesService.indexServiceSafe(request.index());
-                IndexShard indexShard = indexService.shardSafe(shardId.id());
+                IndexShard indexShard = indexService.getShard(shardId.id());
                 TermVectorsResponse termVectorsResponse = indexShard.getTermVectors(termVectorsRequest);
                 termVectorsResponse.updateTookInMillis(termVectorsRequest.startTime());
                 response.add(request.locations.get(i), termVectorsResponse);

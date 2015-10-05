@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugin.repository.s3;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.S3Module;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
@@ -42,6 +43,10 @@ public class S3RepositoryPlugin extends Plugin {
         // This internal config is deserialized but with wrong access modifiers,
         // cannot work without suppressAccessChecks permission right now. We force
         // a one time load with elevated privileges as a workaround.
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @Override
             public Void run() {

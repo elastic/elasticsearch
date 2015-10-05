@@ -327,7 +327,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // already deleted on us, ignore it
                 continue;
             }
-            IndexSettingsService indexSettingsService = indexService.injector().getInstance(IndexSettingsService.class);
+            IndexSettingsService indexSettingsService = indexService.settingsService();
             indexSettingsService.refreshSettings(indexMetaData.settings());
         }
     }
@@ -505,7 +505,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 continue;
             }
 
-            IndexShard indexShard = indexService.shard(shardId);
+            IndexShard indexShard = indexService.getShardOrNull(shardId);
             if (indexShard != null) {
                 ShardRouting currentRoutingEntry = indexShard.routingEntry();
                 // if the current and global routing are initializing, but are still not the same, its a different "shard" being allocated
@@ -591,7 +591,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         final int shardId = shardRouting.id();
 
         if (indexService.hasShard(shardId)) {
-            IndexShard indexShard = indexService.shardSafe(shardId);
+            IndexShard indexShard = indexService.getShard(shardId);
             if (indexShard.state() == IndexShardState.STARTED || indexShard.state() == IndexShardState.POST_RECOVERY) {
                 // the master thinks we are initializing, but we are already started or on POST_RECOVERY and waiting
                 // for master to confirm a shard started message (either master failover, or a cluster event before
@@ -647,7 +647,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 return;
             }
         }
-        final IndexShard indexShard = indexService.shardSafe(shardId);
+        final IndexShard indexShard = indexService.getShard(shardId);
 
         if (indexShard.ignoreRecoveryAttempt()) {
             // we are already recovering (we can get to this state since the cluster event can happen several
@@ -672,27 +672,28 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 handleRecoveryFailure(indexService, shardRouting, true, e);
             }
         } else {
+            final DiscoveryNode localNode = clusterService.localNode();
             threadPool.generic().execute(() -> {
                 final RestoreSource restoreSource = shardRouting.restoreSource();
+                final ShardId sId = indexShard.shardId();
                 try {
                     final boolean success;
-                    final IndexShard shard = indexService.shard(shardId);
                     if (restoreSource == null) {
                         // recover from filesystem store
-                        success = shard.recoverFromStore(shardRouting);
+                        success = indexShard.recoverFromStore(shardRouting, localNode);
                     } else {
                         // restore
                         final IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(restoreSource.snapshotId().getRepository());
                         try {
-                            success = shard.restoreFromRepository(shardRouting, indexShardRepository);
+                            success = indexShard.restoreFromRepository(shardRouting, indexShardRepository, localNode);
                         } catch (Throwable t) {
                             if (Lucene.isCorruptionException(t)) {
-                                restoreService.failRestore(restoreSource.snapshotId(), shard.shardId());
+                                restoreService.failRestore(restoreSource.snapshotId(), sId);
                             }
                             throw t;
                         }
                         if (success) {
-                            restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), shard.shardId());
+                            restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), sId);
                         }
                     }
                     if (success) {
@@ -834,7 +835,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             ShardRouting shardRouting = null;
             final IndexService indexService = indicesService.indexService(shardId.index().name());
             if (indexService != null) {
-                IndexShard indexShard = indexService.shard(shardId.id());
+                IndexShard indexShard = indexService.getShardOrNull(shardId.id());
                 if (indexShard != null) {
                     shardRouting = indexShard.routingEntry();
                 }

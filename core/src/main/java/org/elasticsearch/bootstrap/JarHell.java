@@ -88,17 +88,35 @@ public class JarHell {
     }
     
     /**
-     * Parses the classpath into a set of URLs
+     * Parses the classpath into an array of URLs
+     * @return array of URLs
+     * @throws IllegalStateException if the classpath contains empty elements
+     */
+    public static URL[] parseClassPath()  {
+        return parseClassPath(System.getProperty("java.class.path"));
+    }
+
+    /**
+     * Parses the classpath into a set of URLs. For testing.
+     * @param classPath classpath to parse (typically the system property {@code java.class.path})
+     * @return array of URLs
+     * @throws IllegalStateException if the classpath contains empty elements
      */
     @SuppressForbidden(reason = "resolves against CWD because that is how classpaths work")
-    public static URL[] parseClassPath()  {
-        String elements[] = System.getProperty("java.class.path").split(System.getProperty("path.separator"));
+    static URL[] parseClassPath(String classPath) {
+        String elements[] = classPath.split(System.getProperty("path.separator"));
         URL urlElements[] = new URL[elements.length];
         for (int i = 0; i < elements.length; i++) {
             String element = elements[i];
-            // empty classpath element behaves like CWD.
+            // Technically empty classpath element behaves like CWD.
+            // So below is the "correct" code, however in practice with ES, this is usually just a misconfiguration,
+            // from old shell scripts left behind or something:
+            //   if (element.isEmpty()) {
+            //      element = System.getProperty("user.dir");
+            //   }
+            // Instead we just throw an exception, and keep it clean.
             if (element.isEmpty()) {
-                element = System.getProperty("user.dir");
+                throw new IllegalStateException("Classpath should not contain empty elements! (outdated shell script from a previous version?) classpath='" + classPath + "'");
             }
             try {
                 urlElements[i] = PathUtils.get(element).toUri().toURL();

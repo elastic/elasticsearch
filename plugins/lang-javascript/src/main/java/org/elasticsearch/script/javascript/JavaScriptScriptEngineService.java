@@ -21,6 +21,7 @@ package org.elasticsearch.script.javascript;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -94,6 +95,12 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     @Override
     public Object compile(String script) {
+        // we don't know why kind of safeguards rhino has,
+        // but just be safe
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
         Context ctx = Context.enter();
         try {
             ctx.setWrapFactory(wrapFactory);

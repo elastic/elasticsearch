@@ -19,14 +19,9 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -58,7 +53,7 @@ public final class ScriptContextRegistry {
     /**
      * @return a list that contains all the supported {@link ScriptContext}s, both standard ones and registered via plugins
      */
-    ImmutableCollection<ScriptContext> scriptContexts() {
+    Collection<ScriptContext> scriptContexts() {
         return scriptContexts.values();
     }
 

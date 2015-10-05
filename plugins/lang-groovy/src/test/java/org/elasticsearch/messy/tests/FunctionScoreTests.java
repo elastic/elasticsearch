@@ -22,7 +22,6 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
@@ -49,24 +48,13 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.gaussDecayFunction;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.linearDecayFunction;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class FunctionScoreTests extends ESIntegTestCase {
 
@@ -81,58 +69,6 @@ public class FunctionScoreTests extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
-    }
-    
-    @Test
-    public void testExplainQueryOnlyOnce() throws IOException, ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
-                        .endObject().startObject("num").field("type", "float").endObject().endObject().endObject().endObject()));
-        ensureYellow();
-
-        client().prepareIndex()
-                .setType("type1")
-                .setId("1")
-                .setIndex("test")
-                .setSource(
-                        jsonBuilder().startObject().field("test", "value").field("num", 10).endObject()).get();
-        refresh();
-
-        SearchResponse response = client().search(
-                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("test", "value"), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(gaussDecayFunction("num", 5, 5)),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(exponentialDecayFunction("num", 5, 5)),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(linearDecayFunction("num", 5, 5))
-                                })))).get();
-        String explanation = response.getHits().getAt(0).explanation().toString();
-
-        checkQueryExplanationAppearsOnlyOnce(explanation);
-        response = client().search(
-                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("test", "value"), fieldValueFactorFunction("num"))))).get();
-        explanation = response.getHits().getAt(0).explanation().toString();
-        checkQueryExplanationAppearsOnlyOnce(explanation);
-
-        response = client().search(
-                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("test", "value"), randomFunction(10))))).get();
-        explanation = response.getHits().getAt(0).explanation().toString();
-
-        checkQueryExplanationAppearsOnlyOnce(explanation);
-    }
-
-    private void checkQueryExplanationAppearsOnlyOnce(String explanation) {
-        // use some substring of the query explanation and see if it appears twice
-        String queryExplanation = "idf(docFreq=1, maxDocs=1)";
-        int queryExplanationIndex = explanation.indexOf(queryExplanation, 0);
-        assertThat(queryExplanationIndex, greaterThan(-1));
-        queryExplanationIndex = explanation.indexOf(queryExplanation, queryExplanationIndex + 1);
-        assertThat(queryExplanationIndex, equalTo(-1));
     }
 
     static {
@@ -172,39 +108,6 @@ public class FunctionScoreTests extends ESIntegTestCase {
             throw new ElasticsearchException("Exception while initializing FunctionScoreIT", e);
         }
         MAPPING_WITH_DOUBLE_AND_GEO_POINT_AND_TEXT_FIELD = mappingWithDoubleAndGeoPointAndTestField;
-    }
-
-    @Test
-    public void testExplain() throws IOException, ExecutionException, InterruptedException {
-        assertAcked(prepareCreate(INDEX).addMapping(
-                TYPE, MAPPING_WITH_DOUBLE_AND_GEO_POINT_AND_TEXT_FIELD
-        ));
-        ensureYellow();
-
-        index(INDEX, TYPE, "1", SIMPLE_DOC);
-        refresh();
-
-        SearchResponse responseWithWeights = client().search(
-                searchRequest().source(
-                        searchSource().query(
-                                functionScoreQuery(constantScoreQuery(termQuery(TEXT_FIELD, "value")), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(gaussDecayFunction(GEO_POINT_FIELD, new GeoPoint(10, 20), "1000km")),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction(DOUBLE_FIELD).modifier(FieldValueFactorFunction.Modifier.LN).setWeight(2)),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(new Script("_index['" + TEXT_FIELD + "']['value'].tf()")).setWeight(3))
-                                })).explain(true))).actionGet();
-
-        assertThat(
-                responseWithWeights.getHits().getAt(0).getExplanation().toString(),
-                equalTo("6.0 = function score, product of:\n  1.0 = ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  6.0 = min of:\n    6.0 = function score, score mode [multiply]\n      1.0 = function score, product of:\n        1.0 = match filter: *:*\n        1.0 = Function for field geo_point_field:\n          1.0 = exp(-0.5*pow(MIN of: [Math.max(arcDistance([10.0, 20.0](=doc value),[10.0, 20.0](=origin)) - 0.0(=offset), 0)],2.0)/7.213475204444817E11)\n      2.0 = function score, product of:\n        1.0 = match filter: *:*\n        2.0 = product of:\n          1.0 = field value function: ln(doc['double_field'].value * factor=1.0)\n          2.0 = weight\n      3.0 = function score, product of:\n        1.0 = match filter: *:*\n        3.0 = product of:\n          1.0 = script score function, computed with script:\"[script: _index['text_field']['value'].tf(), type: inline, lang: null, params: null]\n            1.0 = _score: \n              1.0 = ConstantScore(text_field:value), product of:\n                1.0 = boost\n                1.0 = queryNorm\n          3.0 = weight\n    3.4028235E38 = maxBoost\n"));
-        responseWithWeights = client().search(
-                searchRequest().source(
-                        searchSource().query(
-                                functionScoreQuery(constantScoreQuery(termQuery(TEXT_FIELD, "value")), weightFactorFunction(4.0f)))
-                                .explain(true))).actionGet();
-        assertThat(
-                responseWithWeights.getHits().getAt(0).getExplanation().toString(),
-                equalTo("4.0 = function score, product of:\n  1.0 = ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  4.0 = min of:\n    4.0 = product of:\n      1.0 = constant score 1.0 - no function provided\n      4.0 = weight\n    3.4028235E38 = maxBoost\n"));
-
     }
 
     @Test

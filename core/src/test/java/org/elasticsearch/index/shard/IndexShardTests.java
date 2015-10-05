@@ -21,9 +21,7 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Constants;
@@ -69,6 +67,7 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.settings.IndexSettingsService;
@@ -932,6 +931,10 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefresh(randomBoolean()).get();
         client().prepareIndex("test", "test", "1").setSource("{\"foobar\" : \"bar\"}").setRefresh(true).get();
 
+        Engine.GetResult getResult = shard.get(new Engine.Get(false, new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
+        assertTrue(getResult.exists());
+        assertNotNull(getResult.searcher());
+        getResult.release();
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             TopDocs search = searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10);
             assertEquals(search.totalHits, 1);
@@ -970,14 +973,17 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits, 1);
         }
+        getResult = newShard.get(new Engine.Get(false, new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
+        assertTrue(getResult.exists());
+        assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
+        assertTrue(getResult.searcher().reader() instanceof FieldMaskingReader);
+        getResult.release();
         newShard.close("just do it", randomBoolean());
     }
 
     private static class FieldMaskingReader extends FilterDirectoryReader {
 
-
         private final String field;
-
         public FieldMaskingReader(String field, DirectoryReader in) throws IOException {
             super(in, new SubReaderWrapper() {
                 private final String filteredField = field;

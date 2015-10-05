@@ -62,7 +62,7 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
 
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", 0);
-        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, null, null, null, null, null, QueryCachingPolicy.ALWAYS_CACHE, null, null); // can't mock...
+        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, null, null, null, null, null, QueryCachingPolicy.ALWAYS_CACHE, null); // can't mock...
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.docMappers(anyBoolean())).thenReturn(Collections.emptyList());
@@ -102,7 +102,7 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
             }
         });
         ShieldIndexSearcherWrapper wrapper = new ShieldIndexSearcherWrapper(
-                shardId, Settings.EMPTY, parserService, indicesLifecycle, mapperService, bitsetFilterCache
+                Settings.EMPTY, parserService, mapperService, bitsetFilterCache
         );
 
         Directory directory = newDirectory();

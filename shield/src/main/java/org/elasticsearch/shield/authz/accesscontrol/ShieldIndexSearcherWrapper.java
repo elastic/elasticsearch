@@ -12,24 +12,22 @@ import org.apache.lucene.util.*;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.IndexSearcherWrapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.shield.support.Exceptions;
@@ -50,22 +48,19 @@ import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
  * Document level security is enabled by wrapping the original {@link DirectoryReader} in a {@link DocumentSubsetReader}
  * instance.
  */
-public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponent implements IndexSearcherWrapper {
+public final class ShieldIndexSearcherWrapper extends AbstractComponent implements IndexSearcherWrapper {
 
     private final MapperService mapperService;
     private final Set<String> allowedMetaFields;
     private final IndexQueryParserService parserService;
     private final BitsetFilterCache bitsetFilterCache;
 
-    private volatile boolean shardStarted = false;
-
     @Inject
-    public ShieldIndexSearcherWrapper(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService parserService, IndicesLifecycle indicesLifecycle, MapperService mapperService, BitsetFilterCache bitsetFilterCache) {
-        super(shardId, indexSettings);
+    public ShieldIndexSearcherWrapper(@IndexSettings Settings indexSettings, IndexQueryParserService parserService, MapperService mapperService, BitsetFilterCache bitsetFilterCache) {
+        super(indexSettings);
         this.mapperService = mapperService;
         this.parserService = parserService;
         this.bitsetFilterCache = bitsetFilterCache;
-        indicesLifecycle.addListener(new ShardLifecycleListener());
 
         Set<String> allowedMetaFields = new HashSet<>();
         allowedMetaFields.addAll(Arrays.asList(MapperService.getAllMetaFields()));
@@ -82,15 +77,8 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
         try {
             RequestContext context = RequestContext.current();
             if (context == null) {
-                if (shardStarted == false) {
-                    // The shard this index searcher wrapper has been created for hasn't started yet,
-                    // We may load some initial stuff like for example previous stored percolator queries and recovery,
-                    // so for this reason we should provide access to all fields:
-                    return reader;
-                } else {
-                    logger.debug("couldn't locate the current request, field level security will only allow meta fields");
-                    return FieldSubsetReader.wrap(reader, allowedMetaFields);
-                }
+                logger.debug("couldn't locate the current request, field level security will only allow meta fields");
+                return FieldSubsetReader.wrap(reader, allowedMetaFields);
             }
 
             IndicesAccessControl indicesAccessControl = context.getRequest().getFromContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
@@ -203,16 +191,6 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
             if (parentFieldMapper.active()) {
                 String joinField = ParentFieldMapper.joinField(parentFieldMapper.type());
                 allowedFields.add(joinField);
-            }
-        }
-    }
-
-    private class ShardLifecycleListener extends IndicesLifecycle.Listener {
-
-        @Override
-        public void afterIndexShardPostRecovery(IndexShard indexShard) {
-            if (shardId.equals(indexShard.shardId())) {
-                shardStarted = true;
             }
         }
     }

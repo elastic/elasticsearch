@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerModule;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
@@ -29,8 +30,9 @@ import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.AuthorizationModule;
-import org.elasticsearch.shield.authz.accesscontrol.AccessControlShardModule;
+import org.elasticsearch.index.SearcherWrapperInstaller;
 import org.elasticsearch.shield.authz.accesscontrol.OptOutQueryCache;
+import org.elasticsearch.shield.authz.accesscontrol.ShieldIndexSearcherWrapper;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.crypto.CryptoModule;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
@@ -115,18 +117,9 @@ public class ShieldPlugin extends Plugin {
     public Collection<Module> indexModules(Settings settings) {
         if (enabled && clientMode == false) {
             failIfShieldQueryCacheIsNotActive(settings, false);
+            return  Collections.emptyList();
         }
         return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<Module> shardModules(Settings settings) {
-        if (enabled && clientMode == false) {
-            failIfShieldQueryCacheIsNotActive(settings, false);
-            return Collections.<Module>singletonList(new AccessControlShardModule(settings));
-        } else {
-            return Collections.emptyList();
-        }
     }
 
     @Override
@@ -156,6 +149,13 @@ public class ShieldPlugin extends Plugin {
         clusterDynamicSettingsModule.registerClusterDynamicSetting("transport.profiles.*", Validator.EMPTY);
         clusterDynamicSettingsModule.registerClusterDynamicSetting(IPFilter.IP_FILTER_ENABLED_SETTING, Validator.EMPTY);
         clusterDynamicSettingsModule.registerClusterDynamicSetting(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING, Validator.EMPTY);
+    }
+
+    public void onModule(IndexModule module) {
+        if (enabled == false) {
+            return;
+        }
+        SearcherWrapperInstaller.install(module);
     }
 
     public void onModule(ActionModule module) {

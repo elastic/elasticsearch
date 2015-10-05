@@ -29,12 +29,16 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 
@@ -105,6 +109,15 @@ public class RestActions {
             queryBuilder.defaultOperator(Operator.fromString(defaultOperator));
         }
         return queryBuilder;
+    }
+
+    public static SearchSourceBuilder getRestSearchSource(BytesReference sourceBytes, IndicesQueriesRegistry queryRegistry)
+            throws IOException {
+        XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes);
+        QueryParseContext queryParseContext = new QueryParseContext(queryRegistry);
+        queryParseContext.reset(parser);
+        SearchSourceBuilder source = SearchSourceBuilder.PROTOTYPE.fromXContent(parser, queryParseContext);
+        return source;
     }
 
     /**

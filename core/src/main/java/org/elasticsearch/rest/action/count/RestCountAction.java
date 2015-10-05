@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -43,7 +42,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 
@@ -81,8 +79,8 @@ public class RestCountAction extends BaseRestHandler {
             try (XContentParser requestParser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
                 context.reset(requestParser);
-                final SearchSourceBuilder builder = SearchSourceBuilder.PROTOTYPE.fromXContent(requestParser, context);
-                countRequest.searchSource(builder);
+                final QueryBuilder<?> builder = context.parseInnerQueryBuilder();
+                countRequest.query(builder);
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to parse source", e);
             }

@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
@@ -69,7 +68,10 @@ public class GetWarmersResponse extends ActionResponse {
             for (int j = 0; j < valueSize; j++) {
                 String name = in.readString();
                 String[] types = in.readStringArray();
-                IndexWarmersMetaData.SearchSource source = new IndexWarmersMetaData.SearchSource(in);
+                IndexWarmersMetaData.SearchSource source = null;
+                if (in.readBoolean()) {
+                    source = new IndexWarmersMetaData.SearchSource(in);
+                }
                 Boolean queryCache = null;
                 queryCache = in.readOptionalBoolean();
                 warmerEntryBuilder.add(new IndexWarmersMetaData.Entry(
@@ -94,7 +96,11 @@ public class GetWarmersResponse extends ActionResponse {
             for (IndexWarmersMetaData.Entry warmerEntry : indexEntry.value) {
                 out.writeString(warmerEntry.name());
                 out.writeStringArray(warmerEntry.types());
-                warmerEntry.source().writeTo(out);
+                boolean hasWarmerSource = warmerEntry != null;
+                out.writeBoolean(hasWarmerSource);
+                if (hasWarmerSource) {
+                    warmerEntry.source().writeTo(out);
+                }
                 out.writeOptionalBoolean(warmerEntry.requestCache());
             }
         }

@@ -115,10 +115,7 @@ public class RestSearchAction extends BaseRestHandler {
                 }
                 builder = null;
             } else {
-                try (XContentParser requestParser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                    context.reset(requestParser);
-                    builder = SearchSourceBuilder.PROTOTYPE.fromXContent(requestParser, context);
-                }
+                builder = RestActions.getRestSearchSource(restContent, indicesQueriesRegistry);
             }
         } else {
             builder = null;

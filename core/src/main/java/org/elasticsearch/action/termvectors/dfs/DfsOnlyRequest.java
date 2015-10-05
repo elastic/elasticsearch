@@ -102,7 +102,10 @@ public class DfsOnlyRequest extends BroadcastRequest<DfsOnlyRequest> {
 
     @Override
     public String toString() {
-        String sSource = searchRequest.source().toString();
+        String sSource = "_na_";
+        if (searchRequest.source() != null) {
+            sSource = searchRequest.source().toString();
+        }
         return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types()) + ", source[" + sSource + "]";
     }
 

@@ -19,26 +19,18 @@
 
 package org.elasticsearch.action.count;
 
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
@@ -66,7 +58,7 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
 
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
 
-    private SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+    private QueryBuilder<?> queryBuilder = null;
 
     /**
      * Constructs a new count request against the provided indices. No indices provided means it will
@@ -96,13 +88,8 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
     /**
      * The query to execute
      */
-    public CountRequest query(QueryBuilder queryBuilder) {
-        this.searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
-        return this;
-    }
-
-    public CountRequest searchSource(SearchSourceBuilder searchSourceBuilder) {
-        this.searchSourceBuilder = searchSourceBuilder;
+    public CountRequest query(QueryBuilder<?> queryBuilder) {
+        this.queryBuilder = queryBuilder;
         return this;
     }
 
@@ -184,7 +171,7 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
     public String toString() {
         String sSource = "_na_";
         try {
-            sSource = XContentHelper.toString(searchSourceBuilder);
+            sSource = XContentHelper.toString(queryBuilder);
         } catch (Exception e) {
             // ignore
         }
@@ -192,6 +179,8 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
     }
 
     public SearchRequest toSearchRequest() {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.query(queryBuilder);
         searchSourceBuilder.size(0);
         if (minScore() != DEFAULT_MIN_SCORE) {
             searchSourceBuilder.minScore(minScore());
@@ -206,9 +195,5 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
         searchRequest.routing(routing());
         searchRequest.preference(preference());
         return searchRequest;
-    }
-
-    SearchSourceBuilder sourceBuilder() {
-        return searchSourceBuilder;
     }
 }

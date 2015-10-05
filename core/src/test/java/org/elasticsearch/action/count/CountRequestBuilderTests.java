@@ -22,22 +22,13 @@ package org.elasticsearch.action.count;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -79,13 +70,6 @@ public class CountRequestBuilderTests extends ESTestCase {
     public void testStringQueryToString() {
         CountRequestBuilder countRequestBuilder = client.prepareCount();
         countRequestBuilder.setQuery(new MatchAllQueryBuilder());
-        assertThat(countRequestBuilder.toString(), containsString("match_all"));
-    }
-
-    @Test
-    public void testStringSourceToString() {
-        CountRequestBuilder countRequestBuilder = client.prepareCount();
-        countRequestBuilder.setSource(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
         assertThat(countRequestBuilder.toString(), containsString("match_all"));
     }
 }

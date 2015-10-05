@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.count;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
@@ -27,11 +26,7 @@ import org.elasticsearch.action.support.DelegatingActionListener;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 /**
  * A count action request builder.
@@ -87,14 +82,6 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
     }
 
     /**
-     * The source to execute.
-     */
-    public CountRequestBuilder setSource(SearchSourceBuilder source) {
-        request().searchSource(source);
-        return this;
-    }
-
-    /**
      * The query source to execute.
      */
     public CountRequestBuilder setQuery(QueryBuilder<?> builder) {
@@ -120,8 +107,8 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
 
     @Override
     public String toString() {
-        if (request.sourceBuilder() != null) {
-            return request.sourceBuilder().toString();
+        if (request != null) {
+            return request.toString();
         }
         return new QuerySourceBuilder().toString();
     }

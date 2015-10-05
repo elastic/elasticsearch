@@ -19,52 +19,56 @@
 
 package org.elasticsearch.plugin.ingest;
 
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.Set;
 
 public class PipelineStore extends AbstractLifecycleComponent {
 
-    public final static String INDEX = ".pipelines";
+    public final static String INDEX = ".ingest";
     public final static String TYPE = "pipeline";
 
-    private Client client;
-    private final Injector injector;
+    private final ThreadPool threadPool;
+    private final ClusterService clusterService;
+    private final TimeValue pipelineUpdateInterval;
+    private final PipelineConfigDocReader configDocReader;
+    private final Map<String, Processor.Builder.Factory> processorFactoryRegistry;
 
-    private volatile Updater updater;
-    private volatile CopyOnWriteHashMap<String, Pipeline> pipelines = new CopyOnWriteHashMap<>();
+    private volatile Map<String, PipelineReference> pipelines = new HashMap<>();
 
     @Inject
-    public PipelineStore(Settings settings, Injector injector) {
+    public PipelineStore(Settings settings, ThreadPool threadPool, ClusterService clusterService, PipelineConfigDocReader configDocReader, Map<String, Processor.Builder.Factory> processors) {
         super(settings);
-        this.injector = injector;
+        this.threadPool = threadPool;
+        this.clusterService = clusterService;
+        this.pipelineUpdateInterval = settings.getAsTime("ingest.pipeline.store.update.interval", TimeValue.timeValueSeconds(1));
+        this.configDocReader = configDocReader;
+        this.processorFactoryRegistry = Collections.unmodifiableMap(processors);
+        clusterService.add(new PipelineStoreListener());
     }
 
     @Override
     protected void doStart() {
-        client = injector.getInstance(Client.class);
-        updater = new Updater();
-        // TODO: start when local cluster state isn't blocked: ([SERVICE_UNAVAILABLE/1/state not recovered / initialized])
-        updater.start();
     }
 
     @Override
     protected void doStop() {
-        updater.shutdown();
     }
 
     @Override
@@ -72,65 +76,109 @@ public class PipelineStore extends AbstractLifecycleComponent {
     }
 
     public Pipeline get(String id) {
-        return pipelines.get(id);
+        PipelineReference ref = pipelines.get(id);
+        if (ref != null) {
+            return ref.getPipeline();
+        } else {
+            return null;
+        }
     }
 
     void updatePipelines() {
-        Map<String, Pipeline> pipelines = new HashMap<>();
-        SearchResponse searchResponse = client.prepareSearch(INDEX)
-                .setScroll(TimeValue.timeValueMinutes(1))
-                .addSort("_doc", SortOrder.ASC)
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .get();
-        logger.info("Loading [{}] pipelines", searchResponse.getHits().totalHits());
-        do {
-            for (SearchHit hit : searchResponse.getHits()) {
-                logger.info("Loading pipeline [{}] with source [{}]", hit.getId(), hit.sourceAsString());
-                Pipeline.Builder builder = new Pipeline.Builder(hit.sourceAsMap());
-                pipelines.put(hit.getId(), builder.build());
+        int changed = 0;
+        Map<String, PipelineReference> newPipelines = new HashMap<>(pipelines);
+        for (SearchHit hit : configDocReader.readAll()) {
+            String pipelineId = hit.getId();
+            BytesReference pipelineSource = hit.getSourceRef();
+            PipelineReference previous = newPipelines.get(pipelineId);
+            if (previous != null) {
+                if (previous.getSource().equals(pipelineSource)) {
+                    continue;
+                }
             }
-            searchResponse = client.prepareSearchScroll(searchResponse.getScrollId()).get();
-        } while (searchResponse.getHits().getHits().length != 0);
-        PipelineStore.this.pipelines = PipelineStore.this.pipelines.copyAndPutAll(pipelines);
+
+            changed++;
+            Pipeline.Builder builder = new Pipeline.Builder(hit.sourceAsMap(), processorFactoryRegistry);
+            newPipelines.put(pipelineId, new PipelineReference(builder.build(), hit.getVersion(), pipelineSource));
+        }
+
+        if (changed != 0) {
+            logger.debug("adding or updating [{}] pipelines", changed);
+            pipelines = newPipelines;
+        } else {
+            logger.debug("adding no new pipelines");
+        }
     }
 
-    class Updater extends Thread {
-
-        private volatile boolean running = true;
-        private final CountDownLatch latch = new CountDownLatch(1);
-
-        public Updater() {
-            super(EsExecutors.threadName(settings, "[updater]"));
+    void startUpdateWorker() {
+        if (lifecycleState() == Lifecycle.State.STARTED) {
+            threadPool.schedule(pipelineUpdateInterval, ThreadPool.Names.GENERIC, new Updater());
         }
+    }
+
+    class Updater implements Runnable {
 
         @Override
         public void run() {
             try {
-                while (running) {
-                    try {
-                        Thread.sleep(3000);
-                        updatePipelines();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    } catch (Exception e) {
-                        logger.error("update error", e);
-                    }
-                }
+                updatePipelines();
+            } catch (Exception e) {
+                logger.error("pipeline store update failure", e);
             } finally {
-                latch.countDown();
+                startUpdateWorker();
             }
         }
 
-        public void shutdown() {
-            running = false;
-            try {
-                interrupt();
-                latch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+    }
+
+    class PipelineStoreListener implements ClusterStateListener {
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
+                startUpdateWorker();
+                clusterService.remove(this);
             }
         }
+    }
 
+    static class PipelineReference {
+
+        private final Pipeline pipeline;
+        private final long version;
+        private final BytesReference source;
+
+        PipelineReference(Pipeline pipeline, long version, BytesReference source) {
+            this.pipeline = pipeline;
+            this.version = version;
+            this.source = source;
+        }
+
+        public Pipeline getPipeline() {
+            return pipeline;
+        }
+
+        public long getVersion() {
+            return version;
+        }
+
+        public BytesReference getSource() {
+            return source;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            PipelineReference holder = (PipelineReference) o;
+            return source.equals(holder.source);
+        }
+
+        @Override
+        public int hashCode() {
+            return source.hashCode();
+        }
     }
 
 }

@@ -23,6 +23,8 @@ import java.util.Map;
 
 public final class SimpleProcessor implements Processor {
 
+    public static final String TYPE = "simple";
+
     private final String path;
     private final String expectedValue;
 
@@ -44,11 +46,6 @@ public final class SimpleProcessor implements Processor {
                 data.addField(addField, addFieldValue);
             }
         }
-    }
-
-    @Override
-    public String type() {
-        return "logging";
     }
 
     public static class Builder implements Processor.Builder {
@@ -85,6 +82,15 @@ public final class SimpleProcessor implements Processor {
         public Processor build() {
             return new SimpleProcessor(path, value, addField, addFieldValue);
         }
+
+        public static class Factory implements Processor.Builder.Factory {
+
+            @Override
+            public Processor.Builder create() {
+                return new Builder();
+            }
+        }
+
     }
 
 }

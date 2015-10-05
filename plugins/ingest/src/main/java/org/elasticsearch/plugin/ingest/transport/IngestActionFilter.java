@@ -49,7 +49,7 @@ public class IngestActionFilter extends ActionFilter.Simple {
     protected boolean apply(String action, ActionRequest request, ActionListener listener) {
         String pipelineId = request.getFromContext(IngestPlugin.INGEST_CONTEXT_KEY);
         if (pipelineId == null) {
-            pipelineId = request.getHeader(IngestPlugin.INGEST_HTTP_PARAM);
+            pipelineId = request.getHeader(IngestPlugin.INGEST_PARAM);
             if (pipelineId == null) {
                 return true;
             }
@@ -73,6 +73,7 @@ public class IngestActionFilter extends ActionFilter.Simple {
         return true;
     }
 
+    // TODO: this should be delegated to a PipelineExecutor service that executes on a different thread (pipeline TP)
     void processIndexRequest(IndexRequest indexRequest, Pipeline pipeline) {
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
         Data data = new Data(indexRequest.index(), indexRequest.type(), indexRequest.id(), sourceAsMap);

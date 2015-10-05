@@ -25,6 +25,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A pipeline is a list of {@link Processor} instances grouped under a unique id.
+ */
 public final class Pipeline {
 
     private final String id;
@@ -37,20 +40,32 @@ public final class Pipeline {
         this.processors = processors;
     }
 
+    /**
+     * Modifies the data of a document to be indexed based on the processor this pipeline holds
+     */
     public void execute(Data data) {
         for (Processor processor : processors) {
             processor.execute(data);
         }
     }
 
+    /**
+     * The unique id of this pipeline
+     */
     public String getId() {
         return id;
     }
 
+    /**
+     * An optional description of what this pipeline is doing to the data gets processed by this pipeline.
+     */
     public String getDescription() {
         return description;
     }
 
+    /**
+     * Unmodifiable list containing each processor that operates on the data.
+     */
     public List<Processor> getProcessors() {
         return processors;
     }
@@ -65,7 +80,7 @@ public final class Pipeline {
             this.name = name;
         }
 
-        public Builder(Map<String, Object> config) {
+        public Builder(Map<String, Object> config, Map<String, Processor.Builder.Factory> processorRegistry) {
             name = (String) config.get("name");
             description = (String) config.get("description");
             @SuppressWarnings("unchecked")
@@ -73,13 +88,12 @@ public final class Pipeline {
             if (processors != null ) {
                 for (Map<String, Map<String, Object>> processor : processors) {
                     for (Map.Entry<String, Map<String, Object>> entry : processor.entrySet()) {
-                        // TODO: add lookup service...
-                        if ("simple".equals(entry.getKey())) {
-                            SimpleProcessor.Builder builder = new SimpleProcessor.Builder();
+                        Processor.Builder builder = processorRegistry.get(entry.getKey()).create();
+                        if (builder != null) {
                             builder.fromMap(entry.getValue());
                             this.processors.add(builder.build());
                         } else {
-                            throw new UnsupportedOperationException();
+                            throw new IllegalArgumentException("No processor type exist with name [" + entry.getKey() + "]");
                         }
                     }
                 }

@@ -20,15 +20,45 @@
 
 package org.elasticsearch.ingest;
 
+import java.util.Map;
+
+/**
+ * An processor implementation may modify the data belonging to a document.
+ * If and what exactly is modified is upto the implementation.
+ */
 public interface Processor {
 
+    /**
+     * Introspect and potentially modify the incoming data.
+     */
     void execute(Data data);
 
-    String type();
-
+    /**
+     * A builder to contruct a processor to be used in a pipeline.
+     */
     interface Builder {
 
+        /**
+         * A general way to set processor related settings based on the config map.
+         */
+        void fromMap(Map<String, Object> config);
+
+        /**
+         * Builds the processor based on previous set settings.
+         */
         Processor build();
+
+        /**
+         * A factory that creates a processor builder when processor instances for pipelines are being created.
+         */
+        interface Factory {
+
+            /**
+             * Creates the builder.
+             */
+            Builder create();
+
+        }
 
     }
 

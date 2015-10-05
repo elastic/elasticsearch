@@ -27,13 +27,14 @@ import org.elasticsearch.plugin.ingest.transport.IngestActionFilter;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.action.RestActionModule;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
 public class IngestPlugin extends Plugin {
 
     public static final String INGEST_CONTEXT_KEY = "__ingest__";
-    public static final String INGEST_HTTP_PARAM = "ingest";
+    public static final String INGEST_PARAM = "ingest";
 
     @Override
     public String name() {
@@ -52,14 +53,11 @@ public class IngestPlugin extends Plugin {
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        return Collections.singletonList(PipelineStore.class);
+        return Arrays.asList(PipelineStore.class, PipelineConfigDocReader.class);
     }
 
     public void onModule(ActionModule module) {
         module.registerFilter(IngestActionFilter.class);
-    }
-
-    public void onModule(RestActionModule module) {
     }
 
 }

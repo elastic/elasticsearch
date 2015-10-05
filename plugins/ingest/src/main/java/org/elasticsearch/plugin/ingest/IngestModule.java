@@ -20,15 +20,36 @@
 package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.SimpleProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
 import org.elasticsearch.plugin.ingest.transport.IngestActionFilter;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class IngestModule extends AbstractModule {
+
+    private final Map<String, Class<? extends Processor.Builder.Factory>> processors = new HashMap<>();
 
     @Override
     protected void configure() {
         binder().bind(IngestRestFilter.class).asEagerSingleton();
         binder().bind(PipelineStore.class).asEagerSingleton();
+        binder().bind(PipelineConfigDocReader.class).asEagerSingleton();
+
+        registerProcessor(SimpleProcessor.TYPE, SimpleProcessor.Builder.Factory.class);
+
+        MapBinder<String, Processor.Builder.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Processor.Builder.Factory.class);
+        for (Map.Entry<String, Class<? extends Processor.Builder.Factory>> entry : processors.entrySet()) {
+            mapBinder.addBinding(entry.getKey()).to(entry.getValue());
+        }
+    }
+
+    public void registerProcessor(String processorType, Class<? extends Processor.Builder.Factory> processorFactory) {
+        processors.put(processorType, processorFactory);
     }
 
 }

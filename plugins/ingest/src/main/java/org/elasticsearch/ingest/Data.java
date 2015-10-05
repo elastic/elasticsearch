@@ -23,6 +23,9 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.util.Map;
 
+/**
+ * Represents the data and meta data (like id and type) of a single document that is going to be indexed.
+ */
 public final class Data {
 
     private final String index;

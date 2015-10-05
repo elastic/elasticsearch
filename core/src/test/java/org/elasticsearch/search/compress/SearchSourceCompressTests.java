@@ -84,7 +84,7 @@ public class SearchSourceCompressTests  extends ESSingleNodeTestCase {
         assertThat(getResponse.getSourceAsBytes(), equalTo(buildSource(10000).bytes().toBytes()));
 
         for (int i = 1; i < 100; i++) {
-            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(i))).execute().actionGet();
+            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.idsQuery("type1").addIds(Integer.toString(i))).execute().actionGet();
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
             assertThat(searchResponse.getHits().getAt(0).source(), equalTo(buildSource(i).bytes().toBytes()));
         }

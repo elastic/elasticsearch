@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -677,25 +678,25 @@ public class SearchQueryTests extends ESIntegTestCase {
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
                 client().prepareIndex("test", "type1", "3").setSource("field1", "value3"));
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1").ids("1", "3"))).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1").addIds("1", "3"))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
         // no type
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().ids("1", "3"))).get();
+        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().addIds("1", "3"))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").ids("1", "3")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").addIds("1", "3")).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
         // no type
-        searchResponse = client().prepareSearch().setQuery(idsQuery().ids("1", "3")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "3")).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").ids("7", "10")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").addIds("7", "10")).get();
         assertHitCount(searchResponse, 0l);
 
         // repeat..., with terms
@@ -1293,52 +1294,6 @@ public class SearchQueryTests extends ESIntegTestCase {
     }
 
     @Test
-    public void testBasicFilterById() throws Exception {
-        createIndex("test");
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
-        client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(idsQuery("type1").ids("1")).get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1", "type2").ids("1", "2"))).get();
-        assertHitCount(searchResponse, 2l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(2));
-
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(idsQuery().ids("1")).get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(idsQuery().ids("1", "2")).get();
-        assertHitCount(searchResponse, 2l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(2));
-
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().ids("1", "2"))).get();
-        assertHitCount(searchResponse, 2l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(2));
-
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1").ids("1", "2"))).get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().ids("1"))).get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-
-        // TODO: why do we even support passing null??
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery((String[])null).ids("1"))).get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1", "type2", "type3").ids("1", "2", "3", "4"))).get();
-        assertHitCount(searchResponse, 2l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(2));
-    }
-
-    @Test
     public void testBasicQueryById() throws Exception {
         createIndex("test");
 
@@ -1346,32 +1301,27 @@ public class SearchQueryTests extends ESIntegTestCase {
         client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2").ids("1", "2")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2").addIds("1", "2")).get();
         assertHitCount(searchResponse, 2l);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery().ids("1")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1")).get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery().ids("1", "2")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "2")).get();
         assertHitCount(searchResponse, 2l);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
 
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").ids("1", "2")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").addIds("1", "2")).get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery().ids("1")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery(Strings.EMPTY_ARRAY).addIds("1")).get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery((String[])null).ids("1")).get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2", "type3").ids("1", "2", "3", "4")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2", "type3").addIds("1", "2", "3", "4")).get();
         assertHitCount(searchResponse, 2l);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
     }

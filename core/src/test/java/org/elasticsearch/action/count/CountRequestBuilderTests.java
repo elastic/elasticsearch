@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -56,14 +57,16 @@ public class CountRequestBuilderTests extends ESTestCase {
     @Test
     public void testEmptySourceToString() {
         CountRequestBuilder countRequestBuilder = client.prepareCount();
-        assertThat(countRequestBuilder.toString(), equalTo(new SearchSourceBuilder().size(0).toString()));
+        assertThat(countRequestBuilder.toString(), equalTo(new SearchSourceBuilder().size(0).minScore(CountRequest.DEFAULT_MIN_SCORE)
+                .terminateAfter(SearchContext.DEFAULT_TERMINATE_AFTER).toString()));
     }
 
     @Test
     public void testQueryBuilderQueryToString() {
         CountRequestBuilder countRequestBuilder = client.prepareCount();
         countRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
-        assertThat(countRequestBuilder.toString(), equalTo(new SearchSourceBuilder().size(0).query(QueryBuilders.matchAllQuery())
+        assertThat(countRequestBuilder.toString(), equalTo(new SearchSourceBuilder().size(0).minScore(CountRequest.DEFAULT_MIN_SCORE)
+                .terminateAfter(SearchContext.DEFAULT_TERMINATE_AFTER).query(QueryBuilders.matchAllQuery())
                 .toString()));
     }
 

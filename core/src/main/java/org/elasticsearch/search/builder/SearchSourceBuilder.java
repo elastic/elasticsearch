@@ -293,7 +293,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * <code>terminateAfter</code> documents
      */
     public  SearchSourceBuilder terminateAfter(int terminateAfter) {
-        if (terminateAfter <= 0) {
+        if (terminateAfter < 0) {
             throw new IllegalArgumentException("terminateAfter must be > 0");
         }
         this.terminateAfter = terminateAfter;

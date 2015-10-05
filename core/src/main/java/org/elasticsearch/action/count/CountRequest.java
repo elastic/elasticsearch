@@ -32,6 +32,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
+
 /**
  * A request to count the number of documents matching a specific query. Best created with
  * {@link org.elasticsearch.client.Requests#countRequest(String...)}.
@@ -54,16 +56,15 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
 
     private SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
-    public CountRequest() {
-        searchSourceBuilder.size(0);
-    }
-
     /**
      * Constructs a new count request against the provided indices. No indices provided means it will
      * run against all indices.
      */
     public CountRequest(String... indices) {
         super(indices);
+        searchSourceBuilder.size(0);
+        searchSourceBuilder.minScore(DEFAULT_MIN_SCORE);
+        searchSourceBuilder.terminateAfter(DEFAULT_TERMINATE_AFTER);
     }
 
     /**
@@ -142,9 +143,6 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
      * Upon reaching <code>terminateAfter</code> counts, the count request will early terminate
      */
     public CountRequest terminateAfter(int terminateAfterCount) {
-        if (terminateAfterCount <= 0) {
-            throw new IllegalArgumentException("terminateAfter must be > 0");
-        }
         this.searchSourceBuilder.terminateAfter(terminateAfterCount);
         return this;
     }

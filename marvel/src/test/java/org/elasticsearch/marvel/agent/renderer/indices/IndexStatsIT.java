@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.renderer.indices;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +20,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.greaterThan;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://internal-build.elastic.co/job/es_xplugins_master_medium/3319/testReport/junit/org.elasticsearch.marvel.agent.renderer.indices/IndexStatsIT/testIndexStats/")
 public class IndexStatsIT extends MarvelIntegTestCase {
 
     @Override

@@ -77,7 +77,7 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
                 @Override
                 public void search(Query query, Collector collector) throws IOException {
                     BooleanQuery.Builder bq = new BooleanQuery.Builder();
-                    bq.add(super.rewrite(query), BooleanClause.Occur.MUST);
+                    bq.add(query, BooleanClause.Occur.MUST);
                     bq.add(Queries.newNestedFilter(), BooleanClause.Occur.MUST_NOT);
                     super.search(bq.build(), collector);
                 }

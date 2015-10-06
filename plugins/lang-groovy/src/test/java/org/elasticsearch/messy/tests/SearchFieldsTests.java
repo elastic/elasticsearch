@@ -31,8 +31,8 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -80,7 +80,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Test
     public void testStoredFields() throws Exception {
         createIndex("test");
@@ -535,16 +535,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
         Map<String,SearchHitField> fields = searchResponse.getHits().getHits()[0].getFields();
         assertThat((String)fields.get("test_field").value(), equalTo("foobar"));
     }
-
-//    @Test(expected = SearchPhaseExecutionException.class)
-//    public void testInvalidFieldDataField() throws ExecutionException, InterruptedException {
-//        createIndex("test");
-//        if (randomBoolean()) {
-//            client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": {}}"))).get();
-//        } else {
-//            client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": 1.0}"))).get();
-//        }
-//    } NORELEASE need a unit test for this
 
     @Test
     public void testFieldsPulledFromFieldData() throws Exception {

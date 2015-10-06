@@ -540,22 +540,6 @@ public class GeoFilterIT extends ESIntegTestCase {
                 throw new AssertionError(error.getMessage() + "\n geohash_cell filter:" + builder, error);
             }
         }
-        // NORELEASE these should be tested in GeohashCellQueryBuilderTests
-//        logger.info("Testing lat/lon format");
-//        String pointTest1 = "{\"geohash_cell\": {\"pin\": {\"lat\": " + point.lat() + ",\"lon\": " + point.lon() + "},\"precision\": " + precision + ",\"neighbors\": true}}";
-//        SearchResponse results3 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(pointTest1).execute().actionGet();
-//        assertHitCount(results3, neighbors.size() + 1);
-//
-//
-//        logger.info("Testing String format");
-//        String pointTest2 = "{\"geohash_cell\": {\"pin\": \"" + point.lat() + "," + point.lon() + "\",\"precision\": " + precision + ",\"neighbors\": true}}";
-//        SearchResponse results4 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(pointTest2).execute().actionGet();
-//        assertHitCount(results4, neighbors.size() + 1);
-//
-//        logger.info("Testing Array format");
-//        String pointTest3 = "{\"geohash_cell\": {\"pin\": [" + point.lon() + "," + point.lat() + "],\"precision\": " + precision + ",\"neighbors\": true}}";
-//        SearchResponse results5 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(pointTest3).execute().actionGet();
-//        assertHitCount(results5, neighbors.size() + 1);
     }
 
     @Test

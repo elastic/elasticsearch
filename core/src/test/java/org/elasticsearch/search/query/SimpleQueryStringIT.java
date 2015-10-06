@@ -252,13 +252,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 
-
-        // NORELEASE  This should be tested in SimpleQueryStringQueryBuilderTests
-//        // Sending a negative 'flags' value is the same as SimpleQueryStringFlag.ALL
-//        searchResponse = client().prepareSearch().setQuery("{\"simple_query_string\": {\"query\": \"foo bar\", \"flags\": -1}}").get();
-//        assertHitCount(searchResponse, 3l);
-//        assertSearchHits(searchResponse, "1", "2", "3");
-
         searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("foo | bar")
                         .defaultOperator(Operator.AND)

@@ -45,6 +45,7 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.count.CountRequest.DEFAULT_MIN_SCORE;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
@@ -90,10 +91,7 @@ public class RestCountAction extends BaseRestHandler {
             }
         }
         countRequest.routing(request.param("routing"));
-        float minScore = request.paramAsFloat("min_score", -1f);
-        if (minScore != -1f) {
-            countRequest.minScore(minScore);
-        }
+        countRequest.minScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));
         countRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         countRequest.preference(request.param("preference"));
 

@@ -32,6 +32,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
+
 /**
  * A request to count the number of documents matching a specific query. Best created with
  * {@link org.elasticsearch.client.Requests#countRequest(String...)}.
@@ -41,6 +43,8 @@ import java.util.Arrays;
  * @see org.elasticsearch.client.Requests#countRequest(String...)
  */
 public class CountRequest extends BroadcastRequest<CountRequest> {
+
+    public static final float DEFAULT_MIN_SCORE = -1f;
 
     @Nullable
     protected String routing;
@@ -59,6 +63,8 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
     public CountRequest(String... indices) {
         super(indices);
         searchSourceBuilder.size(0);
+        searchSourceBuilder.minScore(DEFAULT_MIN_SCORE);
+        searchSourceBuilder.terminateAfter(DEFAULT_TERMINATE_AFTER);
     }
 
     /**
@@ -76,6 +82,7 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
         this.searchSourceBuilder.minScore(minScore);
         return this;
     }
+
 
     /**
      * The query to execute
@@ -163,6 +170,10 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
             // ignore
         }
         return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", source[" + sSource + "]";
+    }
+
+    public String sourceBuilderString() {
+        return searchSourceBuilder.toString();
     }
 
     public SearchRequest toSearchRequest() {

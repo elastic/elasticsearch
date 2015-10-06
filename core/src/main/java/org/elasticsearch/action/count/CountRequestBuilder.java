@@ -106,6 +106,6 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
 
     @Override
     public String toString() {
-        return request.toString();
+        return request.sourceBuilderString();
     }
 }

@@ -29,12 +29,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.EngineClosedException;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -236,6 +234,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         return null;
     }
 
+    /** set new indexing and translog buffers on this shard.  this may cause the shard to refresh to free up heap. */
     protected void updateShardBuffers(ShardId shardId, ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
         final IndexShard shard = getShard(shardId);
         if (shard != null) {
@@ -251,6 +250,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         }
     }
 
+    /** returns {@code Boolean.TRUE} if no indexing operations have arrived to this shard since the {@code inactiveTimeNS},
+     *  {@code Boolean.FALSE} if they have, and {@code null} if the shard is unknown */
     protected boolean isShardIdle(ShardId shardId, long inactiveTimeNS) {
         final IndexShard shard = getShard(shardId);
         if (shard == null) {
@@ -269,7 +270,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         return indexShard.getActive();
     }
 
-    /** Check if any shards active status changed, now. */
+    /** check if any shards active status changed, now. */
     public void forceCheck() {
         statusChecker.run();
     }
@@ -343,7 +344,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         /**
          * purge any existing statuses that are no longer updated
          *
-         * @return true if any change
+         * @return the changes applied
          */
         private EnumSet<ShardStatusChangeType> purgeDeletedAndClosedShards() {
             EnumSet<ShardStatusChangeType> changes = EnumSet.noneOf(ShardStatusChangeType.class);
@@ -397,7 +398,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         return System.nanoTime();
     }
 
-    // update inactive indexing buffer size
+    /** notify this shard that it is now inactive, so it can drop its indexing buffer to 512 KB */
     protected void markShardAsInactive(ShardId shardId) {
         String ignoreReason = null;
         final IndexShard shard = getShard(shardId);

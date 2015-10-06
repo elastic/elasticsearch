@@ -1040,6 +1040,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         engine.getTranslog().updateBuffer(shardTranslogBufferSize);
     }
 
+    /** Record that this shard is now inactive, and decrease the indexing and translog buffers to tiny values. */
     public void markAsInactive() {
         if (active.getAndSet(false)) {
             updateBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER, TranslogConfig.INACTIVE_SHARD_TRANSLOG_BUFFER);

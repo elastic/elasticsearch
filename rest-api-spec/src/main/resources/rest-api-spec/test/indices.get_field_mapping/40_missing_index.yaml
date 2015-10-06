@@ -6,6 +6,6 @@
       indices.get_field_mapping:
         index: test_index
         type: type
-        field: field
+        fields: field
 
 

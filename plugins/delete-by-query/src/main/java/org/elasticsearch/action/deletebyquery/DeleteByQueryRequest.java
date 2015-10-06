@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.Scroll;
 
@@ -235,12 +234,11 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
 
     @Override
     public String toString() {
-        String sSource = "_na_";
-        try {
-            sSource = XContentHelper.toString(query);
-        } catch (Exception e) {
-            // ignore
-        }
-        return "delete-by-query [" + Arrays.toString(indices) + "][" + Arrays.toString(types) + "], source[" + sSource + "]";
+        return "delete-by-query indices:" + Arrays.toString(indices) +
+                ", types:" + Arrays.toString(types) +
+                ", size:" + size +
+                ", timeout:" + timeout +
+                ", routing:" + routing +
+                ", query:" + query.toString();
     }
 }

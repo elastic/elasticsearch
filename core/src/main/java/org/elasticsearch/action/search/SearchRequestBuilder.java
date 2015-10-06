@@ -19,13 +19,11 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Template;
@@ -511,11 +509,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
             return sourceBuilder.toString();
         }
         if (request.source() != null) {
-            try {
-                return XContentHelper.toString(request.source());
-            } catch (Exception e) {
-                return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
-            }
+            return request.source().toString();
         }
         return new SearchSourceBuilder().toString();
     }

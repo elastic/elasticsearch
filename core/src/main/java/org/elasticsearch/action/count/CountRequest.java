@@ -25,7 +25,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -163,17 +162,11 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
 
     @Override
     public String toString() {
-        String sSource = "_na_";
-        try {
-            sSource = XContentHelper.toString(searchSourceBuilder);
-        } catch (Exception e) {
-            // ignore
-        }
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", source[" + sSource + "]";
-    }
-
-    public String sourceBuilderString() {
-        return searchSourceBuilder.toString();
+        return "count request indices:" + Arrays.toString(indices) +
+                ", types:" + Arrays.toString(types) +
+                ", routing: " + routing +
+                ", preference: " + preference +
+                ", source:" + searchSourceBuilder.toString();
     }
 
     public SearchRequest toSearchRequest() {

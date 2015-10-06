@@ -187,7 +187,7 @@ final class Bootstrap {
     private static void setupLogging(Settings settings, Environment environment) {
         try {
             Class.forName("org.apache.log4j.Logger");
-            LogConfigurator.configure(settings);
+            LogConfigurator.configure(settings, true);
         } catch (ClassNotFoundException e) {
             // no log4j
         } catch (NoClassDefFoundError e) {

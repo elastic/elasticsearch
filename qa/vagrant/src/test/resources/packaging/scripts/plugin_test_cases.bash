@@ -357,21 +357,38 @@ fi
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
     sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" install "file://$relativePath" > /tmp/plugin-cli-output
     local loglines=$(cat /tmp/plugin-cli-output | wc -l)
-    [ "$loglines" = "6" ] || {
-        echo "Expected 6 lines but the output was:"
-        cat /tmp/plugin-cli-output
-        false
-    }
+    if [ "$GROUP" == "TAR PLUGINS" ]; then
+    # tar extraction does not create the plugins directory so the plugin tool will print an additional line that the directory will be created
+        [ "$loglines" -eq "7" ] || {
+            echo "Expected 7 lines but the output was:"
+            cat /tmp/plugin-cli-output
+            false
+        }
+    else
+        [ "$loglines" -eq "6" ] || {
+            echo "Expected 6 lines but the output was:"
+            cat /tmp/plugin-cli-output
+            false
+        }
+    fi
     remove_jvm_example
 
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
     sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" install "file://$relativePath" -Des.logger.level=DEBUG > /tmp/plugin-cli-output
     local loglines=$(cat /tmp/plugin-cli-output | wc -l)
-    [ "$loglines" -gt "6" ] || {
-        echo "Expected more than 6 lines but the output was:"
-        cat /tmp/plugin-cli-output
-        false
-    }
+    if [ "$GROUP" == "TAR PLUGINS" ]; then
+        [ "$loglines" -gt "7" ] || {
+            echo "Expected more than 7 lines but the output was:"
+            cat /tmp/plugin-cli-output
+            false
+        }
+    else
+        [ "$loglines" -gt "6" ] || {
+            echo "Expected more than 6 lines but the output was:"
+            cat /tmp/plugin-cli-output
+            false
+        }
+    fi
     remove_jvm_example
 }
 

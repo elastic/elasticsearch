@@ -136,32 +136,14 @@ public class TemplateQueryIT extends ESIntegTestCase {
         assertHitCount(sr, 2);
     }
 
-    // NORELEASE These need to be tested in TemplateQueryBuilderTests
-    // @Test
-    // public void testRawEscapedTemplate() throws IOException {
-    // String query =
-    // "{\"template\": {\"query\": \"{\\\"match_{{template}}\\\": {}}\\\"\",\"params\" : {\"template\" : \"all\"}}}";
-    //
-    // SearchResponse sr = client().prepareSearch().setQuery(query).get();
-    // assertHitCount(sr, 2);
-    // }
-    //
-    // @Test
-    // public void testRawTemplate() throws IOException {
-    // String query =
-    // "{\"template\": {\"query\": {\"match_{{template}}\": {}},\"params\" : {\"template\" : \"all\"}}}";
-    // SearchResponse sr = client().prepareSearch().setQuery(query).get();
-    // assertHitCount(sr, 2);
-    // }
-    //
-    // @Test
-    // public void testRawFSTemplate() throws IOException {
-    // String query =
-    // "{\"template\": {\"file\": \"storedTemplate\",\"params\" : {\"template\" : \"all\"}}}";
-    //
-    // SearchResponse sr = client().prepareSearch().setQuery(query).get();
-    // assertHitCount(sr, 2);
-    // }
+    @Test
+    public void testRawFSTemplate() throws IOException {
+        Map<String, Object> params = new HashMap<>();
+        params.put("template", "all");
+        TemplateQueryBuilder builder = new TemplateQueryBuilder(new Template("storedTemplate", ScriptType.FILE, null, null, params));
+        SearchResponse sr = client().prepareSearch().setQuery(builder).get();
+        assertHitCount(sr, 2);
+    }
 
     @Test
     public void testSearchRequestTemplateSource() throws Exception {

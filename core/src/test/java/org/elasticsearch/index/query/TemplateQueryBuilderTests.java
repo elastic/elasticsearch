@@ -88,4 +88,34 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
                 content.string());
     }
 
+    @Test
+    public void testRawEscapedTemplate() throws IOException {
+        String expectedTemplateString = "{\"match_{{template}}\": {}}\"";
+        String query = "{\"template\": {\"query\": \"{\\\"match_{{template}}\\\": {}}\\\"\",\"params\" : {\"template\" : \"all\"}}}";
+        Map<String, Object> params = new HashMap<>();
+        params.put("template", "all");
+        QueryBuilder<?> expectedBuilder = new TemplateQueryBuilder(new Template(expectedTemplateString, ScriptType.INLINE, null, null,
+                params));
+        assertParsedQuery(query, expectedBuilder);
+    }
+
+    // NORELEASE Can we actually test raw templates in either unit or
+    // integration tests now?
+    @Test
+    @AwaitsFix(bugUrl = "Can we actually test raw templates in either unit or integration tests now?")
+    public void testRawTemplate() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.startObject("match_{{template}}");
+        builder.endObject();
+        builder.endObject();
+        String expectedTemplateString = "{\"match_{{template}}\": {}}";
+        String query = "{\"template\": {\"query\": {\"match_{{template}}\": {}},\"params\" : {\"template\" : \"all\"}}}";
+        Map<String, Object> params = new HashMap<>();
+        params.put("template", "all");
+        QueryBuilder<?> expectedBuilder = new TemplateQueryBuilder(new Template(expectedTemplateString, ScriptType.INLINE, null, null,
+                params));
+        assertParsedQuery(query, expectedBuilder);
+    }
+
 }

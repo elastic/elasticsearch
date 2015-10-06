@@ -49,7 +49,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
-        field: "*"
+        fields: "*"
 
   - match: {test_index.mappings.test_type.t1.full_name:     t1     }
   - match: {test_index.mappings.test_type.t2.full_name:     t2     }
@@ -63,7 +63,7 @@ setup:
   - do:
       indices.get_field_mapping:
         index: test_index
-        field: "t*"
+        fields: "t*"
 
   - match:  {test_index.mappings.test_type.t1.full_name:     t1       }
   - match:  {test_index.mappings.test_type.t2.full_name:     t2       }
@@ -75,7 +75,7 @@ setup:
   - do:
       indices.get_field_mapping:
         index: test_index
-        field: "*t1"
+        fields: "*t1"
   - match:  {test_index.mappings.test_type.t1.full_name:        t1       }
   - match:  {test_index.mappings.test_type.obj\.t1.full_name:   obj.t1   }
   - match:  {test_index.mappings.test_type.obj\.i_t1.full_name: obj.i_t1 }
@@ -87,7 +87,7 @@ setup:
   - do:
       indices.get_field_mapping:
         index: test_index
-        field: "obj.i_*"
+        fields: "obj.i_*"
   - match:  {test_index.mappings.test_type.obj\.i_t1.full_name: obj.i_t1 }
   - match:  {test_index.mappings.test_type.obj\.i_t3.full_name: obj.i_t3 }
   - length: {test_index.mappings.test_type: 2}
@@ -99,7 +99,7 @@ setup:
       indices.get_field_mapping:
         index: _all
         type: _all
-        field: "t*"
+        fields: "t*"
   - match:  {test_index.mappings.test_type.t1.full_name: t1 }
   - match:  {test_index.mappings.test_type.t2.full_name: t2 }
   - length: {test_index.mappings.test_type: 2}
@@ -114,7 +114,7 @@ setup:
       indices.get_field_mapping:
         index: '*'
         type: '*'
-        field: "t*"
+        fields: "t*"
   - match:  {test_index.mappings.test_type.t1.full_name: t1 }
   - match:  {test_index.mappings.test_type.t2.full_name: t2 }
   - length: {test_index.mappings.test_type: 2}
@@ -129,7 +129,7 @@ setup:
       indices.get_field_mapping:
         index: 'test_index,test_index_2'
         type: 'test_type,test_type_2'
-        field: "t*"
+        fields: "t*"
   - match:  {test_index.mappings.test_type.t1.full_name: t1 }
   - match:  {test_index.mappings.test_type.t2.full_name: t2 }
   - length: {test_index.mappings.test_type: 2}

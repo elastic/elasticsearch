@@ -63,7 +63,7 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
     /**
      * The minimum score of the documents to include in the count.
      */
-    public float minScore() {
+    public Float minScore() {
         return searchSourceBuilder.minScore();
     }
 

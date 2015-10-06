@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.functionscore;
 
 
 
@@ -35,9 +35,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -46,8 +43,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -59,12 +54,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class QueryRescorerTests extends ESIntegTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
-    }
+public class QueryRescorerIT extends ESIntegTestCase {
 
     @Test
     @AwaitsFix(bugUrl = "Need to fix default window size for rescorers so that they are applied")
@@ -604,11 +594,11 @@ public class QueryRescorerTests extends ESIntegTestCase {
                                 QueryBuilders.boolQuery()
                                         .disableCoord(true)
                                         .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0]),
-                                                ScoreFunctionBuilders.scriptFunction(new Script("5.0f"))).boostMode(CombineFunction.REPLACE))
+                                                ScoreFunctionBuilders.weightFactorFunction(5.0f)).boostMode(CombineFunction.REPLACE))
                                         .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1]),
-                                                ScoreFunctionBuilders.scriptFunction(new Script("7.0f"))).boostMode(CombineFunction.REPLACE))
+                                                ScoreFunctionBuilders.weightFactorFunction(7.0f)).boostMode(CombineFunction.REPLACE))
                                         .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3]),
-                                                ScoreFunctionBuilders.scriptFunction(new Script("0.0f"))).boostMode(CombineFunction.REPLACE)))
+                                                ScoreFunctionBuilders.weightFactorFunction(0.0f)).boostMode(CombineFunction.REPLACE)))
                         .setQueryWeight(primaryWeight)
                         .setRescoreQueryWeight(secondaryWeight);
 
@@ -622,17 +612,17 @@ public class QueryRescorerTests extends ESIntegTestCase {
                         .setQuery(QueryBuilders.boolQuery()
                                 .disableCoord(true)
                                 .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0]),
-                                        ScoreFunctionBuilders.scriptFunction(new Script("2.0f"))).boostMode(CombineFunction.REPLACE))
+                                        ScoreFunctionBuilders.weightFactorFunction(2.0f)).boostMode(CombineFunction.REPLACE))
                                 .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1]),
-                                        ScoreFunctionBuilders.scriptFunction(new Script("3.0f"))).boostMode(CombineFunction.REPLACE))
+                                        ScoreFunctionBuilders.weightFactorFunction(3.0f)).boostMode(CombineFunction.REPLACE))
                                 .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2]),
-                                        ScoreFunctionBuilders.scriptFunction(new Script("5.0f"))).boostMode(CombineFunction.REPLACE))
+                                        ScoreFunctionBuilders.weightFactorFunction(5.0f)).boostMode(CombineFunction.REPLACE))
                                 .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3]),
-                                        ScoreFunctionBuilders.scriptFunction(new Script("0.2f"))).boostMode(CombineFunction.REPLACE)))
-                        .setFrom(0)
-                        .setSize(10)
-                        .setRescorer(rescoreQuery)
-                        .setRescoreWindow(50).execute().actionGet();
+                                        ScoreFunctionBuilders.weightFactorFunction(0.2f)).boostMode(CombineFunction.REPLACE)))
+                                .setFrom(0)
+                                .setSize(10)
+                                .setRescorer(rescoreQuery)
+                                .setRescoreWindow(50).execute().actionGet();
 
                 assertHitCount(rescored, 4);
 
@@ -688,10 +678,10 @@ public class QueryRescorerTests extends ESIntegTestCase {
         int numDocs = indexRandomNumbers("keyword", 1, true);
         QueryRescorer eightIsGreat = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(8)),
-                        ScoreFunctionBuilders.scriptFunction(new Script("1000.0f"))).boostMode(CombineFunction.REPLACE)).setScoreMode("total");
+                        ScoreFunctionBuilders.weightFactorFunction(1000.0f)).boostMode(CombineFunction.REPLACE)).setScoreMode("total");
         QueryRescorer sevenIsBetter = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(7)),
-                        ScoreFunctionBuilders.scriptFunction(new Script("10000.0f"))).boostMode(CombineFunction.REPLACE))
+                        ScoreFunctionBuilders.weightFactorFunction(10000.0f)).boostMode(CombineFunction.REPLACE))
                 .setScoreMode("total");
 
         // First set the rescore window large enough that both rescores take effect
@@ -708,10 +698,10 @@ public class QueryRescorerTests extends ESIntegTestCase {
 
         // Now use one rescore to drag the number we're looking for into the window of another
         QueryRescorer ninetyIsGood = RescoreBuilder.queryRescorer(
-                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*ninety*"), ScoreFunctionBuilders.scriptFunction(new Script("1000.0f")))
+                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*ninety*"), ScoreFunctionBuilders.weightFactorFunction(1000.0f))
                         .boostMode(CombineFunction.REPLACE)).setScoreMode("total");
         QueryRescorer oneToo = RescoreBuilder.queryRescorer(
-                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*one*"), ScoreFunctionBuilders.scriptFunction(new Script("1000.0f")))
+                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*one*"), ScoreFunctionBuilders.weightFactorFunction(1000.0f))
                         .boostMode(CombineFunction.REPLACE)).setScoreMode("total");
         request.clearRescorers().addRescorer(ninetyIsGood).addRescorer(oneToo, 10);
         response = request.setSize(2).get();

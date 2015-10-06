@@ -55,7 +55,6 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -167,7 +166,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new MapperServiceModule(),
                 new IndicesModule(settings) {
                     @Override
                     public void configure() {

@@ -99,11 +99,6 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public Object unwrap(Object value) {
-        return value;
-    }
-
-    @Override
     public void close() {
     }
 

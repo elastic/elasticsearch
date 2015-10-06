@@ -97,9 +97,10 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         ctx.put("obj1", obj1);
         vars.put("ctx", ctx);
 
-        se.execute(new CompiledScript(ScriptService.ScriptType.INLINE, "testJavaScriptObjectMapInter", "js",
+        ExecutableScript executable = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testJavaScriptObjectMapInter", "js",
                 se.compile("ctx.obj2 = {}; ctx.obj2.prop2 = 'value2'; ctx.obj1.prop1 = 'uvalue1'")), vars);
-        ctx = (Map<String, Object>) se.unwrap(vars.get("ctx"));
+        executable.run();
+        ctx = (Map<String, Object>) executable.unwrap(vars.get("ctx"));
         assertThat(ctx.containsKey("obj1"), equalTo(true));
         assertThat((String) ((Map<String, Object>) ctx.get("obj1")).get("prop1"), equalTo("uvalue1"));
         assertThat(ctx.containsKey("obj2"), equalTo(true));

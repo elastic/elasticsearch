@@ -17,21 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.routing;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
-
-import java.util.Collection;
-import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -40,13 +33,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class AliasRoutingTests extends ESIntegTestCase {
+public class AliasRoutingIT extends ESIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
-    }
-    
     @Override
     protected int minimumNumberOfShards() {
         return 2;
@@ -77,7 +65,7 @@ public class AliasRoutingTests extends ESIntegTestCase {
         logger.info("--> updating with id [1] and routing through alias");
         client().prepareUpdate("alias0", "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
-                .setScript(new Script("ctx._source.field = 'value2'", ScriptService.ScriptType.INLINE, null, null))
+                .setDoc("field", "value2")
                 .execute().actionGet();
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));

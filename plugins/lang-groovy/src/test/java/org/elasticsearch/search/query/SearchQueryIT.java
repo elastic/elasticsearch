@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
 import org.elasticsearch.Version;
@@ -33,13 +33,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.*;
-import org.elasticsearch.index.search.MatchQuery.Type;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -50,8 +48,6 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -59,18 +55,12 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-public class SearchQueryTests extends ESIntegTestCase {
+public class SearchQueryIT extends ESIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
-    }
-    
     @Override
     protected int maximumNumberOfShards() {
         return 7;
@@ -112,6 +102,7 @@ public class SearchQueryTests extends ESIntegTestCase {
         assertThat(hits[0].score(), allOf(greaterThan(hits[1].getScore()), greaterThan(hits[2].getScore())));
 
     }
+
     @Test // see #3952
     public void testEmptyQueryString() throws ExecutionException, InterruptedException, IOException {
         createIndex("test");
@@ -1945,14 +1936,14 @@ public class SearchQueryTests extends ESIntegTestCase {
     public void testMinScore() throws ExecutionException, InterruptedException {
         createIndex("test");
 
-        indexRandom(true,
-                client().prepareIndex("test", "test", "1").setSource("score", 1.5),
-                client().prepareIndex("test", "test", "2").setSource("score", 1.0),
-                client().prepareIndex("test", "test", "3").setSource("score", 2.0),
-                client().prepareIndex("test", "test", "4").setSource("score", 0.5));
+        client().prepareIndex("test", "test", "1").setSource("score", 1.5).get();
+        client().prepareIndex("test", "test", "2").setSource("score", 1.0).get();
+        client().prepareIndex("test", "test", "3").setSource("score", 2.0).get();
+        client().prepareIndex("test", "test", "4").setSource("score", 0.5).get();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(
-functionScoreQuery(scriptFunction(new Script("_doc['score'].value")))).setMinScore(1.5f).get();
+                functionScoreQuery(ScoreFunctionBuilders.fieldValueFactorFunction("score").missing(1.0)).setMinScore(1.5f)).get();
         assertHitCount(searchResponse, 2);
         assertFirstHit(searchResponse, hasId("3"));
         assertSecondHit(searchResponse, hasId("1"));

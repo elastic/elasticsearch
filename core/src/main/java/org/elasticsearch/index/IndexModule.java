@@ -21,8 +21,11 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 
 /**
@@ -44,6 +47,9 @@ public class IndexModule extends AbstractModule {
         }
         bind(IndexService.class).asEagerSingleton();
         bind(IndexServicesProvider.class).asEagerSingleton();
+        bind(MapperService.class).asEagerSingleton();
+        bind(IndexAliasesService.class).asEagerSingleton();
+        bind(IndexFieldDataService.class).asEagerSingleton();
     }
 
 

@@ -42,7 +42,6 @@ public final class TranslogConfig {
     public static final String INDEX_TRANSLOG_FS_TYPE = "index.translog.fs.type";
     public static final String INDEX_TRANSLOG_BUFFER_SIZE = "index.translog.fs.buffer_size";
     public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
-    public static final ByteSizeValue INACTIVE_SHARD_TRANSLOG_BUFFER = ByteSizeValue.parseBytesSizeValue("1kb", "INACTIVE_SHARD_TRANSLOG_BUFFER");
 
     public static final ByteSizeValue DEFAULT_SHARD_TRANSLOG_BUFFER_SIZE = ByteSizeValue.parseBytesSizeValue("64k", INDEX_TRANSLOG_BUFFER_SIZE);
 

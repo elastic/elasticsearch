@@ -43,6 +43,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -192,7 +193,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     private final IndexSearcherWrapper searcherWrapper;
 
+    /** True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
+     *  IndexingMemoryController}). */
     private final AtomicBoolean active = new AtomicBoolean();
+
     private volatile long lastWriteNS;
     private final IndexingMemoryController indexingMemoryController;
 
@@ -255,8 +259,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
             percolatorQueriesRegistry.enableRealTimePercolator();
         }
-
-        // TODO: can we somehow call IMC.forceCheck here?  Since we just became active, it can divvy up the RAM
+        
+        lastWriteNS = System.nanoTime();
         active.set(true);
     }
 
@@ -454,6 +458,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public void create(Engine.Create create) {
         ensureWriteAllowed(create);
+        markLastWrite(create);
         create = indexingService.preCreate(create);
         try {
             if (logger.isTraceEnabled()) {
@@ -492,6 +497,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
      */
     public boolean index(Engine.Index index) {
         ensureWriteAllowed(index);
+        markLastWrite(index);
         index = indexingService.preIndex(index);
         final boolean created;
         try {
@@ -516,6 +522,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public void delete(Engine.Delete delete) {
         ensureWriteAllowed(delete);
+        markLastWrite(delete);
         delete = indexingService.preDelete(delete);
         try {
             if (logger.isTraceEnabled()) {
@@ -930,7 +937,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         return lastWriteNS;
     }
 
-    private void ensureWriteAllowed(Engine.Operation op) throws IllegalIndexShardStateException {
+    /** Records timestamp of the last write operation, possibly switching {@code active} to true if we were inactive. */
+    private void markLastWrite(Engine.Operation op) {
         lastWriteNS = op.startTime();
         if (active.getAndSet(true) == false) {
             // We are currently inactive, but a new write operation just showed up, so we now notify IMC
@@ -938,6 +946,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             // be low, and it's rare this happens.
             indexingMemoryController.forceCheck();
         }
+    }
+
+    private void ensureWriteAllowed(Engine.Operation op) throws IllegalIndexShardStateException {
         Engine.Operation.Origin origin = op.origin();
         IndexShardState state = this.state; // one time volatile read
 
@@ -1019,34 +1030,43 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         if (preValue.bytes() != shardIndexingBufferSize.bytes()) {
             // so we push changes these changes down to IndexWriter:
             engine.onSettingsChanged();
-            logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, shardIndexingBufferSize);
 
             long iwBytesUsed = engine.indexWriterRAMBytesUsed();
-            if (shardIndexingBufferSize.bytes() < iwBytesUsed) {
+
+            String message = LoggerMessageFormat.format("updating index_buffer_size from [{}] to [{}]; IndexWriter now using [{}] bytes",
+                                                        preValue, shardIndexingBufferSize, iwBytesUsed);
+
+            if (iwBytesUsed > shardIndexingBufferSize.bytes()) {
                 // our allowed buffer was changed to less than we are currently using; we ask IW to refresh
                 // so it clears its buffers (otherwise it won't clear until the next indexing/delete op)
-                logger.debug("refresh because index buffer decreased to [{}] and IndexWriter is now using [{}] bytes",
-                             shardIndexingBufferSize, iwBytesUsed);
+                logger.debug(message + "; now refresh to clear IndexWriter memory");
 
-                // TODO: should IW have an API to move segments to disk, but not refresh?
+                // TODO: should IW have an API to move segments to disk, but not refresh?  Its flush method is protected...
                 try {
                     refresh("update index buffer");
                 } catch (Throwable e) {
                     logger.warn("failed to refresh after decreasing index buffer", e);
                 }
+            } else {
+                logger.debug(message);
             }
         }
 
         engine.getTranslog().updateBuffer(shardTranslogBufferSize);
     }
 
-    /** Record that this shard is now inactive, and decrease the indexing and translog buffers to tiny values. */
-    public void markAsInactive() {
-        if (active.getAndSet(false)) {
-            updateBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER, TranslogConfig.INACTIVE_SHARD_TRANSLOG_BUFFER);
+    /** Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
+     *  indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so.  This returns true
+     *  if the shard did in fact become inactive, else false. */
+    public boolean checkIdle(long inactiveTimeNS) {
+        if (System.nanoTime() - lastWriteNS >= inactiveTimeNS && active.getAndSet(false)) {
+            updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
             logger.debug("shard is now inactive");
             indicesLifecycle.onShardInactive(this);
+            return true;
         }
+
+        return false;
     }
 
     /** Returns {@code true} if this shard is active (has seen indexing ops in the last {@link

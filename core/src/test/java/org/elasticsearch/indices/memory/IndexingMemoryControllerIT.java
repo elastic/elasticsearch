@@ -82,7 +82,7 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
         index("test1", "type", "1", "f", 1);
 
         // make shard the shard buffer was set to inactive size
-        final ByteSizeValue inactiveBuffer = EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER;
+        final ByteSizeValue inactiveBuffer = IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER;
         if (awaitBusy(() -> getIWBufferSize("test1") == inactiveBuffer.bytes()) == false) {
             fail("failed to update shard indexing buffer size for test1 index to [" + inactiveBuffer + "]; got: " + getIWBufferSize("test1"));
         }

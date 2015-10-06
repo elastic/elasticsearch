@@ -248,6 +248,6 @@ public class ShadowEngine extends Engine {
     @Override
     public long indexWriterRAMBytesUsed() {
         // No IndexWriter
-        return 0L;
+        throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
     }
 }

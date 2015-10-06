@@ -44,8 +44,6 @@ public interface ScriptEngineService extends Closeable {
 
     Object execute(CompiledScript compiledScript, Map<String, Object> vars);
 
-    Object unwrap(Object value);
-
     /**
      * Handler method called when a script is removed from the Guava cache.
      *

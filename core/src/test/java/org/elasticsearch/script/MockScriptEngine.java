@@ -109,11 +109,6 @@ public class MockScriptEngine implements ScriptEngineService {
     }
 
     @Override
-    public Object unwrap(Object value) {
-        return null;
-    }
-
-    @Override
     public void scriptRemoved(@Nullable CompiledScript script) {
     }
 

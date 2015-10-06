@@ -137,11 +137,6 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public Object unwrap(Object value) {
-        return unwrapValue(value);
-    }
-
-    @Override
     public void close() {
         interp.cleanup();
     }

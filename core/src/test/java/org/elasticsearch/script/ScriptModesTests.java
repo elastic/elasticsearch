@@ -283,11 +283,6 @@ public class ScriptModesTests extends ESTestCase {
         }
 
         @Override
-        public Object unwrap(Object value) {
-            return null;
-        }
-
-        @Override
         public void close() {
 
         }

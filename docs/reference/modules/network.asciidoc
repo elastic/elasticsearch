@@ -52,7 +52,7 @@ provided network interface. For example `_en0:ipv6_`.
 |=======================================================================
 
 When the `cloud-aws` plugin is installed, you can use
-{plugins}/cloud-aws-discovery.html#cloud-aws-discovery-network-hos[ec2 specific host settings].
+{plugins}/cloud-aws-discovery.html#cloud-aws-discovery-network-host[ec2 specific host settings].
 
 [float]
 [[tcp-settings]]

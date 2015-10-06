@@ -185,7 +185,7 @@ You can use {ref}/modules-network.html[core network host settings] or
 ==============================================
 
 [[cloud-aws-discovery-network-host]]
-==== EC2 Network Host
+===== EC2 Network Host
 
 When the `cloud-aws` plugin is installed, the following are also allowed
 as valid network host settings:

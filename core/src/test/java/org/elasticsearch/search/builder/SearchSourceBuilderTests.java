@@ -19,25 +19,11 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -48,122 +34,52 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder.InnerHit;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchSourceBuilderTests extends ESTestCase {
 
-    protected static final String STRING_FIELD_NAME = "mapped_string";
-    protected static final String STRING_FIELD_NAME_2 = "mapped_string_2";
-    protected static final String INT_FIELD_NAME = "mapped_int";
-    protected static final String DOUBLE_FIELD_NAME = "mapped_double";
-    protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
-    protected static final String DATE_FIELD_NAME = "mapped_date";
-    protected static final String OBJECT_FIELD_NAME = "mapped_object";
-    protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
-    protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
-    protected static final String[] MAPPED_FIELD_NAMES = new String[] { STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME,
-            BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME, GEO_SHAPE_FIELD_NAME };
-    protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[] { STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME,
-            BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, GEO_POINT_FIELD_NAME };
-
     private static Injector injector;
-    private static IndexQueryParserService queryParserService;
-
-    protected static IndexQueryParserService queryParserService() {
-        return queryParserService;
-    }
-
-    private static Index index;
-
-    protected static Index getIndex() {
-        return index;
-    }
-
-    private static String[] currentTypes;
-
-    protected static String[] getCurrentTypes() {
-        return currentTypes;
-    }
 
     private static NamedWriteableRegistry namedWriteableRegistry;
 
-    private static String[] randomTypes;
-    private static ClientInvocationHandler clientInvocationHandler = new ClientInvocationHandler();
+    private static IndicesQueriesRegistry indicesQueriesRegistry;
 
-    /**
-     * Setup for the whole base test class.
-     */
     @BeforeClass
     public static void init() throws IOException {
-        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
         Settings settings = Settings.settingsBuilder()
-                .put("name", AbstractQueryTestCase.class.toString())
+                .put("name", SearchSourceBuilderTests.class.toString())
                 .put("path.home", createTempDir())
                 .build();
-        Settings indexSettings = Settings.settingsBuilder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        index = new Index(randomAsciiOfLengthBetween(1, 10));
-        final TestClusterService clusterService = new TestClusterService();
-        clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(
-                new IndexMetaData.Builder(index.name()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
-        final Client proxy = (Client) Proxy.newProxyInstance(Client.class.getClassLoader(), new Class[] { Client.class },
-                clientInvocationHandler);
         injector = new ModulesBuilder().add(
-                new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
                 new ThreadPoolModule(new ThreadPool(settings)),
                 new IndicesModule(settings) {
@@ -173,45 +89,15 @@ public class SearchSourceBuilderTests extends ESTestCase {
                         bindQueryParsersExtension();
                     }
                 },
-                new ScriptModule(settings),
-                new IndexSettingsModule(index, indexSettings),
-                new IndexCacheModule(indexSettings),
-                new AnalysisModule(indexSettings, new IndicesAnalysisService(indexSettings)),
-                new SimilarityModule(indexSettings),
-                new IndexNameModule(index),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
-                        bind(Client.class).toInstance(proxy);
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
-                        bind(ClusterService.class).toProvider(Providers.of(clusterService));
-                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                         bind(NamedWriteableRegistry.class).asEagerSingleton();
                     }
                 }
         ).createInjector();
-        queryParserService = injector.getInstance(IndexQueryParserService.class);
-        MapperService mapperService = injector.getInstance(MapperService.class);
-        //create some random type with some default field, those types will stick around for all of the subclasses
-        currentTypes = new String[randomIntBetween(0, 5)];
-        for (int i = 0; i < currentTypes.length; i++) {
-            String type = randomAsciiOfLengthBetween(1, 10);
-            mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
-                    STRING_FIELD_NAME, "type=string",
-                    STRING_FIELD_NAME_2, "type=string",
-                    INT_FIELD_NAME, "type=integer",
-                    DOUBLE_FIELD_NAME, "type=double",
-                    BOOLEAN_FIELD_NAME, "type=boolean",
-                    DATE_FIELD_NAME, "type=date",
-                    OBJECT_FIELD_NAME, "type=object",
-                    GEO_POINT_FIELD_NAME, "type=geo_point,lat_lon=true,geohash=true,geohash_prefix=true",
-                    GEO_SHAPE_FIELD_NAME, "type=geo_shape"
-            ).string()), false, false);
-            // also add mappings for two inner field in the object field
-            mapperService.merge(type, new CompressedXContent("{\"properties\":{\""+OBJECT_FIELD_NAME+"\":{\"type\":\"object\","
-                    + "\"properties\":{\""+DATE_FIELD_NAME+"\":{\"type\":\"date\"},\""+INT_FIELD_NAME+"\":{\"type\":\"integer\"}}}}}"), false, false);
-            currentTypes[i] = type;
-        }
+        indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
         namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
     }
 
@@ -219,31 +105,8 @@ public class SearchSourceBuilderTests extends ESTestCase {
     public static void afterClass() throws Exception {
         terminate(injector.getInstance(ThreadPool.class));
         injector = null;
-        index = null;
-        queryParserService = null;
-        currentTypes = null;
         namedWriteableRegistry = null;
-        randomTypes = null;
-    }
-
-    @Before
-    public void beforeTest() {
-        clientInvocationHandler.delegate = this;
-        //set some random types to be queried as part the search request, before each test
-        randomTypes = getRandomTypes();
-    }
-
-    protected void setSearchContext(String[] types) {
-        TestSearchContext testSearchContext = new TestSearchContext();
-        testSearchContext.setTypes(types);
-        SearchContext.setCurrent(testSearchContext);
-    }
-
-    @After
-    public void afterTest() {
-        clientInvocationHandler.delegate = null;
-        QueryShardContext.removeTypes();
-        SearchContext.removeCurrent();
+        indicesQueriesRegistry = null;
     }
 
     protected final SearchSourceBuilder createSearchSourceBuilder() throws IOException {
@@ -470,24 +333,24 @@ public class SearchSourceBuilderTests extends ESTestCase {
     @Test
     public void testEqualsAndHashcode() throws IOException {
         SearchSourceBuilder firstBuilder = createSearchSourceBuilder();
-        assertFalse("query is equal to null", firstBuilder.equals(null));
-        assertFalse("query is equal to incompatible type", firstBuilder.equals(""));
-        assertTrue("query is not equal to self", firstBuilder.equals(firstBuilder));
-        assertThat("same query's hashcode returns different values if called multiple times", firstBuilder.hashCode(),
+        assertFalse("source builder is equal to null", firstBuilder.equals(null));
+        assertFalse("source builder is equal to incompatible type", firstBuilder.equals(""));
+        assertTrue("source builder is not equal to self", firstBuilder.equals(firstBuilder));
+        assertThat("same source builder's hashcode returns different values if called multiple times", firstBuilder.hashCode(),
                 equalTo(firstBuilder.hashCode()));
 
         SearchSourceBuilder secondBuilder = copyBuilder(firstBuilder);
-        assertTrue("query is not equal to self", secondBuilder.equals(secondBuilder));
-        assertTrue("query is not equal to its copy", firstBuilder.equals(secondBuilder));
-        assertTrue("equals is not symmetric", secondBuilder.equals(firstBuilder));
-        assertThat("query copy's hashcode is different from original hashcode", secondBuilder.hashCode(), equalTo(firstBuilder.hashCode()));
+        assertTrue("source builder is not equal to self", secondBuilder.equals(secondBuilder));
+        assertTrue("source builder is not equal to its copy", firstBuilder.equals(secondBuilder));
+        assertTrue("source builder is not symmetric", secondBuilder.equals(firstBuilder));
+        assertThat("source builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(), equalTo(firstBuilder.hashCode()));
 
         SearchSourceBuilder thirdBuilder = copyBuilder(secondBuilder);
-        assertTrue("query is not equal to self", thirdBuilder.equals(thirdBuilder));
-        assertTrue("query is not equal to its copy", secondBuilder.equals(thirdBuilder));
-        assertThat("query copy's hashcode is different from original hashcode", secondBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
+        assertTrue("source builder is not equal to self", thirdBuilder.equals(thirdBuilder));
+        assertTrue("source builder is not equal to its copy", secondBuilder.equals(thirdBuilder));
+        assertThat("source builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
         assertTrue("equals is not transitive", firstBuilder.equals(thirdBuilder));
-        assertThat("query copy's hashcode is different from original hashcode", firstBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
+        assertThat("source builder copy's hashcode is different from original hashcode", firstBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
         assertTrue("equals is not symmetric", thirdBuilder.equals(secondBuilder));
         assertTrue("equals is not symmetric", thirdBuilder.equals(firstBuilder));
     }
@@ -497,88 +360,16 @@ public class SearchSourceBuilderTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             builder.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                SearchSourceBuilder secondQuery = SearchSourceBuilder.PROTOTYPE.readFrom(in);
-                return secondQuery;
+                return SearchSourceBuilder.PROTOTYPE.readFrom(in);
             }
         }
-    }
-
-    /**
-     * @return a new {@link QueryShardContext} based on the base test index and queryParserService
-     */
-    protected static QueryShardContext createShardContext() {
-        QueryShardContext queryCreationContext = new QueryShardContext(index, queryParserService);
-        queryCreationContext.reset();
-        queryCreationContext.parseFieldMatcher(ParseFieldMatcher.EMPTY);
-        return queryCreationContext;
     }
 
     /**
      * @return a new {@link QueryParseContext} based on the base test index and queryParserService
      */
     protected static QueryParseContext createParseContext() {
-        return createShardContext().parseContext();
-    }
-
-    protected String[] getRandomTypes() {
-        String[] types;
-        if (currentTypes.length > 0 && randomBoolean()) {
-            int numberOfQueryTypes = randomIntBetween(1, currentTypes.length);
-            types = new String[numberOfQueryTypes];
-            for (int i = 0; i < numberOfQueryTypes; i++) {
-                types[i] = randomFrom(currentTypes);
-            }
-        } else {
-            if (randomBoolean()) {
-                types = new String[] { MetaData.ALL };
-            } else {
-                types = new String[0];
-            }
-        }
-        return types;
-    }
-
-    private static class ClientInvocationHandler implements InvocationHandler {
-        SearchSourceBuilderTests delegate;
-
-        @Override
-        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            if (method.equals(Client.class.getDeclaredMethod("get", GetRequest.class))) {
-                return new PlainActionFuture<GetResponse>() {
-                    @Override
-                    public GetResponse get() throws InterruptedException, ExecutionException {
-                        return delegate.executeGet((GetRequest) args[0]);
-                    }
-                };
-            } else if (method.equals(Client.class.getDeclaredMethod("multiTermVectors", MultiTermVectorsRequest.class))) {
-                return new PlainActionFuture<MultiTermVectorsResponse>() {
-                    @Override
-                    public MultiTermVectorsResponse get() throws InterruptedException, ExecutionException {
-                        return delegate.executeMultiTermVectors((MultiTermVectorsRequest) args[0]);
-                    }
-                };
-            } else if (method.equals(Object.class.getDeclaredMethod("toString"))) {
-                return "MockClient";
-            }
-            throw new UnsupportedOperationException("this test can't handle calls to: " + method);
-        }
-
-    }
-
-    /**
-     * Override this to handle {@link Client#get(GetRequest)} calls from parsers
-     * / builders
-     */
-    protected GetResponse executeGet(GetRequest getRequest) {
-        throw new UnsupportedOperationException("this test can't handle GET requests");
-    }
-
-    /**
-     * Override this to handle {@link Client#get(GetRequest)} calls from parsers
-     * / builders
-     */
-    protected MultiTermVectorsResponse executeMultiTermVectors(MultiTermVectorsRequest mtvRequest) {
-        throw new UnsupportedOperationException("this test can't handle MultiTermVector requests");
+        return new QueryParseContext(indicesQueriesRegistry);
     }
 
     public void testParseIncludeExclude() throws IOException {
@@ -586,7 +377,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         {
             String restContent = " { \"_source\": { \"includes\": \"include\", \"excludes\": \"*.field2\"}}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(queryParserService.indicesQueriesRegistry()));
+                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(indicesQueriesRegistry));
                 assertArrayEquals(new String[]{"*.field2" }, searchSourceBuilder.fetchSource().excludes());
                 assertArrayEquals(new String[]{"include" }, searchSourceBuilder.fetchSource().includes());
             }
@@ -594,7 +385,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         {
             String restContent = " { \"_source\": false}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(queryParserService.indicesQueriesRegistry()));
+                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(indicesQueriesRegistry));
                 assertArrayEquals(new String[]{}, searchSourceBuilder.fetchSource().excludes());
                 assertArrayEquals(new String[]{}, searchSourceBuilder.fetchSource().includes());
                 assertFalse(searchSourceBuilder.fetchSource().fetchSource());
@@ -607,7 +398,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         {
             String restContent = " { \"sort\": \"foo\"}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(queryParserService.indicesQueriesRegistry()));
+                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(indicesQueriesRegistry));
                 assertEquals(1, searchSourceBuilder.sorts().size());
                 assertEquals("{\"foo\":{}}", searchSourceBuilder.sorts().get(0).toUtf8());
             }
@@ -622,7 +413,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     "        \"_score\"\n" +
                     "    ]}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(queryParserService.indicesQueriesRegistry()));
+                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(indicesQueriesRegistry));
                 assertEquals(5, searchSourceBuilder.sorts().size());
                 assertEquals("{\"post_date\":{\"order\":\"asc\"}}", searchSourceBuilder.sorts().get(0).toUtf8());
                 assertEquals("\"user\"", searchSourceBuilder.sorts().get(1).toUtf8());

@@ -352,3 +352,26 @@ fi
 @test "[$GROUP] stop elasticsearch" {
     stop_elasticsearch_service
 }
+
+@test "[$GROUP] install jvm-example with different logging modes and check output" {
+    local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" install "file://$relativePath" > /tmp/plugin-cli-output
+    local loglines=$(cat /tmp/plugin-cli-output | wc -l)
+    [ "$loglines" = "6" ] || {
+        echo "Expected 6 lines but the output was:"
+        cat /tmp/plugin-cli-output
+        false
+    }
+    remove_jvm_example
+
+    local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" install "file://$relativePath" -Des.logger.level=DEBUG > /tmp/plugin-cli-output
+    local loglines=$(cat /tmp/plugin-cli-output | wc -l)
+    [ "$loglines" -gt "6" ] || {
+        echo "Expected more than 6 lines but the output was:"
+        cat /tmp/plugin-cli-output
+        false
+    }
+    remove_jvm_example
+}
+

@@ -134,6 +134,7 @@ com.google.common.hash.HashCode
 com.google.common.hash.HashFunction
 com.google.common.hash.Hashing
 com.google.common.collect.ImmutableMap
+com.google.common.collect.ImmutableMap$Builder
 
 @defaultMessage Do not violate java's access system
 java.lang.reflect.AccessibleObject#setAccessible(boolean)

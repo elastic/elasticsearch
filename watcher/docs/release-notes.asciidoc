@@ -48,6 +48,10 @@ bin/plugin remove watcher
   `watcher.dynamic_indices.time_zone` setting was set to `+01:00` and a watch has the following index name `<logstash-{now/d}>`
   then after the upgrade you need to update this watch to use the following index name `<logstash-{now/d{YYYY.MM.dd|+01:00}}>`.
 
+.Enhancements
+* If `action.auto_create_index` setting has been configured then Watcher will check if the setting is too restrictive.
+  If the `action.auto_create_index` is too restrictive then Watcher will fail during startup with a descriptive error message.
+
 .Bug Fixes
 * Fixed url encoding issue in http input and webhook output. The url params were url encoded twice.
 

@@ -32,8 +32,10 @@ import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.*;
 
@@ -56,7 +58,7 @@ public class LoggingConfigurationTests extends ESTestCase {
                     .put("path.conf", configDir.toAbsolutePath())
                     .put("path.home", createTempDir().toString())
                     .build();
-            LogConfigurator.configure(settings);
+            LogConfigurator.configure(settings, true);
 
             ESLogger esLogger = Log4jESLoggerFactory.getLogger("test");
             Logger logger = ((Log4jESLogger) esLogger).logger();
@@ -157,26 +159,51 @@ public class LoggingConfigurationTests extends ESTestCase {
     public void testResolveOrder() throws Exception {
         Path tmpDir = createTempDir();
         Path loggingConf = tmpDir.resolve(loggingConfiguration("yaml"));
-        Files.write(loggingConf, "logger.test: INFO, file\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(loggingConf, "logger.test_resolve_order: INFO, file\n".getBytes(StandardCharsets.UTF_8));
         Files.write(loggingConf, "appender.file.type: file\n".getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
         Environment environment = InternalSettingsPreparer.prepareEnvironment(
                 Settings.builder()
                         .put("path.conf", tmpDir.toAbsolutePath())
                         .put("path.home", createTempDir().toString())
-                        .put("logger.test", "TRACE, console")
+                        .put("logger.test_resolve_order", "TRACE, console")
                         .put("appender.console.type", "console")
                         .put("appender.console.layout.type", "consolePattern")
                         .put("appender.console.layout.conversionPattern", "[%d{ISO8601}][%-5p][%-25c] %m%n")
                         .build(), new CliToolTestCase.MockTerminal());
-        LogConfigurator.configure(environment.settings());
+        LogConfigurator.configure(environment.settings(), true);
         // args should overwrite whatever is in the config
-        ESLogger esLogger = Log4jESLoggerFactory.getLogger("test");
+        ESLogger esLogger = Log4jESLoggerFactory.getLogger("test_resolve_order");
         Logger logger = ((Log4jESLogger) esLogger).logger();
         Appender appender = logger.getAppender("console");
         assertThat(appender, notNullValue());
         assertTrue(logger.isTraceEnabled());
         appender = logger.getAppender("file");
         assertThat(appender, nullValue());
+    }
+
+    // tests that config file is not read when we call LogConfigurator.configure(Settings, false)
+    @Test
+    public void testConfigNotRead() throws Exception {
+        Path tmpDir = createTempDir();
+        Path loggingConf = tmpDir.resolve(loggingConfiguration("yaml"));
+        Files.write(loggingConf,
+                Arrays.asList(
+                        "logger.test_config_not_read: INFO, console",
+                        "appender.console.type: console"),
+                StandardCharsets.UTF_8);
+        Environment environment = InternalSettingsPreparer.prepareEnvironment(
+                Settings.builder()
+                        .put("path.conf", tmpDir.toAbsolutePath())
+                        .put("path.home", createTempDir().toString())
+                        .build(), new CliToolTestCase.MockTerminal());
+        LogConfigurator.configure(environment.settings(), false);
+        ESLogger esLogger = Log4jESLoggerFactory.getLogger("test_config_not_read");
+
+        assertNotNull(esLogger);
+        Logger logger = ((Log4jESLogger) esLogger).logger();
+        Appender appender = logger.getAppender("console");
+        // config was not read
+        assertNull(appender);
     }
 
     private static String loggingConfiguration(String suffix) {

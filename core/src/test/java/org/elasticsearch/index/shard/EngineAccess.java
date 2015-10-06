@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
- 
-/*
- * Limited security policy for groovy scripts.
- * This is what is needed for its invokeDynamic functionality to work.
+package org.elasticsearch.index.shard;
+
+import org.elasticsearch.index.engine.Engine;
+
+/**
+ * Test utility to access the engine of a shard
  */
-grant {
-  
-  // groovy IndyInterface bootstrap requires this property for indy logging
-  permission java.util.PropertyPermission "groovy.indy.logging", "read";
-  
-  // needed IndyInterface selectMethod (setCallSiteTarget)
-  permission java.lang.RuntimePermission "getClassLoader";
-};
+public final class EngineAccess {
+
+    public static Engine engine(IndexShard shard) {
+        return shard.getEngine();
+    }
+}

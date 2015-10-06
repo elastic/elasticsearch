@@ -221,7 +221,7 @@ public class PluginInfoTests extends ESTestCase {
             PluginInfo.readFromProperties(pluginDir);
             fail("expected old elasticsearch version exception");
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Elasticsearch version [1.7.0] is too old"));
+            assertTrue(e.getMessage().contains("Was designed for version [1.7.0]"));
         }
     }
 

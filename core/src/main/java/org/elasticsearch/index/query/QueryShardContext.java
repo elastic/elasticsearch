@@ -69,7 +69,7 @@ public class QueryShardContext {
         return typesContext.get();
     }
 
-    public static String[] setTypesWithPrevious(String[] types) {
+    public static String[] setTypesWithPrevious(String... types) {
         String[] old = typesContext.get();
         setTypes(types);
         return old;

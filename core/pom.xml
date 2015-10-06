@@ -274,7 +274,7 @@
                                 <include>org/elasticsearch/common/cli/CliToolTestCase$*.class</include>
                                 <include>org/elasticsearch/cluster/MockInternalClusterInfoService.class</include>
                                 <include>org/elasticsearch/cluster/MockInternalClusterInfoService$*.class</include>
-                                <include>org/elasticsearch/index/shard/MockEngineFactoryPlugin.class</include>
+                                <include>org/elasticsearch/index/MockEngineFactoryPlugin.class</include>
                                 <include>org/elasticsearch/search/MockSearchService.class</include>
                                 <include>org/elasticsearch/search/MockSearchService$*.class</include>
                                 <include>org/elasticsearch/search/aggregations/bucket/AbstractTermsTestCase.class</include>

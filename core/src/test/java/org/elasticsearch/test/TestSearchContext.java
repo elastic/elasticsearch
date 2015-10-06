@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -84,6 +85,7 @@ public class TestSearchContext extends SearchContext {
     final IndexShard indexShard;
     final Counter timeEstimateCounter = Counter.newCounter();
     final QuerySearchResult queryResult = new QuerySearchResult();
+    ScriptService scriptService;
     ParsedQuery originalQuery;
     ParsedQuery postFilter;
     Query query;
@@ -98,7 +100,7 @@ public class TestSearchContext extends SearchContext {
     private final long originNanoTime = System.nanoTime();
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
 
-    public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService) {
+    public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ScriptService scriptService, IndexService indexService) {
         super(ParseFieldMatcher.STRICT, null);
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -106,7 +108,8 @@ public class TestSearchContext extends SearchContext {
         this.indexFieldDataService = indexService.fieldData();
         this.fixedBitSetFilterCache = indexService.bitsetFilterCache();
         this.threadPool = threadPool;
-        this.indexShard = indexService.shard(0);
+        this.indexShard = indexService.getShardOrNull(0);
+        this.scriptService = scriptService;
     }
 
     public TestSearchContext() {
@@ -118,6 +121,7 @@ public class TestSearchContext extends SearchContext {
         this.threadPool = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = null;
+        scriptService = null;
     }
 
     public void setTypes(String... types) {
@@ -324,7 +328,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public ScriptService scriptService() {
-        return indexService.injector().getInstance(ScriptService.class);
+        return scriptService;
     }
 
     @Override
@@ -665,7 +669,8 @@ public class TestSearchContext extends SearchContext {
     public void copyContextAndHeadersFrom(HasContextAndHeaders other) {}
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return queryCollectors;
-    }
+    public Map<Class<?>, Collector> queryCollectors() {return queryCollectors;}
+
+    @Override
+    public QueryCache getQueryCache() { return indexService.cache().query();}
 }

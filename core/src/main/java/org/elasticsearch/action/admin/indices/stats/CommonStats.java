@@ -34,7 +34,7 @@ import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.stats.PercolateStats;
+import org.elasticsearch.index.percolator.PercolateStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -167,7 +167,7 @@ public class CommonStats implements Streamable, ToXContent {
                     segments = indexShard.segmentStats();
                     break;
                 case Percolate:
-                    percolate = indexShard.shardPercolateService().stats();
+                    percolate = indexShard.percolateStats();
                     break;
                 case Translog:
                     translog = indexShard.translogStats();

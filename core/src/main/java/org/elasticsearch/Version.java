@@ -263,6 +263,8 @@ public class Version {
     public static final Version V_2_0_0 = new Version(V_2_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_1);
     public static final int V_2_1_0_ID = 2010099;
     public static final Version V_2_1_0 = new Version(V_2_1_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_3_0);
+    public static final int V_2_2_0_ID = 2020099;
+    public static final Version V_2_2_0 = new Version(V_2_2_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_3_0);
     public static final int V_3_0_0_ID = 3000099;
     public static final Version V_3_0_0 = new Version(V_3_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_4_0);
     public static final Version CURRENT = V_3_0_0;
@@ -279,6 +281,8 @@ public class Version {
         switch (id) {
             case V_3_0_0_ID:
                 return V_3_0_0;
+            case V_2_2_0_ID:
+                return V_2_2_0;
             case V_2_1_0_ID:
                 return V_2_1_0;
             case V_2_0_0_ID:

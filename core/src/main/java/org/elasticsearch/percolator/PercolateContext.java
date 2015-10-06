@@ -43,12 +43,14 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
@@ -88,6 +90,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class PercolateContext extends SearchContext {
 
+    private final PercolatorQueriesRegistry percolateQueryRegistry;
     public boolean limit;
     private int size;
     public boolean doSort;
@@ -101,7 +104,6 @@ public class PercolateContext extends SearchContext {
     private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
-    private final ConcurrentMap<BytesRef, Query> percolateQueries;
     private final int numberOfShards;
     private final Query aliasFilter;
     private final long originNanoTime = System.nanoTime();
@@ -132,7 +134,7 @@ public class PercolateContext extends SearchContext {
         this.indexService = indexService;
         this.fieldDataService = indexService.fieldData();
         this.searchShardTarget = searchShardTarget;
-        this.percolateQueries = indexShard.percolateRegistry().percolateQueries();
+        this.percolateQueryRegistry = indexShard.percolateRegistry();
         this.types = new String[]{request.documentType()};
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -178,7 +180,7 @@ public class PercolateContext extends SearchContext {
     }
 
     public ConcurrentMap<BytesRef, Query> percolateQueries() {
-        return percolateQueries;
+        return percolateQueryRegistry.percolateQueries();
     }
 
     public Query percolateQuery() {
@@ -750,4 +752,7 @@ public class PercolateContext extends SearchContext {
     public Map<Class<?>, Collector> queryCollectors() {
         return queryCollectors;
     }
+
+    @Override
+    public QueryCache getQueryCache() { return indexService.cache().query();}
 }

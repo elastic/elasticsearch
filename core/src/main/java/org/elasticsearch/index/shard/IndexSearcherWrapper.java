@@ -17,59 +17,47 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.engine.Engine.Searcher;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineException;
 
-import java.util.Set;
+import java.io.IOException;
 
 /**
- * Service responsible for wrapping the {@link DirectoryReader} and {@link IndexSearcher} of a {@link Searcher} via the
- * configured {@link IndexSearcherWrapper} instance. This allows custom functionally to be added the {@link Searcher}
- * before being used to do an operation (search, get, field stats etc.)
+ * Extension point to add custom functionality at request time to the {@link DirectoryReader}
+ * and {@link IndexSearcher} managed by the {@link Engine}.
  */
-// TODO: This needs extension point is a bit hacky now, because the IndexSearch from the engine can only be wrapped once,
-// if we allowed the IndexSearcher to be wrapped multiple times then a custom IndexSearcherWrapper needs have good
-// control over its location in the wrapping chain
-public final class IndexSearcherWrappingService {
+public interface IndexSearcherWrapper {
 
-    private final IndexSearcherWrapper wrapper;
+    /**
+     * @param reader The provided directory reader to be wrapped to add custom functionality
+     * @return a new directory reader wrapping the provided directory reader or if no wrapping was performed
+     *         the provided directory reader
+     */
+    DirectoryReader wrap(DirectoryReader reader) throws IOException;
 
-    // for unit tests:
-    IndexSearcherWrappingService() {
-        this.wrapper = null;
-    }
-
-    @Inject
-    // Use a Set parameter here, because constructor parameter can't be optional
-    // and I prefer to keep the `wrapper` field final.
-    public IndexSearcherWrappingService(Set<IndexSearcherWrapper> wrappers) {
-        if (wrappers.size() > 1) {
-            throw new IllegalStateException("wrapping of the index searcher by more than one wrappers is forbidden, found the following wrappers [" + wrappers + "]");
-        }
-        if (wrappers.isEmpty()) {
-            this.wrapper = null;
-        } else {
-            this.wrapper = wrappers.iterator().next();
-        }
-    }
+    /**
+     * @param engineConfig  The engine config which can be used to get the query cache and query cache policy from
+     *                      when creating a new index searcher
+     * @param searcher      The provided index searcher to be wrapped to add custom functionality
+     * @return a new index searcher wrapping the provided index searcher or if no wrapping was performed
+     *         the provided index searcher
+     */
+    IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws IOException;
 
     /**
      * If there are configured {@link IndexSearcherWrapper} instances, the {@link IndexSearcher} of the provided engine searcher
-     * gets wrapped and a new {@link Searcher} instances is returned, otherwise the provided {@link Searcher} is returned.
+     * gets wrapped and a new {@link Engine.Searcher} instances is returned, otherwise the provided {@link Engine.Searcher} is returned.
      *
-     * This is invoked each time a {@link Searcher} is requested to do an operation. (for example search)
+     * This is invoked each time a {@link Engine.Searcher} is requested to do an operation. (for example search)
      */
-    public Searcher wrap(EngineConfig engineConfig, final Searcher engineSearcher) throws EngineException {
-        if (wrapper == null) {
-            return engineSearcher;
-        }
-
-        DirectoryReader reader = wrapper.wrap((DirectoryReader) engineSearcher.reader());
+    default Engine.Searcher wrap(EngineConfig engineConfig, Engine.Searcher engineSearcher) throws IOException {
+        DirectoryReader reader = wrap((DirectoryReader) engineSearcher.reader());
         IndexSearcher innerIndexSearcher = new IndexSearcher(reader);
         innerIndexSearcher.setQueryCache(engineConfig.getQueryCache());
         innerIndexSearcher.setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());
@@ -77,12 +65,11 @@ public final class IndexSearcherWrappingService {
         // TODO: Right now IndexSearcher isn't wrapper friendly, when it becomes wrapper friendly we should revise this extension point
         // For example if IndexSearcher#rewrite() is overwritten than also IndexSearcher#createNormalizedWeight needs to be overwritten
         // This needs to be fixed before we can allow the IndexSearcher from Engine to be wrapped multiple times
-        IndexSearcher indexSearcher = wrapper.wrap(engineConfig, innerIndexSearcher);
+        IndexSearcher indexSearcher = wrap(engineConfig, innerIndexSearcher);
         if (reader == engineSearcher.reader() && indexSearcher == innerIndexSearcher) {
             return engineSearcher;
         } else {
             return new Engine.Searcher(engineSearcher.source(), indexSearcher) {
-
                 @Override
                 public void close() throws ElasticsearchException {
                     engineSearcher.close();

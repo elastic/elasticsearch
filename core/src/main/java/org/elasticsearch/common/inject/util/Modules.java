@@ -135,7 +135,8 @@ public final class Modules {
         private final Set<Module> baseModules;
 
         private RealOverriddenModuleBuilder(Iterable<? extends Module> baseModules) {
-            this.baseModules = unmodifiableSet(newHashSet(baseModules));
+            HashSet<? extends Module> modules = newHashSet(baseModules);
+            this.baseModules = unmodifiableSet(modules);
         }
 
         @Override

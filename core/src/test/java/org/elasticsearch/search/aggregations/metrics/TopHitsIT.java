@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.ArrayUtil;
@@ -28,8 +28,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
@@ -84,14 +85,14 @@ import static org.hamcrest.Matchers.sameInstance;
  *
  */
 @ESIntegTestCase.SuiteScopeTestCase()
-public class TopHitsTests extends ESIntegTestCase {
+public class TopHitsIT extends ESIntegTestCase {
 
     private static final String TERMS_AGGS_FIELD = "terms";
     private static final String SORT_FIELD = "sort";
     
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(MockScriptEngine.TestPlugin.class);
     }
 
     public static String randomExecutionHint() {
@@ -151,6 +152,7 @@ public class TopHitsTests extends ESIntegTestCase {
                 .startObject()
                 .field("group", "a")
                 .field("text", "term x y z n rare")
+                .field("value", 1)
                 .endObject()));
         builders.add(client().prepareIndex("idx", "field-collapsing", "3").setSource(jsonBuilder()
                 .startObject()
@@ -171,6 +173,7 @@ public class TopHitsTests extends ESIntegTestCase {
                 .startObject()
                 .field("group", "b")
                 .field("text", "term rare")
+                .field("value", 3)
                 .endObject()));
         builders.add(client().prepareIndex("idx", "field-collapsing", "7").setSource(jsonBuilder()
                 .startObject()
@@ -186,6 +189,7 @@ public class TopHitsTests extends ESIntegTestCase {
                 .startObject()
                 .field("group", "c")
                 .field("text", "rare x term")
+                .field("value", 2)
                 .endObject()));
 
         numArticles = scaledRandomIntBetween(10, 100);
@@ -493,7 +497,7 @@ public class TopHitsTests extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field("group")
                                 .order(Terms.Order.aggregation("max_score", false)).subAggregation(topHits("hits").setSize(1))
-                                .subAggregation(max("max_score").script(new Script("_score.doubleValue()")))).get();
+                                .subAggregation(max("max_score").field("value"))).get();
         assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
@@ -539,7 +543,7 @@ public class TopHitsTests extends ESIntegTestCase {
                                             .addHighlightedField("text")
                                             .setExplain(true)
                                             .addFieldDataField("field1")
-                                                .addScriptField("script", new Script("doc['field1'].value"))
+                                            .addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
                                             .setFetchSource("text", null)
                                             .setVersion(true)
                                 )
@@ -860,7 +864,7 @@ public class TopHitsTests extends ESIntegTestCase {
                         nested("to-comments").path("comments").subAggregation(
                                 topHits("top-comments").setSize(1).addHighlightedField(hlField).setExplain(true)
                                                 .addFieldDataField("comments.user")
-                                        .addScriptField("script", new Script("doc['comments.user'].value")).setFetchSource("message", null)
+                                        .addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap())).setFetchSource("message", null)
                                         .setVersion(true).addSort("comments.date", SortOrder.ASC))).get();
         assertHitCount(searchResponse, 2);
         Nested nested = searchResponse.getAggregations().get("to-comments");
@@ -892,7 +896,7 @@ public class TopHitsTests extends ESIntegTestCase {
         assertThat(field.getValue().toString(), equalTo("a"));
 
         field = searchHit.field("script");
-        assertThat(field.getValue().toString(), equalTo("a"));
+        assertThat(field.getValue().toString(), equalTo("5"));
 
         assertThat(searchHit.sourceAsMap().size(), equalTo(1));
         assertThat(searchHit.sourceAsMap().get("message").toString(), equalTo("some comment"));

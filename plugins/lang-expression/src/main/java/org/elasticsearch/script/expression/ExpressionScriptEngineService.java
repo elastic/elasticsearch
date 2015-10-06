@@ -26,6 +26,7 @@ import org.apache.lucene.expressions.js.VariableContext;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -43,6 +44,8 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.text.ParseException;
 import java.util.Calendar;
 import java.util.Map;
@@ -91,12 +94,22 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
     @Override
     public Object compile(String script) {
-        try {
-            // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
-            return JavascriptCompiler.compile(script);
-        } catch (ParseException e) {
-            throw new ScriptException("Failed to parse expression: " + script, e);
+        // classloader created here
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
         }
+        return AccessController.doPrivileged(new PrivilegedAction<Expression>() {
+            @Override
+            public Expression run() {
+                try {
+                    // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
+                    return JavascriptCompiler.compile(script);
+                } catch (ParseException e) {
+                    throw new ScriptException("Failed to parse expression: " + script, e);
+                }
+            }
+        });
     }
 
     @Override

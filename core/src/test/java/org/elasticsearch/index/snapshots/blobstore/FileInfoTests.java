@@ -63,7 +63,7 @@ public class FileInfoTests extends ESTestCase {
             assertThat(info.physicalName(), equalTo(parsedInfo.physicalName()));
             assertThat(info.length(), equalTo(parsedInfo.length()));
             assertThat(info.checksum(), equalTo(parsedInfo.checksum()));
-            assertThat(info.partBytes(), equalTo(parsedInfo.partBytes()));
+            assertThat(info.partSize(), equalTo(parsedInfo.partSize()));
             assertThat(parsedInfo.metadata().hash().length, equalTo(hash.length));
             assertThat(parsedInfo.metadata().hash(), equalTo(hash));
             assertThat(parsedInfo.metadata().writtenBy(), equalTo(Version.LATEST));
@@ -83,7 +83,7 @@ public class FileInfoTests extends ESTestCase {
             String name = "foobar";
             String physicalName = "_foobar";
             String failure = null;
-            long length = Math.max(0,Math.abs(randomLong()));
+            long length = Math.max(0, Math.abs(randomLong()));
             // random corruption
             switch (randomIntBetween(0, 3)) {
                 case 0:
@@ -136,5 +136,32 @@ public class FileInfoTests extends ESTestCase {
 
             }
         }
+    }
+
+    public void testGetPartSize() {
+        BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetaData("foo", 36), new ByteSizeValue(6));
+        int numBytes = 0;
+        for (int i = 0; i < info.numberOfParts(); i++) {
+            numBytes += info.partBytes(i);
+        }
+        assertEquals(numBytes, 36);
+
+        info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetaData("foo", 35), new ByteSizeValue(6));
+        numBytes = 0;
+        for (int i = 0; i < info.numberOfParts(); i++) {
+            numBytes += info.partBytes(i);
+        }
+        assertEquals(numBytes, 35);
+        final int numIters = randomIntBetween(10, 100);
+        for (int j = 0; j < numIters; j++) {
+            StoreFileMetaData metaData = new StoreFileMetaData("foo", randomIntBetween(0, 1000));
+            info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metaData, new ByteSizeValue(randomIntBetween(1, 1000)));
+            numBytes = 0;
+            for (int i = 0; i < info.numberOfParts(); i++) {
+                numBytes += info.partBytes(i);
+            }
+            assertEquals(numBytes, metaData.length());
+        }
+
     }
 }

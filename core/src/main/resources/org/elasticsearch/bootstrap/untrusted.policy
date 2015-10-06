@@ -16,18 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.elasticsearch.index.aliases;
-
-import org.elasticsearch.common.inject.AbstractModule;
-
-/**
- *
+ 
+/*
+ * Limited security policy for scripts.
+ * This is what is needed for invokeDynamic functionality to work.
  */
-public class IndexAliasesServiceModule extends AbstractModule {
-
-    @Override
-    protected void configure() {
-        bind(IndexAliasesService.class).asEagerSingleton();
-    }
-}
+grant {
+  
+  // groovy IndyInterface bootstrap requires this property for indy logging
+  permission java.util.PropertyPermission "groovy.indy.logging", "read";
+  
+  // needed IndyInterface selectMethod (setCallSiteTarget)
+  permission java.lang.RuntimePermission "getClassLoader";
+};

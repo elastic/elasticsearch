@@ -189,7 +189,7 @@ Make write calls return the number of total/successful/missing shards in the sam
 [float]
 === Jepsen Test Failures (STATUS: ONGOING)
 
-We have increased our test coverage to include scenarios tested by Jepsen. We make heavy use of randomization to expand on the scenarios that can be tested and to introduce new error conditions. You can follow the work on the master branch of the https://github.com/elastic/elasticsearch/blob/master/core/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptionsTests.java[`DiscoveryWithServiceDisruptions` class], where we will add more tests as time progresses.
+We have increased our test coverage to include scenarios tested by Jepsen. We make heavy use of randomization to expand on the scenarios that can be tested and to introduce new error conditions. You can follow the work on the master branch of the https://github.com/elastic/elasticsearch/blob/master/core/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptionsIT.java[`DiscoveryWithServiceDisruptionsIT` class], where we will add more tests as time progresses.
 
 [float]
 === Document guarantees and handling of failure (STATUS: ONGOING)

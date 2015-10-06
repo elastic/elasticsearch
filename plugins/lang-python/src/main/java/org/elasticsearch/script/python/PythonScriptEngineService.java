@@ -20,12 +20,16 @@
 package org.elasticsearch.script.python;
 
 import java.io.IOException;
+import java.security.AccessControlContext;
 import java.security.AccessController;
+import java.security.Permissions;
 import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
 import java.util.Map;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -57,6 +61,10 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         super(settings);
 
         // classloader created here
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
         this.interp = AccessController.doPrivileged(new PrivilegedAction<PythonInterpreter> () {
             @Override
             public PythonInterpreter run() {
@@ -83,6 +91,10 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     @Override
     public Object compile(String script) {
         // classloader created here
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
         return AccessController.doPrivileged(new PrivilegedAction<PyCode>() {
             @Override
             public PyCode run() {
@@ -116,7 +128,8 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
         PyObject pyVars = Py.java2py(vars);
         interp.setLocals(pyVars);
-        PyObject ret = interp.eval((PyCode) compiledScript.compiled());
+        // eval the script with reduced privileges
+        PyObject ret = evalRestricted((PyCode) compiledScript.compiled());
         if (ret == null) {
             return null;
         }
@@ -162,7 +175,8 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         @Override
         public Object run() {
             interp.setLocals(pyVars);
-            PyObject ret = interp.eval(code);
+            // eval the script with reduced privileges
+            PyObject ret = evalRestricted(code);
             if (ret == null) {
                 return null;
             }
@@ -220,7 +234,8 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         @Override
         public Object run() {
             interp.setLocals(pyVars);
-            PyObject ret = interp.eval(code);
+            // eval the script with reduced privileges
+            PyObject ret = evalRestricted(code);
             if (ret == null) {
                 return null;
             }
@@ -248,6 +263,27 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         }
     }
 
+    // we don't have a way to specify codesource for generated jython classes,
+    // so we just run them with a special context to reduce privileges
+    private static final AccessControlContext PY_CONTEXT;
+    static {
+        Permissions none = new Permissions();
+        none.setReadOnly();
+        PY_CONTEXT = new AccessControlContext(new ProtectionDomain[] {
+                new ProtectionDomain(null, none)
+        });
+    }
+
+    /** Evaluates with reduced privileges */
+    private final PyObject evalRestricted(final PyCode code) {
+        // eval the script with reduced privileges
+        return AccessController.doPrivileged(new PrivilegedAction<PyObject>() {
+            @Override
+            public PyObject run() {
+                return interp.eval(code);
+            }
+        }, PY_CONTEXT);
+    }
 
     public static Object unwrapValue(Object value) {
         if (value == null) {

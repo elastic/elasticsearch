@@ -73,6 +73,12 @@ public class IndexSettingsService extends AbstractIndexComponent {
         this.listeners.remove(listener);
     }
 
+    /**
+     * Returns <code>true</code> iff the given listener is already registered otherwise <code>false</code>
+     */
+    public boolean isRegistered(Listener listener) {
+        return listeners.contains(listener);
+    }
     public interface Listener {
         void onRefreshSettings(Settings settings);
     }

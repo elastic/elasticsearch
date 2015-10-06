@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.child;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -35,13 +35,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -60,7 +58,7 @@ import java.util.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -69,13 +67,8 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope = Scope.SUITE)
-public class ChildQuerySearchTests extends ESIntegTestCase {
+public class ChildQuerySearchIT extends ESIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
-    }
-    
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
@@ -188,7 +181,7 @@ public class ChildQuerySearchTests extends ESIntegTestCase {
         refresh();
 
         // TEST FETCHING _parent from child
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(idsQuery("child").ids("c1")).addFields("_parent").execute()
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(idsQuery("child").addIds("c1")).addFields("_parent").execute()
                 .actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -658,7 +651,7 @@ public class ChildQuerySearchTests extends ESIntegTestCase {
                         QueryBuilders.hasChildQuery(
                                 "child",
                                 QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0),
-                                        scriptFunction(new Script("doc['c_field1'].value")))
+                                        fieldValueFactorFunction("c_field1"))
                                         .boostMode(CombineFunction.REPLACE)).scoreMode(ScoreMode.Total)).get();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
@@ -675,7 +668,7 @@ public class ChildQuerySearchTests extends ESIntegTestCase {
                         QueryBuilders.hasChildQuery(
                                 "child",
                                 QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0),
-                                        scriptFunction(new Script("doc['c_field1'].value")))
+                                        fieldValueFactorFunction("c_field1"))
                                         .boostMode(CombineFunction.REPLACE)).scoreMode(ScoreMode.Max)).get();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
@@ -692,7 +685,7 @@ public class ChildQuerySearchTests extends ESIntegTestCase {
                         QueryBuilders.hasChildQuery(
                                 "child",
                                 QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0),
-                                        scriptFunction(new Script("doc['c_field1'].value")))
+                                        fieldValueFactorFunction("c_field1"))
                                         .boostMode(CombineFunction.REPLACE)).scoreMode(ScoreMode.Avg)).get();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
@@ -709,7 +702,7 @@ public class ChildQuerySearchTests extends ESIntegTestCase {
                         QueryBuilders.hasParentQuery(
                                 "parent",
                                 QueryBuilders.functionScoreQuery(matchQuery("p_field1", "p_value3"),
-                                        scriptFunction(new Script("doc['p_field2'].value")))
+                                        fieldValueFactorFunction("p_field2"))
                                         .boostMode(CombineFunction.REPLACE)).score(true))
                 .addSort(SortBuilders.fieldSort("c_field3")).addSort(SortBuilders.scoreSort()).get();
 
@@ -1938,4 +1931,25 @@ public class ChildQuerySearchTests extends ESIntegTestCase {
         return hasChildQueryBuilder;
     }
 
+    public void testHasParentInnerQueryType() {
+        assertAcked(prepareCreate("test").addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
+        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}").get();
+        client().prepareIndex("test", "parent-type", "parent-id").setSource("{}").get();
+        refresh();
+        //make sure that when we explicitly set a type, the inner query is executed in the context of the parent type instead
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("child-type").setQuery(
+                QueryBuilders.hasParentQuery("parent-type", new IdsQueryBuilder().addIds("parent-id"))).get();
+        assertSearchHits(searchResponse, "child-id");
+    }
+
+    public void testHasChildInnerQueryType() {
+        assertAcked(prepareCreate("test").addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
+        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}").get();
+        client().prepareIndex("test", "parent-type", "parent-id").setSource("{}").get();
+        refresh();
+        //make sure that when we explicitly set a type, the inner query is executed in the context of the child type instead
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("parent-type").setQuery(
+                QueryBuilders.hasChildQuery("child-type", new IdsQueryBuilder().addIds("child-id"))).get();
+        assertSearchHits(searchResponse, "parent-id");
+    }
 }

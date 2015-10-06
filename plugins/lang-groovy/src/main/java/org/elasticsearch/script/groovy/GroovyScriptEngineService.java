@@ -19,10 +19,9 @@
 
 package org.elasticsearch.script.groovy;
 
-import java.nio.charset.StandardCharsets;
-import com.google.common.hash.Hashing;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
+import groovy.lang.GroovyCodeSource;
 import groovy.lang.Script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
@@ -37,9 +36,12 @@ import org.codehaus.groovy.control.CompilerConfiguration;
 import org.codehaus.groovy.control.SourceUnit;
 import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +51,9 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -99,17 +104,38 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
 
         // Groovy class loader to isolate Groovy-land code
-        this.loader = new GroovyClassLoader(getClass().getClassLoader(), config);
+        // classloader created here
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        this.loader = AccessController.doPrivileged(new PrivilegedAction<GroovyClassLoader>() {
+            @Override
+            public GroovyClassLoader run() {
+                return new GroovyClassLoader(getClass().getClassLoader(), config);
+            }
+        });
     }
 
     @Override
     public void close() {
         loader.clearCache();
-        try {
-            loader.close();
-        } catch (IOException e) {
-            logger.warn("Unable to close Groovy loader", e);
+        // close classloader here (why do we do this?)
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
         }
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                try {
+                    loader.close();
+                } catch (IOException e) {
+                    logger.warn("Unable to close Groovy loader", e);
+                }
+                return null;
+            }
+        });
     }
 
     @Override
@@ -140,7 +166,20 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     @Override
     public Object compile(String script) {
         try {
-            return loader.parseClass(script, Hashing.sha1().hashString(script, StandardCharsets.UTF_8).toString());
+            // we reuse classloader, so do a security check just in case.
+            SecurityManager sm = System.getSecurityManager();
+            if (sm != null) {
+                sm.checkPermission(new SpecialPermission());
+            }
+            String fake = MessageDigests.toHexString(MessageDigests.sha1().digest(script.getBytes(StandardCharsets.UTF_8)));
+            // same logic as GroovyClassLoader.parseClass() but with a different codesource string:
+            GroovyCodeSource gcs = AccessController.doPrivileged(new PrivilegedAction<GroovyCodeSource>() {
+                public GroovyCodeSource run() {
+                    return new GroovyCodeSource(script, fake, BootstrapInfo.UNTRUSTED_CODEBASE);
+                }
+            });
+            gcs.setCachable(false);
+            return loader.parseClass(gcs);
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {
                 logger.trace("exception compiling Groovy script:", e);

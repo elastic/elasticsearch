@@ -28,7 +28,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.termvectors.*;
+import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -41,7 +45,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.XMoreLikeThis;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -49,7 +57,17 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
@@ -133,6 +151,20 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
         public Item() {
 
+        }
+
+        Item(Item copy) {
+            if (copy.id == null && copy.doc == null) {
+                throw new IllegalArgumentException("Item requires either id or doc to be non-null");
+            }
+            this.index = copy.index;
+            this.type = copy.type;
+            this.id = copy.id;
+            this.doc = copy.doc;
+            this.fields = copy.fields;
+            this.perFieldAnalyzer = copy.perFieldAnalyzer;
+            this.version = copy.version;
+            this.versionType = copy.versionType;
         }
 
         /**
@@ -731,6 +763,15 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        Item[] likeItems = new Item[this.likeItems.length];
+        for (int i = 0; i < likeItems.length; i++) {
+            likeItems[i] = new Item(this.likeItems[i]);
+        }
+        Item[] unlikeItems = new Item[this.unlikeItems.length];
+        for (int i = 0; i < unlikeItems.length; i++) {
+            unlikeItems[i] = new Item(this.unlikeItems[i]);
+        }
+
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();
 
         // set similarity

@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -68,7 +69,7 @@ public class RestAllocationAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse state) {
                 NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
-                statsRequest.clear().fs(true);
+                statsRequest.clear().fs(true).indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
 
                 client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                     @Override
@@ -87,6 +88,7 @@ public class RestAllocationAction extends AbstractCatAction {
         final Table table = new Table();
         table.startHeaders();
         table.addCell("shards", "alias:s;text-align:right;desc:number of shards on node");
+        table.addCell("disk.indices", "alias:di,diskIndices;text-align:right;desc:disk used by ES indices");
         table.addCell("disk.used", "alias:du,diskUsed;text-align:right;desc:disk used (total, not just ES)");
         table.addCell("disk.avail", "alias:da,diskAvail;text-align:right;desc:disk available");
         table.addCell("disk.total", "alias:dt,diskTotal;text-align:right;desc:total capacity of all volumes");
@@ -132,6 +134,7 @@ public class RestAllocationAction extends AbstractCatAction {
 
             table.startRow();
             table.addCell(shardCount);
+            table.addCell(nodeStats.getIndices().getStore().getSize());
             table.addCell(used < 0 ? null : new ByteSizeValue(used));
             table.addCell(avail.bytes() < 0 ? null : avail);
             table.addCell(total.bytes() < 0 ? null : total);
@@ -146,6 +149,7 @@ public class RestAllocationAction extends AbstractCatAction {
         if (allocs.containsKey(UNASSIGNED)) {
             table.startRow();
             table.addCell(allocs.get(UNASSIGNED));
+            table.addCell(null);
             table.addCell(null);
             table.addCell(null);
             table.addCell(null);

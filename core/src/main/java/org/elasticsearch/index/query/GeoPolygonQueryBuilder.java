@@ -72,7 +72,10 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             }
         }
         this.fieldName = fieldName;
-        this.shell = points;
+        this.shell = new ArrayList<>(points);
+        if (!shell.get(shell.size() - 1).equals(shell.get(0))) {
+            shell.add(shell.get(0));
+        }
     }
 
     public String fieldName() {
@@ -97,8 +100,9 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
 
-        if (!shell.get(shell.size() - 1).equals(shell.get(0))) {
-            shell.add(shell.get(0));
+        List<GeoPoint> shell = new ArrayList<GeoPoint>();
+        for (GeoPoint geoPoint : this.shell) {
+            shell.add(new GeoPoint(geoPoint));
         }
 
         final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);

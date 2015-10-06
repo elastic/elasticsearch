@@ -150,7 +150,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         for (IndicesService service : internalCluster().getDataNodeInstances(IndicesService.class)) {
             if (service.hasIndex("foo-copy")) {
-                IndexShard shard = service.indexServiceSafe("foo-copy").shard(0);
+                IndexShard shard = service.indexServiceSafe("foo-copy").getShardOrNull(0);
                 if (shard.routingEntry().primary()) {
                     assertFalse(shard instanceof ShadowIndexShard);
                 } else {

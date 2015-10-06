@@ -16,23 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+package org.elasticsearch;
 
-/**
- */
-public class IndexFieldDataModule extends AbstractModule {
+import org.elasticsearch.test.ESTestCase;
 
-    private final Settings settings;
+import java.security.AllPermission;
 
-    public IndexFieldDataModule(Settings settings) {
-        this.settings = settings;
+/** Very simple sanity checks for {@link SpecialPermission} */
+public class SpecialPermissionTests extends ESTestCase {
+    
+    public void testEquals() {
+        assertEquals(new SpecialPermission(), new SpecialPermission());
+        assertFalse(new SpecialPermission().equals(new AllPermission()));
     }
-
-    @Override
-    protected void configure() {
-        bind(IndexFieldDataService.class).asEagerSingleton();
+    
+    public void testImplies() {
+        assertTrue(new SpecialPermission().implies(new SpecialPermission()));
+        assertFalse(new SpecialPermission().implies(new AllPermission()));
     }
 }

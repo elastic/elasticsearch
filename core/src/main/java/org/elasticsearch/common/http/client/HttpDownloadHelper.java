@@ -19,19 +19,22 @@
 
 package org.elasticsearch.common.http.client;
 
-import java.nio.charset.StandardCharsets;
-import com.google.common.hash.Hashing;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.*;
+import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchCorruptionException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -96,7 +99,7 @@ public class HttpDownloadHelper {
     public static Checksummer SHA1_CHECKSUM = new Checksummer() {
         @Override
         public String checksum(byte[] filebytes) {
-            return Hashing.sha1().hashBytes(filebytes).toString();
+            return MessageDigests.toHexString(MessageDigests.sha1().digest(filebytes));
         }
 
         @Override
@@ -109,7 +112,7 @@ public class HttpDownloadHelper {
     public static Checksummer MD5_CHECKSUM = new Checksummer() {
         @Override
         public String checksum(byte[] filebytes) {
-            return Hashing.md5().hashBytes(filebytes).toString();
+            return MessageDigests.toHexString(MessageDigests.md5().digest(filebytes));
         }
 
         @Override

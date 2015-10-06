@@ -20,21 +20,37 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.index.aliases.IndexAliasesService;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.IndexSearcherWrapper;
 
 /**
  *
  */
 public class IndexModule extends AbstractModule {
 
-    private final Settings settings;
-
-    public IndexModule(Settings settings) {
-        this.settings = settings;
-    }
-
+    // pkg private so tests can mock
+    Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
+    Class<? extends IndexSearcherWrapper> indexSearcherWrapper = null;
+    
     @Override
     protected void configure() {
+        bind(EngineFactory.class).to(engineFactoryImpl).asEagerSingleton();
+        if (indexSearcherWrapper == null) {
+            bind(IndexSearcherWrapper.class).toProvider(Providers.of(null));
+        } else {
+            bind(IndexSearcherWrapper.class).to(indexSearcherWrapper).asEagerSingleton();
+        }
         bind(IndexService.class).asEagerSingleton();
+        bind(IndexServicesProvider.class).asEagerSingleton();
+        bind(MapperService.class).asEagerSingleton();
+        bind(IndexAliasesService.class).asEagerSingleton();
+        bind(IndexFieldDataService.class).asEagerSingleton();
     }
+
+
 }

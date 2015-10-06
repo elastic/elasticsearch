@@ -19,14 +19,13 @@
 
 package org.elasticsearch.search.suggest;
 
-import java.nio.charset.StandardCharsets;
-import com.google.common.io.Resources;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
@@ -38,6 +37,9 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -470,7 +472,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     
     @Test
     @Nightly
-    public void testMarvelHerosPhraseSuggest() throws IOException {
+    public void testMarvelHerosPhraseSuggest() throws IOException, URISyntaxException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.reverse.tokenizer", "standard")
@@ -506,7 +508,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
-        for (String line: Resources.readLines(SuggestSearchIT.class.getResource("/config/names.txt"), StandardCharsets.UTF_8)) {
+        for (String line : readMarvelHeroNames()) {
             index("test", "type1", line, "body", line, "body_reverse", line, "bigram", line);
         }
         refresh();
@@ -597,7 +599,11 @@ public class SuggestSearchIT extends ESIntegTestCase {
         // Check the name this time because we're repeating it which is funky
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel"));
     }
-    
+
+    private List<String> readMarvelHeroNames() throws IOException, URISyntaxException {
+        return Files.readAllLines(PathUtils.get(SuggestSearchIT.class.getResource("/config/names.txt").toURI()), StandardCharsets.UTF_8);
+    }
+
     @Test
     public void testSizePararm() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
@@ -666,7 +672,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     @Test
     @Nightly
-    public void testPhraseBoundaryCases() throws IOException {
+    public void testPhraseBoundaryCases() throws IOException, URISyntaxException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1) // to get reliable statistics we should put this all into one shard
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
@@ -698,7 +704,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
-        for (String line: Resources.readLines(SuggestSearchIT.class.getResource("/config/names.txt"), StandardCharsets.UTF_8)) {
+        for (String line : readMarvelHeroNames()) {
             index("test", "type1", line, "body", line, "bigram", line, "ngram", line);
         }
         refresh();

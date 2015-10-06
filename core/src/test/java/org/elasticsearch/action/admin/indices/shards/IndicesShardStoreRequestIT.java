@@ -158,7 +158,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
             IndexService indexShards = indexServices.indexServiceSafe(index);
             for (Integer shardId : indexShards.shardIds()) {
-                IndexShard shard = indexShards.shardSafe(shardId);
+                IndexShard shard = indexShards.getShard(shardId);
                 if (randomBoolean()) {
                     shard.failShard("test", new CorruptIndexException("test corrupted", ""));
                     Set<String> nodes = corruptedShardIDMap.get(shardId);

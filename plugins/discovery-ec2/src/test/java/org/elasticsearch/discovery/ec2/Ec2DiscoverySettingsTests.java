@@ -17,17 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.discovery.ec2;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.cloud.aws.Ec2Module;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
 
-/**
- *
- */
-public class MapperServiceModule extends AbstractModule {
+import static org.hamcrest.Matchers.is;
 
-    @Override
-    protected void configure() {
-        bind(MapperService.class).asEagerSingleton();
+public class Ec2DiscoverySettingsTests extends ESTestCase {
+
+    public void testDiscoveryReady() {
+        Settings settings = Settings.builder()
+                .put("discovery.type", "ec2")
+                .build();
+        boolean discoveryReady = Ec2Module.isEc2DiscoveryActive(settings, logger);
+        assertThat(discoveryReady, is(true));
     }
+
+    public void testDiscoveryNotReady() {
+        Settings settings = Settings.EMPTY;
+        boolean discoveryReady = Ec2Module.isEc2DiscoveryActive(settings, logger);
+        assertThat(discoveryReady, is(false));
+    }
+
 }

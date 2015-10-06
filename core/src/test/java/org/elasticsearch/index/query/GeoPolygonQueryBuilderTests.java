@@ -66,8 +66,9 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         if (GeoValidationMethod.isCoerce(queryBuilder.getValidationMethod())) {
             for (int i = 0; i < queryBuilderPoints.size(); i++) {
                 GeoPoint queryBuilderPoint = queryBuilderPoints.get(i);
-                GeoUtils.normalizePoint(queryBuilderPoint, true, true);
-                assertThat(queryPoints[i], equalTo(queryBuilderPoint));
+                GeoPoint pointCopy = new GeoPoint(queryBuilderPoint);
+                GeoUtils.normalizePoint(pointCopy, true, true);
+                assertThat(queryPoints[i], equalTo(pointCopy));
             }
         } else {
             for (int i = 0; i < queryBuilderPoints.size(); i++) {

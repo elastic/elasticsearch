@@ -16,13 +16,19 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.common.inject.internal.*;
+import org.elasticsearch.common.inject.internal.BindingImpl;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.ErrorsException;
+import org.elasticsearch.common.inject.internal.InternalContext;
+import org.elasticsearch.common.inject.internal.InternalFactory;
+import org.elasticsearch.common.inject.internal.Scoping;
+import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
 import org.elasticsearch.common.inject.spi.ConstructorBinding;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 
+import java.util.HashSet;
 import java.util.Set;
 
 class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBinding<T> {
@@ -74,10 +80,10 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
 
     @Override
     public Set<Dependency<?>> getDependencies() {
-        return Dependency.forInjectionPoints(new ImmutableSet.Builder<InjectionPoint>()
-                .add(getConstructor())
-                .addAll(getInjectableMembers())
-                .build());
+        Set<InjectionPoint> dependencies = new HashSet<>();
+        dependencies.add(getConstructor());
+        dependencies.addAll(getInjectableMembers());
+        return Dependency.forInjectionPoints(dependencies);
     }
 
     @Override

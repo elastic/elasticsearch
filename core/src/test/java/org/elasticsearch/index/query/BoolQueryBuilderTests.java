@@ -19,12 +19,20 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -98,7 +106,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 assertThat(booleanQuery.clauses().size(), equalTo(clauses.size()));
                 Iterator<BooleanClause> clauseIterator = clauses.iterator();
                 for (BooleanClause booleanClause : booleanQuery.getClauses()) {
-                    assertThat(booleanClause, equalTo(clauseIterator.next()));
+                    assertThat(booleanClause, instanceOf(clauseIterator.next().getClass()));
                 }
             }
         }

@@ -343,9 +343,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         return ImmutableMap.copyOf(profileBoundAddresses);
     }
 
-    private InetSocketAddress createPublishAddress(String publishHost, int publishPort) {
+    private InetSocketAddress createPublishAddress(String publishHosts[], int publishPort) {
         try {
-            return new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), publishPort);
+            return new InetSocketAddress(networkService.resolvePublishHostAddresses(publishHosts), publishPort);
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
@@ -436,11 +436,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     private void bindServerBootstrap(final String name, final Settings settings) {
         // Bind and start to accept incoming connections.
         InetAddress hostAddresses[];
-        String bindHost = settings.get("bind_host");
+        String bindHosts[] = settings.getAsArray("bind_host", null);
         try {
-            hostAddresses = networkService.resolveBindHostAddress(bindHost);
+            hostAddresses = networkService.resolveBindHostAddresses(bindHosts);
         } catch (IOException e) {
-            throw new BindTransportException("Failed to resolve host [" + bindHost + "]", e);
+            throw new BindTransportException("Failed to resolve host " + Arrays.toString(bindHosts) + "", e);
         }
         if (logger.isDebugEnabled()) {
             String[] addresses = new String[hostAddresses.length];
@@ -493,8 +493,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             if (boundTransportAddress == null) {
                 // no address is bound, so lets create one with the publish address information from the settings or the bound address as a fallback
                 int publishPort = profileSettings.getAsInt("publish_port", boundAddress.getPort());
-                String publishHost = profileSettings.get("publish_host", boundAddress.getHostString());
-                InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
+                String publishHosts[] = profileSettings.getAsArray("publish_host", new String[] { boundAddress.getHostString() });
+                InetSocketAddress publishAddress = createPublishAddress(publishHosts, publishPort);
                 profileBoundAddresses.put(name, new BoundTransportAddress(new TransportAddress[]{new InetSocketTransportAddress(boundAddress)}, new InetSocketTransportAddress(publishAddress)));
             } else {
                 // TODO: support real multihoming with publishing. Today we update the bound addresses so only the prioritized address is published
@@ -511,8 +511,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 // these calls are different from the profile ones due to the way the settings for a profile are created. If we want to merge the code for the default profile and
                 // other profiles together, we need to change how the profileSettings are built for the default profile...
                 int publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
-                String publishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
-                InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
+                String publishHosts[] = settings.getAsArray("transport.netty.publish_host", settings.getAsArray("transport.publish_host", settings.getAsArray("transport.host", null)));
+                InetSocketAddress publishAddress = createPublishAddress(publishHosts, publishPort);
                 this.boundAddress = new BoundTransportAddress(new TransportAddress[]{new InetSocketTransportAddress(boundAddress)}, new InetSocketTransportAddress(publishAddress));
             } else {
                 // the default profile is already bound to one address and has the publish address, copy the existing bound addresses as is and append the new address.

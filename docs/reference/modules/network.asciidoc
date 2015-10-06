@@ -22,8 +22,8 @@ ordinary addresses are preferred to site-local or link-local addresses.
 The `network.host` setting is a simple setting to automatically set both
 `network.bind_host` and `network.publish_host` to the same host value.
 
-Both settings allows to be configured with either explicit host address
-or host name. The settings also accept logical setting values explained
+Both settings allows to be configured with either explicit host address(es)
+or host name(s). The settings also accept logical setting value(s) explained
 in the following table:
 
 [cols="<,<",options="header",]

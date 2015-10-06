@@ -27,12 +27,10 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -109,7 +107,8 @@ public abstract class NetworkUtils {
      * @deprecated remove this when multihoming is really correct
      */
     @Deprecated
-    static void sortAddresses(List<InetAddress> list) {
+    // only public because of silly multicast
+    public static void sortAddresses(List<InetAddress> list) {
         Collections.sort(list, new Comparator<InetAddress>() {
             @Override
             public int compare(InetAddress left, InetAddress right) {
@@ -161,7 +160,6 @@ public abstract class NetworkUtils {
         if (list.isEmpty()) {
             throw new IllegalArgumentException("No up-and-running loopback interfaces found, got " + getInterfaces());
         }
-        sortAddresses(list);
         return list.toArray(new InetAddress[list.size()]);
     }
     
@@ -177,7 +175,6 @@ public abstract class NetworkUtils {
         if (list.isEmpty()) {
             throw new IllegalArgumentException("No up-and-running non-loopback interfaces found, got " + getInterfaces());
         }
-        sortAddresses(list);
         return list.toArray(new InetAddress[list.size()]);
     }
     
@@ -194,18 +191,7 @@ public abstract class NetworkUtils {
         if (list.isEmpty()) {
             throw new IllegalArgumentException("Interface '" + name + "' has no internet addresses");
         }
-        sortAddresses(list);
         return list.toArray(new InetAddress[list.size()]);
-    }
-    
-    /** Returns addresses for the given host, sorted by order of preference */
-    static InetAddress[] getAllByName(String host) throws UnknownHostException {
-        InetAddress addresses[] = InetAddress.getAllByName(host);
-        // deduplicate, in case of resolver misconfiguration
-        // stuff like https://bugzilla.redhat.com/show_bug.cgi?id=496300
-        List<InetAddress> unique = new ArrayList<>(new HashSet<>(Arrays.asList(addresses)));
-        sortAddresses(unique);
-        return unique.toArray(new InetAddress[unique.size()]);
     }
     
     /** Returns only the IPV4 addresses in {@code addresses} */

@@ -73,7 +73,7 @@ public class InternalSettingsPreparer {
      * and then replacing all property placeholders. If a {@link Terminal} is provided and configuration settings are loaded,
      * settings with a value of <code>${prompt.text}</code> or <code>${prompt.secret}</code> will result in a prompt for
      * the setting to the user.
-     * @param input The initial settings to use
+     * @param input The custom settings to use. These are not overwritten by settings in the configuration file.
      * @param terminal the Terminal to use for input/output
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */

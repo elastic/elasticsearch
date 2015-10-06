@@ -10,8 +10,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.settings.Validator;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
@@ -25,6 +31,7 @@ import org.elasticsearch.watcher.client.WatcherClientModule;
 import org.elasticsearch.watcher.condition.ConditionModule;
 import org.elasticsearch.watcher.execution.ExecutionModule;
 import org.elasticsearch.watcher.history.HistoryModule;
+import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.input.InputModule;
 import org.elasticsearch.watcher.license.LicenseModule;
 import org.elasticsearch.watcher.license.LicenseService;
@@ -63,10 +70,10 @@ import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.watcher.trigger.TriggerModule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.watch.WatchModule;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.*;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -74,6 +81,8 @@ public class WatcherPlugin extends Plugin {
 
     public static final String NAME = "watcher";
     public static final String ENABLED_SETTING = NAME + ".enabled";
+
+    private final static ESLogger logger = Loggers.getLogger(WatcherPlugin.class);
 
     static {
         MetaData.registerPrototype(WatcherMetaData.TYPE, WatcherMetaData.PROTO);
@@ -87,6 +96,7 @@ public class WatcherPlugin extends Plugin {
         this.settings = settings;
         transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING));
         enabled = watcherEnabled(settings);
+        validAutoCreateIndex(settings);
     }
 
     @Override public String name() {
@@ -206,6 +216,61 @@ public class WatcherPlugin extends Plugin {
 
     public static boolean watcherEnabled(Settings settings) {
         return settings.getAsBoolean(ENABLED_SETTING, true);
+    }
+
+    static void validAutoCreateIndex(Settings settings) {
+        String value = settings.get("action.auto_create_index");
+        if (value == null) {
+            return;
+        }
+
+        String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too restrictive. disable [action.auto_create_index] or set it to [.watches,.triggered_watches,.watch_history*]", (Object) settings);
+        if (Booleans.isExplicitFalse(value)) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+
+        if (Booleans.isExplicitTrue(value)) {
+            return;
+        }
+
+        String[] matches = Strings.commaDelimitedListToStringArray(value);
+        List<String> indices = new ArrayList<>();
+        indices.add(".watches");
+        indices.add(".triggered_watches");
+        DateTime now = new DateTime(DateTimeZone.UTC);
+        indices.add(HistoryStore.getHistoryIndexNameForTime(now));
+        indices.add(HistoryStore.getHistoryIndexNameForTime(now.plusDays(1)));
+        indices.add(HistoryStore.getHistoryIndexNameForTime(now.plusMonths(1)));
+        indices.add(HistoryStore.getHistoryIndexNameForTime(now.plusMonths(2)));
+        indices.add(HistoryStore.getHistoryIndexNameForTime(now.plusMonths(3)));
+        indices.add(HistoryStore.getHistoryIndexNameForTime(now.plusMonths(4)));
+        indices.add(HistoryStore.getHistoryIndexNameForTime(now.plusMonths(5)));
+        indices.add(HistoryStore.getHistoryIndexNameForTime(now.plusMonths(6)));
+        for (String index : indices) {
+            boolean matched = false;
+            for (String match : matches) {
+                char c = match.charAt(0);
+                if (c == '-') {
+                    if (Regex.simpleMatch(match.substring(1), index)) {
+                        throw new IllegalArgumentException(errorMessage);
+                    }
+                } else if (c == '+') {
+                    if (Regex.simpleMatch(match.substring(1), index)) {
+                        matched = true;
+                        break;
+                    }
+                } else {
+                    if (Regex.simpleMatch(match, index)) {
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+            if (!matched) {
+                throw new IllegalArgumentException(errorMessage);
+            }
+        }
+        logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. for the next 6 months daily history indices are allowed to be created, but please make sure that any future history indices after 6 months with the pattern [.watch_history-YYYY.MM.dd] are allowed to be created", value);
     }
 
 }

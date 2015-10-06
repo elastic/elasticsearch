@@ -22,11 +22,12 @@ import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,15 +55,18 @@ public class XMustacheTests extends ESTestCase {
                 new String[] { "foo", "bar" },
                 Arrays.asList("foo", "bar"));
         vars.put("data", data);
-        Object output = engine.execute(mustache, vars);
+        Object output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         BytesReference bytes = (BytesReference) output;
         assertThat(bytes.toUtf8(), equalTo("foo bar"));
 
         // Sets can come out in any order
-        vars.put("data", newHashSet("foo", "bar"));
-        output = engine.execute(mustache, vars);
+        Set<String> setData = new HashSet<>();
+        setData.add("foo");
+        setData.add("bar");
+        vars.put("data", setData);
+        output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         bytes = (BytesReference) output;
@@ -80,7 +84,7 @@ public class XMustacheTests extends ESTestCase {
                 singleton(new String[] { "foo", "bar" })
         );
         vars.put("data", data);
-        Object output = engine.execute(mustache, vars);
+        Object output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         BytesReference bytes = (BytesReference) output;
@@ -96,15 +100,18 @@ public class XMustacheTests extends ESTestCase {
                 new Map[] { singletonMap("key", "foo"), singletonMap("key", "bar") },
                 Arrays.asList(singletonMap("key", "foo"), singletonMap("key", "bar")));
         vars.put("data", data);
-        Object output = engine.execute(mustache, vars);
+        Object output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         BytesReference bytes = (BytesReference) output;
         assertThat(bytes.toUtf8(), equalTo("foo bar"));
 
         // HashSet iteration order isn't fixed
-        vars.put("data", newHashSet(singletonMap("key", "foo"), singletonMap("key", "bar")));
-        output = engine.execute(mustache, vars);
+        Set<Object> setData = new HashSet<>();
+        setData.add(singletonMap("key", "foo"));
+        setData.add(singletonMap("key", "bar"));
+        vars.put("data", setData);
+        output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         bytes = (BytesReference) output;
@@ -156,7 +163,7 @@ public class XMustacheTests extends ESTestCase {
             Map<String, Object> dataMap = new HashMap<>();
             dataMap.put("data", unescaped.toString());
             CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
-            Object output = engine.execute(mustache, dataMap);
+            Object output = engine.executable(mustache, dataMap).run();
 
             assertThat(output, notNullValue());
             assertThat(output, instanceOf(BytesReference.class));

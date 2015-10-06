@@ -133,14 +133,7 @@ com.google.common.io.Resources
 com.google.common.hash.HashCode
 com.google.common.hash.HashFunction
 com.google.common.hash.Hashing
-com.google.common.collect.ImmutableMap#of()
-com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object)
-com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)
-com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)
-com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)
-com.google.common.collect.ImmutableMap#of(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)
-com.google.common.collect.ImmutableMap#copyOf(java.util.Map)
-com.google.common.collect.ImmutableMap$Builder
+com.google.common.collect.ImmutableMap
 
 @defaultMessage Do not violate java's access system
 java.lang.reflect.AccessibleObject#setAccessible(boolean)

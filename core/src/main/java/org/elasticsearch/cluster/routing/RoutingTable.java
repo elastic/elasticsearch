@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -503,7 +502,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             return this;
         }
 
-        public Builder indicesRouting(ImmutableMap<String, IndexRoutingTable> indicesRouting) {
+        public Builder indicesRouting(Map<String, IndexRoutingTable> indicesRouting) {
             this.indicesRouting.putAll(indicesRouting);
             return this;
         }

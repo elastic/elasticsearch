@@ -170,12 +170,10 @@ public class NetworkService extends AbstractComponent {
         // TODO: allow publishing multiple addresses
         // for now... the hack begins
 
-        // 1. single wildcard address, probably set by network.host
+        // 1. single wildcard address, probably set by network.host: expand to all interface addresses.
         if (addresses.length == 1 && addresses[0].isAnyLocalAddress()) {
-            InetAddress old = addresses[0];
-            addresses = resolveInetAddresses(new String[] { "_non_loopback_" });
-            logger.warn("publish address: {{}} is a wildcard address, falling back to _non_loopback_", 
-                    NetworkAddress.format(old));
+            HashSet<InetAddress> all = new HashSet<>(Arrays.asList(NetworkUtils.getAllAddresses()));
+            addresses = all.toArray(new InetAddress[all.size()]);
         }
 
         // 2. try to deal with some (mis)configuration
@@ -234,11 +232,26 @@ public class NetworkService extends AbstractComponent {
                     return NetworkUtils.filterIPV4(NetworkUtils.getLoopbackAddresses());
                 case "local:ipv6":
                     return NetworkUtils.filterIPV6(NetworkUtils.getLoopbackAddresses());
+                case "site":
+                    return NetworkUtils.getSiteLocalAddresses();
+                case "site:ipv4":
+                    return NetworkUtils.filterIPV4(NetworkUtils.getSiteLocalAddresses());
+                case "site:ipv6":
+                    return NetworkUtils.filterIPV6(NetworkUtils.getSiteLocalAddresses());
+                case "global":
+                    return NetworkUtils.getGlobalAddresses();
+                case "global:ipv4":
+                    return NetworkUtils.filterIPV4(NetworkUtils.getGlobalAddresses());
+                case "global:ipv6":
+                    return NetworkUtils.filterIPV6(NetworkUtils.getGlobalAddresses());
                 case "non_loopback":
+                    logger.warn("use of _non_loopback_ is deprecated, specify an explicit scope, address, or interface instead");
                     return NetworkUtils.getFirstNonLoopbackAddresses();
                 case "non_loopback:ipv4":
+                    logger.warn("use of _non_loopback_ is deprecated, specify an explicit scope, address, or interface instead");
                     return NetworkUtils.filterIPV4(NetworkUtils.getFirstNonLoopbackAddresses());
                 case "non_loopback:ipv6":
+                    logger.warn("use of _non_loopback_ is deprecated, specify an explicit scope, address, or interface instead");
                     return NetworkUtils.filterIPV6(NetworkUtils.getFirstNonLoopbackAddresses());
                 default:
                     /* an interface specification */

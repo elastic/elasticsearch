@@ -149,16 +149,75 @@ public abstract class NetworkUtils {
         return Constants.WINDOWS ? false : true;
     }
     
-    /** Returns addresses for all loopback interfaces that are up. */
+    /** Returns all interface-local scope (loopback) addresses for interfaces that are up. */
     static InetAddress[] getLoopbackAddresses() throws SocketException {
         List<InetAddress> list = new ArrayList<>();
         for (NetworkInterface intf : getInterfaces()) {
-            if (intf.isLoopback() && intf.isUp()) {
-                list.addAll(Collections.list(intf.getInetAddresses()));
+            if (intf.isUp()) {
+                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
+                    if (address.isLoopbackAddress()) {
+                        list.add(address);
+                    }
+                }
             }
         }
         if (list.isEmpty()) {
-            throw new IllegalArgumentException("No up-and-running loopback interfaces found, got " + getInterfaces());
+            throw new IllegalArgumentException("No up-and-running loopback addresses found, got " + getInterfaces());
+        }
+        return list.toArray(new InetAddress[list.size()]);
+    }
+    
+    /** Returns all site-local scope (private) addresses for interfaces that are up. */
+    static InetAddress[] getSiteLocalAddresses() throws SocketException {
+        List<InetAddress> list = new ArrayList<>();
+        for (NetworkInterface intf : getInterfaces()) {
+            if (intf.isUp()) {
+                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
+                    if (address.isSiteLocalAddress()) {
+                        list.add(address);
+                    }
+                }
+            }
+        }
+        if (list.isEmpty()) {
+            throw new IllegalArgumentException("No up-and-running site-local (private) addresses found, got " + getInterfaces());
+        }
+        return list.toArray(new InetAddress[list.size()]);
+    }
+    
+    /** Returns all global scope addresses for interfaces that are up. */
+    static InetAddress[] getGlobalAddresses() throws SocketException {
+        List<InetAddress> list = new ArrayList<>();
+        for (NetworkInterface intf : getInterfaces()) {
+            if (intf.isUp()) {
+                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
+                    if (address.isLoopbackAddress() == false && 
+                        address.isSiteLocalAddress() == false &&
+                        address.isLinkLocalAddress() == false) {
+                        list.add(address);
+                    }
+                }
+            }
+        }
+        if (list.isEmpty()) {
+            throw new IllegalArgumentException("No up-and-running global-scope (public) addresses found, got " + getInterfaces());
+        }
+        return list.toArray(new InetAddress[list.size()]);
+    }
+    
+    /** Returns all addresses (any scope) for interfaces that are up. 
+     *  This is only used to pick a publish address, when the user set network.host to a wildcard */
+    static InetAddress[] getAllAddresses() throws SocketException {
+        List<InetAddress> list = new ArrayList<>();
+        for (NetworkInterface intf : getInterfaces()) {
+            if (intf.isUp()) {
+                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
+                    list.add(address);
+                }
+            }
+        }
+        if (list.isEmpty()) {
+            throw new IllegalArgumentException("No up-and-running addresses found, got " + getInterfaces());
         }
         return list.toArray(new InetAddress[list.size()]);
     }

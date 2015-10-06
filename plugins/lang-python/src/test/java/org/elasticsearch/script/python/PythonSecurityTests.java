@@ -68,7 +68,10 @@ public class PythonSecurityTests extends ESTestCase {
             fail("did not get expected exception");
         } catch (PyException expected) {
             Throwable cause = expected.getCause();
-            assertNotNull("null cause for exception: " + expected, cause);
+            // TODO: fix jython localization bugs: https://github.com/elastic/elasticsearch/issues/13967
+            // this is the correct assert:
+            // assertNotNull("null cause for exception: " + expected, cause);
+            assertNotNull("null cause for exception", cause);
             assertTrue("unexpected exception: " + cause, cause instanceof SecurityException);
         }
     }

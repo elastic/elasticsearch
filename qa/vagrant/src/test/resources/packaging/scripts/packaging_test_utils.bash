@@ -265,6 +265,8 @@ start_elasticsearch_service() {
 # $1 expected status code
 # $2 additional command line args
 run_elasticsearch_service() {
+    local expectedStatus=$1
+    local commandLineArgs=$2
     # Set the CONF_DIR setting in case we start as a service
     if [ ! -z "$CONF_DIR" ] ; then
         if is_dpkg ; then
@@ -279,9 +281,12 @@ run_elasticsearch_service() {
             local CONF_DIR=""
         fi
         # we must capture the exit code to compare so we don't want to start as background process in case we expect something other than 0
-        BACKGROUND=""
-        if [ $1 = 0 ]; then
-            BACKGROUND="-d"
+        local background=""
+        local timeoutCommand=""
+        if [ "$expectedStatus" = 0 ]; then
+            background="-d"
+        else
+            timeoutCommand="timeout 60s "
         fi
         # su and the Elasticsearch init script work together to break bats.
         # sudo isolates bats enough from the init script so everything continues
@@ -292,9 +297,9 @@ run_elasticsearch_service() {
 # This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
 [ -f /usr/share/java/jayatanaag.jar ] && export JAVA_TOOL_OPTIONS="-javaagent:/usr/share/java/jayatanaag.jar"
 # And now we can start Elasticsearch normally, in the background (-d) and with a pidfile (-p).
-timeout 60s /tmp/elasticsearch/bin/elasticsearch $BACKGROUND -p /tmp/elasticsearch/elasticsearch.pid -Des.path.conf="$CONF_DIR" $2
+$timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid -Des.path.conf=$CONF_DIR $commandLineArgs
 BASH
-        [ "$status" -eq $1 ]
+        [ "$status" -eq "$expectedStatus" ]
     elif is_systemd; then
         run systemctl daemon-reload
         [ "$status" -eq 0 ]
@@ -306,11 +311,11 @@ BASH
         [ "$status" -eq 0 ]
 
         run systemctl start elasticsearch.service
-        [ "$status" -eq $1 ]
+        [ "$status" -eq "$expectedStatus" ]
 
     elif is_sysvinit; then
         run service elasticsearch start
-        [ "$status" -eq $1 ]
+        [ "$status" -eq "$expectedStatus" ]
     fi
 }
 

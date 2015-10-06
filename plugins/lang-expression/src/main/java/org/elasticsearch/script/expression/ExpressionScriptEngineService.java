@@ -243,11 +243,6 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public Object unwrap(Object value) {
-        return value;
-    }
-
-    @Override
     public void close() {}
 
     @Override

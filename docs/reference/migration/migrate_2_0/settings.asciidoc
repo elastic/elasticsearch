@@ -164,3 +164,13 @@ the `logging.yml` configuration file with the `file.layout.conversionPattern`
 setting.
 
 Remove mapping.date.round_ceil setting for date math parsing #8889 (issues: #8556, #8598)
+
+==== Custom config file
+
+It is no longer possible to specify a custom config file with the `CONF_FILE`
+environment variable, or the `-Des.config`, `-Des.default.config`, or
+`-Delasticsearch.config` parameters.
+
+Instead, the config file must be named `elasticsearch.yml` and must be located
+in the default `config/` directory, or in the directory specified in the
+`CONF_DIR` environment variable.

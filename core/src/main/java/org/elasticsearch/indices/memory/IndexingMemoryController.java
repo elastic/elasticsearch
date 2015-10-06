@@ -161,7 +161,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
         this.statusChecker = new ShardsIndicesStatusChecker();
 
-
         logger.debug("using indexing buffer size [{}], with {} [{}], {} [{}], {} [{}], {} [{}]",
                 this.indexingBuffer,
                 MIN_SHARD_INDEX_BUFFER_SIZE_SETTING, this.minShardIndexBufferSize,
@@ -251,7 +250,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         }
     }
 
-    protected boolean isShardInactive(ShardId shardId, long inactiveTimeNS) {
+    protected boolean isShardIdle(ShardId shardId, long inactiveTimeNS) {
         final IndexShard shard = getShard(shardId);
         if (shard == null) {
             return false;
@@ -260,7 +259,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     }
 
 
-    /** returns the current translog status (generation id + ops) for the given shard id. Returns null if unavailable. */
+    /** returns {@link IndexShard#getActive} if the shard exists, else null */
     protected Boolean getShardActive(ShardId shardId) {
         final IndexShard indexShard = getShard(shardId);
         if (indexShard == null) {
@@ -325,7 +324,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                         logger.debug("marking shard {} as active indexing wise", shardId);
                         shardWasActive.put(shardId, true);
 
-                    } else if (isShardInactive(shardId, inactiveTime.nanos())) {
+                    } else if (isShardIdle(shardId, inactiveTime.nanos())) {
                         // Make shard inactive now
                         changes.add(ShardStatusChangeType.BECAME_INACTIVE);
                         logger.debug("marking shard {} as inactive (inactive_time[{}]) indexing wise",

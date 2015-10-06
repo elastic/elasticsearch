@@ -999,7 +999,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.failedEngineListener.delegates.add(failedEngineListener);
     }
 
-    /** Returns true if the indexing buffer size did change */
+    /** Change the indexing and translog buffer sizes.  If {@code IndexWriter} is currently using more than
+     *  the new buffering indexing size then we do a refresh to free up the heap. */
     public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
 
         final EngineConfig config = engineConfig;
@@ -1046,6 +1047,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         }
     }
 
+    /** Returns {@code true} if this shard is active (has seen indexing ops in the last {@link
+     *  IndexingMemoryController#SHARD_INACTIVE_TIME_SETTING} (default 5 minutes), else {@code false}. */
     public boolean getActive() {
         return active.get();
     }

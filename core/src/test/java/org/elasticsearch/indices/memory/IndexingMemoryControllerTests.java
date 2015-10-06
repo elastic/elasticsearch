@@ -109,7 +109,7 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         }
 
         @Override
-        protected boolean isShardInactive(ShardId shardId, long inactiveTimeNS) {
+        protected boolean isShardIdle(ShardId shardId, long inactiveTimeNS) {
             return currentTimeInNanos() - lastIndexTimeNanos.get(shardId) >= inactiveTimeNS;
         }
 

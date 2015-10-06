@@ -139,11 +139,6 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
     }
 
     @Override
-    public Object unwrap(Object value) {
-        return value;
-    }
-
-    @Override
     public void close() {
         // Nothing to do here
     }

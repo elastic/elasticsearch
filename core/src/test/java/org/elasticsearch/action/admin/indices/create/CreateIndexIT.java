@@ -20,28 +20,31 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends ESIntegTestCase {
-
-    @Test
     public void testCreationDate_Given() {
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4l)).get();
         ClusterStateResponse response = client().admin().cluster().prepareState().get();
@@ -57,7 +60,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(index.getCreationDate(), equalTo(4l));
     }
 
-    @Test
     public void testCreationDate_Generated() {
         long timeBeforeRequest = System.currentTimeMillis();
         prepareCreate("test").get();
@@ -75,7 +77,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(index.getCreationDate(), allOf(lessThanOrEqualTo(timeAfterRequest), greaterThanOrEqualTo(timeBeforeRequest)));
     }
 
-    @Test
     public void testDoubleAddMapping() throws Exception {
         try {
             prepareCreate("test")
@@ -103,7 +104,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testInvalidShardCountSettings() throws Exception {
         try {
             prepareCreate("test").setSettings(Settings.builder()
@@ -142,7 +142,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testCreateIndexWithBlocks() {
         try {
             setClusterReadOnly(true);
@@ -152,14 +151,12 @@ public class CreateIndexIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testCreateIndexWithMetadataBlocks() {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_METADATA, true)));
         assertBlocked(client().admin().indices().prepareGetSettings("test"), IndexMetaData.INDEX_METADATA_BLOCK);
         disableIndexBlock("test", IndexMetaData.SETTING_BLOCKS_METADATA);
     }
 
-    @Test
     public void testInvalidShardCountSettingsWithoutPrefix() throws Exception {
         try {
             prepareCreate("test").setSettings(Settings.builder()
@@ -196,4 +193,29 @@ public class CreateIndexIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Asserts that the root cause of mapping conflicts is readable.
+     */
+    public void testMappingConflictRootCause() throws Exception {
+        CreateIndexRequestBuilder b = prepareCreate("test");
+        b.addMapping("type1", jsonBuilder().startObject().startObject("properties")
+                .startObject("text")
+                    .field("type", "string")
+                    .field("analyzer", "standard")
+                    .field("search_analyzer", "whitespace")
+                .endObject().endObject().endObject());
+        b.addMapping("type2", jsonBuilder().humanReadable(true).startObject().startObject("properties")
+                .startObject("text")
+                    .field("type", "string")
+                .endObject().endObject().endObject());
+        try {
+            b.get();
+        } catch (MapperParsingException e) {
+            StringBuilder messages = new StringBuilder();
+            for (Exception rootCause: e.guessRootCauses()) {
+                messages.append(rootCause.getMessage());
+            }
+            assertThat(messages.toString(), containsString("mapper [text] is used by multiple types"));
+        }
+    }
 }

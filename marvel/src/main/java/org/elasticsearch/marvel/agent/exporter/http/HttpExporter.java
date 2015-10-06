@@ -54,6 +54,7 @@ public class HttpExporter extends Exporter {
     public static final String HOST_SETTING = "host";
     public static final String CONNECTION_TIMEOUT_SETTING = "connection.timeout";
     public static final String CONNECTION_READ_TIMEOUT_SETTING = "connection.read_timeout";
+    public static final String CONNECTION_KEEP_ALIVE_SETTING = "connection.keep_alive";
     public static final String AUTH_USERNAME_SETTING = "auth.username";
     public static final String AUTH_PASSWORD_SETTING = "auth.password";
 
@@ -91,6 +92,7 @@ public class HttpExporter extends Exporter {
     /** Version of the built-in template **/
     final Version templateVersion;
 
+    boolean keepAlive;
     final ConnectionKeepAliveWorker keepAliveWorker;
     Thread keepAliveThread;
 
@@ -117,6 +119,7 @@ public class HttpExporter extends Exporter {
         String templateCheckTimeoutValue = config.settings().get(TEMPLATE_CHECK_TIMEOUT_SETTING, null);
         templateCheckTimeout = TimeValue.parseTimeValue(templateCheckTimeoutValue, null, settingFQN(TEMPLATE_CHECK_TIMEOUT_SETTING));
 
+        keepAlive = config.settings().getAsBoolean(CONNECTION_KEEP_ALIVE_SETTING, true);
         keepAliveWorker = new ConnectionKeepAliveWorker();
 
         sslSocketFactory = createSSLSocketFactory(config.settings().getAsSettings(SSL_SETTING));
@@ -511,9 +514,11 @@ public class HttpExporter extends Exporter {
     }
 
     protected void initKeepAliveThread() {
-        keepAliveThread = new Thread(keepAliveWorker, "marvel-exporter[" + config.name() + "][keep_alive]");
-        keepAliveThread.setDaemon(true);
-        keepAliveThread.start();
+        if (keepAlive) {
+            keepAliveThread = new Thread(keepAliveWorker, "marvel-exporter[" + config.name() + "][keep_alive]");
+            keepAliveThread.setDaemon(true);
+            keepAliveThread.start();
+        }
     }
 
 

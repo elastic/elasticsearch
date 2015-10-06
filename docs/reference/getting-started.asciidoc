@@ -862,7 +862,7 @@ In the previous section, we skipped over a little detail called the document sco
 
 But queries do not always need to produce scores, in particular when they are only used for "filtering" the document set. Elasticsearch detects these situations and automatically optimizes query execution in order not to compute useless scores.
 
-The <<query-dsl-range-query,`range` query>> that we introduced in the previous section also supports `filter` clauses which allow to use a query to restrict the documents that will be matched by other clauses, without changing how scores are computed. As an example, let's introduce the <<query-dsl-range-query,`range` query>>, which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
+The <<query-dsl-bool-query,`bool` query>> that we introduced in the previous section also supports `filter` clauses which allow to use a query to restrict the documents that will be matched by other clauses, without changing how scores are computed. As an example, let's introduce the <<query-dsl-range-query,`range` query>>, which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
 
 This example uses a bool query to return all accounts with balances between 20000 and 30000, inclusive. In other words, we want to find accounts with a balance that is greater than or equal to 20000 and less than or equal to 30000.
 

@@ -181,6 +181,7 @@ def suse_common(config, extra)
     update_tracking_file: "/var/cache/zypp/packages/last_update",
     install_command: "zypper --non-interactive --quiet install --no-recommends",
     java_package: "java-1_8_0-openjdk-devel",
+    install_signature_command: 'rpm --import',
     extra: extra)
 end
 

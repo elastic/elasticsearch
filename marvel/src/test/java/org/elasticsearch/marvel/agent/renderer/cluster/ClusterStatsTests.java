@@ -13,34 +13,40 @@ import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.greaterThan;
 
-@ClusterScope(scope = SUITE, numClientNodes = 0)
+@ClusterScope(scope = Scope.TEST, numClientNodes = 0)
 public class ClusterStatsTests extends MarvelIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL, "3s")
+                .put(MarvelSettings.INTERVAL, "-1")
                 .put(MarvelSettings.COLLECTORS, ClusterStatsCollector.NAME)
+                .put("marvel.agent.exporters.default_local.type", "local")
+                .put("marvel.agent.exporters.default_local.template.settings.index.number_of_replicas", 0)
                 .build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/729")
+    @After
+    public void cleanup() throws Exception {
+        updateMarvelInterval(-1, TimeUnit.SECONDS);
+        wipeMarvelIndices();
+    }
+
     @Test
     public void testClusterStats() throws Exception {
-
-        // lets wait with the collection until all the shards started
-        stopCollection();
-
         logger.debug("--> creating some indices so that every data nodes will at least a shard");
         ClusterStatsNodes.Counts counts = client().admin().cluster().prepareClusterStats().get().getNodesStats().getCounts();
         assertThat(counts.getTotal(), greaterThan(0));
@@ -58,7 +64,7 @@ public class ClusterStatsTests extends MarvelIntegTestCase {
         securedEnsureGreen();
 
         // ok.. we'll start collecting now...
-        startCollection();
+        updateMarvelInterval(3L, TimeUnit.SECONDS);
 
         awaitMarvelTemplateInstalled();
 

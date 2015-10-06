@@ -30,7 +30,6 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
     public static final TimeValue MAX_LICENSE_GRACE_PERIOD = TimeValue.timeValueHours(7 * 24);
 
     public static final String INTERVAL                     = PREFIX + "interval";
-    public static final String STARTUP_DELAY                = PREFIX + "startup.delay";
     public static final String INDEX_STATS_TIMEOUT          = PREFIX + "index.stats.timeout";
     public static final String INDICES_STATS_TIMEOUT        = PREFIX + "indices.stats.timeout";
     public static final String INDICES                      = PREFIX + "indices";
@@ -60,8 +59,6 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
         Map<String, MarvelSetting> map = new HashMap<>();
         map.put(INTERVAL, timeSetting(INTERVAL, TimeValue.timeValueSeconds(10),
                 "Sampling interval between two collections (default to 10s)"));
-        map.put(STARTUP_DELAY, timeSetting(STARTUP_DELAY, null,
-                "Waiting time before the agent start to collect data (default to sampling interval)"));
         map.put(INDEX_STATS_TIMEOUT, timeoutSetting(INDEX_STATS_TIMEOUT, TimeValue.timeValueMinutes(10),
                 "Timeout value when collecting index statistics (default to 10m)"));
         map.put(INDICES_STATS_TIMEOUT, timeoutSetting(INDICES_STATS_TIMEOUT, TimeValue.timeValueMinutes(10),
@@ -144,10 +141,6 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
 
     public TimeValue interval() {
         return getSettingValue(INTERVAL);
-    }
-
-    public TimeValue startUpDelay() {
-        return getSettingValue(STARTUP_DELAY);
     }
 
     public TimeValue indexStatsTimeout() {

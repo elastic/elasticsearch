@@ -19,7 +19,6 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class MarvelSettingsTests extends MarvelIntegTestCase {
 
-    private final TimeValue startUp = newRandomTimeValue();
     private final TimeValue interval = newRandomTimeValue();
     private final TimeValue indexStatsTimeout = newRandomTimeValue();
     private final String[] indices = randomStringArray();
@@ -41,7 +40,6 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
 
     private Settings marvelSettings() {
         return Settings.builder()
-                .put(MarvelSettings.STARTUP_DELAY, startUp)
                 .put(MarvelSettings.INTERVAL, interval)
                 .put(MarvelSettings.INDEX_STATS_TIMEOUT, indexStatsTimeout)
                 .putArray(MarvelSettings.INDICES, indices)
@@ -57,7 +55,6 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
     public void testMarvelSettings() throws Exception {
         logger.info("--> testing marvel settings service initialization");
         for (final MarvelSettings marvelSettings : internalCluster().getInstances(MarvelSettings.class)) {
-            assertThat(marvelSettings.startUpDelay().millis(), equalTo(startUp.millis()));
             assertThat(marvelSettings.interval().millis(), equalTo(interval.millis()));
             assertThat(marvelSettings.indexStatsTimeout().millis(), equalTo(indexStatsTimeout.millis()));
             assertArrayEquals(marvelSettings.indices(), indices);

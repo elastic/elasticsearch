@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.renderer.indices;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -14,22 +13,34 @@ import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.junit.After;
 import org.junit.Test;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.greaterThan;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://internal-build.elastic.co/job/es_xplugins_master_medium/3319/testReport/junit/org.elasticsearch.marvel.agent.renderer.indices/IndexStatsIT/testIndexStats/")
-public class IndexStatsIT extends MarvelIntegTestCase {
+@ClusterScope(scope = Scope.TEST, numClientNodes = 0)
+public class IndexStatsTests extends MarvelIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL, "3s")
+                .put(MarvelSettings.INTERVAL, "-1")
                 .put(MarvelSettings.COLLECTORS, IndexStatsCollector.NAME)
+                .put("marvel.agent.exporters.default_local.type", "local")
+                .put("marvel.agent.exporters.default_local.template.settings.index.number_of_replicas", 0)
                 .build();
+    }
+
+    @After
+    public void cleanup() throws Exception {
+        updateMarvelInterval(-1, TimeUnit.SECONDS);
+        wipeMarvelIndices();
     }
 
     @Test
@@ -50,7 +61,11 @@ public class IndexStatsIT extends MarvelIntegTestCase {
             }
         }
 
-        ensureGreen();
+        securedFlush();
+        securedRefresh();
+
+        updateMarvelInterval(3L, TimeUnit.SECONDS);
+        waitForMarvelIndices();
 
         awaitMarvelDocsCount(greaterThan(0L), IndexStatsCollector.TYPE);
 

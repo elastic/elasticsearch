@@ -14,47 +14,59 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoCollector;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-public class ClusterInfoIT extends MarvelIntegTestCase {
+@ClusterScope(scope = TEST)
+public class ClusterInfoTests extends MarvelIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL, "3s")
+                .put(MarvelSettings.INTERVAL, "-1")
                 .put(MarvelSettings.COLLECTORS, ClusterInfoCollector.NAME)
                 .build();
     }
 
+    @Before
+    public void init() throws Exception {
+        updateMarvelInterval(3L, TimeUnit.SECONDS);
+    }
+
+    @After
+    public void cleanup() throws Exception {
+        updateMarvelInterval(-1, TimeUnit.SECONDS);
+        wipeMarvelIndices();
+    }
+
     @Test
     public void testClusterInfo() throws Exception {
-        ensureGreen();
+        securedEnsureGreen();
 
         final String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
         assertTrue(Strings.hasText(clusterUUID));
 
-        logger.debug("--> waiting for cluster info collector to collect data (ie, the trial marvel license)");
-        GetResponse response = assertBusy(new Callable<GetResponse>() {
-            @Override
-            public GetResponse call() throws Exception {
-                // Checks if the marvel data index exists (it should have been created by the LicenseCollector)
-                assertTrue(MarvelSettings.MARVEL_DATA_INDEX_NAME + " index does not exist", client().admin().indices().prepareExists(MarvelSettings.MARVEL_DATA_INDEX_NAME).get().isExists());
-                ensureYellow(MarvelSettings.MARVEL_DATA_INDEX_NAME);
+        logger.debug("--> waiting for the marvel data index to be created (it should have been created by the LicenseCollector)");
+        awaitIndexExists(MarvelSettings.MARVEL_DATA_INDEX_NAME);
 
-                client().admin().indices().prepareRefresh(MarvelSettings.MARVEL_DATA_INDEX_NAME).get();
-                GetResponse response = client().prepareGet(MarvelSettings.MARVEL_DATA_INDEX_NAME, ClusterInfoCollector.TYPE, clusterUUID).get();
-                assertTrue(MarvelSettings.MARVEL_DATA_INDEX_NAME + " document does not exist", response.isExists());
-                return response;
-            }
-        }, 30L, TimeUnit.SECONDS);
+        logger.debug("--> waiting for cluster info collector to collect data");
+        awaitMarvelDocsCount(equalTo(1L), ClusterInfoCollector.TYPE);
+
+        logger.debug("--> retrieving cluster info document");
+        GetResponse response = client().prepareGet(MarvelSettings.MARVEL_DATA_INDEX_NAME, ClusterInfoCollector.TYPE, clusterUUID).get();
+        assertTrue(MarvelSettings.MARVEL_DATA_INDEX_NAME + " document does not exist", response.isExists());
+
+        logger.debug("--> checking that the document contains all required information");
 
         logger.debug("--> checking that the document contains license information");
         assertThat(response.getIndex(), equalTo(MarvelSettings.MARVEL_DATA_INDEX_NAME));
@@ -98,8 +110,12 @@ public class ClusterInfoIT extends MarvelIntegTestCase {
         assertThat(clusterStats, instanceOf(Map.class));
         assertThat(((Map) clusterStats).size(), greaterThan(0));
 
+        assertMarvelTemplateInstalled();
+
         logger.debug("--> check that the cluster_info is not indexed");
-        refresh();
+        securedFlush();
+        securedRefresh();
+
         assertHitCount(client().prepareCount()
                 .setIndices(MarvelSettings.MARVEL_DATA_INDEX_NAME)
                 .setTypes(ClusterInfoCollector.TYPE)
@@ -109,6 +125,5 @@ public class ClusterInfoIT extends MarvelIntegTestCase {
                                 .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.EXPIRED.label()))
                                 .minimumNumberShouldMatch(1)
                 ).get(), 0L);
-
     }
 }

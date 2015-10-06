@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.license.plugin.LicensePlugin;
@@ -117,6 +118,26 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         for (AgentService agent : internalCluster().getInstances(AgentService.class)) {
             agent.startCollection();
         }
+    }
+
+    protected void wipeMarvelIndices() throws Exception {
+        CountDown retries = new CountDown(3);
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    boolean exist = client().admin().indices().prepareExists(".marvel-es-*").get().isExists();
+                    if (exist) {
+                        deleteMarvelIndices();
+                    } else {
+                        retries.countDown();
+                    }
+                } catch (IndexNotFoundException e) {
+                    retries.countDown();
+                }
+                assertThat(retries.isCountedDown(), is(true));
+            }
+        });
     }
 
     protected void deleteMarvelIndices() {
@@ -223,6 +244,17 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         fail("marvel template could not be found");
     }
 
+    protected void waitForMarvelIndices() throws Exception {
+        awaitIndexExists(MarvelSettings.MARVEL_DATA_INDEX_NAME);
+        awaitIndexExists(MarvelSettings.MARVEL_INDICES_PREFIX + "*");
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                ensureMarvelIndicesGreen();
+            }
+        });
+    }
+
     protected void awaitIndexExists(final String... indices) throws Exception {
         assertBusy(new Runnable() {
             @Override
@@ -313,6 +345,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    protected void updateMarvelInterval(long value, TimeUnit timeUnit) {
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(MarvelSettings.INTERVAL, value, timeUnit)));
+    }
+
     /** Shield related settings */
 
     public static class ShieldSettings {
@@ -340,7 +376,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/stats, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, cluster:admin/settings/update, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
+                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/stats, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, cluster:monitor/task, cluster:admin/settings/update, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
                 "  indices:\n" +
                 "    '*': all\n" +
                 "\n" +

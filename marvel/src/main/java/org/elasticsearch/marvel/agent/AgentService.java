@@ -82,7 +82,6 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
             workerThread = new Thread(exportingWorker, EsExecutors.threadName(settings, "marvel.exporters"));
             workerThread.setDaemon(true);
             workerThread.start();
-
         }
     }
 
@@ -154,13 +153,10 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
 
         @Override
         public void run() {
-            boolean firstRun = true;
-
             while (!closed) {
                 // sleep first to allow node to complete initialization before collecting the first start
                 try {
-                    long interval = (firstRun && (marvelSettings.startUpDelay() != null)) ? marvelSettings.startUpDelay().millis() : samplingInterval;
-                    Thread.sleep(interval);
+                    Thread.sleep(samplingInterval);
 
                     if (closed) {
                         continue;
@@ -198,8 +194,6 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
                     Thread.currentThread().interrupt();
                 } catch (Throwable t) {
                     logger.error("background thread had an uncaught exception", t);
-                } finally {
-                    firstRun = false;
                 }
             }
             logger.debug("worker shutdown");

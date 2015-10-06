@@ -70,7 +70,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     // and Equals so ShapeBuilder can be used here
     private BytesReference shapeBytes;
 
-    private SpatialStrategy strategy = null;
+    private SpatialStrategy strategy;
 
     private final String indexedShapeId;
     private final String indexedShapeType;
@@ -449,9 +449,10 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             out.writeOptionalString(indexedShapePath);
         }
         relation.writeTo(out);
-        boolean hasStrategy = strategy != null;
-        out.writeBoolean(hasStrategy);
-        if (hasStrategy) {
+        if (strategy == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
             strategy.writeTo(out);
         }
     }

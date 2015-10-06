@@ -36,6 +36,8 @@ install_plugin() {
 
     assert_file_exist "$ESPLUGINS/$name"
     assert_file_exist "$ESPLUGINS/$name/plugin-descriptor.properties"
+    #check we did not accidentially create a log file as root as /usr/share/elasticsearch
+    assert_file_not_exist "/usr/share/elasticsearch/logs"
 
     # At some point installing or removing plugins caused elasticsearch's logs
     # to be owned by root. This is bad so we want to make sure it doesn't

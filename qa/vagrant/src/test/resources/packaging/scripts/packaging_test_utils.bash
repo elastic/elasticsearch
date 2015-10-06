@@ -243,8 +243,14 @@ start_elasticsearch_service() {
         # su and the Elasticsearch init script work together to break bats.
         # sudo isolates bats enough from the init script so everything continues
         # to tick along
-        sudo -u elasticsearch /tmp/elasticsearch/bin/elasticsearch -d \
-            -p /tmp/elasticsearch/elasticsearch.pid
+        sudo -u elasticsearch bash <<BASH
+# If jayatana is installed then we try to use it. Elasticsearch should ignore it even when we try.
+# If it doesn't ignore it then Elasticsearch will fail to start because of security errors.
+# This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
+[ -f /usr/share/java/jayatanaag.jar ] && export JAVA_TOOL_OPTIONS="-javaagent:/usr/share/java/jayatanaag.jar"
+# And now we can start Elasticsearch normally, in the background (-d) and with a pidfile (-p).
+/tmp/elasticsearch/bin/elasticsearch -d -p /tmp/elasticsearch/elasticsearch.pid
+BASH
     elif is_systemd; then
         run systemctl daemon-reload
         [ "$status" -eq 0 ]

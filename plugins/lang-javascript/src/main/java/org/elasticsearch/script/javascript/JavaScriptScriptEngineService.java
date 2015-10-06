@@ -178,31 +178,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         }
     }
 
-    @Override
-    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-        Context ctx = Context.enter();
-        ctx.setWrapFactory(wrapFactory);
-        try {
-            Script script = (Script) compiledScript.compiled();
-            Scriptable scope = ctx.newObject(globalScope);
-            scope.setPrototype(globalScope);
-            scope.setParentScope(null);
-
-            for (Map.Entry<String, Object> entry : vars.entrySet()) {
-                ScriptableObject.putProperty(scope, entry.getKey(), entry.getValue());
-            }
-            Object ret = script.exec(ctx, scope);
-            return ScriptValueConverter.unwrapValue(ret);
-        } finally {
-            Context.exit();
-        }
-    }
-
-    @Override
-    public Object unwrap(Object value) {
-        return ScriptValueConverter.unwrapValue(value);
-    }
-
     private String generateScriptName() {
         return "Script" + counter.incrementAndGet() + ".js";
     }

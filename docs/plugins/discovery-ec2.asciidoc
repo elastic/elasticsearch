@@ -165,6 +165,37 @@ The following are a list of settings (prefixed with `discovery.ec2`) that can fu
     Defaults to `3s`. If no unit like `ms`, `s` or `m` is specified,
     milliseconds are used.
 
+
+[IMPORTANT]
+.Binding the network host
+==============================================
+
+It's important to define `network.host` as by default it's bound to `localhost`.
+
+You can use {ref}/modules-network.html[core network host settings] or
+<<discovery-ec2-network-host,ec2 specific host settings>>:
+
+==============================================
+
+[[discovery-ec2-network-host]]
+===== EC2 Network Host
+
+When the `discovery-ec2` plugin is installed, the following are also allowed
+as valid network host settings:
+
+[cols="<,<",options="header",]
+|==================================================================
+|EC2 Host Value |Description
+|`_ec2:privateIpv4_` |The private IP address (ipv4) of the machine.
+|`_ec2:privateDns_` |The private host of the machine.
+|`_ec2:publicIpv4_` |The public IP address (ipv4) of the machine.
+|`_ec2:publicDns_` |The public host of the machine.
+|`_ec2:privateIp_` |equivalent to _ec2:privateIpv4_.
+|`_ec2:publicIp_` |equivalent to _ec2:publicIpv4_.
+|`_ec2_` |equivalent to _ec2:privateIpv4_.
+|==================================================================
+
+
 [[discovery-ec2-permissions]]
 ===== Recommended EC2 Permissions
 

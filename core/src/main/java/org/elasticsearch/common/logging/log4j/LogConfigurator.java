@@ -70,6 +70,7 @@ public class LogConfigurator {
         replacements.put("socketHub", "org.apache.log4j.net.SocketHubAppender");
         replacements.put("syslog", "org.apache.log4j.net.SyslogAppender");
         replacements.put("telnet", "org.apache.log4j.net.TelnetAppender");
+        replacements.put("terminal", "org.elasticsearch.common.logging.log4j.TerminalAppender");
                 // policies
         replacements.put("timeBased", "org.apache.log4j.rolling.TimeBasedRollingPolicy");
         replacements.put("sizeBased", "org.apache.log4j.rolling.SizeBasedTriggeringPolicy");
@@ -86,15 +87,24 @@ public class LogConfigurator {
 
     private static boolean loaded;
 
-    public static void configure(Settings settings) {
+    /**
+     * Consolidates settings and converts them into actual log4j settings, then initializes loggers and appenders.
+     *
+     * @param settings      custom settings that should be applied
+     * @param resolveConfig controls whether the logging conf file should be read too or not.
+     */
+    public static void configure(Settings settings, boolean resolveConfig) {
         if (loaded) {
             return;
         }
         loaded = true;
         // TODO: this is partly a copy of InternalSettingsPreparer...we should pass in Environment and not do all this...
         Environment environment = new Environment(settings);
+
         Settings.Builder settingsBuilder = settingsBuilder();
-        resolveConfig(environment, settingsBuilder);
+        if (resolveConfig) {
+            resolveConfig(environment, settingsBuilder);
+        }
         settingsBuilder
                 .putProperties("elasticsearch.", System.getProperties())
                 .putProperties("es.", System.getProperties());

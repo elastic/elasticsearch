@@ -31,6 +31,7 @@
 # Load test utilities
 load packaging_test_utils
 load tar
+load plugins
 
 setup() {
     skip_not_tar_gz
@@ -91,12 +92,9 @@ setup() {
     # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
     # them.
     install_elasticsearch_test_scripts
-
+    ESPLUGIN_COMMAND_USER=elasticsearch install_and_check_plugin lang groovy
     start_elasticsearch_service
-
     run_elasticsearch_tests
-
     stop_elasticsearch_service
-
     rm -rf "/tmp/elasticsearch"
 }

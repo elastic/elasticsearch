@@ -40,7 +40,7 @@ public class XMustacheScriptEngineTests extends ESTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
-            BytesReference o = (BytesReference) engine.execute(compiledScript, vars);
+            BytesReference o = (BytesReference) engine.executable(compiledScript, vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                             + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
                     new String(o.toBytes(), Charset.forName("UTF-8")));
@@ -52,7 +52,7 @@ public class XMustacheScriptEngineTests extends ESTestCase {
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
             CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
-            BytesReference o = (BytesReference) engine.execute(compiledScript, vars);
+            BytesReference o = (BytesReference) engine.executable(compiledScript, vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                             + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
                     new String(o.toBytes(), Charset.forName("UTF-8")));
@@ -78,7 +78,7 @@ public class XMustacheScriptEngineTests extends ESTestCase {
         vars.put("test_var1", var1Writer.toString());
         vars.put("test_var2", var2Writer.toString());
         CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
-        BytesReference o = (BytesReference) engine.execute(compiledScript, vars);
+        BytesReference o = (BytesReference) engine.executable(compiledScript, vars).run();
         String s1 = o.toUtf8();
         String s2 =  prefix + " " + var1Writer.toString() + " " + var2Writer.toString();
         assertEquals(s1, s2);

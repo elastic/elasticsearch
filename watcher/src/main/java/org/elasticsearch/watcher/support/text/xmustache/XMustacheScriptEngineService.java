@@ -57,36 +57,6 @@ public class XMustacheScriptEngineService extends AbstractComponent implements S
         return (new XMustacheFactory(xContentType)).compile(new FastStringReader(template), "query-template");
     }
 
-    /**
-     * Execute a compiled template object (as retrieved from the compile method)
-     * and fill potential place holders with the variables given.
-     *
-     * @param compiledScript
-     *            compiled template object.
-     * @param vars
-     *            map of variables to use during substitution.
-     *
-     * @return the processed string with all given variables substitued.
-     * */
-    @Override
-    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-        BytesStreamOutput result = new BytesStreamOutput();
-        UTF8StreamWriter writer = utf8StreamWriter().setOutput(result);
-        ((Mustache) compiledScript.compiled()).execute(writer, vars);
-        try {
-            writer.flush();
-        } catch (IOException e) {
-            logger.error("Could not execute query template (failed to flush writer): ", e);
-        } finally {
-            try {
-                writer.close();
-            } catch (IOException e) {
-                logger.error("Could not execute query template (failed to close writer): ", e);
-            }
-        }
-        return result.bytes();
-    }
-
     @Override
     public String[] types() {
         return new String[] { NAME };

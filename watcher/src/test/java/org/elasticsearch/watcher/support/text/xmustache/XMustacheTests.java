@@ -54,7 +54,7 @@ public class XMustacheTests extends ESTestCase {
                 new String[] { "foo", "bar" },
                 Arrays.asList("foo", "bar"));
         vars.put("data", data);
-        Object output = engine.execute(mustache, vars);
+        Object output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         BytesReference bytes = (BytesReference) output;
@@ -62,7 +62,7 @@ public class XMustacheTests extends ESTestCase {
 
         // Sets can come out in any order
         vars.put("data", newHashSet("foo", "bar"));
-        output = engine.execute(mustache, vars);
+        output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         bytes = (BytesReference) output;
@@ -80,7 +80,7 @@ public class XMustacheTests extends ESTestCase {
                 singleton(new String[] { "foo", "bar" })
         );
         vars.put("data", data);
-        Object output = engine.execute(mustache, vars);
+        Object output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         BytesReference bytes = (BytesReference) output;
@@ -96,7 +96,7 @@ public class XMustacheTests extends ESTestCase {
                 new Map[] { ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar") },
                 Arrays.asList(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")));
         vars.put("data", data);
-        Object output = engine.execute(mustache, vars);
+        Object output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         BytesReference bytes = (BytesReference) output;
@@ -104,7 +104,7 @@ public class XMustacheTests extends ESTestCase {
 
         // HashSet iteration order isn't fixed
         vars.put("data", newHashSet(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")));
-        output = engine.execute(mustache, vars);
+        output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         bytes = (BytesReference) output;
@@ -156,7 +156,7 @@ public class XMustacheTests extends ESTestCase {
             Map<String, Object> dataMap = new HashMap<>();
             dataMap.put("data", unescaped.toString());
             CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
-            Object output = engine.execute(mustache, dataMap);
+            Object output = engine.executable(mustache, dataMap).run();
 
             assertThat(output, notNullValue());
             assertThat(output, instanceOf(BytesReference.class));

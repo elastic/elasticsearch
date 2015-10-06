@@ -51,8 +51,8 @@ public class CountRequestTests extends ESTestCase {
         if (randomBoolean()) {
             countRequest.preference(randomAsciiOfLengthBetween(1, 10));
         }
-        final boolean querySet;
-        if (querySet = randomBoolean()) {
+        final boolean querySet = randomBoolean();
+        if (querySet) {
             countRequest.query(QueryBuilders.termQuery("field", "value"));
         }
         if (randomBoolean()) {

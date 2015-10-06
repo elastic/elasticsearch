@@ -94,11 +94,6 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-        return executable(compiledScript, vars).run();
-    }
-
-    @Override
     public void close() {
     }
 

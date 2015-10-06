@@ -71,7 +71,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
             if (queryBuilder != null) {
                 QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
                 querySourceBuilder.setQuery(queryBuilder);
-                validateQueryRequest.source(querySourceBuilder.buildAsBytes());
+                validateQueryRequest.source(querySourceBuilder);
             }
         }
         validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));

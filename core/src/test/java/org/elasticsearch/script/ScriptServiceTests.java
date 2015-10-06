@@ -497,11 +497,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
 
         @Override
-        public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-            return null;
-        }
-
-        @Override
         public void close() {
 
         }

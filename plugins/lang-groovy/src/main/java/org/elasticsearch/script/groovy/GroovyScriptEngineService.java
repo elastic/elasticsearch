@@ -244,20 +244,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         };
     }
 
-    @Override
-    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-        try {
-            Map<String, Object> allVars = new HashMap<>();
-            if (vars != null) {
-                allVars.putAll(vars);
-            }
-            Script scriptObject = createScript(compiledScript.compiled(), allVars);
-            return scriptObject.run();
-        } catch (Exception e) {
-            throw new ScriptException("failed to execute " + compiledScript, e);
-        }
-    }
-
     public static final class GroovyScript implements ExecutableScript, LeafSearchScript {
 
         private final CompiledScript compiledScript;

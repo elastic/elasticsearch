@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.plugin
 
+import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.ElasticsearchProperties
 import org.elasticsearch.gradle.test.RestIntegTestTask
@@ -33,6 +34,7 @@ class PluginBuildPlugin extends BuildPlugin {
     @Override
     void apply(Project project) {
         super.apply(project)
+        project.pluginManager.apply(ProvidedBasePlugin)
         // TODO: add target compatibility (java version) to elasticsearch properties and set for the project
         configureDependencies(project)
         // this afterEvaluate must happen before the afterEvaluate added by integTest configure,
@@ -63,11 +65,6 @@ class PluginBuildPlugin extends BuildPlugin {
 
     static void configureDependencies(Project project) {
         String elasticsearchVersion = ElasticsearchProperties.version
-        project.configurations {
-            // a separate configuration from compile so added dependencies can be distinguished
-            provided
-            compile.extendsFrom(provided)
-        }
         project.dependencies {
             provided "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
             //compile project.configurations.provided

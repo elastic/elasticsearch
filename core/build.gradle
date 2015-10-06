@@ -22,12 +22,14 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.test.RestSpecHack
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'com.bmuschko.nexus'
+apply plugin: 'nebula.optional-base'
 
 archivesBaseName = 'elasticsearch'
 
-configurations {
-  optional // these are used at compile time (and test) but excluded from runtime
-  compile.extendsFrom(optional)
+nexus {
+  repositoryUrl = "file://localhost/tmp/myRepo/"
+  snapshotRepositoryUrl = "file://localhost/tmp/myRepo/"
 }
 
 versions << [
@@ -50,6 +52,7 @@ dependencies {
   compile "org.apache.lucene:lucene-join:${versions.lucene}"
   compile "org.apache.lucene:lucene-spatial:${versions.lucene}"
 
+  // utilities
   compile 'com.google.guava:guava:18.0'
   compile 'commons-cli:commons-cli:1.3.1'
   compile 'com.carrotsearch:hppc:0.7.1'
@@ -77,20 +80,18 @@ dependencies {
   compile 'org.hdrhistogram:HdrHistogram:2.1.6'
 
   // lucene spatial
-  optional 'com.spatial4j:spatial4j:0.4.1'
-  optional 'com.vividsolutions:jts:1.13'
+  compile 'com.spatial4j:spatial4j:0.4.1', optional
+  compile 'com.vividsolutions:jts:1.13', optional
 
   // templating
-  optional('com.github.spullara.mustache.java:compiler:0.8.13') {
-    transitive = false
-  }
+  compile 'com.github.spullara.mustache.java:compiler:0.8.13', optional
 
   // logging
-  optional "log4j:log4j:${versions.log4j}"
-  optional "log4j:apache-log4j-extras:${versions.log4j}"
-  optional "org.slf4j:slf4j-api:${versions.slf4j}"
+  compile "log4j:log4j:${versions.log4j}", optional
+  compile "log4j:apache-log4j-extras:${versions.log4j}", optional
+  compile "org.slf4j:slf4j-api:${versions.slf4j}", optional
 
-  optional 'net.java.dev.jna:jna:4.1.0'
+  compile 'net.java.dev.jna:jna:4.1.0', optional
 
   // TODO: remove these test deps and just depend on test-framework
   testCompile(group: 'junit', name: 'junit', version: '4.11') {
@@ -131,9 +132,18 @@ Task copyRestSpec = RestSpecHack.configureTask(project, true)
 integTest.dependsOn copyRestSpec
 test.dependsOn copyRestSpec
 
-idea {
-  module {
-    scopes.COMPILE.plus.add(configurations.optional)
+// this is a hack to bypass an issue with the nebula.optional-base plugin
+// not configuring optional for all repositories, see
+// https://github.com/nebula-plugins/gradle-extra-configurations-plugin/pull/23
+project.afterEvaluate {
+  def installers = project.tasks.install.repositories
+  def deployers = project.tasks.uploadArchives.repositories
 
+  installers.plus(deployers)*.pom*.whenConfigured { pom ->
+    project.ext.optionalDeps.each { optionalDep ->
+      pom.dependencies.find {
+        dep -> dep.groupId == optionalDep.group && dep.artifactId == optionalDep.name
+      }.optional = true
+    }
   }
 }

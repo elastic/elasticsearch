@@ -19,21 +19,15 @@ repositories {
   }
 }
 
-/*configurations.all {
-    // check for updates every build
-    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
-}
-*/
-
 dependencies {
   compile gradleApi()
   compile localGroovy()
   compile 'com.carrotsearch.randomizedtesting:junit4-ant:2.1.17'
-  compile(group: 'junit', name: 'junit', version: '4.11') {
+  compile('junit:junit:4.11') {
     transitive = false
   }
-  //compile 'de.thetaphi:forbiddenapis:2.0-SNAPSHOT'
-  compile group: 'de.thetaphi', name: 'forbiddenapis', version: '2.0', changing: true
+  compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.2'
+  compile 'de.thetaphi:forbiddenapis:2.0'
 }
 
 Properties props = new Properties()

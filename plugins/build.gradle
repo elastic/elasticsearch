@@ -21,6 +21,7 @@ import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 
 subprojects {
   apply plugin: 'elasticsearch.esplugin'
+  apply plugin: 'com.bmuschko.nexus'
 
   Task dependencyLicensesTask = DependencyLicensesTask.configure(project) {
     dependencies = project.configurations.runtime - project.configurations.provided

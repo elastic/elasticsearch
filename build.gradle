@@ -17,9 +17,45 @@
  * under the License.
  */
 
-allprojects {
-  apply plugin: 'idea'
-  apply plugin: 'eclipse'
+import com.bmuschko.gradle.nexus.NexusPlugin
+
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath 'com.bmuschko:gradle-nexus-plugin:2.3.1'
+  }
+}
+
+// common maven publishing configuration
+subprojects {
+  plugins.withType(NexusPlugin).whenPluginAdded {
+    modifyPom {
+      project {
+        url 'https://github.com/elastic/elasticsearch'
+        inceptionYear '2009'
+
+        scm {
+          url 'https://github.com/elastic/elasticsearch'
+          connection 'scm:https://elastic@github.com/elastic/elasticsearch'
+          developerConnection 'scm:git://github.com/elastic/elasticsearch.git'
+        }
+
+        licenses {
+          license {
+            name 'The Apache Software License, Version 2.0'
+            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+            distribution 'repo'
+          }
+        }
+      }
+    }  
+    extraArchive {
+      javadoc = false
+      tests = false
+    }
+  }
 }
 
 if (hasProperty('projectsPrefix') == false) {
@@ -58,8 +94,8 @@ subprojects {
     }
   }
 
+  // include license and notice in jars
   gradle.projectsEvaluated {
-    // include license and notice in jars
     tasks.withType(Jar) {
       into('META-INF') {
         from project.rootProject.rootDir
@@ -84,32 +120,24 @@ subprojects {
     }
   }
 
-  // define a nice artifacts task to list all artifacts of a project
-  /*task artifacts {
-    group = "Help"
-    description = "Displays the artifacts associated with each configuration of " + project
-    doFirst {
-      configurations.findAll().each { config ->
-        println "${config}:"
-        config.allArtifacts.getFiles().each { file -> println "" + file}
-        println ' '
-      }
-    }
-  }*/
-  
+}
+
+// IDE configuration
+allprojects {
+  apply plugin: 'idea'
+  apply plugin: 'eclipse'
+
+  // TODO: similar for intellij
   eclipse {
     classpath {
-      defaultOutputDir = new File(file('build'), 'eclipse')
+      defaultOutputDir = new File(project.buildDir, 'eclipse')
     }
   }
 }
-
-/*idea {
+idea {
   project {
     languageLevel = sourceCompatibility
     vcs = 'Git'
   }
 }
-*/
-
 

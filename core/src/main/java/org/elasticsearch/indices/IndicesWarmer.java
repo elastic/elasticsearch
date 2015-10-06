@@ -87,7 +87,7 @@ public final class IndicesWarmer extends AbstractComponent {
         if (indexService == null) {
             return;
         }
-        final IndexShard indexShard = indexService.shard(context.shardId().id());
+        final IndexShard indexShard = indexService.getShardOrNull(context.shardId().id());
         if (indexShard == null) {
             return;
         }

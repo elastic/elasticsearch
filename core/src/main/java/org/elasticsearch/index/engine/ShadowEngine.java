@@ -35,6 +35,7 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * ShadowEngine is a specialized engine that only allows read-only operations
@@ -168,9 +169,9 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get) throws EngineException {
+    public GetResult get(Get get, Function<String, Searcher> searcherFacotry) throws EngineException {
         // There is no translog, so we can get it directly from the searcher
-        return getFromSearcher(get);
+        return getFromSearcher(get, searcherFacotry);
     }
 
     @Override

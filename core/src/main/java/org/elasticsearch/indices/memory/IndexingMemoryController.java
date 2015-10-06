@@ -230,7 +230,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     protected IndexShard getShard(ShardId shardId) {
         IndexService indexService = indicesService.indexService(shardId.index().name());
         if (indexService != null) {
-            return indexService.shard(shardId.id());
+            IndexShard indexShard = indexService.getShardOrNull(shardId.id());
+            return indexShard;
         }
         return null;
     }

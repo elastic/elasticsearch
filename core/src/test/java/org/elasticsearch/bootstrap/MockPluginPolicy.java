@@ -35,7 +35,6 @@ import java.security.ProtectionDomain;
 import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -99,18 +98,24 @@ final class MockPluginPolicy extends Policy {
         excludedSources.add(RandomizedRunner.class.getProtectionDomain().getCodeSource());
         // junit library
         excludedSources.add(Assert.class.getProtectionDomain().getCodeSource());
-        // groovy scripts
-        excludedSources.add(new CodeSource(new URL("file:/groovy/script"), (Certificate[])null));
+        // scripts
+        excludedSources.add(new CodeSource(new URL("file:" + BootstrapInfo.UNTRUSTED_CODEBASE), (Certificate[])null));
 
         Loggers.getLogger(getClass()).debug("Apply permissions [{}] excluding codebases [{}]", extraPermissions, excludedSources);
     }
 
     @Override
     public boolean implies(ProtectionDomain domain, Permission permission) {
+        CodeSource codeSource = domain.getCodeSource();
+        // codesource can be null when reducing privileges via doPrivileged()
+        if (codeSource == null) {
+            return false;
+        }
+
         if (standardPolicy.implies(domain, permission)) {
             return true;
-        } else if (excludedSources.contains(domain.getCodeSource()) == false && 
-                   Objects.toString(domain.getCodeSource()).contains("test-classes") == false) {
+        } else if (excludedSources.contains(codeSource) == false &&
+                   codeSource.toString().contains("test-classes") == false) {
             return extraPermissions.implies(permission);
         } else {
             return false;

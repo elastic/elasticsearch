@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
 import org.elasticsearch.Version;
@@ -28,17 +28,16 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.*;
-import org.elasticsearch.index.search.MatchQuery.Type;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -49,8 +48,6 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -58,18 +55,12 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-public class SearchQueryTests extends ESIntegTestCase {
+public class SearchQueryIT extends ESIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
-    }
-    
     @Override
     protected int maximumNumberOfShards() {
         return 7;
@@ -111,6 +102,7 @@ public class SearchQueryTests extends ESIntegTestCase {
         assertThat(hits[0].score(), allOf(greaterThan(hits[1].getScore()), greaterThan(hits[2].getScore())));
 
     }
+
     @Test // see #3952
     public void testEmptyQueryString() throws ExecutionException, InterruptedException, IOException {
         createIndex("test");
@@ -677,25 +669,25 @@ public class SearchQueryTests extends ESIntegTestCase {
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
                 client().prepareIndex("test", "type1", "3").setSource("field1", "value3"));
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1").ids("1", "3"))).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1").addIds("1", "3"))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
         // no type
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().ids("1", "3"))).get();
+        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().addIds("1", "3"))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").ids("1", "3")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").addIds("1", "3")).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
         // no type
-        searchResponse = client().prepareSearch().setQuery(idsQuery().ids("1", "3")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "3")).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").ids("7", "10")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").addIds("7", "10")).get();
         assertHitCount(searchResponse, 0l);
 
         // repeat..., with terms
@@ -1293,52 +1285,6 @@ public class SearchQueryTests extends ESIntegTestCase {
     }
 
     @Test
-    public void testBasicFilterById() throws Exception {
-        createIndex("test");
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
-        client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(idsQuery("type1").ids("1")).get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1", "type2").ids("1", "2"))).get();
-        assertHitCount(searchResponse, 2l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(2));
-
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(idsQuery().ids("1")).get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(idsQuery().ids("1", "2")).get();
-        assertHitCount(searchResponse, 2l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(2));
-
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().ids("1", "2"))).get();
-        assertHitCount(searchResponse, 2l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(2));
-
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1").ids("1", "2"))).get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().ids("1"))).get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-
-        // TODO: why do we even support passing null??
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery((String[])null).ids("1"))).get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1", "type2", "type3").ids("1", "2", "3", "4"))).get();
-        assertHitCount(searchResponse, 2l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(2));
-    }
-
-    @Test
     public void testBasicQueryById() throws Exception {
         createIndex("test");
 
@@ -1346,32 +1292,27 @@ public class SearchQueryTests extends ESIntegTestCase {
         client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2").ids("1", "2")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2").addIds("1", "2")).get();
         assertHitCount(searchResponse, 2l);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery().ids("1")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1")).get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery().ids("1", "2")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "2")).get();
         assertHitCount(searchResponse, 2l);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
 
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").ids("1", "2")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").addIds("1", "2")).get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery().ids("1")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery(Strings.EMPTY_ARRAY).addIds("1")).get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery((String[])null).ids("1")).get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2", "type3").ids("1", "2", "3", "4")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2", "type3").addIds("1", "2", "3", "4")).get();
         assertHitCount(searchResponse, 2l);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
     }
@@ -1999,7 +1940,7 @@ public class SearchQueryTests extends ESIntegTestCase {
                 client().prepareIndex("test", "test", "4").setSource("score", 0.5));
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(
-functionScoreQuery(scriptFunction(new Script("_doc['score'].value")))).setMinScore(1.5f).get();
+                functionScoreQuery(ScoreFunctionBuilders.fieldValueFactorFunction("score")).setMinScore(1.5f)).get();
         assertHitCount(searchResponse, 2);
         assertFirstHit(searchResponse, hasId("3"));
         assertSecondHit(searchResponse, hasId("1"));

@@ -59,6 +59,8 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  *
@@ -78,7 +80,6 @@ public abstract class Engine implements Closeable {
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
-
     protected volatile Throwable failedEngine = null;
 
     protected Engine(EngineConfig engineConfig) {
@@ -227,8 +228,8 @@ public abstract class Engine implements Closeable {
         PENDING_OPERATIONS
     }
 
-    final protected GetResult getFromSearcher(Get get) throws EngineException {
-        final Searcher searcher = acquireSearcher("get");
+    final protected GetResult getFromSearcher(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
+        final Searcher searcher = searcherFactory.apply("get");
         final Versions.DocIdAndVersion docIdAndVersion;
         try {
             docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
@@ -256,7 +257,11 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract GetResult get(Get get) throws EngineException;
+    public final GetResult get(Get get) throws EngineException {
+        return get(get, this::acquireSearcher);
+    }
+
+    public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException;
 
     /**
      * Returns a new searcher instance. The consumer of this
@@ -279,7 +284,7 @@ public abstract class Engine implements Closeable {
             try {
                 final Searcher retVal = newSearcher(source, searcher, manager);
                 success = true;
-                return config().getWrappingService().wrap(engineConfig, retVal);
+                return retVal;
             } finally {
                 if (!success) {
                     manager.release(searcher);

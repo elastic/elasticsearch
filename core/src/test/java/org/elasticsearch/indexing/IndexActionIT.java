@@ -203,7 +203,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
         try {
             // Catch chars that are more than a single byte
-            client().prepareIndex(randomAsciiOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES -1).toLowerCase(Locale.ROOT) +
+            client().prepareIndex(randomAsciiOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) +
                             "Ϟ".toLowerCase(Locale.ROOT),
                     "mytype").setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
@@ -214,5 +214,23 @@ public class IndexActionIT extends ESIntegTestCase {
 
         // we can create an index of max length
         createIndex(randomAsciiOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES).toLowerCase(Locale.ROOT));
+    }
+
+    public void testInvalidIndexName() {
+        try {
+            createIndex(".");
+            fail("exception should have been thrown on dot index name");
+        } catch (InvalidIndexNameException e) {
+            assertThat("exception contains message about index name is dot " + e.getMessage(),
+                    e.getMessage().contains("Invalid index name [.], must not be \'.\' or '..'"), equalTo(true));
+        }
+
+        try {
+            createIndex("..");
+            fail("exception should have been thrown on dot index name");
+        } catch (InvalidIndexNameException e) {
+            assertThat("exception contains message about index name is dot " + e.getMessage(),
+                    e.getMessage().contains("Invalid index name [..], must not be \'.\' or '..'"), equalTo(true));
+        }
     }
 }

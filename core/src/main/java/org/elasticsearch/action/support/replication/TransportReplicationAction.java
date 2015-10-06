@@ -666,7 +666,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     protected Releasable getIndexShardOperationsCounter(ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.index().getName());
-        IndexShard indexShard = indexService.shardSafe(shardId.id());
+        IndexShard indexShard = indexService.getShard(shardId.id());
         return new IndexShardReference(indexShard);
     }
 
@@ -678,7 +678,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
                 return;
             }
-            IndexShard indexShard = indexService.shard(shardId);
+            IndexShard indexShard = indexService.getShardOrNull(shardId);
             if (indexShard == null) {
                 logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
                 return;

@@ -26,6 +26,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
@@ -93,6 +94,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
     private RateLimitingInputStream.Listener snapshotThrottleListener;
 
+    private RateLimitingInputStream.Listener restoreThrottleListener;
+
     private boolean compress;
 
     private final ParseFieldMatcher parseFieldMatcher;
@@ -147,6 +150,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         this.restoreRateLimiter = restoreRateLimiter;
         this.rateLimiterListener = rateLimiterListener;
         this.snapshotThrottleListener = nanos -> rateLimiterListener.onSnapshotPause(nanos);
+        this.restoreThrottleListener = nanos -> rateLimiterListener.onRestorePause(nanos);
         this.compress = compress;
         indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT, BlobStoreIndexShardSnapshot.PROTO, parseFieldMatcher, isCompress());
         indexShardSnapshotLegacyFormat = new LegacyBlobStoreFormat<>(LEGACY_SNAPSHOT_NAME_FORMAT, BlobStoreIndexShardSnapshot.PROTO, parseFieldMatcher);
@@ -486,7 +490,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         public SnapshotContext(SnapshotId snapshotId, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
             super(snapshotId, Version.CURRENT, shardId);
             IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            store = indexService.shard(shardId.id()).store();
+            store = indexService.getShardOrNull(shardId.id()).store();
             this.snapshotStatus = snapshotStatus;
 
         }
@@ -770,7 +774,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public RestoreContext(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
             super(snapshotId, version, shardId, snapshotShardId);
-            store = indicesService.indexServiceSafe(shardId.getIndex()).shard(shardId.id()).store();
+            store = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id()).store();
             this.recoveryState = recoveryState;
         }
 
@@ -891,16 +895,20 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         private void restoreFile(final FileInfo fileInfo) throws IOException {
             boolean success = false;
-            try (InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
+
+            try (InputStream partSliceStream = new PartSliceStream(blobContainer, fileInfo)) {
+                final InputStream stream;
+                if (restoreRateLimiter == null) {
+                    stream = partSliceStream;
+                } else {
+                    stream = new RateLimitingInputStream(partSliceStream, restoreRateLimiter, restoreThrottleListener);
+                }
                 try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                     final byte[] buffer = new byte[BUFFER_SIZE];
                     int length;
                     while ((length = stream.read(buffer)) > 0) {
                         indexOutput.writeBytes(buffer, 0, length);
                         recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.name(), length);
-                        if (restoreRateLimiter != null) {
-                            rateLimiterListener.onRestorePause(restoreRateLimiter.pause(length));
-                        }
                     }
                     Store.verify(indexOutput);
                     indexOutput.close();

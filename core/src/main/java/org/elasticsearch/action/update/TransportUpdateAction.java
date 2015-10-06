@@ -166,7 +166,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) {
         IndexService indexService = indicesService.indexServiceSafe(request.concreteIndex());
-        IndexShard indexShard = indexService.shardSafe(request.shardId());
+        IndexShard indexShard = indexService.getShard(request.shardId());
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard);
         switch (result.operation()) {
             case UPSERT:
@@ -266,7 +266,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 UpdateResponse update = result.action();
                 IndexService indexServiceOrNull = indicesService.indexService(request.concreteIndex());
                 if (indexServiceOrNull !=  null) {
-                    IndexShard shard = indexService.shard(request.shardId());
+                    IndexShard shard = indexService.getShardOrNull(request.shardId());
                     if (shard != null) {
                         shard.indexingService().noopUpdate(request.type());
                     }

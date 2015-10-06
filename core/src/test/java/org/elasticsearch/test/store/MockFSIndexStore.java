@@ -24,13 +24,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreModule;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.Plugin;
 
 public class MockFSIndexStore extends IndexStore {
+
+    private final IndicesService indicesService;
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -52,13 +57,13 @@ public class MockFSIndexStore extends IndexStore {
 
     @Inject
     public MockFSIndexStore(Index index, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
-                            IndicesStore indicesStore) {
+                            IndicesStore indicesStore, IndicesService indicesService) {
         super(index, indexSettings, indexSettingsService, indicesStore);
+        this.indicesService = indicesService;
     }
 
-    @Override
-    public Class<? extends DirectoryService> shardDirectory() {
-        return MockFSDirectoryService.class;
+    public DirectoryService newDirectoryService(ShardPath path) {
+        return new MockFSDirectoryService(indexSettings, this, indicesService, path);
     }
 
 }

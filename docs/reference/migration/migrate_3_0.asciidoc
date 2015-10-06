@@ -262,3 +262,7 @@ of string values: see `FilterFunctionScoreQuery.ScoreMode` and `CombineFunction`
 
 `CombineFunction.MULT` has been renamed to `MULTIPLY`.
 
+==== IdsQueryBuilder
+
+For simplicity, only one way of adding the ids to the existing list (empty by default)  is left: `addIds(String...)`
+

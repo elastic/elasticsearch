@@ -208,11 +208,6 @@ public class StoreTests extends ESTestCase {
                     verifyingOutput.writeByte(checksumBytes.bytes[i]);
                 }
             }
-            if (randomBoolean()) {
-               appendRandomData(verifyingOutput);
-            } else {
-                Store.verify(verifyingOutput);
-            }
             fail("should be a corrupted index");
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             // ok

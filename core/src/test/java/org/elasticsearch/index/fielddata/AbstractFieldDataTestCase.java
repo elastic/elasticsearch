@@ -102,7 +102,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put("index.fielddata.cache", "none").build();
         indexService = createIndex("test", settings);
         mapperService = indexService.mapperService();
-        indicesFieldDataCache = indexService.injector().getInstance(IndicesFieldDataCache.class);
+        indicesFieldDataCache = getInstanceFromNode(IndicesFieldDataCache.class);
         ifdService = indexService.fieldData();
         // LogByteSizeMP to preserve doc ID order
         writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy()));

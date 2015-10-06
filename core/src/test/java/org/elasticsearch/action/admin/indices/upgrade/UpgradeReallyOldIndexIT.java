@@ -65,7 +65,7 @@ public class UpgradeReallyOldIndexIT extends StaticIndexBackwardCompatibilityIT 
         for (IndicesService services : internalCluster().getInstances(IndicesService.class)) {
             IndexService indexService = services.indexService(index);
             if (indexService != null) {
-                assertEquals(version, indexService.shard(0).minimumCompatibleVersion());
+                assertEquals(version, indexService.getShardOrNull(0).minimumCompatibleVersion());
             }
         }
 

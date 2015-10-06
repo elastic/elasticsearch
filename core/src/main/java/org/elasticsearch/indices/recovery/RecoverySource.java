@@ -89,7 +89,7 @@ public class RecoverySource extends AbstractComponent {
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().index().name());
-        final IndexShard shard = indexService.shardSafe(request.shardId().id());
+        final IndexShard shard = indexService.getShard(request.shardId().id());
 
         // starting recovery from that our (the source) shard state is marking the shard to be in recovery mode as well, otherwise
         // the index operations will not be routed to it properly

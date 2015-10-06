@@ -121,4 +121,20 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
         return alternateVersions;
     }
+
+    public void testIllegalArguments() {
+        try {
+            new IdsQueryBuilder((String[])null);
+            fail("must be not null");
+        } catch(IllegalArgumentException e) {
+            //all good
+        }
+
+        try {
+            new IdsQueryBuilder().addIds((String[])null);
+            fail("must be not null");
+        } catch(IllegalArgumentException e) {
+            //all good
+        }
+    }
 }

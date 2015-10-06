@@ -62,7 +62,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
 
     @Override
     protected Tuple<ActionWriteResponse, ShardFlushRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable {
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).getShard(shardRequest.shardId.id());
         indexShard.flush(shardRequest.request.getRequest());
         logger.trace("{} flush request executed on primary", indexShard.shardId());
         return new Tuple<>(new ActionWriteResponse(), shardRequest.request);
@@ -70,7 +70,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
 
     @Override
     protected void shardOperationOnReplica(ShardId shardId, ShardFlushRequest request) {
-        IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
+        IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         indexShard.flush(request.getRequest());
         logger.trace("{} flush request executed on replica", indexShard.shardId());
     }

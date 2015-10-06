@@ -66,6 +66,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  *
@@ -303,7 +305,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get) throws EngineException {
+    public GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (get.realtime()) {
@@ -324,7 +326,7 @@ public class InternalEngine extends Engine {
             }
 
             // no version, get the version from the index, we know that we refresh on flush
-            return getFromSearcher(get);
+            return getFromSearcher(get, searcherFactory);
         }
     }
 

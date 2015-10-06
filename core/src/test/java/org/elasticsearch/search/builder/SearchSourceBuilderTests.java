@@ -292,30 +292,24 @@ public class SearchSourceBuilderTests extends ESTestCase {
         return builder;
     }
 
-    /**
-     * Generic test that creates new query from the test query and checks both for equality
-     * and asserts equality on the two queries.
-     */
     @Test
     public void testFromXContent() throws IOException {
         SearchSourceBuilder testBuilder = createSearchSourceBuilder();
-        SearchSourceBuilder newBuilder = parseQuery(testBuilder.toString(), ParseFieldMatcher.STRICT);
+        String builderAsString = testBuilder.toString();
+        XContentParser parser = XContentFactory.xContent(builderAsString).createParser(builderAsString);
+        SearchSourceBuilder newBuilder = SearchSourceBuilder.PROTOTYPE.fromXContent(parser, createParseContext(parser));
         assertNotSame(testBuilder, newBuilder);
         assertEquals(testBuilder, newBuilder);
         assertEquals(testBuilder.hashCode(), newBuilder.hashCode());
     }
 
-    protected SearchSourceBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
-        XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
-        QueryParseContext context = createParseContext();
+    private static QueryParseContext createParseContext(XContentParser parser) {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
         context.reset(parser);
-        context.parseFieldMatcher(matcher);
-        return SearchSourceBuilder.PROTOTYPE.fromXContent(parser, context);
+        context.parseFieldMatcher(ParseFieldMatcher.STRICT);
+        return context;
     }
 
-    /**
-     * Test serialization and deserialization of the test query.
-     */
     @Test
     public void testSerialization() throws IOException {
         SearchSourceBuilder testBuilder = createSearchSourceBuilder();
@@ -365,19 +359,11 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
     }
 
-    /**
-     * @return a new {@link QueryParseContext} based on the base test index and queryParserService
-     */
-    protected static QueryParseContext createParseContext() {
-        return new QueryParseContext(indicesQueriesRegistry);
-    }
-
     public void testParseIncludeExclude() throws IOException {
-        SearchSourceBuilder builder = new SearchSourceBuilder();
         {
             String restContent = " { \"_source\": { \"includes\": \"include\", \"excludes\": \"*.field2\"}}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(indicesQueriesRegistry));
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.PROTOTYPE.fromXContent(parser, createParseContext(parser));
                 assertArrayEquals(new String[]{"*.field2" }, searchSourceBuilder.fetchSource().excludes());
                 assertArrayEquals(new String[]{"include" }, searchSourceBuilder.fetchSource().includes());
             }
@@ -385,7 +371,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         {
             String restContent = " { \"_source\": false}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(indicesQueriesRegistry));
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.PROTOTYPE.fromXContent(parser, createParseContext(parser));
                 assertArrayEquals(new String[]{}, searchSourceBuilder.fetchSource().excludes());
                 assertArrayEquals(new String[]{}, searchSourceBuilder.fetchSource().includes());
                 assertFalse(searchSourceBuilder.fetchSource().fetchSource());
@@ -394,11 +380,10 @@ public class SearchSourceBuilderTests extends ESTestCase {
     }
 
     public void testParseSort() throws IOException {
-        SearchSourceBuilder builder = new SearchSourceBuilder();
         {
             String restContent = " { \"sort\": \"foo\"}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(indicesQueriesRegistry));
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.PROTOTYPE.fromXContent(parser, createParseContext(parser));
                 assertEquals(1, searchSourceBuilder.sorts().size());
                 assertEquals("{\"foo\":{}}", searchSourceBuilder.sorts().get(0).toUtf8());
             }
@@ -413,7 +398,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     "        \"_score\"\n" +
                     "    ]}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                SearchSourceBuilder searchSourceBuilder = builder.fromXContent(parser, new QueryParseContext(indicesQueriesRegistry));
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.PROTOTYPE.fromXContent(parser, createParseContext(parser));
                 assertEquals(5, searchSourceBuilder.sorts().size());
                 assertEquals("{\"post_date\":{\"order\":\"asc\"}}", searchSourceBuilder.sorts().get(0).toUtf8());
                 assertEquals("\"user\"", searchSourceBuilder.sorts().get(1).toUtf8());

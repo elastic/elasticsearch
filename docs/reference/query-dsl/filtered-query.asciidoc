@@ -1,8 +1,6 @@
 [[query-dsl-filtered-query]]
 === Filtered Query
 
-deprecated[2.0.0-beta1, Use the `bool` query instead with a `must` clause for the query and a `filter` clause for the filter]
-
 The `filtered` query is used to combine a query which will be used for
 scoring with another query which will only be used for filtering the result
 set.

@@ -65,8 +65,6 @@ scoring.
 [[count]]
 ==== Count
 
-deprecated[2.0.0-beta1, `count` does not provide any benefits over `query_then_fetch` with a `size` of `0`]
-
 Parameter value: *count*.
 
 A special search type that returns the count that matched the search

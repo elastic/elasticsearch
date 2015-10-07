@@ -1,8 +1,6 @@
 [[query-dsl-and-query]]
 === And Query
 
-deprecated[2.0.0-beta1, Use the `bool` query instead]
-
 A query that matches documents using the `AND` boolean operator on other
 queries.
 

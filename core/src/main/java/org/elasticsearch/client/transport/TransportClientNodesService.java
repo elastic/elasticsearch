@@ -53,7 +53,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Map;c
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
@@ -285,7 +285,7 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private void ensureNodesAreAvailable(List<DiscoveryNode> nodes) {
         if (nodes.isEmpty()) {
-            String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", nodes);
+            String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", this.listedNodes);
             throw new NoNodeAvailableException(message);
         }
     }

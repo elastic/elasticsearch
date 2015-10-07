@@ -198,7 +198,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose("test"));
 
         assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
-        assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(0));
+        assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(1));
 
         assertShardStatesMatch(stateChangeListenerNode1, 6, CLOSED);
         assertShardStatesMatch(stateChangeListenerNode2, 6, CLOSED);

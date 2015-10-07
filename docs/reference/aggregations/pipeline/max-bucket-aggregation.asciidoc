@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-max-bucket-aggregation]]
 === Max Bucket Aggregation
 
-coming[2.0.0-beta1]
-
 experimental[]
 
 A sibling pipeline aggregation which identifies the bucket(s) with the maximum value of a specified metric in a sibling aggregation

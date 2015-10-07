@@ -286,16 +286,6 @@ public class ScriptModesTests extends ESTestCase {
         }
 
         @Override
-        public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-            return null;
-        }
-
-        @Override
-        public Object unwrap(Object value) {
-            return null;
-        }
-
-        @Override
         public void close() {
 
         }

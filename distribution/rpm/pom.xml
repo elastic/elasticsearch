@@ -79,6 +79,7 @@
                                         <include>bin/elasticsearch</include>
                                         <include>bin/elasticsearch.in.sh</include>
                                         <include>bin/plugin</include>
+                                        <include>bin/elasticsearch-systemd-pre-exec</include>
                                     </includes>
                                 </resource>
                             </resources>
@@ -127,6 +128,7 @@
                                         <include>elasticsearch</include>
                                         <include>elasticsearch.in.sh</include>
                                         <include>plugin</include>
+                                        <include>elasticsearch-systemd-pre-exec</include>
                                     </includes>
                                 </source>
                             </sources>

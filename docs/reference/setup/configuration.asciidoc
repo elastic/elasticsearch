@@ -298,14 +298,6 @@ Enter value for [node.name]:
 NOTE: Elasticsearch will not start if `${prompt.text}` or `${prompt.secret}`
 is used in the settings and the process is run as a service or in the background.
 
-The location of the configuration file can be set externally using a
-system property:
-
-[source,sh]
---------------------------------------------------
-$ elasticsearch -Des.config=/path/to/config/file
---------------------------------------------------
-
 [float]
 [[configuration-index-settings]]
 === Index Settings

@@ -8,9 +8,6 @@
 # Elasticsearch configuration directory
 #CONF_DIR=${packaging.elasticsearch.conf.dir}
 
-# Elasticsearch configuration file
-#CONF_FILE=$CONF_DIR/elasticsearch.yml
-
 # Elasticsearch data directory
 #DATA_DIR=${packaging.elasticsearch.data.dir}
 

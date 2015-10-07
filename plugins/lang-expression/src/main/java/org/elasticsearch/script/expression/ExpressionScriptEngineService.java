@@ -237,17 +237,6 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-        ExpressionExecutableScript expressionExecutableScript = new ExpressionExecutableScript(compiledScript, vars);
-        return expressionExecutableScript.run();
-    }
-
-    @Override
-    public Object unwrap(Object value) {
-        return value;
-    }
-
-    @Override
     public void close() {}
 
     @Override

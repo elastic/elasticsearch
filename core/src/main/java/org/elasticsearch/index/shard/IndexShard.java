@@ -293,7 +293,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         return indexFieldDataService;
     }
 
-    public MapperService mapperService() { return mapperService;}
+    public MapperService mapperService() {
+        return mapperService;
+    }
 
     public ShardSearchStats searchService() {
         return this.searchService;
@@ -436,41 +438,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         state = newState;
         this.indicesLifecycle.indexShardStateChanged(this, previousState, reason);
         return previousState;
-    }
-
-    public Engine.Create prepareCreate(SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin) {
-        try {
-            return prepareCreate(docMapper(source.type()), source, version, versionType, origin);
-        } catch (Throwable t) {
-            verifyNotClosed(t);
-            throw t;
-        }
-    }
-
-    static Engine.Create prepareCreate(DocumentMapperForType docMapper, SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin) {
-        long startTime = System.nanoTime();
-        ParsedDocument doc = docMapper.getDocumentMapper().parse(source);
-        if (docMapper.getMapping() != null) {
-            doc.addDynamicMappingsUpdate(docMapper.getMapping());
-        }
-        return new Engine.Create(docMapper.getDocumentMapper().uidMapper().term(doc.uid().stringValue()), doc, version, versionType, origin, startTime);
-    }
-
-    public void create(Engine.Create create) {
-        ensureWriteAllowed(create);
-        markLastWrite(create);
-        create = indexingService.preCreate(create);
-        try {
-            if (logger.isTraceEnabled()) {
-                logger.trace("index [{}][{}]{}", create.type(), create.id(), create.docs());
-            }
-            getEngine().create(create);
-            create.endTime(System.nanoTime());
-        } catch (Throwable ex) {
-            indexingService.postCreate(create, ex);
-            throw ex;
-        }
-        indexingService.postCreate(create);
     }
 
     public Engine.Index prepareIndex(SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin) {
@@ -1559,6 +1526,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     /**
      * Schedules a flush if needed but won't schedule more than one flush concurrently. The flush will be executed on the
      * Flush thread-pool asynchronously.
+     *
      * @return <code>true</code> if a new flush is scheduled otherwise <code>false</code>.
      */
     public boolean maybeFlush() {

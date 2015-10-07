@@ -624,16 +624,3 @@ power of the second argument.
 |`hypot(x, y)` |Returns sqrt(_x2_ + _y2_) without intermediate overflow
 or underflow.
 |=======================================================================
-
-[float]
-=== Arithmetic precision in MVEL
-
-When dividing two numbers using MVEL based scripts, the engine tries to
-be smart and adheres to the default behaviour of java. This means if you
-divide two integers (you might have configured the fields as integer in
-the mapping), the result will also be an integer. This means, if a
-calculation like `1/num` is happening in your scripts and `num` is an
-integer with the value of `8`, the result is `0` even though you were
-expecting it to be `0.125`. You may need to enforce precision by
-explicitly using a double like `1.0/num` in order to get the expected
-result.

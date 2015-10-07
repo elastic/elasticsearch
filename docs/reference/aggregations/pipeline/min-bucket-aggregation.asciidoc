@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-min-bucket-aggregation]]
 === Min Bucket Aggregation
 
-coming[2.0.0-beta1]
-
 experimental[]
 
 A sibling pipeline aggregation which identifies the bucket(s) with the minimum value of a specified metric in a sibling aggregation 

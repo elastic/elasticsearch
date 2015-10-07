@@ -16,29 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.engine;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
 
-import java.io.IOException;
+package org.elasticsearch.common.logging.log4j;
+
+import org.apache.log4j.AppenderSkeleton;
+import org.apache.log4j.spi.LoggingEvent;
+import org.elasticsearch.common.cli.Terminal;
 
 /**
- *
- */
-public class DocumentAlreadyExistsException extends EngineException {
-
-    public DocumentAlreadyExistsException(ShardId shardId, String type, String id) {
-        super(shardId, "[" + type + "][" + id + "]: document already exists");
-    }
-
-    public DocumentAlreadyExistsException(StreamInput in) throws IOException{
-        super(in);
+ * TerminalAppender logs event to Terminal.DEFAULT. It is used for example by the PluginManagerCliParser.
+ * */
+public class TerminalAppender extends AppenderSkeleton {
+    @Override
+    protected void append(LoggingEvent event) {
+        Terminal.DEFAULT.println(event.getRenderedMessage());
     }
 
     @Override
-    public RestStatus status() {
-        return RestStatus.CONFLICT;
+    public void close() {
+    }
+
+    @Override
+    public boolean requiresLayout() {
+        return false;
     }
 }

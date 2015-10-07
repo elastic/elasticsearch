@@ -73,7 +73,7 @@ public class MappingUpdatedAction extends AbstractComponent {
             throw new IllegalArgumentException("_default_ mapping should not be updated");
         }
         return client.preparePutMapping(index).setType(type).setSource(mappingUpdate.toString())
-            .setMasterNodeTimeout(timeout).setTimeout(timeout);
+                .setMasterNodeTimeout(timeout).setTimeout(timeout);
     }
 
     public void updateMappingOnMaster(String index, String type, Mapping mappingUpdate, final TimeValue timeout, final MappingUpdateListener listener) {

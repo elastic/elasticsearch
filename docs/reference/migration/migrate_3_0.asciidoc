@@ -266,3 +266,8 @@ of string values: see `FilterFunctionScoreQuery.ScoreMode` and `CombineFunction`
 
 For simplicity, only one way of adding the ids to the existing list (empty by default)  is left: `addIds(String...)`
 
+==== DocumentAlreadyExistsException removed
+
+`DocumentAlreadyExistsException` is removed and a `VersionConflictException` is thrown instead (with a better
+error description). This will influence code that use the `IndexRequest.opType()` or `IndexRequest.create()`
+to index a document only if it doesn't already exist.

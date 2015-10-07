@@ -8,7 +8,8 @@
       "parts": {
         "id": {
           "type" : "string",
-          "description" : "Template ID"
+          "description" : "Template ID",
+          "required" : true
         }
       },
       "params" : {

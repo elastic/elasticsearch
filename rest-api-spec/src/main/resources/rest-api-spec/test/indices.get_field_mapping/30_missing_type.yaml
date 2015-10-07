@@ -20,5 +20,5 @@
       indices.get_field_mapping:
         index: test_index
         type: not_test_type
-        field: text
+        fields: text
   

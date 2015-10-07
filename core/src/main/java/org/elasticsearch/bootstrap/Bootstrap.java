@@ -26,7 +26,6 @@ import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -195,7 +194,7 @@ final class Bootstrap {
     private static void setupLogging(Settings settings, Environment environment) {
         try {
             Class.forName("org.apache.log4j.Logger");
-            LogConfigurator.configure(settings);
+            LogConfigurator.configure(settings, true);
         } catch (ClassNotFoundException e) {
             // no log4j
         } catch (NoClassDefFoundError e) {
@@ -249,12 +248,12 @@ final class Bootstrap {
 
         Environment environment = initialSettings(foreground);
         Settings settings = environment.settings();
+        setupLogging(settings, environment);
+        checkForCustomConfFile();
 
         if (environment.pidFile() != null) {
             PidFile.create(environment.pidFile(), true);
         }
-
-        setupLogging(settings, environment);
 
         if (System.getProperty("es.max-open-files", "false").equals("true")) {
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
@@ -328,6 +327,23 @@ final class Bootstrap {
         System.err.println(line);
         if (flush) {
             System.err.flush();
+        }
+    }
+
+    private static void checkForCustomConfFile() {
+        String confFileSetting = System.getProperty("es.default.config");
+        checkUnsetAndMaybeExit(confFileSetting, "es.default.config");
+        confFileSetting = System.getProperty("es.config");
+        checkUnsetAndMaybeExit(confFileSetting, "es.config");
+        confFileSetting = System.getProperty("elasticsearch.config");
+        checkUnsetAndMaybeExit(confFileSetting, "elasticsearch.config");
+    }
+
+    private static void checkUnsetAndMaybeExit(String confFileSetting, String settingName) {
+        if (confFileSetting != null && confFileSetting.isEmpty() == false) {
+            ESLogger logger = Loggers.getLogger(Bootstrap.class);
+            logger.info("{} is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed.", settingName);
+            System.exit(1);
         }
     }
 }

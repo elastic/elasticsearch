@@ -40,13 +40,19 @@ MAX_MAP_COUNT=${packaging.os.max.map.count}
 LOG_DIR="${packaging.elasticsearch.log.dir}"
 DATA_DIR="${packaging.elasticsearch.data.dir}"
 CONF_DIR="${packaging.elasticsearch.conf.dir}"
-CONF_FILE="${packaging.elasticsearch.conf.dir}/elasticsearch.yml"
+
 PID_DIR="${packaging.elasticsearch.pid.dir}"
 
 # Source the default env file
 ES_ENV_FILE="${packaging.env.file}"
 if [ -f "$ES_ENV_FILE" ]; then
     . "$ES_ENV_FILE"
+fi
+
+# CONF_FILE setting was removed
+if [ ! -z "$CONF_FILE" ]; then
+    echo "CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed."
+    exit 1
 fi
 
 exec="$ES_HOME/bin/elasticsearch"
@@ -83,7 +89,6 @@ checkJava() {
 start() {
     checkJava
     [ -x $exec ] || exit 5
-    [ -f $CONF_FILE ] || exit 6
     if [ -n "$MAX_LOCKED_MEMORY" -a -z "$ES_HEAP_SIZE" ]; then
         echo "MAX_LOCKED_MEMORY is set - ES_HEAP_SIZE must also be set"
         return 7

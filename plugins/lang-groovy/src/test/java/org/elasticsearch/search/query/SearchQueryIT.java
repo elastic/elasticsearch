@@ -1933,14 +1933,14 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testMinScore() throws ExecutionException, InterruptedException {
         createIndex("test");
 
-        indexRandom(true,
-                client().prepareIndex("test", "test", "1").setSource("score", 1.5),
-                client().prepareIndex("test", "test", "2").setSource("score", 1.0),
-                client().prepareIndex("test", "test", "3").setSource("score", 2.0),
-                client().prepareIndex("test", "test", "4").setSource("score", 0.5));
+        client().prepareIndex("test", "test", "1").setSource("score", 1.5).get();
+        client().prepareIndex("test", "test", "2").setSource("score", 1.0).get();
+        client().prepareIndex("test", "test", "3").setSource("score", 2.0).get();
+        client().prepareIndex("test", "test", "4").setSource("score", 0.5).get();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(
-                functionScoreQuery(ScoreFunctionBuilders.fieldValueFactorFunction("score")).setMinScore(1.5f)).get();
+                functionScoreQuery(ScoreFunctionBuilders.fieldValueFactorFunction("score").missing(1.0)).setMinScore(1.5f)).get();
         assertHitCount(searchResponse, 2);
         assertFirstHit(searchResponse, hasId("3"));
         assertSecondHit(searchResponse, hasId("1"));

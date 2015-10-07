@@ -27,7 +27,7 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 
 public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFunctionBuilder> {
 
-    private static final DecayFunction GAUSS_DECAY_FUNCTION = new GaussScoreFunction();
+    public static final DecayFunction GAUSS_DECAY_FUNCTION = new GaussScoreFunction();
 
     public GaussDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset) {
         super(fieldName, origin, scale, offset);

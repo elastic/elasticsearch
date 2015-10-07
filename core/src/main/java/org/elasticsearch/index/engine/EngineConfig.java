@@ -258,10 +258,10 @@ public final class EngineConfig {
 
     /**
      * Returns a {@link org.elasticsearch.index.indexing.ShardIndexingService} used inside the engine to inform about
-     * pre and post index and create operations. The operations are used for statistic purposes etc.
+     * pre and post index. The operations are used for statistic purposes etc.
      *
-     * @see org.elasticsearch.index.indexing.ShardIndexingService#postCreate(org.elasticsearch.index.engine.Engine.Create)
-     * @see org.elasticsearch.index.indexing.ShardIndexingService#preCreate(org.elasticsearch.index.engine.Engine.Create)
+     * @see org.elasticsearch.index.indexing.ShardIndexingService#postIndex(Engine.Index)
+     * @see org.elasticsearch.index.indexing.ShardIndexingService#preIndex(Engine.Index)
      *
      */
     public ShardIndexingService getIndexingService() {

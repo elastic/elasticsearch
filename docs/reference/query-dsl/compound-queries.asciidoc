@@ -47,7 +47,7 @@ Synonyms for the `bool` query.
 
 <<query-dsl-filtered-query,`filtered` query>>::
 
-Combine a query clause in query context with another in filter context. deprecated[2.0.0-beta1,Use the `bool` query instead]
+Combine a query clause in query context with another in filter context.
 
 <<query-dsl-limit-query,`limit` query>>::
 

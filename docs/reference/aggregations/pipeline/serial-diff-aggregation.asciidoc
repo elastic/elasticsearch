@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-serialdiff-aggregation]]
 === Serial Differencing Aggregation
 
-coming[2.0.0-beta1]
-
 experimental[]
 
 Serial differencing is a technique where values in a time series are subtracted from itself at

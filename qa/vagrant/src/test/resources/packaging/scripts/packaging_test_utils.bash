@@ -243,6 +243,8 @@ start_elasticsearch_service() {
 
     wait_for_elasticsearch_status $desiredStatus
 
+    validate_running_elasticsearch
+
     if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
         pid=$(cat /tmp/elasticsearch/elasticsearch.pid)
         [ "x$pid" != "x" ] && [ "$pid" -gt 0 ]
@@ -317,6 +319,15 @@ BASH
         run service elasticsearch start
         [ "$status" -eq "$expectedStatus" ]
     fi
+}
+
+# Validates that a running elasticsearch has the expected arguments
+validate_running_elasticsearch() {
+    COMMAND=$(ps aux | grep java | grep elasticsearch)
+    echo $COMMAND | grep XX:ErrorFile | grep hs_err_pid || {
+        echo "Didn't find XX:ErrorFile: $COMMAND"
+        false
+    }
 }
 
 stop_elasticsearch_service() {

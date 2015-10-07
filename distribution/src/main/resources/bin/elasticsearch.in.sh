@@ -86,3 +86,17 @@ JAVA_OPTS="$JAVA_OPTS -Dfile.encoding=UTF-8"
 
 # Use our provided JNA always versus the system one
 JAVA_OPTS="$JAVA_OPTS -Djna.nosys=true"
+
+# Try to figure out where to put error logs
+if [ "x$ERROR_DIR" = "x" ]; then
+  if [ "x$LOG_DIR" = "x" ]; then
+    ERROR_DIR="$ES_HOME/log"
+  else
+    ERROR_DIR="$LOG_DIR"
+  fi
+fi
+
+# If we've figured it out lets make sure the JVM crashes go there
+if [ "x$ERROR_DIR" != "x" ]; then
+  SAVE_CRASHES="-XX:ErrorFile=$ERROR_DIR/hs_err_pid%p.log"
+fi

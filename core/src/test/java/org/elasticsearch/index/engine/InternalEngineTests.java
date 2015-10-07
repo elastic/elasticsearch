@@ -68,7 +68,7 @@ import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.shard.*;
-import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
@@ -1875,10 +1875,10 @@ public class InternalEngineTests extends ESTestCase {
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             Index index = new Index(indexName);
             AnalysisService analysisService = new AnalysisService(index, settings);
-            SimilarityLookupService similarityLookupService = new SimilarityLookupService(index, settings);
-            MapperService mapperService = new MapperService(index, settings, analysisService, similarityLookupService, null);
+            SimilarityService similarityService = new SimilarityService(index, settings);
+            MapperService mapperService = new MapperService(index, settings, analysisService, similarityService, null);
             DocumentMapper.Builder b = new DocumentMapper.Builder(settings, rootBuilder, mapperService);
-            DocumentMapperParser parser = new DocumentMapperParser(settings, mapperService, analysisService, similarityLookupService, null);
+            DocumentMapperParser parser = new DocumentMapperParser(settings, mapperService, analysisService, similarityService, null);
             this.docMapper = b.build(mapperService, parser);
 
         }

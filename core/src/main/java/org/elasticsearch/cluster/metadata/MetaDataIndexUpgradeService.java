@@ -34,7 +34,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.script.ScriptService;
 
@@ -322,11 +322,11 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         Index index = new Index(indexMetaData.getIndex());
         Settings settings = indexMetaData.settings();
         try {
-            SimilarityLookupService similarityLookupService = new SimilarityLookupService(index, settings);
+            SimilarityService similarityService = new SimilarityService(index, settings);
             // We cannot instantiate real analysis server at this point because the node might not have
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
             try (AnalysisService analysisService = new FakeAnalysisService(index, settings)) {
-                try (MapperService mapperService = new MapperService(index, settings, analysisService, similarityLookupService, scriptService)) {
+                try (MapperService mapperService = new MapperService(index, settings, analysisService, similarityService, scriptService)) {
                     for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                         MappingMetaData mappingMetaData = cursor.value;
                         mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), false, false);

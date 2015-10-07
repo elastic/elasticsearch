@@ -52,7 +52,7 @@ import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.percolator.PercolatorService;
@@ -125,12 +125,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
-                         SimilarityLookupService similarityLookupService,
+                         SimilarityService similarityService,
                          ScriptService scriptService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
         this.fieldTypes = new FieldTypeLookup();
-        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityLookupService, scriptService);
+        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityService, scriptService);
         this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), p -> p.indexAnalyzer());
         this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), p -> p.searchAnalyzer());
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());

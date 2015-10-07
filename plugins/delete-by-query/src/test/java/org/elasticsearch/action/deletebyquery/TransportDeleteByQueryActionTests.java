@@ -42,7 +42,8 @@ import org.junit.Test;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
 
@@ -57,21 +58,6 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertFailure(listener, "no such index");
         assertSearchContextsClosed();
     }
-
-    // NORELEASE re-implement this parsing test as a unit test
-//    @Test
-//    public void testExecuteScanFailsOnMalformedQuery() {
-//        createIndex("test");
-//
-//        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).query("{...}");
-//        TestActionListener listener = new TestActionListener();
-//
-//        newAsyncAction(delete, listener).executeScan();
-//        waitForCompletion("scan request should fail on malformed query", listener);
-//
-//        assertFailure(listener, "all shards failed");
-//        assertSearchContextsClosed();
-//    }
 
     @Test
     public void testExecuteScan() {

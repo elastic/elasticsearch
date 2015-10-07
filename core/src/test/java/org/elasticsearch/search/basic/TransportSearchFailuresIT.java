@@ -19,28 +19,15 @@
 
 package org.elasticsearch.search.basic;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
 
 public class TransportSearchFailuresIT extends ESIntegTestCase {
 
@@ -49,7 +36,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         return 1;
     }
 
-    // NORELEASE this needs to be done in a unit test
+    // NORELEASE can this still be tested? if so, how?
 //    @Test
 //    public void testFailedSearchWithWrongQuery() throws Exception {
 //        logger.info("Start Testing failed search with wrong query");

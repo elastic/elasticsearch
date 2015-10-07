@@ -20,12 +20,9 @@
 package org.elasticsearch.search.basic;
 
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,7 +49,6 @@ import static org.elasticsearch.action.search.SearchType.DFS_QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
-
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -64,7 +60,6 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -131,7 +126,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             .settings(settingsBuilder))
             .actionGet();
         ensureGreen();
-        
+
         // we need to have age (ie number of repeats of "test" term) high enough
         // to produce the same 8-bit norm for all docs here, so that
         // the tf is basically the entire score (assuming idf is fixed, which
@@ -335,7 +330,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         do {
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll("10m").get();
-    
+
             assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
             assertThat(searchResponse.getHits().hits().length, lessThanOrEqualTo(40));
             for (int i = 0; i < searchResponse.getHits().hits().length; i++) {
@@ -388,7 +383,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 //            // all is well
 //        }
 //        logger.info("Done Testing failed search");
-//    } NORELEASE this needs to be tested in a unit test
+    // } NORELEASE can this still be tested? if so, how?
 
     @Test
     public void testFailedSearchWithWrongFrom() throws Exception {

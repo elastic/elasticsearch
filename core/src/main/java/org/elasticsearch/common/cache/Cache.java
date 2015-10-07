@@ -167,10 +167,10 @@ public class Cache<K, V> {
      */
     private static class CacheSegment<K, V> {
         // read/write lock protecting mutations to the segment
-        ReadWriteLock lock = new ReentrantReadWriteLock();
+        ReadWriteLock segmentLock = new ReentrantReadWriteLock();
 
-        ReleasableLock readLock = new ReleasableLock(lock.readLock());
-        ReleasableLock writeLock = new ReleasableLock(lock.writeLock());
+        ReleasableLock readLock = new ReleasableLock(segmentLock.readLock());
+        ReleasableLock writeLock = new ReleasableLock(segmentLock.writeLock());
 
         Map<K, Entry<K, V>> map = new HashMap<>();
         SegmentStats segmentStats = new SegmentStats();
@@ -261,7 +261,7 @@ public class Cache<K, V> {
     Entry<K, V> tail;
 
     // lock protecting mutations to the LRU list
-    private ReleasableLock lock = new ReleasableLock(new ReentrantLock());
+    private ReleasableLock lruLock = new ReleasableLock(new ReentrantLock());
 
     /**
      * Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key.
@@ -332,7 +332,7 @@ public class Cache<K, V> {
         CacheSegment<K, V> segment = getCacheSegment(key);
         Tuple<Entry<K, V>, Entry<K, V>> tuple = segment.put(key, value, now);
         boolean replaced = false;
-        try (ReleasableLock ignored = lock.acquire()) {
+        try (ReleasableLock ignored = lruLock.acquire()) {
             if (tuple.v2() != null && tuple.v2().state == State.EXISTING) {
                 if (unlink(tuple.v2())) {
                     replaced = true;
@@ -355,7 +355,7 @@ public class Cache<K, V> {
         CacheSegment<K, V> segment = getCacheSegment(key);
         Entry<K, V> entry = segment.remove(key);
         if (entry != null) {
-            try (ReleasableLock ignored = lock.acquire()) {
+            try (ReleasableLock ignored = lruLock.acquire()) {
                 delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
             }
         }
@@ -367,8 +367,8 @@ public class Cache<K, V> {
      */
     public void invalidateAll() {
         Entry<K, V> h = head;
-        Arrays.stream(segments).forEach(segment -> segment.lock.writeLock().lock());
-        try (ReleasableLock ignored = lock.acquire()) {
+        Arrays.stream(segments).forEach(segment -> segment.segmentLock.writeLock().lock());
+        try (ReleasableLock ignored = lruLock.acquire()) {
             Arrays.stream(segments).forEach(segment -> segment.map = new HashMap<>());
             Entry<K, V> current = head;
             while (current != null) {
@@ -379,7 +379,7 @@ public class Cache<K, V> {
             count = 0;
             weight = 0;
         }
-        Arrays.stream(segments).forEach(segment -> segment.lock.writeLock().unlock());
+        Arrays.stream(segments).forEach(segment -> segment.segmentLock.writeLock().unlock());
         while (h != null) {
             removalListener.onRemoval(new RemovalNotification<>(h.key, h.value, RemovalNotification.RemovalReason.INVALIDATED));
             h = h.after;
@@ -391,7 +391,7 @@ public class Cache<K, V> {
      */
     public void refresh() {
         long now = now();
-        try (ReleasableLock ignored = lock.acquire()) {
+        try (ReleasableLock ignored = lruLock.acquire()) {
             evict(now);
         }
     }
@@ -488,7 +488,7 @@ public class Cache<K, V> {
             if (entry != null) {
                 CacheSegment<K, V> segment = getCacheSegment(entry.key);
                 segment.remove(entry.key);
-                try (ReleasableLock ignored = lock.acquire()) {
+                try (ReleasableLock ignored = lruLock.acquire()) {
                     current = null;
                     delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
                 }
@@ -540,7 +540,7 @@ public class Cache<K, V> {
 
     private boolean promote(Entry<K, V> entry, long now) {
         boolean promoted = true;
-        try (ReleasableLock ignored = lock.acquire()) {
+        try (ReleasableLock ignored = lruLock.acquire()) {
             switch (entry.state) {
                 case DELETED:
                     promoted = false;
@@ -560,7 +560,7 @@ public class Cache<K, V> {
     }
 
     private void evict(long now) {
-        assert lock.isHeldByCurrentThread();
+        assert lruLock.isHeldByCurrentThread();
 
         while (tail != null && shouldPrune(tail, now)) {
             CacheSegment<K, V> segment = getCacheSegment(tail.key);
@@ -573,7 +573,7 @@ public class Cache<K, V> {
     }
 
     private void delete(Entry<K, V> entry, RemovalNotification.RemovalReason removalReason) {
-        assert lock.isHeldByCurrentThread();
+        assert lruLock.isHeldByCurrentThread();
 
         if (unlink(entry)) {
             removalListener.onRemoval(new RemovalNotification<>(entry.key, entry.value, removalReason));
@@ -594,7 +594,7 @@ public class Cache<K, V> {
     }
 
     private boolean unlink(Entry<K, V> entry) {
-        assert lock.isHeldByCurrentThread();
+        assert lruLock.isHeldByCurrentThread();
 
         if (entry.state == State.EXISTING) {
             final Entry<K, V> before = entry.before;
@@ -634,7 +634,7 @@ public class Cache<K, V> {
     }
 
     private void linkAtHead(Entry<K, V> entry) {
-        assert lock.isHeldByCurrentThread();
+        assert lruLock.isHeldByCurrentThread();
 
         Entry<K, V> h = head;
         entry.before = null;
@@ -652,7 +652,7 @@ public class Cache<K, V> {
     }
 
     private void relinkAtHead(Entry<K, V> entry) {
-        assert lock.isHeldByCurrentThread();
+        assert lruLock.isHeldByCurrentThread();
 
         if (head != entry) {
             unlink(entry);

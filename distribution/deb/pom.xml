@@ -76,6 +76,7 @@
                                         <include>bin/elasticsearch</include>
                                         <include>bin/elasticsearch.in.sh</include>
                                         <include>bin/plugin</include>
+                                        <include>bin/elasticsearch-systemd-pre-exec</include>
                                     </includes>
                                 </resource>
                             </resources>
@@ -110,7 +111,7 @@
                                 <data>
                                     <src>${project.build.directory}/generated-packaging/deb/bin</src>
                                     <type>directory</type>
-                                    <includes>elasticsearch,elasticsearch.in.sh,plugin</includes>
+                                    <includes>elasticsearch,elasticsearch.in.sh,plugin,elasticsearch-systemd-pre-exec</includes>
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>${packaging.elasticsearch.bin.dir}</prefix>

@@ -44,7 +44,6 @@ final class PercolatorQuery extends Query {
     private final Query percolatorQueriesQuery;
     private final IndexSearcher percolatorIndexSearcher;
     private final Map<BytesRef, Query> percolatorQueries;
-    private final Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();
 
     PercolatorQuery(Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher, Map<BytesRef, Query> percolatorQueries) {
         this.percolatorQueriesQuery = percolatorQueriesQuery;
@@ -159,6 +158,7 @@ final class PercolatorQuery extends Query {
         BytesRef percolatorQueryId = new BytesRef(singleFieldsVisitor.uid().id());
         Query percolatorQuery = percolatorQueries.get(percolatorQueryId);
         if (percolatorQuery != null) {
+            Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();
             Lucene.exists(percolatorIndexSearcher, percolatorQuery, collector);
             return collector.exists();
         } else {

@@ -53,6 +53,7 @@ public class CacheTests extends ESTestCase {
                         .build();
 
         for (int i = 0; i < numberOfEntries; i++) {
+            // track the keys, which will be removed upon eviction (see the RemovalListener)
             keys.add(i);
             cache.put(i, Integer.toString(i));
         }

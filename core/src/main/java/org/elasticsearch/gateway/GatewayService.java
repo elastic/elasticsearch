@@ -43,7 +43,6 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -108,16 +107,27 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     @Override
     protected void doStart() {
         clusterService.addLast(this);
-        // if we received initial state, see if we can recover within the start phase, so we hold the
-        // node from starting until we recovered properly
-        if (discoveryService.initialStateReceived()) {
-            ClusterState clusterState = clusterService.state();
-            if (clusterState.nodes().localNodeMaster() && clusterState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
-                checkStateMeetsSettingsAndMaybeRecover(clusterState, false);
+        // check we didn't miss any cluster state that came in until now / during the addition
+        clusterService.submitStateUpdateTask("gateway_initial_state_recovery", new ClusterStateUpdateTask() {
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                checkStateMeetsSettingsAndMaybeRecover(currentState);
+                return currentState;
             }
-        } else {
-            logger.debug("can't wait on start for (possibly) reading state from gateway, will do it asynchronously");
-        }
+
+            @Override
+            public boolean runOnlyOnMaster() {
+                // It's OK to run on non masters as checkStateMeetsSettingsAndMaybeRecover checks for this
+                // we return false to avoid unneeded failure logs
+                return false;
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                logger.warn("unexpected failure while checking if state can be recovered. another attempt will be made with the next cluster state change", t);
+            }
+        });
     }
 
     @Override
@@ -134,12 +144,19 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (lifecycle.stoppedOrClosed()) {
             return;
         }
-        if (event.localNodeMaster() && event.state().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
-            checkStateMeetsSettingsAndMaybeRecover(event.state(), true);
-        }
+        checkStateMeetsSettingsAndMaybeRecover(event.state());
     }
 
-    protected void checkStateMeetsSettingsAndMaybeRecover(ClusterState state, boolean asyncRecovery) {
+    protected void checkStateMeetsSettingsAndMaybeRecover(ClusterState state) {
+        if (state.nodes().localNodeMaster() == false) {
+            // not our job to recover
+            return;
+        }
+        if (state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+            // already recovered
+            return;
+        }
+
         DiscoveryNodes nodes = state.nodes();
         if (state.blocks().hasGlobalBlock(discoveryService.getNoMasterBlock())) {
             logger.debug("not recovering from gateway, no master elected yet");
@@ -171,50 +188,31 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     reason = "expecting [" + expectedMasterNodes + "] master nodes, but only have [" + nodes.masterNodes().size() + "]";
                 }
             }
-            performStateRecovery(asyncRecovery, enforceRecoverAfterTime, reason);
+            performStateRecovery(enforceRecoverAfterTime, reason);
         }
     }
 
-    private void performStateRecovery(boolean asyncRecovery, boolean enforceRecoverAfterTime, String reason) {
-        final Gateway.GatewayStateRecoveredListener recoveryListener = new GatewayRecoveryListener(new CountDownLatch(1));
+    private void performStateRecovery(boolean enforceRecoverAfterTime, String reason) {
+        final Gateway.GatewayStateRecoveredListener recoveryListener = new GatewayRecoveryListener();
 
         if (enforceRecoverAfterTime && recoverAfterTime != null) {
             if (scheduledRecovery.compareAndSet(false, true)) {
                 logger.info("delaying initial state recovery for [{}]. {}", recoverAfterTime, reason);
-                threadPool.schedule(recoverAfterTime, ThreadPool.Names.GENERIC, new Runnable() {
-                    @Override
-                    public void run() {
-                        if (recovered.compareAndSet(false, true)) {
-                            logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
-                            gateway.performStateRecovery(recoveryListener);
-                        }
+                threadPool.schedule(recoverAfterTime, ThreadPool.Names.GENERIC, () -> {
+                    if (recovered.compareAndSet(false, true)) {
+                        logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
+                        gateway.performStateRecovery(recoveryListener);
                     }
                 });
             }
         } else {
             if (recovered.compareAndSet(false, true)) {
-                if (asyncRecovery) {
-                    threadPool.generic().execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            gateway.performStateRecovery(recoveryListener);
-                        }
-                    });
-                } else {
-                    logger.trace("performing state recovery...");
-                    gateway.performStateRecovery(recoveryListener);
-                }
+                threadPool.generic().execute(() -> gateway.performStateRecovery(recoveryListener));
             }
         }
     }
 
     class GatewayRecoveryListener implements Gateway.GatewayStateRecoveredListener {
-
-        private final CountDownLatch latch;
-
-        GatewayRecoveryListener(CountDownLatch latch) {
-            this.latch = latch;
-        }
 
         @Override
         public void onSuccess(final ClusterState recoveredState) {
@@ -271,7 +269,6 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     logger.info("recovered [{}] indices into cluster_state", newState.metaData().indices().size());
-                    latch.countDown();
                 }
             });
         }
@@ -283,6 +280,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             // don't remove the block here, we don't want to allow anything in such a case
             logger.info("metadata state not restored, reason: {}", message);
         }
+
     }
 
     // used for testing

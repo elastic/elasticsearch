@@ -18,22 +18,17 @@
  */
 package org.elasticsearch.index.codec.postingsformat;
 
-import com.google.common.collect.Iterators;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BloomFilter;
-import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat.BloomFilteredFieldsConsumer;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.function.Predicate;
 
 /**

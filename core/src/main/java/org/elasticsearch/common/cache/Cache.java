@@ -40,7 +40,7 @@ import java.util.function.ToLongBiFunction;
  * evictions are exposed.
  * <p>
  * The design of the cache is relatively simple. The cache is segmented into 256 segments which are backed by HashMaps.
- * The segments are protected by a re-entrant read/write lock. The read/write locks permit multiple concurrent readers
+ * Each segment is protected by a re-entrant read/write lock. The read/write locks permit multiple concurrent readers
  * without contention, and the segments gives us write throughput without impacting readers (so readers are blocked only
  * if they are reading a segment that a writer is writing to).
  * <p>

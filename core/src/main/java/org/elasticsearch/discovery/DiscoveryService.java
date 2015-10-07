@@ -112,14 +112,6 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
         return discovery.localNode();
     }
 
-    /**
-     * Returns <tt>true</tt> if the initial state was received within the timeout waiting for it
-     * on {@link #doStart()}.
-     */
-    public boolean initialStateReceived() {
-        return initialStateListener.initialStateReceived;
-    }
-
     public String nodeDescription() {
         return discovery.nodeDescription();
     }

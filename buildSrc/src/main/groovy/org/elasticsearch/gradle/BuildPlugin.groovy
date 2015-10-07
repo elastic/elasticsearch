@@ -38,23 +38,6 @@ class BuildPlugin implements Plugin<Project> {
         configureCompile(project)
         configureTest(project)
         PrecommitTasks.configure(project)
-
-        /*project.afterEvaluate {
-            if (project.plugins.hasPlugin('nebula.optional-base')) {
-                def installer = project.tasks.install.repositories.mavenInstaller
-                def deployer = project.tasks.uploadArchives.repositories.mavenDeployer
-
-                [installer, deployer].each { maven ->
-                    maven.pom.whenConfigured { pom ->
-                        project.ext.optionalDeps.each { optionalDep ->
-                            pom.dependencies.find {
-                                dep -> dep.groupId == optionalDep.group && dep.artifactId == optionalDep.name
-                            }.optional = true
-                        }
-                    }
-                }
-            }
-        }*/
     }
 
     /** Adds compiler settings to the project */
@@ -91,6 +74,7 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'java.io.tmpdir', './temp'
             systemProperty 'java.awt.headless', 'true'
             systemProperty 'tests.maven', 'true' // TODO: rename this once we've switched to gradle!
+            systemProperty 'tests.artifact', project.name
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             // default test sysprop values

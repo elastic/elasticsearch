@@ -30,8 +30,10 @@ public interface CryptoService {
      * Signs the given text and returns the signed text (original text + signature)
      * @param text the string to sign
      * @param key the key to sign the text with
+     * @param systemKey the system key. This is optional and if the key != systemKey then the format of the
+     *                  message will change
      */
-    String sign(String text, SecretKey key) throws IOException;
+    String sign(String text, SecretKey key, SecretKey systemKey) throws IOException;
 
     /**
      * Unsigns the given signed text, verifies the original text with the attached signature and if valid returns

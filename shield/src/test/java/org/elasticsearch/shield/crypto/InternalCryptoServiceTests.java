@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.crypto;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -16,6 +17,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -62,6 +64,8 @@ public class InternalCryptoServiceTests extends ESTestCase {
 
     @Test
     public void testSigned() throws Exception {
+        // randomize whether to use a system key or not
+        Settings settings = randomBoolean() ? this.settings : Settings.EMPTY;
         InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
@@ -81,11 +85,12 @@ public class InternalCryptoServiceTests extends ESTestCase {
     @Test
     public void testSignAndUnsign_NoKeyFile() throws Exception {
         InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env, watcherService).start();
-        String text = randomAsciiOfLength(10);
+        final String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
-        assertThat(text, equalTo(signed));
-        text = service.unsignAndVerify(signed);
-        assertThat(text, equalTo(signed));
+        // we always have some sort of key to sign with
+        assertThat(text, not(equalTo(signed)));
+        String unsigned = service.unsignAndVerify(signed);
+        assertThat(unsigned, equalTo(text));
     }
 
     @Test
@@ -436,6 +441,53 @@ public class InternalCryptoServiceTests extends ESTestCase {
         Files.write(keyFile, InternalCryptoService.generateKey());
         if (!latch.await(10, TimeUnit.SECONDS)) {
             fail("waiting too long for test to complete. Expected callback is not called or finished running");
+        }
+    }
+
+    @Test
+    public void testSigningOnKeyDeleted() throws Exception {
+        final InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        final String text = randomAsciiOfLength(10);
+        final String signed = service.sign(text);
+        assertThat(text, not(equalTo(signed)));
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        service.register(new CryptoService.Listener() {
+            @Override
+            public void onKeyChange(SecretKey oldSystemKey, SecretKey oldEncryptionKey) {
+                final String plainText = service.unsignAndVerify(signed, oldSystemKey);
+                assertThat(plainText, equalTo(text));
+                try {
+                    final String newSigned = service.sign(plainText);
+                    assertThat(newSigned, not(equalTo(signed)));
+                    assertThat(newSigned, not(equalTo(plainText)));
+                    assertThat(service.unsignAndVerify(newSigned), equalTo(plainText));
+                    latch.countDown();
+                } catch (IOException e) {
+                    throw new ElasticsearchException("unexpected exception while signing", e);
+                }
+            }
+        });
+
+        // we need to sleep to ensure the timestamp of the file will definitely change
+        // and so the resource watcher will pick up the change.
+        Thread.sleep(1000);
+
+        Files.delete(keyFile);
+        if (!latch.await(10, TimeUnit.SECONDS)) {
+            fail("waiting too long for test to complete. Expected callback is not called or finished running");
+        }
+    }
+
+    @Test
+    public void testSigningKeyCanBeRecomputedConsistently() {
+        final SecretKey systemKey = new SecretKeySpec(InternalCryptoService.generateKey(), InternalCryptoService.KEY_ALGO);
+        final SecretKey randomKey = InternalCryptoService.generateSecretKey(InternalCryptoService.RANDOM_KEY_SIZE);
+        int iterations = randomInt(100);
+        final SecretKey signingKey = InternalCryptoService.createSigningKey(systemKey, randomKey);
+        for (int i = 0; i < iterations; i++) {
+            SecretKey regenerated = InternalCryptoService.createSigningKey(systemKey, randomKey);
+            assertThat(regenerated, equalTo(signingKey));
         }
     }
 

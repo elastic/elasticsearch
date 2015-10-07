@@ -43,6 +43,13 @@ version of Shield. We recommend copying the changes listed below to your `roles.
 === Change List
 
 [float]
+==== 2.0.0
+
+.breaking changes
+* All files that Shield uses must be kept in the <<ref-shield-files-location, configuration directory>> due to the enhanced security of Elasticsearch 2.0.
+* The network format has been changed from all previous versions of Shield and a full cluster restart is required to upgrade to Shield 2.0.
+
+[float]
 ==== 2.0.0-rc1
 
 .enhancements

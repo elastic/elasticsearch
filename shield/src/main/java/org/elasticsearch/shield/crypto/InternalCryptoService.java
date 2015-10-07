@@ -7,6 +7,7 @@ package org.elasticsearch.shield.crypto;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -21,15 +22,18 @@ import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
@@ -51,8 +55,10 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     static final String ENCRYPTED_TEXT_PREFIX = "::es_encrypted::";
     static final byte[] ENCRYPTED_BYTE_PREFIX = ENCRYPTED_TEXT_PREFIX.getBytes(StandardCharsets.UTF_8);
     static final int DEFAULT_KEY_LENGTH = 128;
+    static final int RANDOM_KEY_SIZE = 128;
 
-    private static final Pattern SIG_PATTERN = Pattern.compile("^\\$\\$[0-9]+\\$\\$.+");
+    private static final Pattern SIG_PATTERN = Pattern.compile("^\\$\\$[0-9]+\\$\\$[^\\$]*\\$\\$.+");
+    private static final byte[] HKDF_APP_INFO = "es-shield-crypto-service".getBytes(StandardCharsets.UTF_8);
 
     private final Environment env;
     private final ResourceWatcherService watcherService;
@@ -65,8 +71,12 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
 
     private Path keyFile;
 
+    private SecretKey randomKey;
+    private String randomKeyBase64;
+
     private volatile SecretKey encryptionKey;
     private volatile SecretKey systemKey;
+    private volatile SecretKey signingKey;
 
     @Inject
     public InternalCryptoService(Settings settings, Environment env, ResourceWatcherService watcherService) {
@@ -90,13 +100,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
             throw new IllegalArgumentException("invalid key length [" + keyLength + "]. value must be a multiple of 8");
         }
 
-        keyFile = resolveSystemKey(settings, env);
-        systemKey = readSystemKey(keyFile);
-        try {
-            encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
-        } catch (NoSuchAlgorithmException nsae) {
-            throw new ElasticsearchException("failed to start crypto service. could not load encryption key", nsae);
-        }
+        loadKeys();
         FileWatcher watcher = new FileWatcher(keyFile.getParent());
         watcher.addListener(new FileListener(listeners));
         try {
@@ -112,10 +116,37 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     @Override
     protected void doClose() throws ElasticsearchException {}
 
-    public static byte[] generateKey() throws Exception {
-        KeyGenerator generator = KeyGenerator.getInstance(KEY_ALGO);
-        generator.init(KEY_SIZE);
-        return generator.generateKey().getEncoded();
+    private void loadKeys() {
+        keyFile = resolveSystemKey(settings, env);
+        systemKey = readSystemKey(keyFile);
+        randomKey = generateSecretKey(RANDOM_KEY_SIZE);
+        try {
+            randomKeyBase64 = Base64.encodeBytes(randomKey.getEncoded(), 0, randomKey.getEncoded().length, Base64.URL_SAFE);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to encode key data as base64", e);
+        }
+
+        signingKey = createSigningKey(systemKey, randomKey);
+
+        try {
+            encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
+        } catch (NoSuchAlgorithmException nsae) {
+            throw new ElasticsearchException("failed to start crypto service. could not load encryption key", nsae);
+        }
+    }
+
+    public static byte[] generateKey() {
+        return generateSecretKey(KEY_SIZE).getEncoded();
+    }
+
+    static SecretKey generateSecretKey(int keyLength) {
+        try {
+            KeyGenerator generator = KeyGenerator.getInstance(KEY_ALGO);
+            generator.init(keyLength);
+            return generator.generateKey();
+        } catch (NoSuchAlgorithmException e) {
+            throw new ElasticsearchException("failed to generate key", e);
+        }
     }
 
     public static Path resolveSystemKey(Settings settings, Environment env) {
@@ -126,7 +157,19 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         return env.binFile().getParent().resolve(location);
     }
 
-    static SecretKey readSystemKey(Path file) {
+    static SecretKey createSigningKey(@Nullable SecretKey systemKey, SecretKey randomKey) {
+        assert randomKey != null;
+        if (systemKey != null) {
+            return systemKey;
+        } else {
+            // the random key is only 128 bits so we use HKDF to expand to 1024 bits with some application specific data mixed in
+            byte[] keyBytes = HmacSHA1HKDF.extractAndExpand(null, randomKey.getEncoded(), HKDF_APP_INFO, (KEY_SIZE / 8));
+            assert keyBytes.length * 8 == KEY_SIZE;
+            return new SecretKeySpec(keyBytes, KEY_ALGO);
+        }
+    }
+
+    private static SecretKey readSystemKey(Path file) {
         if (!Files.exists(file)) {
             return null;
         }
@@ -140,16 +183,14 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
 
     @Override
     public String sign(String text) throws IOException {
-        return sign(text, this.systemKey);
+        return sign(text, this.signingKey, this.systemKey);
     }
 
     @Override
-    public String sign(String text, SecretKey key) throws IOException {
-        if (key == null) {
-            return text;
-        }
-        String sigStr = signInternal(text, key);
-        return "$$" + sigStr.length() + "$$" + sigStr + text;
+    public String sign(String text, SecretKey signingKey, @Nullable SecretKey systemKey) throws IOException {
+        assert signingKey != null;
+        String sigStr = signInternal(text, signingKey);
+        return "$$" + sigStr.length() + "$$" + (systemKey == signingKey ? "" : randomKeyBase64) + "$$" + sigStr + text;
     }
 
     @Override
@@ -158,30 +199,60 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     }
 
     @Override
-    public String unsignAndVerify(String signedText, SecretKey key) {
-        if (key == null) {
-            return signedText;
-        }
-
+    public String unsignAndVerify(String signedText, SecretKey systemKey) {
         if (!signedText.startsWith("$$") || signedText.length() < 2) {
             throw new IllegalArgumentException("tampered signed text");
         }
 
+        // $$34$$randomKeyBase64$$sigtext
+        String[] pieces = signedText.split("\\$\\$");
+        if (pieces.length != 4 || !pieces[0].equals("")) {
+            logger.debug("received signed text [{}] with [{}] parts", signedText, pieces.length);
+            throw new IllegalArgumentException("tampered signed text");
+        }
         String text;
+        String base64RandomKey;
         String receivedSignature;
         try {
-            // $$34$$sigtext
-            int i = signedText.indexOf("$$", 2);
-            int length = Integer.parseInt(signedText.substring(2, i));
-            receivedSignature = signedText.substring(i + 2, i + 2 + length);
-            text = signedText.substring(i + 2 + length);
+            int length = Integer.parseInt(pieces[1]);
+            base64RandomKey = pieces[2];
+            receivedSignature = pieces[3].substring(0, length);
+            text = pieces[3].substring(length);
         } catch (Throwable t) {
             logger.error("error occurred while parsing signed text", t);
             throw new IllegalArgumentException("tampered signed text");
         }
 
+        SecretKey signingKey;
+        // no random key, so we must have a system key
+        if (base64RandomKey.isEmpty()) {
+            if (systemKey == null) {
+                logger.debug("received signed text without random key information and no system key is present");
+                throw new IllegalArgumentException("tampered signed text");
+            }
+            signingKey = systemKey;
+        } else if (systemKey != null) {
+            // we have a system key and there is some random key data, this is an error
+            logger.debug("received signed text with random key information but a system key is present");
+            throw new IllegalArgumentException("tampered signed text");
+        } else {
+            byte[] randomKeyBytes;
+            try {
+                randomKeyBytes = Base64.decode(base64RandomKey, Base64.URL_SAFE);
+                if (randomKeyBytes.length * 8 != RANDOM_KEY_SIZE) {
+                    logger.debug("incorrect random key data length. received [{}] bytes", randomKeyBytes.length);
+                    throw new IllegalArgumentException("tampered signed text");
+                }
+                SecretKey randomKey = new SecretKeySpec(randomKeyBytes, KEY_ALGO);
+                signingKey = createSigningKey(systemKey, randomKey);
+            } catch (IOException e) {
+                logger.error("error occurred while decoding key data", e);
+                throw new IllegalStateException("error while verifying the signed text");
+            }
+        }
+
         try {
-            String sig = signInternal(text, key);
+            String sig = signInternal(text, signingKey);
             if (constantTimeEquals(sig, receivedSignature)) {
                 return text;
             }
@@ -328,7 +399,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
 
     static Mac createMac(SecretKey key) {
         try {
-            Mac mac = Mac.getInstance(HMAC_ALGO);
+            Mac mac = HmacSHA1Provider.hmacSHA1();
             mac.init(key);
             return mac;
         } catch (Exception e) {
@@ -408,8 +479,9 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
                 final SecretKey oldEncryptionKey = encryptionKey;
 
                 systemKey = readSystemKey(file);
+                signingKey = createSigningKey(systemKey, randomKey);
                 try {
-                    encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
+                    encryptionKey = encryptionKey(signingKey, keyLength, keyAlgorithm);
                 } catch (NoSuchAlgorithmException nsae) {
                     logger.error("could not load encryption key", nsae);
                     encryptionKey = null;
@@ -428,6 +500,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
                         "won't function as expected for some requests (e.g. scroll/scan)");
                 systemKey = null;
                 encryptionKey = null;
+                signingKey = createSigningKey(systemKey, randomKey);
 
                 callListeners(oldSystemKey, oldEncryptionKey);
             }
@@ -440,9 +513,10 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
                 final SecretKey oldEncryptionKey = encryptionKey;
 
                 logger.warn("system key file changed!");
-                systemKey = readSystemKey(file);
+                SecretKey systemKey = readSystemKey(file);
+                signingKey = createSigningKey(systemKey, randomKey);
                 try {
-                    encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
+                    encryptionKey = encryptionKey(signingKey, keyLength, keyAlgorithm);
                 } catch (NoSuchAlgorithmException nsae) {
                     logger.error("could not load encryption key", nsae);
                     encryptionKey = null;
@@ -477,6 +551,117 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
                     throw new RuntimeException(th);
                 }
             }
+        }
+    }
+
+    /**
+     * Provider class for the HmacSHA1 {@link Mac} that provides an optimization by using clone instead of calling
+     * Mac#getInstance and obtaining a lock
+     */
+    private static class HmacSHA1Provider {
+
+        private static final Mac mac;
+
+        static {
+            try {
+                mac = Mac.getInstance(HMAC_ALGO);
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException("could not create message authentication code instance with algorithm [HmacSHA1]", e);
+            }
+        }
+
+        private static Mac hmacSHA1() {
+            try {
+                Mac hmac = (Mac) mac.clone();
+                hmac.reset();
+                return hmac;
+            } catch (CloneNotSupportedException e) {
+                throw new IllegalStateException("could not create [HmacSHA1] MAC", e);
+            }
+        }
+    }
+
+    /**
+     * Simplified implementation of HKDF using the HmacSHA1 algortihm.
+     *
+     * @see <a href=https://tools.ietf.org/html/rfc5869>RFC 5869</a>
+     */
+    private static class HmacSHA1HKDF {
+        private static final int HMAC_SHA1_BYTE_LENGTH = 20;
+        private static final String HMAC_SHA1_ALGORITHM = "HmacSHA1";
+
+        /**
+         * This method performs the <code>extract</code> and <code>expand</code> steps of HKDF in one call with the given
+         * data. The output of the extract step is used as the input to the expand step
+         *
+         * @param salt optional salt value (a non-secret random value); if not provided, it is set to a string of HashLen zeros.
+         * @param ikm the input keying material
+         * @param info optional context and application specific information; if not provided a zero length byte[] is used
+         * @param outputLength length of output keying material in octets (&lt;= 255*HashLen)
+         * @return the output keying material
+         */
+        static byte[] extractAndExpand(@Nullable SecretKey salt, byte[] ikm, @Nullable byte[] info, int outputLength) {
+            // arg checking
+            Objects.requireNonNull(ikm, "the input keying material must not be null");
+            if (outputLength < 1) {
+                throw new IllegalArgumentException("output length must be positive int >= 1");
+            }
+            if (outputLength > 255 * HMAC_SHA1_BYTE_LENGTH) {
+                throw new IllegalArgumentException("output length must be <= 255*" + HMAC_SHA1_BYTE_LENGTH);
+            }
+            if (salt == null) {
+                salt = new SecretKeySpec(new byte[HMAC_SHA1_BYTE_LENGTH], HMAC_SHA1_ALGORITHM);
+            }
+            if (info == null) {
+                info = new byte[0];
+            }
+
+            // extract
+            Mac mac = createMac(salt);
+            byte[] keyBytes = mac.doFinal(ikm);
+            final SecretKey pseudoRandomKey = new SecretKeySpec(keyBytes, HMAC_SHA1_ALGORITHM);
+
+            /*
+             * The output OKM is calculated as follows:
+             * N = ceil(L/HashLen)
+             * T = T(1) | T(2) | T(3) | ... | T(N)
+             * OKM = first L octets of T
+             *
+             * where:
+             * T(0) = empty string (zero length)
+             * T(1) = HMAC-Hash(PRK, T(0) | info | 0x01)
+             * T(2) = HMAC-Hash(PRK, T(1) | info | 0x02)
+             * T(3) = HMAC-Hash(PRK, T(2) | info | 0x03)
+             * ...
+             *
+             * (where the constant concatenated to the end of each T(n) is a single octet.)
+             */
+            int n = (outputLength % HMAC_SHA1_BYTE_LENGTH == 0) ?
+                    outputLength / HMAC_SHA1_BYTE_LENGTH :
+                    (outputLength / HMAC_SHA1_BYTE_LENGTH) + 1;
+
+            byte[] hashRound = new byte[0];
+
+            ByteBuffer generatedBytes = ByteBuffer.allocate(Math.multiplyExact(n, HMAC_SHA1_BYTE_LENGTH));
+            try {
+                // initiliaze the mac with the new key
+                mac.init(pseudoRandomKey);
+            } catch (InvalidKeyException e) {
+                throw new ElasticsearchException("failed to initialize the mac", e);
+            }
+            for (int roundNum = 1; roundNum <= n; roundNum++) {
+                mac.reset();
+                mac.update(hashRound);
+                mac.update(info);
+                mac.update((byte) roundNum);
+                hashRound = mac.doFinal();
+                generatedBytes.put(hashRound);
+            }
+
+            byte[] result = new byte[outputLength];
+            generatedBytes.rewind();
+            generatedBytes.get(result, 0, outputLength);
+            return result;
         }
     }
 }

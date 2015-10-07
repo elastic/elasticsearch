@@ -33,8 +33,8 @@ import java.io.IOException;
  */
 public class TranslogStats implements ToXContent, Streamable {
 
-    private long translogSizeInBytes = 0;
-    private int estimatedNumberOfOperations = -1;
+    private long translogSizeInBytes;
+    private int estimatedNumberOfOperations;
 
     public TranslogStats() {
     }

@@ -76,8 +76,10 @@ public class CacheTests extends ESTestCase {
         assertEquals(evictions.get(), cache.stats().getEvictions());
     }
 
-    // cache some entries, numberOfEntries - maximumWeight evictions should occur, then check that the evicted
-    // entries were evicted in LRU order
+    // cache some entries in batches of size maximumWeight; for each batch, touch the even entries to affect the
+    // ordering; upon the next caching of entries, the entries from the previous batch will be evicted; we can then
+    // check that the evicted entries were evicted in LRU order (first the odds in a batch, then the evens in a batch)
+    // for each batch
     public void testCacheEvictions() {
         int maximumWeight = randomIntBetween(1, numberOfEntries);
         AtomicInteger evictions = new AtomicInteger();
@@ -90,7 +92,26 @@ public class CacheTests extends ESTestCase {
                             evictedKeys.add(notification.getKey());
                         })
                         .build();
-        for (int i = 0; i < numberOfEntries; i++) {
+        // cache entries up to numberOfEntries - maximumWeight; all of these entries will ultimately be evicted in
+        // batches of size maximumWeight, first the odds in the batch, then the evens in the batch
+        List<Integer> expectedEvictions = new ArrayList<>();
+        int iterations = (int)Math.ceil((numberOfEntries - maximumWeight) / (1.0 * maximumWeight));
+        for (int i = 0; i < iterations; i++) {
+            for (int j = i * maximumWeight; j < (i + 1) * maximumWeight && j < numberOfEntries - maximumWeight; j++) {
+                cache.put(j, Integer.toString(j));
+                if (j % 2 == 1) {
+                    expectedEvictions.add(j);
+                }
+            }
+            for (int j = i * maximumWeight; j < (i + 1) * maximumWeight && j < numberOfEntries - maximumWeight; j++) {
+                if (j % 2 == 0) {
+                    cache.get(j);
+                    expectedEvictions.add(j);
+                }
+            }
+        }
+        // finish filling the cache
+        for (int i = numberOfEntries - maximumWeight; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
         }
         assertEquals(numberOfEntries - maximumWeight, evictions.get());
@@ -103,9 +124,10 @@ public class CacheTests extends ESTestCase {
             keys.add(key);
             remainingKeys.add(key);
         }
-        for (int i = 0; i < numberOfEntries - maximumWeight; i++) {
-            assertFalse(keys.contains(i));
-            assertEquals(i, (int) evictedKeys.get(i));
+        assertEquals(expectedEvictions.size(), evictedKeys.size());
+        for (int i = 0; i < expectedEvictions.size(); i++) {
+            assertFalse(keys.contains(expectedEvictions.get(i)));
+            assertEquals(expectedEvictions.get(i), evictedKeys.get(i));
         }
         for (int i = numberOfEntries - maximumWeight; i < numberOfEntries; i++) {
             assertTrue(keys.contains(i));

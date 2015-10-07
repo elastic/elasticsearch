@@ -122,6 +122,7 @@ public class Cache<K, V> {
     }
 
     void setRemovalListener(RemovalListener<K, V> removalListener) {
+        Objects.requireNonNull(removalListener);
         this.removalListener = removalListener;
     }
 

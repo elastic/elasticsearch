@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -452,5 +453,18 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         AllField field = (AllField) doc.rootDoc().getField("_all");
         // the backcompat behavior is actually ignoring directly specifying _all
         assertFalse(field.getAllEntries().fields().iterator().hasNext());
+    }
+
+    public void testIncludeInObjectNotAllowed() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        try {
+            docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().field("_all", "foo").endObject().bytes());
+            fail("Expected failure to parse metadata field");
+        } catch (MapperParsingException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("Field [_all] is a metadata field and cannot be added inside a document"));
+        }
     }
 }

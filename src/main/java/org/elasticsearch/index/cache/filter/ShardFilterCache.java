@@ -37,6 +37,8 @@ public class ShardFilterCache extends AbstractIndexShardComponent implements Rem
 
     final CounterMetric evictionsMetric = new CounterMetric();
     final CounterMetric totalMetric = new CounterMetric();
+    final CounterMetric hitCount = new CounterMetric();
+    final CounterMetric missCount = new CounterMetric();
 
     @Inject
     public ShardFilterCache(ShardId shardId, @IndexSettings Settings indexSettings) {
@@ -44,11 +46,17 @@ public class ShardFilterCache extends AbstractIndexShardComponent implements Rem
     }
 
     public FilterCacheStats stats() {
-        return new FilterCacheStats(totalMetric.count(), evictionsMetric.count());
+        return new FilterCacheStats(totalMetric.count(), evictionsMetric.count(), hitCount.count(), missCount.count());
     }
 
     public void onCached(long sizeInBytes) {
         totalMetric.inc(sizeInBytes);
+    }
+
+    public void onHit() { hitCount.inc(); }
+
+    public void onMiss() {
+        missCount.inc();
     }
 
     @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.search.builder;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.google.common.base.Charsets;
+
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.ToXContentToBytes;
@@ -417,7 +418,10 @@ public class SearchSourceBuilder extends ToXContentToBytes {
 
     /**
      * Set the rescore window size for rescores that don't specify their window.
+     * 
+     * @deprecated use {@link RescoreBuilder#windowSize(int)} instead.
      */
+    @Deprecated
     public SearchSourceBuilder defaultRescoreWindowSize(int defaultRescoreWindowSize) {
         this.defaultRescoreWindowSize = defaultRescoreWindowSize;
         return this;

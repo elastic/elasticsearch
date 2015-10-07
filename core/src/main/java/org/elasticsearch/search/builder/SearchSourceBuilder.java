@@ -146,7 +146,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     private BytesReference innerHitsBuilder;
 
     private List<BytesReference> rescoreBuilders;
-    private Integer defaultRescoreWindowSize;
 
     private ObjectFloatHashMap<String> indexBoost = null;
 
@@ -395,21 +394,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      */
     public List<BytesReference> aggregations() {
         return aggregations;
-    }
-
-    /**
-     * Set the rescore window size for rescores that don't specify their window.
-     */
-    public SearchSourceBuilder defaultRescoreWindowSize(int defaultRescoreWindowSize) {
-        this.defaultRescoreWindowSize = defaultRescoreWindowSize;
-        return this;
-    }
-
-    /**
-     * Get the rescore window size for rescores that don't specify their window.
-     */
-    public int defaultRescoreWindowSize() {
-        return defaultRescoreWindowSize;
     }
 
     /**
@@ -1151,9 +1135,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             }
             builder.aggregations = aggregations;
         }
-        if (in.readBoolean()) {
-            builder.defaultRescoreWindowSize = in.readVInt();
-        }
         builder.explain = in.readOptionalBoolean();
         builder.fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
         boolean hasFieldDataFields = in.readBoolean();
@@ -1254,11 +1235,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             for (BytesReference aggregation : aggregations) {
                 out.writeBytesReference(aggregation);
             }
-        }
-        boolean hasDefaultRescoreWindowSize = defaultRescoreWindowSize != null;
-        out.writeBoolean(hasDefaultRescoreWindowSize);
-        if (hasDefaultRescoreWindowSize) {
-            out.writeVInt(defaultRescoreWindowSize);
         }
         out.writeOptionalBoolean(explain);
         FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
@@ -1364,7 +1340,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     @Override
     public int hashCode() {
-        return Objects.hash(aggregations, defaultRescoreWindowSize, explain, fetchSourceContext, fieldDataFields, fieldNames, from,
+        return Objects.hash(aggregations, explain, fetchSourceContext, fieldDataFields, fieldNames, from,
                 highlightBuilder, indexBoost, innerHitsBuilder, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,
                 size, sorts, stats, suggestBuilder, terminateAfter, timeoutInMillis, trackScores, version);
     }
@@ -1379,7 +1355,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
         SearchSourceBuilder other = (SearchSourceBuilder) obj;
         return Objects.equals(aggregations, other.aggregations)
-                && Objects.equals(defaultRescoreWindowSize, other.defaultRescoreWindowSize)
                 && Objects.equals(explain, other.explain)
                 && Objects.equals(fetchSourceContext, other.fetchSourceContext)
                 && Objects.equals(fieldDataFields, other.fieldDataFields)

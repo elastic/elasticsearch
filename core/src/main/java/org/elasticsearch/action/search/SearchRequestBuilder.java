@@ -450,17 +450,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the rescore window for all rescorers that don't specify a window when added.
-     *
-     * @param window rescore window
-     * @return this for chaining
-     */
-    public SearchRequestBuilder setRescoreWindow(int window) {
-        sourceBuilder().defaultRescoreWindowSize(window);
-        return this;
-    }
-
-    /**
      * Sets the source of the request as a SearchSourceBuilder.
      */
     public SearchRequestBuilder setSource(SearchSourceBuilder source) {

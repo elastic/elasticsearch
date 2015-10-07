@@ -256,8 +256,6 @@ public class FunctionScoreTests extends ESTestCase {
     public void initSearcher() throws IOException {
         dir = newDirectory();
         w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
-        FieldType ft = new FieldType(TextField.TYPE_STORED);
-        ft.freeze();
         Document d = new Document();
         d.add(new TextField(FIELD, TEXT, Field.Store.YES));
         d.add(new TextField("_uid", "1", Field.Store.YES));
@@ -310,7 +308,7 @@ public class FunctionScoreTests extends ESTestCase {
 
     public Explanation getFunctionScoreExplanation(IndexSearcher searcher, ScoreFunction scoreFunction) throws IOException {
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new TermQuery(TERM), scoreFunction, 0.0f, CombineFunction.AVG, 100);
-        Weight weight = functionScoreQuery.createWeight(searcher, true);
+        Weight weight = searcher.createNormalizedWeight(functionScoreQuery, true);
         Explanation explanation = weight.explain(searcher.getIndexReader().leaves().get(0), 0);
         return explanation.getDetails()[1];
     }
@@ -375,7 +373,7 @@ public class FunctionScoreTests extends ESTestCase {
 
     public Explanation getFiltersFunctionScoreExplanation(IndexSearcher searcher, ScoreFunction... scoreFunctions) throws IOException {
         FiltersFunctionScoreQuery filtersFunctionScoreQuery = getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode.AVG, CombineFunction.AVG, scoreFunctions);
-        Weight weight = filtersFunctionScoreQuery.createWeight(searcher, true);
+        Weight weight = searcher.createNormalizedWeight(filtersFunctionScoreQuery, true);
         Explanation explanation = weight.explain(searcher.getIndexReader().leaves().get(0), 0);
         return explanation.getDetails()[1];
     }

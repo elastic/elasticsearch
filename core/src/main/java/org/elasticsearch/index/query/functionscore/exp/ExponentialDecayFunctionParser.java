@@ -32,7 +32,7 @@ public class ExponentialDecayFunctionParser extends DecayFunctionParser {
         return NAMES;
     }
 
-    static final DecayFunction decayFunction = new ExponentialDecayScoreFunction();
+    public static final DecayFunction decayFunction = new ExponentialDecayScoreFunction();
 
     @Override
     public DecayFunction getDecayFunction() {

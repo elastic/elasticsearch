@@ -25,7 +25,7 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
 
 public class GaussDecayFunctionParser extends DecayFunctionParser {
 
-    static final DecayFunction decayFunction = new GaussScoreFunction();
+    public static final DecayFunction decayFunction = new GaussScoreFunction();
     public static final String[] NAMES = { "gauss" };
 
     @Override

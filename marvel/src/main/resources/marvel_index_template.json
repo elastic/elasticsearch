@@ -178,6 +178,10 @@
               "type": "string",
               "index": "not_analyzed"
             },
+            "state_uuid": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
             "status": {
               "type": "string",
               "index": "not_analyzed"

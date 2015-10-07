@@ -20,6 +20,7 @@ public class ClusterStateRenderer extends AbstractRenderer<ClusterStateMarvelDoc
     public static final String[] FILTERS = {
             "cluster_state.version",
             "cluster_state.master_node",
+            "cluster_state.state_uuid",
             "cluster_state.status",
             "cluster_state.nodes",
     };

@@ -33,6 +33,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class QueryMetadataServiceTests extends ESTestCase {
 
@@ -189,6 +190,27 @@ public class QueryMetadataServiceTests extends ESTestCase {
         assertClause(booleanQuery, 10, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "text");
         assertClause(booleanQuery, 11, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field4", "123");
         assertClause(booleanQuery, 12, QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN, "");
+    }
+
+    public void testSelectTermsListWithHighestSumOfTermLength() {
+        List<Term> terms1 = new ArrayList<>();
+        int sumTermLength = randomIntBetween(32, 64);
+        while (sumTermLength > 0) {
+            int length = randomInt(sumTermLength);
+            terms1.add(new Term("field", randomAsciiOfLength(length)));
+            sumTermLength -= length;
+        }
+
+        List<Term> terms2 = new ArrayList<>();
+        sumTermLength = randomIntBetween(65, 128);
+        while (sumTermLength > 0) {
+            int length = randomInt(sumTermLength);
+            terms2.add(new Term("field", randomAsciiOfLength(length)));
+            sumTermLength -= length;
+        }
+
+        List<Term> result = queryMetadataService.selectTermsListWithHighestSumOfTermLength(terms1, terms2);
+        assertThat(result, sameInstance(terms2));
     }
 
     private void assertClause(BooleanQuery booleanQuery, int i, String expectedField, String expectedValue) {

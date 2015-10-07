@@ -108,22 +108,7 @@ public class QueryMetadataService {
                     }
 
                     List<Term> temp = extractQueryMetadata(clause.getQuery());
-                    if (bestClause == null) {
-                        bestClause = temp;
-                    } else {
-                        int currentSize = 0;
-                        for (Term term : bestClause) {
-                            currentSize += term.bytes().length;
-                        }
-                        int otherSize = 0;
-                        for (Term term : temp) {
-                            otherSize += term.bytes().length;
-                        }
-                        // keep the clause with longest terms, this likely to be rarest.
-                        if (otherSize > currentSize) {
-                            bestClause = temp;
-                        }
-                    }
+                    bestClause = selectTermsListWithHighestSumOfTermLength(temp, bestClause);
                 }
                 if (bestClause != null) {
                     return bestClause;
@@ -150,6 +135,31 @@ public class QueryMetadataService {
         } else {
             throw new IllegalArgumentException("unsupported query");
         }
+    }
+
+    List<Term> selectTermsListWithHighestSumOfTermLength(List<Term> terms1, List<Term> terms2) {
+        if (terms1 == null) {
+            return terms2;
+        } else if (terms2 == null) {
+            return terms1;
+        } else {
+            int terms1SumTermLength = computeSumOfTermLength(terms1);
+            int terms2SumTermLength = computeSumOfTermLength(terms2);
+            // keep the clause with longest terms, this likely to be rarest.
+            if (terms1SumTermLength > terms2SumTermLength) {
+                return terms1;
+            } else {
+                return terms2;
+            }
+        }
+    }
+
+    private int computeSumOfTermLength(List<Term> terms) {
+        int sum = 0;
+        for (Term term : terms) {
+            sum += term.bytes().length;
+        }
+        return sum;
     }
 
     /**

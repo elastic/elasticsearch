@@ -40,19 +40,17 @@ public class QueryMetadataServiceTests extends ESTestCase {
 
     public void testExtractQueryMetadata_termQuery() {
         TermQuery termQuery = new TermQuery(new Term("_field", "_term"));
-        List<Term> terms = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(termQuery, terms);
+        List<Term> terms = queryMetadataService.extractQueryMetadata(termQuery);
         assertThat(terms.size(), equalTo(1));
-        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery.getTerm().field()));
+        assertThat(terms.get(0).field(), equalTo(termQuery.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery.getTerm().bytes()));
     }
 
     public void testExtractQueryMetadata_phraseQuery() {
         PhraseQuery phraseQuery = new PhraseQuery("_field", "_term1", "term2");
-        List<Term> terms = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(phraseQuery, terms);
+        List<Term> terms = queryMetadataService.extractQueryMetadata(phraseQuery);
         assertThat(terms.size(), equalTo(1));
-        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + phraseQuery.getTerms()[0].field()));
+        assertThat(terms.get(0).field(), equalTo(phraseQuery.getTerms()[0].field()));
         assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
     }
 
@@ -71,14 +69,13 @@ public class QueryMetadataServiceTests extends ESTestCase {
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Term> terms = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(booleanQuery, terms);
+        List<Term> terms = queryMetadataService.extractQueryMetadata(booleanQuery);
         assertThat(terms.size(), equalTo(3));
-        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery1.getTerm().field()));
+        assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
-        assertThat(terms.get(1).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + phraseQuery.getTerms()[0].field()));
+        assertThat(terms.get(1).field(), equalTo(phraseQuery.getTerms()[0].field()));
         assertThat(terms.get(1).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
-        assertThat(terms.get(2).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery3.getTerm().field()));
+        assertThat(terms.get(2).field(), equalTo(termQuery3.getTerm().field()));
         assertThat(terms.get(2).bytes(), equalTo(termQuery3.getTerm().bytes()));
     }
 
@@ -97,16 +94,15 @@ public class QueryMetadataServiceTests extends ESTestCase {
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Term> terms = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(booleanQuery, terms);
+        List<Term> terms = queryMetadataService.extractQueryMetadata(booleanQuery);
         assertThat(terms.size(), equalTo(4));
-        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery1.getTerm().field()));
+        assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
-        assertThat(terms.get(1).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery2.getTerm().field()));
+        assertThat(terms.get(1).field(), equalTo(termQuery2.getTerm().field()));
         assertThat(terms.get(1).bytes(), equalTo(termQuery2.getTerm().bytes()));
-        assertThat(terms.get(2).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery3.getTerm().field()));
+        assertThat(terms.get(2).field(), equalTo(termQuery3.getTerm().field()));
         assertThat(terms.get(2).bytes(), equalTo(termQuery3.getTerm().bytes()));
-        assertThat(terms.get(3).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery4.getTerm().field()));
+        assertThat(terms.get(3).field(), equalTo(termQuery4.getTerm().field()));
         assertThat(terms.get(3).bytes(), equalTo(termQuery4.getTerm().bytes()));
     }
 
@@ -118,52 +114,51 @@ public class QueryMetadataServiceTests extends ESTestCase {
         builder.add(phraseQuery, BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Term> terms = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(booleanQuery, terms);
+        List<Term> terms = queryMetadataService.extractQueryMetadata(booleanQuery);
         assertThat(terms.size(), equalTo(1));
-        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + phraseQuery.getTerms()[0].field()));
+        assertThat(terms.get(0).field(), equalTo(phraseQuery.getTerms()[0].field()));
         assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
     }
 
     public void testExtractQueryMetadata_constantScoreQuery() {
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         ConstantScoreQuery constantScoreQuery = new ConstantScoreQuery(termQuery1);
-        List<Term> terms = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(constantScoreQuery, terms);
+        List<Term> terms = queryMetadataService.extractQueryMetadata(constantScoreQuery);
         assertThat(terms.size(), equalTo(1));
-        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery1.getTerm().field()));
+        assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
     }
 
     public void testExtractQueryMetadata_boostQuery() {
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         BoostQuery constantScoreQuery = new BoostQuery(termQuery1, 1f);
-        List<Term> terms = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(constantScoreQuery, terms);
+        List<Term> terms = queryMetadataService.extractQueryMetadata(constantScoreQuery);
         assertThat(terms.size(), equalTo(1));
-        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery1.getTerm().field()));
+        assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
     }
 
     public void testExtractQueryMetadata_unsupportedQuery() {
         TermRangeQuery termRangeQuery = new TermRangeQuery("_field", null, null, true, false);
 
-        List<Term> terms = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(termRangeQuery, terms);
-        assertThat(terms.size(), equalTo(1));
-        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN));
-        assertThat(terms.get(0).bytes(), equalTo(new BytesRef()));
+        try {
+            queryMetadataService.extractQueryMetadata(termRangeQuery);
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("unsupported query"));
+        }
 
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         BooleanQuery.Builder builder = new BooleanQuery.Builder();;
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         builder.add(termRangeQuery, BooleanClause.Occur.SHOULD);
 
-        terms = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(builder.build(), terms);
-        assertThat(terms.size(), equalTo(1));
-        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN));
-        assertThat(terms.get(0).bytes(), equalTo(new BytesRef()));
+        try {
+            queryMetadataService.extractQueryMetadata(builder.build());
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("unsupported query"));
+        }
     }
 
     public void testCreateQueryMetadataQuery() throws Exception {

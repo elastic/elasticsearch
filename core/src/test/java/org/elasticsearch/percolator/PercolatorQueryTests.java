@@ -116,10 +116,9 @@ public class PercolatorQueryTests extends ESTestCase {
     void addPercolatorQuery(String id, Query query, IndexWriter writer, QueryMetadataService queryMetadataService, Map<BytesRef, Query> queries) throws IOException {
         queries.put(new BytesRef(id), query);
         Document document = new Document();
-        List<Term> queryTerms = new ArrayList<>();
-        queryMetadataService.extractQueryMetadata(query, queryTerms);
+        List<Term> queryTerms = queryMetadataService.extractQueryMetadata(query);
         for (Term term : queryTerms) {
-            document.add(new Field(term.field(), term.bytes(), QueryMetadataService.QUERY_METADATA_FIELD_TYPE));
+            document.add(new Field(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + term.field(), term.bytes(), QueryMetadataService.QUERY_METADATA_FIELD_TYPE));
         }
         document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorService.TYPE_NAME, id)));
         writer.addDocument(document);

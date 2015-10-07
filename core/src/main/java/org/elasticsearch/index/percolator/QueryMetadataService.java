@@ -28,10 +28,11 @@ import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
- *
+ * Utility to extract query terms from queries and create queries from documents.
  */
 public class QueryMetadataService {
 
@@ -46,41 +47,59 @@ public class QueryMetadataService {
         QUERY_METADATA_FIELD_TYPE.freeze();
     }
 
+    /**
+     * Extracts all terms from the specified query and adds it to the specified document.
+     */
     public void extractQueryMetadata(Query query, ParseContext.Document document) {
-        List<Term> queryTerms = new ArrayList<>();
-        extractQueryMetadata(query, queryTerms);
+        List<Term> queryTerms;
+        try {
+            queryTerms = extractQueryMetadata(query);
+        } catch (IllegalArgumentException e) {
+            document.add(new Field(QUERY_METADATA_FIELD_UNKNOWN, new BytesRef(), QUERY_METADATA_FIELD_TYPE));
+            return;
+        }
         for (Term term : queryTerms) {
-            document.add(new Field(term.field(), term.bytes(), QUERY_METADATA_FIELD_TYPE));
+            document.add(new Field(QUERY_METADATA_FIELD_PREFIX + term.field(), term.bytes(), QUERY_METADATA_FIELD_TYPE));
         }
     }
 
-    public void extractQueryMetadata(Query query, List<Term> queryTerms) {
+    /**
+     * Extracts all query terms from the provided query and adds it to specified list.
+     *
+     * From boolean query with no should clauses or phrase queries only the the longest term are selected,
+     * since that those terms are likely to be the rarest. Boolean query's must_not clauses are always ignored ignored.
+     *
+     * If from part of the query, no query terms can be extracted then term extraction is stopped and
+     * an IllegalArgumentException is thrown.
+     */
+    public List<Term> extractQueryMetadata(Query query) {
         if (query instanceof TermQuery) {
-            Term term = ((TermQuery) query).getTerm();
-            queryTerms.add(new Term(QUERY_METADATA_FIELD_PREFIX + term.field(), term.bytes()));
+            return Collections.singletonList(((TermQuery) query).getTerm());
         } else if (query instanceof PhraseQuery) {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
-                return;
+                return Collections.emptyList();
             }
 
+            // the longest term is likely to be the rarest,
+            // so from a performance perspective it makes sense to extract that
             Term longestTerm = terms[0];
             for (Term term : terms) {
                 if (longestTerm.bytes().length < term.bytes().length) {
                     longestTerm = term;
                 }
             }
-            queryTerms.add(new Term(QUERY_METADATA_FIELD_PREFIX + longestTerm.field(), longestTerm.bytes()));
+            return Collections.singletonList(longestTerm);
         } else if (query instanceof BooleanQuery) {
             List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
-            boolean noShouldClauses = true;
+            boolean hasShouldClauses = false;
             for (BooleanClause clause : clauses) {
                 if (clause.getOccur() == BooleanClause.Occur.SHOULD) {
-                    noShouldClauses = false;
+                    hasShouldClauses = true;
                     break;
                 }
             }
-            if (noShouldClauses) {
+            if (!hasShouldClauses) {
                 List<Term> bestClause = null;
                 for (BooleanClause clause : clauses) {
                     if (clause.isProhibited()) {
@@ -88,8 +107,7 @@ public class QueryMetadataService {
                         continue;
                     }
 
-                    List<Term> temp = new ArrayList<>();
-                    extractQueryMetadata(clause.getQuery(), temp);
+                    List<Term> temp = extractQueryMetadata(clause.getQuery());
                     if (bestClause == null) {
                         bestClause = temp;
                     } else {
@@ -108,29 +126,35 @@ public class QueryMetadataService {
                     }
                 }
                 if (bestClause != null) {
-                    queryTerms.addAll(bestClause);
+                    return bestClause;
+                } else {
+                    return Collections.emptyList();
                 }
             } else {
+                List<Term> terms = new ArrayList<>();
                 for (BooleanClause clause : clauses) {
                     if (clause.isProhibited()) {
                         // we don't need to remember the things that do *not* match...
                         continue;
                     }
-                    extractQueryMetadata(clause.getQuery(), queryTerms);
+                    terms.addAll(extractQueryMetadata(clause.getQuery()));
                 }
+                return terms;
             }
         } else if (query instanceof ConstantScoreQuery) {
             Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
-            extractQueryMetadata(wrappedQuery, queryTerms);
+            return extractQueryMetadata(wrappedQuery);
         } else if (query instanceof BoostQuery) {
             Query wrappedQuery = ((BoostQuery) query).getQuery();
-            extractQueryMetadata(wrappedQuery, queryTerms);
+            return extractQueryMetadata(wrappedQuery);
         } else {
-            queryTerms.clear();
-            queryTerms.add(new Term(QUERY_METADATA_FIELD_UNKNOWN));
+            throw new IllegalArgumentException("unsupported query");
         }
     }
 
+    /**
+     * Creates a boolean query with a should clause for each term on all fields of the specified index reader.
+     */
     public Query createQueryMetadataQuery(IndexReader indexReader) throws IOException {
         List<Term> extractedTerms = new ArrayList<>();
         extractedTerms.add(new Term(QUERY_METADATA_FIELD_UNKNOWN));

@@ -170,11 +170,6 @@ public class QueryMetadataService {
         extractedTerms.add(new Term(QUERY_METADATA_FIELD_UNKNOWN));
         Fields fields = MultiFields.getFields(indexReader);
         for (String field : fields) {
-            // Ignore meta fields
-            if (field.startsWith("_")) {
-                continue;
-            }
-
             Terms terms = fields.terms(field);
             if (terms == null) {
                 continue;

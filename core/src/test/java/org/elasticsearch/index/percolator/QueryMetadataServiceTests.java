@@ -166,7 +166,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
         MemoryIndex memoryIndex = new MemoryIndex(false);
         memoryIndex.addField("field1", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
         memoryIndex.addField("field2", "some more text", new WhitespaceAnalyzer());
-        memoryIndex.addField("_field3", "hide me", new WhitespaceAnalyzer());
+        memoryIndex.addField("_field3", "unhide me", new WhitespaceAnalyzer());
         memoryIndex.addField("field4", "123", new WhitespaceAnalyzer());
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
@@ -176,20 +176,22 @@ public class QueryMetadataServiceTests extends ESTestCase {
         // no easy way to get to the terms in TermsQuery,
         // if there a less then 16 terms then it gets rewritten to bq and then we can easily check the terms
         BooleanQuery booleanQuery = (BooleanQuery) ((ConstantScoreQuery) query.rewrite(indexReader)).getQuery();
-        assertThat(booleanQuery.clauses().size(), equalTo(13));
-        assertClause(booleanQuery, 0, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "brown");
-        assertClause(booleanQuery, 1, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "dog");
-        assertClause(booleanQuery, 2, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "fox");
-        assertClause(booleanQuery, 3, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "jumps");
-        assertClause(booleanQuery, 4, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "lazy");
-        assertClause(booleanQuery, 5, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "over");
-        assertClause(booleanQuery, 6, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "quick");
-        assertClause(booleanQuery, 7, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "the");
-        assertClause(booleanQuery, 8, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "more");
-        assertClause(booleanQuery, 9, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "some");
-        assertClause(booleanQuery, 10, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "text");
-        assertClause(booleanQuery, 11, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field4", "123");
-        assertClause(booleanQuery, 12, QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN, "");
+        assertThat(booleanQuery.clauses().size(), equalTo(15));
+        assertClause(booleanQuery, 0, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "_field3", "me");
+        assertClause(booleanQuery, 1, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "_field3", "unhide");
+        assertClause(booleanQuery, 2, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "brown");
+        assertClause(booleanQuery, 3, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "dog");
+        assertClause(booleanQuery, 4, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "fox");
+        assertClause(booleanQuery, 5, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "jumps");
+        assertClause(booleanQuery, 6, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "lazy");
+        assertClause(booleanQuery, 7, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "over");
+        assertClause(booleanQuery, 8, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "quick");
+        assertClause(booleanQuery, 9, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field1", "the");
+        assertClause(booleanQuery, 10, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "more");
+        assertClause(booleanQuery, 11, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "some");
+        assertClause(booleanQuery, 12, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field2", "text");
+        assertClause(booleanQuery, 13, QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + "field4", "123");
+        assertClause(booleanQuery, 14, QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN, "");
     }
 
     public void testSelectTermsListWithHighestSumOfTermLength() {

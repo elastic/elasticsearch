@@ -202,7 +202,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     }
     
     /** Returns validation method for coordinates. */
-    public GeoValidationMethod getValidationMethod(GeoValidationMethod method) {
+    public GeoValidationMethod getValidationMethod() {
         return this.validationMethod;
     }
 

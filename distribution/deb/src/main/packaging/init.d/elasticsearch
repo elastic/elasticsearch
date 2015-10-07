@@ -74,9 +74,6 @@ DATA_DIR=/var/lib/$NAME
 # Elasticsearch configuration directory
 CONF_DIR=/etc/$NAME
 
-# Elasticsearch configuration file (elasticsearch.yml)
-CONF_FILE=$CONF_DIR/elasticsearch.yml
-
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 MAX_MAP_COUNT=262144
 
@@ -93,10 +90,16 @@ if [ -f "$DEFAULT" ]; then
 	. "$DEFAULT"
 fi
 
+# CONF_FILE setting was removed
+if [ ! -z "$CONF_FILE" ]; then
+    echo "CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed."
+    exit 1
+fi
+
 # Define other required variables
 PID_FILE="$PID_DIR/$NAME.pid"
 DAEMON=$ES_HOME/bin/elasticsearch
-DAEMON_OPTS="-d -p $PID_FILE --default.config=$CONF_FILE --default.path.home=$ES_HOME --default.path.logs=$LOG_DIR --default.path.data=$DATA_DIR --default.path.conf=$CONF_DIR"
+DAEMON_OPTS="-d -p $PID_FILE --default.path.home=$ES_HOME --default.path.logs=$LOG_DIR --default.path.data=$DATA_DIR --default.path.conf=$CONF_DIR"
 
 export ES_HEAP_SIZE
 export ES_HEAP_NEWSIZE

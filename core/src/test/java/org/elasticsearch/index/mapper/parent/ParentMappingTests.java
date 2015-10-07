@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
@@ -32,21 +33,18 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ParentMappingTests extends ESSingleNodeTestCase {
 
-    public void testParentNotSet() throws Exception {
+    public void testParentSetInDocNotAllowed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("_parent", "1122")
-                .field("x_field", "x_value")
-                .endObject()
-                .bytes()).type("type").id("1"));
-
-        // no _parent mapping, dynamically used as a string field
-        assertNull(doc.parent());
-        assertNotNull(doc.rootDoc().get("_parent"));
+        try {
+            docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
+                .startObject().field("_parent", "1122").endObject().bytes()).type("type").id("1"));
+            fail("Expected failure to parse metadata field");
+        } catch (MapperParsingException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("Field [_parent] is a metadata field and cannot be added inside a document"));
+        }
     }
 
     public void testParentSetInDocBackcompat() throws Exception {

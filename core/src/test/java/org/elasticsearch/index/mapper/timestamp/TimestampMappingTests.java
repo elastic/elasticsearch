@@ -769,6 +769,21 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertNull(docMapper.parse("test", "type", "1", doc.bytes()).rootDoc().get("_timestamp"));
     }
 
+    public void testIncludeInObjectNotAllowed() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp").field("enabled", true).field("default", "1970").field("format", "YYYY").endObject()
+            .endObject().endObject().string();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        try {
+            docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().field("_timestamp", 2000000).endObject().bytes());
+            fail("Expected failure to parse metadata field");
+        } catch (MapperParsingException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("Field [_timestamp] is a metadata field and cannot be added inside a document"));
+        }
+    }
+
     public void testThatEpochCanBeIgnoredWithCustomFormat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true).field("format", "yyyyMMddHH").endObject()

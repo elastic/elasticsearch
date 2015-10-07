@@ -135,6 +135,16 @@ public class QueryMetadataServiceTests extends ESTestCase {
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
     }
 
+    public void testExtractQueryMetadata_boostQuery() {
+        TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
+        BoostQuery constantScoreQuery = new BoostQuery(termQuery1, 1f);
+        List<Term> terms = new ArrayList<>();
+        queryMetadataService.extractQueryMetadata(constantScoreQuery, terms);
+        assertThat(terms.size(), equalTo(1));
+        assertThat(terms.get(0).field(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + termQuery1.getTerm().field()));
+        assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
+    }
+
     public void testExtractQueryMetadata_unsupportedQuery() {
         TermRangeQuery termRangeQuery = new TermRangeQuery("_field", null, null, true, false);
 

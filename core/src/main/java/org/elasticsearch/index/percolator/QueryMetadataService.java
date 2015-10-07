@@ -30,6 +30,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ *
+ */
 public class QueryMetadataService {
 
     public static String QUERY_METADATA = "_query_metadata_";
@@ -118,6 +121,9 @@ public class QueryMetadataService {
             }
         } else if (query instanceof ConstantScoreQuery) {
             Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
+            extractQueryMetadata(wrappedQuery, queryTerms);
+        } else if (query instanceof BoostQuery) {
+            Query wrappedQuery = ((BoostQuery) query).getQuery();
             extractQueryMetadata(wrappedQuery, queryTerms);
         } else {
             queryTerms.clear();

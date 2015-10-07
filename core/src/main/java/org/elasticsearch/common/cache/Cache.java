@@ -132,6 +132,7 @@ public class Cache<K, V> {
      */
     protected long now() {
         // System.nanoTime takes non-negligible time, so we only use it if we need it
+        // use System.nanoTime because we want relative time, not absolute time
         return entriesExpireAfterAccess || entriesExpireAfterWrite ? System.nanoTime() : 0;
     }
 

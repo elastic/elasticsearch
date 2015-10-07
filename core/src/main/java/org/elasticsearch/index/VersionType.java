@@ -234,7 +234,7 @@ public enum VersionType implements Writeable<VersionType> {
 
         @Override
         public String explainConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {
-            throw new IllegalStateException("VersionType.FORCE should never result in a write conflict");
+            throw new AssertionError("VersionType.FORCE should never result in a write conflict");
         }
 
         @Override
@@ -244,7 +244,7 @@ public enum VersionType implements Writeable<VersionType> {
 
         @Override
         public String explainConflictForReads(long currentVersion, long expectedVersion) {
-            throw new IllegalStateException("VersionType.FORCE should never result in a read conflict");
+            throw new AssertionError("VersionType.FORCE should never result in a read conflict");
         }
 
         @Override

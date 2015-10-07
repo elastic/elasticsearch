@@ -59,7 +59,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  *
@@ -202,8 +201,6 @@ public abstract class Engine implements Closeable {
             throw new UnsupportedOperationException("NoOpLock can't provide a condition");
         }
     }
-
-    //public abstract void create(Create create) throws EngineException;
 
     public abstract boolean index(Index operation) throws EngineException;
 

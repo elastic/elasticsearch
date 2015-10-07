@@ -239,7 +239,7 @@ public class FunctionScoreTests extends ESTestCase {
 
     private static final String FIELD = "test";
     private static final ScoreFunction RANDOM_SCORE_FUNCTION = new RandomScoreFunction(0, 0, new IndexFieldDataStub());
-    private static final ScoreFunction FIELD_VALUE_FACTOR_FUNCTION = new FieldValueFactorFunction("test", 1, FieldValueFactorFunction.Modifier.LN, new Double(1), null);
+    private static final ScoreFunction FIELD_VALUE_FACTOR_FUNCTION = new FieldValueFactorFunction("test", 1, FieldValueFactorFunction.Modifier.LN, new Double(1), new IndexNumericFieldDataStub());
     private static final ScoreFunction GAUSS_DECAY_FUNCTION = new DecayFunctionParser.NumericFieldDataScoreFunction(0, 1, 0.1, 0, GaussDecayFunctionParser.decayFunction, new IndexNumericFieldDataStub(), MultiValueMode.MAX);
     private static final ScoreFunction EXP_DECAY_FUNCTION = new DecayFunctionParser.NumericFieldDataScoreFunction(0, 1, 0.1, 0, ExponentialDecayFunctionParser.decayFunction, new IndexNumericFieldDataStub(), MultiValueMode.MAX);
     private static final ScoreFunction LIN_DECAY_FUNCTION = new DecayFunctionParser.NumericFieldDataScoreFunction(0, 1, 0.1, 0, LinearDecayFunctionParser.decayFunction, new IndexNumericFieldDataStub(), MultiValueMode.MAX);
@@ -376,7 +376,6 @@ public class FunctionScoreTests extends ESTestCase {
         FiltersFunctionScoreQuery filtersFunctionScoreQuery = getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode.Avg, scoreFunctions);
         Weight weight = searcher.createNormalizedWeight(filtersFunctionScoreQuery, true);
         Explanation explanation = weight.explain(searcher.getIndexReader().leaves().get(0), 0);
-        logger.info(explanation.toString());
         return explanation.getDetails()[1];
     }
 

@@ -37,6 +37,12 @@ bin/plugin remove watcher
 === Change List
 
 [float]
+==== 2.0.0
+
+.Bug fixes
+* Fixed an issue where the scheduler may get stuck during Watcher startup. This caused no watches to ever fire.
+
+[float]
 ==== 2.0.0-rc1
 
 .Breaking

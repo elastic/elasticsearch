@@ -259,9 +259,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
             percolatorQueriesRegistry.enableRealTimePercolator();
         }
-        
-        lastWriteNS = System.nanoTime();
-        active.set(true);
+
+        // We start up inactive
+        active.set(false);
     }
 
     public Store store() {
@@ -1057,16 +1057,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     /** Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
      *  indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so.  This returns true
-     *  if the shard did in fact become inactive, else false. */
+     *  if the shard is inactive. */
     public boolean checkIdle(long inactiveTimeNS) {
-        if (System.nanoTime() - lastWriteNS >= inactiveTimeNS && active.getAndSet(false)) {
-            updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
-            logger.debug("shard is now inactive");
-            indicesLifecycle.onShardInactive(this);
-            return true;
+        if (System.nanoTime() - lastWriteNS >= inactiveTimeNS) {
+            boolean wasActive = active.getAndSet(false);
+            if (wasActive) {
+                updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
+                logger.debug("shard is now inactive");
+                indicesLifecycle.onShardInactive(this);
+            }
         }
 
-        return false;
+        return active.get() == false;
     }
 
     /** Returns {@code true} if this shard is active (has seen indexing ops in the last {@link

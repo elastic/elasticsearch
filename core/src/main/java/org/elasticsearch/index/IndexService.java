@@ -288,7 +288,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             indicesLifecycle.afterIndexShardCreated(indexShard);
             settingsService.addListener(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
-            indexServicesProvider.getIndexingMemoryController().forceCheck();
             success = true;
             return indexShard;
         } catch (IOException e) {

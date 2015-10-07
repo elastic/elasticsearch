@@ -123,9 +123,9 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         public void simulateIndexing(ShardId shardId) {
             lastIndexTimeNanos.put(shardId, currentTimeInNanos());
             if (indexingBuffers.containsKey(shardId) == false) {
-                // First time we are indexing into this shard; start it off with default indexing buffer:
-                indexingBuffers.put(shardId, EngineConfig.DEFAULT_INDEX_BUFFER_SIZE);
-                translogBuffers.put(shardId, TranslogConfig.DEFAULT_SHARD_TRANSLOG_BUFFER_SIZE);
+                // First time we are seeing this shard; start it off with inactive buffers as IndexShard does:
+                indexingBuffers.put(shardId, IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER);
+                translogBuffers.put(shardId, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
             }
             activeShards.add(shardId);
             forceCheck();

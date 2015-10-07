@@ -28,7 +28,6 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Function;
 import java.util.function.ToLongBiFunction;
 
 /**
@@ -581,10 +580,10 @@ public class Cache<K, V> {
     }
 
     private boolean shouldPrune(Entry<K, V> entry, long now) {
-        return exceedsSize() || isExpired(entry, now);
+        return exceedsWeight() || isExpired(entry, now);
     }
 
-    private boolean exceedsSize() {
+    private boolean exceedsWeight() {
         return maximumWeight != -1 && weight > maximumWeight;
     }
 

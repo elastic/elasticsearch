@@ -25,65 +25,108 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.Data;
-import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
-import org.elasticsearch.plugin.ingest.PipelineStore;
+import org.elasticsearch.plugin.ingest.PipelineExecutionService;
 
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 
-public class IngestActionFilter extends ActionFilter.Simple {
+public class IngestActionFilter extends AbstractComponent implements ActionFilter {
 
-    private final PipelineStore pipelineStore;
+    private final PipelineExecutionService executionService;
 
     @Inject
-    public IngestActionFilter(Settings settings, PipelineStore pipelineStore) {
+    public IngestActionFilter(Settings settings, PipelineExecutionService executionService) {
         super(settings);
-        this.pipelineStore = pipelineStore;
+        this.executionService = executionService;
     }
 
     @Override
-    protected boolean apply(String action, ActionRequest request, ActionListener listener) {
+    public void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
         String pipelineId = request.getFromContext(IngestPlugin.INGEST_CONTEXT_KEY);
         if (pipelineId == null) {
             pipelineId = request.getHeader(IngestPlugin.INGEST_PARAM);
             if (pipelineId == null) {
-                return true;
+                chain.proceed(action, request, listener);
+                return;
             }
-        }
-        Pipeline pipeline = pipelineStore.get(pipelineId);
-        if (pipeline == null) {
-            return true;
         }
 
         if (request instanceof IndexRequest) {
-            processIndexRequest((IndexRequest) request, pipeline);
+            processIndexRequest(action, listener, chain, (IndexRequest) request, pipelineId);
         } else if (request instanceof BulkRequest) {
             BulkRequest bulkRequest = (BulkRequest) request;
-            List<ActionRequest> actionRequests = bulkRequest.requests();
-            for (ActionRequest actionRequest : actionRequests) {
-                if (actionRequest instanceof IndexRequest) {
-                    processIndexRequest((IndexRequest) actionRequest, pipeline);
-                }
-            }
+            processBulkIndexRequest(action, listener, chain, bulkRequest, pipelineId, bulkRequest.requests().iterator());
+        } else {
+            chain.proceed(action, request, listener);
         }
-        return true;
-    }
-
-    // TODO: this should be delegated to a PipelineExecutor service that executes on a different thread (pipeline TP)
-    void processIndexRequest(IndexRequest indexRequest, Pipeline pipeline) {
-        Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        Data data = new Data(indexRequest.index(), indexRequest.type(), indexRequest.id(), sourceAsMap);
-        pipeline.execute(data);
-        indexRequest.source(data.getDocument());
     }
 
     @Override
-    protected boolean apply(String action, ActionResponse response, ActionListener listener) {
-        return true;
+    public void apply(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+        chain.proceed(action, response, listener);
+    }
+
+    void processIndexRequest(String action, ActionListener listener, ActionFilterChain chain, IndexRequest indexRequest, String pipelineId) {
+        Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
+        Data data = new Data(indexRequest.index(), indexRequest.type(), indexRequest.id(), sourceAsMap);
+        executionService.execute(data, pipelineId, new PipelineExecutionService.Listener() {
+            @Override
+            public void executed(Data data) {
+                if (data.isModified()) {
+                    indexRequest.source(data.getDocument());
+                }
+                chain.proceed(action, indexRequest, listener);
+            }
+
+            @Override
+            public void failed(Exception e) {
+                logger.error("failed to execute pipeline [{}]", e, pipelineId);
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    // TODO: rethink how to deal with bulk requests:
+    // This doesn't scale very well for a single bulk requests, so it would be great if a bulk requests could be broken up into several chunks so that the ingesting can be paralized
+    // on the other hand if there are many index/bulk requests then breaking up bulk requests isn't going to help much.
+    // I think the execution service should be smart enough about when it should break things up in chunks based on the ingest threadpool usage,
+    // this means that the contract of the execution service should change in order to accept multiple data instances.
+    void processBulkIndexRequest(String action, ActionListener listener, ActionFilterChain chain, BulkRequest bulkRequest, String pipelineId, Iterator<ActionRequest> requests) {
+        if (!requests.hasNext()) {
+            chain.proceed(action, bulkRequest, listener);
+            return;
+        }
+
+        ActionRequest actionRequest = requests.next();
+        if (!(actionRequest instanceof IndexRequest)) {
+            processBulkIndexRequest(action, listener, chain, bulkRequest, pipelineId, requests);
+            return;
+        }
+
+        IndexRequest indexRequest = (IndexRequest) actionRequest;
+        Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
+        Data data = new Data(indexRequest.index(), indexRequest.type(), indexRequest.id(), sourceAsMap);
+        executionService.execute(data, pipelineId, new PipelineExecutionService.Listener() {
+            @Override
+            public void executed(Data data) {
+                if (data.isModified()) {
+                    indexRequest.source(data.getDocument());
+                }
+                processBulkIndexRequest(action, listener, chain, bulkRequest, pipelineId, requests);
+            }
+
+            @Override
+            public void failed(Exception e) {
+                logger.error("failed to execute pipeline [{}]", e, pipelineId);
+                listener.onFailure(e);
+            }
+        });
     }
 
     @Override

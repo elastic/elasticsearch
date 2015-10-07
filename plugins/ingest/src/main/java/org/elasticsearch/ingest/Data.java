@@ -33,6 +33,8 @@ public final class Data {
     private final String id;
     private final Map<String, Object> document;
 
+    private boolean modified = false;
+
     public Data(String index, String type, String id, Map<String, Object> document) {
         this.index = index;
         this.type = type;
@@ -46,6 +48,7 @@ public final class Data {
     }
 
     public void addField(String field, String value) {
+        modified = true;
         document.put(field, value);
     }
 
@@ -63,5 +66,9 @@ public final class Data {
 
     public Map<String, Object> getDocument() {
         return document;
+    }
+
+    public boolean isModified() {
+        return modified;
     }
 }

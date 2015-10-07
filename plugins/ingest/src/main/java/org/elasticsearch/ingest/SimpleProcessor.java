@@ -51,7 +51,7 @@ public final class SimpleProcessor implements Processor {
     public static class Builder implements Processor.Builder {
 
         private String path;
-        private String value;
+        private String expectedValue;
         private String addField;
         private String addFieldValue;
 
@@ -59,8 +59,8 @@ public final class SimpleProcessor implements Processor {
             this.path = path;
         }
 
-        public void setValue(String value) {
-            this.value = value;
+        public void setExpectedValue(String value) {
+            this.expectedValue = value;
         }
 
         public void setAddField(String addField) {
@@ -73,14 +73,14 @@ public final class SimpleProcessor implements Processor {
 
         public void fromMap(Map<String, Object> config) {
             this.path = (String) config.get("path");
-            this.value = (String) config.get("value");
+            this.expectedValue = (String) config.get("expected_value");
             this.addField = (String) config.get("add_field");
             this.addFieldValue = (String) config.get("add_field_value");
         }
 
         @Override
         public Processor build() {
-            return new SimpleProcessor(path, value, addField, addFieldValue);
+            return new SimpleProcessor(path, expectedValue, addField, addFieldValue);
         }
 
         public static class Factory implements Processor.Builder.Factory {

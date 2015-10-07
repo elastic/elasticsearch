@@ -23,6 +23,7 @@ package org.elasticsearch.plugin.ingest;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.ingest.transport.IngestActionFilter;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.action.RestActionModule;
@@ -31,14 +32,23 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+
 public class IngestPlugin extends Plugin {
 
     public static final String INGEST_CONTEXT_KEY = "__ingest__";
     public static final String INGEST_PARAM = "ingest";
+    public static final String NAME = "ingest";
+
+    private final Settings nodeSettings;
+
+    public IngestPlugin(Settings nodeSettings) {
+        this.nodeSettings = nodeSettings;
+    }
 
     @Override
     public String name() {
-        return "ingest";
+        return NAME;
     }
 
     @Override
@@ -54,6 +64,13 @@ public class IngestPlugin extends Plugin {
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         return Arrays.asList(PipelineStore.class, PipelineConfigDocReader.class);
+    }
+
+    @Override
+    public Settings additionalSettings() {
+        return settingsBuilder()
+                .put(PipelineExecutionService.additionalSettings(nodeSettings))
+                .build();
     }
 
     public void onModule(ActionModule module) {

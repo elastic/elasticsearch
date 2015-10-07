@@ -48,7 +48,7 @@ public class BasicTests extends ESIntegTestCase {
                             .startObject()
                                 .startObject("simple")
                                     .field("path", "field2")
-                                    .field("value", "abc")
+                                    .field("expected_value", "abc")
                                     .field("add_field", "field3")
                                     .field("add_field_value", "xyz")
                                 .endObject()
@@ -64,16 +64,25 @@ public class BasicTests extends ESIntegTestCase {
                 .putHeader("ingest", "_id")
                 .get();
 
-        Map<String, Object> doc = client().prepareGet("test", "type", "1")
-                .get().getSourceAsMap();
-        assertThat(doc.get("field3"), equalTo("xyz"));
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                Map<String, Object> doc = client().prepareGet("test", "type", "1")
+                        .get().getSourceAsMap();
+                assertThat(doc.get("field3"), equalTo("xyz"));
+            }
+        });
 
         client().prepareBulk().add(
                 client().prepareIndex("test", "type", "2").setSource("field2", "abc")
         ).putHeader("ingest", "_id").get();
-
-        doc = client().prepareGet("test", "type", "2").get().getSourceAsMap();
-        assertThat(doc.get("field3"), equalTo("xyz"));
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                Map<String, Object> doc = client().prepareGet("test", "type", "2").get().getSourceAsMap();
+                assertThat(doc.get("field3"), equalTo("xyz"));
+            }
+        });
     }
 
     @Override

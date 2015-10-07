@@ -37,6 +37,7 @@ public class IngestModule extends AbstractModule {
     @Override
     protected void configure() {
         binder().bind(IngestRestFilter.class).asEagerSingleton();
+        binder().bind(PipelineExecutionService.class).asEagerSingleton();
         binder().bind(PipelineStore.class).asEagerSingleton();
         binder().bind(PipelineConfigDocReader.class).asEagerSingleton();
 

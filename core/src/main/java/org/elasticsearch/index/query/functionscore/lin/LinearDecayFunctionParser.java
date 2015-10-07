@@ -32,7 +32,7 @@ public class LinearDecayFunctionParser extends DecayFunctionParser {
         return NAMES;
     }
 
-    static final DecayFunction decayFunction = new LinearDecayScoreFunction();
+    public static final DecayFunction decayFunction = new LinearDecayScoreFunction();
 
     @Override
     public DecayFunction getDecayFunction() {

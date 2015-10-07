@@ -32,7 +32,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
@@ -54,10 +60,54 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
+import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.notQuery;
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanMultiTermQueryBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanOrQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsLookupQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wrapperQuery;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 public class SearchQueryIT extends ESIntegTestCase {
 
@@ -146,15 +196,6 @@ public class SearchQueryIT extends ESIntegTestCase {
                 client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(notQuery(termQuery("field1", "value3"))).get(),
                 2l);
     }
-// NORELEASE  This should be tested in SearchSourceBuilderTests
-//    @Test
-//    public void passQueryAsStringTest() throws Exception {
-//        createIndex("test");
-//        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).get();
-//
-//        SearchResponse searchResponse = client().prepareSearch().setQuery("{ \"term\" : { \"field1\" : \"value1_1\" }}").get();
-//        assertHitCount(searchResponse, 1l);
-//    }
 
     @Test
     public void testIndexOptions() throws Exception {
@@ -311,11 +352,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
-     // NORELEASE  This should be tested in SearchSourceBuilderTests
-//        searchResponse = client().prepareSearch().setQuery("{ \"common\" : { \"field1\" : { \"query\" : \"the lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 4 } } } }").get();
-//        assertHitCount(searchResponse, 1l);
-//        assertFirstHit(searchResponse, hasId("2"));
-
         // Default
         searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the lazy fox brown").cutoffFrequency(1)).get();
         assertHitCount(searchResponse, 1l);
@@ -403,11 +439,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("6")).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
-
-     // NORELEASE  This should be tested in SearchSourceBuilderTests
-//        searchResponse = client().prepareSearch().setQuery("{ \"common\" : { \"field1\" : { \"query\" : \"the fast lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 6 } } } }").get();
-//        assertHitCount(searchResponse, 1l);
-//        assertFirstHit(searchResponse, hasId("2"));
 
         // Default
         searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast lazy fox brown").cutoffFrequency(1)).get();
@@ -1458,15 +1489,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2l);
     }
 
- // NORELEASE  This should be tested in SearchSourceBuilderTests
-//    @Test
-//    public void testEmptyTopLevelFilter() {
-//        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).get();
-//
-//        SearchResponse searchResponse = client().prepareSearch().setPostFilter("{}").get();
-//        assertHitCount(searchResponse, 1l);
-//    }
-
     @Test // see #2926
     public void testMustNot() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
@@ -2187,27 +2209,4 @@ public class SearchQueryIT extends ESIntegTestCase {
             assertThat(i + " expected: " + first + " actual: " + actual, Float.compare(first, actual), equalTo(0));
         }
     }
-
- // NORELEASE  This should be tested in SearchSourceBuilderTests
-//    @Test // see #7686.
-//    public void testIdsQueryWithInvalidValues() throws Exception {
-//        createIndex("test");
-//        indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("body", "foo"));
-//
-//        try {
-//            client().prepareSearch("test")
-//                    .setTypes("type")
-//                    .setQuery("{\n" +
-//                            "  \"ids\": {\n" +
-//                            "    \"values\": [[\"1\"]]\n" +
-//                            "  }\n" +
-//                            "}")
-//                    .get();
-//            fail("query is invalid and should have produced a parse exception");
-//        } catch (Exception e) {
-//            assertThat("query could not be parsed due to bad format: " + e.toString(),
-//                    e.toString().contains("Illegal value for id, expecting a string or number, got: START_ARRAY"),
-//                    equalTo(true));
-//        }
-//    }
 }

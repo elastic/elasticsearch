@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
+import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
@@ -296,6 +297,10 @@ public class SearchSourceBuilderTests extends ESTestCase {
     public void testFromXContent() throws IOException {
         SearchSourceBuilder testBuilder = createSearchSourceBuilder();
         String builderAsString = testBuilder.toString();
+        assertParseSearchSource(testBuilder, builderAsString);
+    }
+
+    private void assertParseSearchSource(SearchSourceBuilder testBuilder, String builderAsString) throws IOException {
         XContentParser parser = XContentFactory.xContent(builderAsString).createParser(builderAsString);
         SearchSourceBuilder newBuilder = SearchSourceBuilder.PROTOTYPE.fromXContent(parser, createParseContext(parser));
         assertNotSame(testBuilder, newBuilder);
@@ -379,6 +384,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
     }
 
+    @Test
     public void testParseSort() throws IOException {
         {
             String restContent = " { \"sort\": \"foo\"}";
@@ -407,5 +413,13 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 assertEquals("\"_score\"", searchSourceBuilder.sorts().get(4).toUtf8());
             }
         }
+    }
+
+    @Test
+    public void testEmptyPostFilter() throws IOException {
+        SearchSourceBuilder builder = new SearchSourceBuilder();
+        builder.postFilter(EmptyQueryBuilder.PROTOTYPE);
+        String query = "{ \"post_filter\": {} }";
+        assertParseSearchSource(builder, query);
     }
 }

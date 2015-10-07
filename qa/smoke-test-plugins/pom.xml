@@ -381,6 +381,14 @@
                    <overWrite>true</overWrite>
                  </artifactItem>
 
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>ingest</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
                  <!-- Internal plugins for test purpose only -->
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>

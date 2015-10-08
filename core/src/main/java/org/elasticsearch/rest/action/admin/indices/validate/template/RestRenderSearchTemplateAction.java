@@ -93,7 +93,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
         }
         renderSearchTemplateRequest = new RenderSearchTemplateRequest();
         renderSearchTemplateRequest.template(template);
-        client.admin().indices().renderSearchTemplate(renderSearchTemplateRequest, new RestBuilderListener<RenderSearchTemplateResponse>(channel) {
+        client.admin().cluster().renderSearchTemplate(renderSearchTemplateRequest, new RestBuilderListener<RenderSearchTemplateResponse>(channel) {
 
             @Override
             public RestResponse buildResponse(RenderSearchTemplateResponse response, XContentBuilder builder) throws Exception {

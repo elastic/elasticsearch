@@ -213,6 +213,8 @@ public class PluginManagerPermissionTests extends ESTestCase {
     }
 
     public void testThatConfigDirectoryBeingAFileAbortsInstallationAndDoesNotAccidentallyDeleteThisFile() throws Exception {
+        assumeTrue("File system does not support permissions, skipping", supportsPermissions);
+
         Files.createDirectories(environment.configFile());
         Files.createFile(environment.configFile().resolve(pluginName));
         URL pluginUrl = createPlugin(randomBoolean(), true);
@@ -230,6 +232,8 @@ public class PluginManagerPermissionTests extends ESTestCase {
     }
 
     public void testThatBinDirectoryBeingAFileAbortsInstallationAndDoesNotAccidentallyDeleteThisFile() throws Exception {
+        assumeTrue("File system does not support permissions, skipping", supportsPermissions);
+
         Files.createDirectories(environment.binFile());
         Files.createFile(environment.binFile().resolve(pluginName));
         URL pluginUrl = createPlugin(true, randomBoolean());

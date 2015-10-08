@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.geo;
 
-
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.XGeoHashUtils;
 import org.apache.lucene.util.XGeoUtils;
@@ -32,7 +31,6 @@ public final class GeoPoint {
     private double lat;
     private double lon;
     private final static double TOLERANCE = XGeoUtils.TOLERANCE;
-
     public GeoPoint() {
     }
 

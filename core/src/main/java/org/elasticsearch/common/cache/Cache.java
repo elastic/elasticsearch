@@ -145,7 +145,7 @@ public class Cache<K, V> {
         final K key;
         final V value;
         long writeTime;
-        long accessTime;
+        volatile long accessTime;
         Entry<K, V> before;
         Entry<K, V> after;
         State state = State.NEW;

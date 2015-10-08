@@ -24,10 +24,22 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Queue;
 
+/**
+ * An {@code EvictingQueue} is a non-blocking queue which is limited to a maximum size; when new elements are added to a
+ * full queue, elements are evicted from the head of the queue to accommodate the new elements.
+ *
+ * @param <T> The type of elements in the queue.
+ */
 public class EvictingQueue<T> implements Queue<T> {
     private final int maximumSize;
     private final ArrayDeque<T> queue;
 
+    /**
+     * Construct a new {@code EvictingQueue} that holds {@code maximumSize} elements.
+     *
+     * @param maximumSize The maximum number of elements that the queue can hold
+     * @throws IllegalArgumentException if {@code maximumSize} is less than zero
+     */
     public EvictingQueue(int maximumSize) {
         if (maximumSize < 0) {
             throw new IllegalArgumentException("maximumSize < 0");
@@ -36,10 +48,20 @@ public class EvictingQueue<T> implements Queue<T> {
         this.queue = new ArrayDeque<>(maximumSize);
     }
 
+    /**
+     * @return the number of additional elements that the queue can accommodate before evictions occur
+     */
     public int remainingCapacity() {
         return this.maximumSize - this.size();
     }
 
+    /**
+     * Add the given element to the queue, possibly forcing an eviction from the head if {@link #remainingCapacity()} is
+     * zero.
+     *
+     * @param t the element to add
+     * @return true if the element was added (always the case for {@code EvictingQueue}
+     */
     @Override
     public boolean add(T t) {
         if (maximumSize == 0) {
@@ -52,6 +74,9 @@ public class EvictingQueue<T> implements Queue<T> {
         return true;
     }
 
+    /**
+     * @see #add(Object)
+     */
     @Override
     public boolean offer(T t) {
         return add(t);
@@ -61,6 +86,7 @@ public class EvictingQueue<T> implements Queue<T> {
     public T remove() {
         return queue.remove();
     }
+
 
     @Override
     public T poll() {
@@ -117,6 +143,13 @@ public class EvictingQueue<T> implements Queue<T> {
         return queue.containsAll(c);
     }
 
+    /**
+     * Add the given elements to the queue, possibly forcing evictions from the head if {@link #remainingCapacity()} is
+     * zero or becomes zero during the execution of this method.
+     *
+     * @param c the collection of elements to add
+     * @return true if any elements were added to the queue
+     */
     @Override
     public boolean addAll(Collection<? extends T> c) {
         boolean modified = false;

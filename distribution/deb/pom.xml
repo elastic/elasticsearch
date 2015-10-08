@@ -120,6 +120,19 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>
+                                <!-- create the conf dir manually so it gets proper permissions -->
+                                <data>
+                                    <type>template</type>
+                                    <paths>
+                                        <path>${packaging.elasticsearch.conf.dir}</path>
+                                    </paths>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <filemode>750</filemode>
+                                        <user>root</user>
+                                        <group>elasticsearch</group>
+                                    </mapper>
+                                </data>
                                 <!-- Add configuration files -->
                                 <data>
                                     <src>${project.basedir}/../src/main/resources/config</src>
@@ -128,8 +141,9 @@
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>${packaging.elasticsearch.conf.dir}</prefix>
+                                        <filemode>750</filemode>
                                         <user>root</user>
-                                        <group>root</group>
+                                        <group>elasticsearch</group>
                                     </mapper>
                                 </data>
                                 <data>
@@ -137,6 +151,12 @@
                                     <paths>
                                         <path>${packaging.elasticsearch.conf.dir}/scripts</path>
                                     </paths>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <filemode>750</filemode>
+                                        <user>root</user>
+                                        <group>elasticsearch</group>
+                                    </mapper>
                                 </data>
                                 <!-- Add environment vars file -->
                                 <data>

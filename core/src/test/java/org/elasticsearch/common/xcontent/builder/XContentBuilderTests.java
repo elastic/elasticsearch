@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.builder;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -349,6 +350,18 @@ public class XContentBuilderTests extends ESTestCase {
                 "test: \"foo\"\n" +
                 "foo:\n" +
                 "  foobar: \"boom\"\n", string);
+    }
+
+    public void testRenderGeoPoint() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+        builder.startObject().field("foo").value(new GeoPoint(1,2)).endObject();
+        String string = builder.string();
+        assertEquals("{\n" +
+                "  \"foo\" : {\n" +
+                "    \"lat\" : 1.0,\n" +
+                "    \"lon\" : 2.0\n" +
+                "  }\n" +
+                "}", string.trim());
     }
 
 }

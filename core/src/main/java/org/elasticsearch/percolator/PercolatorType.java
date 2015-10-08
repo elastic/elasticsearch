@@ -64,19 +64,21 @@ abstract class PercolatorType<C extends Collector> {
             size = shardSearcher.getIndexReader().numDocs();
         }
         C typeCollector = getCollector(size);
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        PercolatorQuery.Builder builder = new PercolatorQuery.Builder(percolateSearcher, queriesRegistry.getPercolateQueries(), percolateTypeQuery);
         if (queriesRegistry.indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_2_1_0)) {
-            builder.add(queriesRegistry.getQueryMetadataService().createQueryMetadataQuery(percolateSearcher.getIndexReader()), FILTER);
+            builder.setQueriesMetaDataQuery(queriesRegistry.getQueryMetadataService());
         }
-        if (percolateQuery != null){
-            builder.add(percolateQuery, MUST);
+        if (percolateQuery != null || aliasQuery != null) {
+            BooleanQuery.Builder bq = new BooleanQuery.Builder();
+            if (percolateQuery != null) {
+                bq.add(percolateQuery, MUST);
+            }
+            if (aliasQuery != null) {
+                bq.add(aliasQuery, FILTER);
+            }
+            builder.setPercolateQuery(bq.build());
         }
-        if (aliasQuery != null) {
-            builder.add(aliasQuery, FILTER);
-        }
-        builder.add(percolateTypeQuery, FILTER);
-        Query query = builder.build();
-        PercolatorQuery percolatorQuery = new PercolatorQuery(query, percolateSearcher, queriesRegistry.getPercolateQueries());
+        PercolatorQuery percolatorQuery = builder.build();
         List<Collector> collectors = new ArrayList<>();
         collectors.add(typeCollector);
         if (extraCollectors != null) {

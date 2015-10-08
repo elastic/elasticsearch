@@ -26,26 +26,74 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.percolator.QueryMetadataService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
+
+import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
+import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 
 final class PercolatorQuery extends Query {
+
+    static class Builder {
+
+        private final IndexSearcher percolatorIndexSearcher;
+        private final Map<BytesRef, Query> percolatorQueries;
+
+        private Query percolateQuery;
+        private Query queriesMetaDataQuery;
+        private final Query percolateTypeQuery;
+
+        /**
+         * @param percolatorIndexSearcher The index searcher on top of the in-memory index that holds the document being percolated
+         * @param percolatorQueries All the registered percolator queries
+         * @param percolateTypeQuery A query that identifies all document containing percolator queries
+         */
+        Builder(IndexSearcher percolatorIndexSearcher, Map<BytesRef, Query> percolatorQueries, Query percolateTypeQuery) {
+            this.percolatorIndexSearcher = percolatorIndexSearcher;
+            this.percolatorQueries = percolatorQueries;
+            this.percolateTypeQuery = percolateTypeQuery;
+        }
+
+        /**
+         * Optionally sets a query that reduces the number of queries to percolate based on custom metadata attached
+         * on the percolator documents.
+         */
+        void setPercolateQuery(Query percolateQuery) {
+            this.percolateQuery = percolateQuery;
+        }
+
+        /**
+         * Optionally sets a query that reduces the number of queries to percolate based on extracted terms from
+         * the document to be percolated.
+         */
+        void setQueriesMetaDataQuery(QueryMetadataService metadataService) throws IOException {
+            this.queriesMetaDataQuery = metadataService.createQueryMetadataQuery(percolatorIndexSearcher.getIndexReader());
+        }
+
+        PercolatorQuery build() {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(percolateTypeQuery, FILTER);
+            if (queriesMetaDataQuery != null) {
+                builder.add(queriesMetaDataQuery, FILTER);
+            }
+            if (percolateQuery != null){
+                builder.add(percolateQuery, MUST);
+            }
+            return new PercolatorQuery(builder.build(), percolatorIndexSearcher, percolatorQueries);
+        }
+
+    }
 
     private final Query percolatorQueriesQuery;
     private final IndexSearcher percolatorIndexSearcher;
     private final Map<BytesRef, Query> percolatorQueries;
 
-    PercolatorQuery(Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher, Map<BytesRef, Query> percolatorQueries) {
+    private PercolatorQuery(Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher, Map<BytesRef, Query> percolatorQueries) {
         this.percolatorQueriesQuery = percolatorQueriesQuery;
         this.percolatorIndexSearcher = percolatorIndexSearcher;
         this.percolatorQueries = percolatorQueries;

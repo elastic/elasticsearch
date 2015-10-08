@@ -100,12 +100,13 @@ public class PercolatorQueryTests extends ESTestCase {
         memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
 
-        PercolatorQuery percolatorQuery = new PercolatorQuery(
-                queryMetadataService.createQueryMetadataQuery(percolateSearcher.getIndexReader()),
+        PercolatorQuery.Builder builder = new PercolatorQuery.Builder(
                 percolateSearcher,
-                queries
+                queries,
+                new MatchAllDocsQuery()
         );
-        TopDocs topDocs = shardSearcher.search(percolatorQuery, 10);
+        builder.setQueriesMetaDataQuery(queryMetadataService);
+        TopDocs topDocs = shardSearcher.search(builder.build(), 10);
         assertThat(topDocs.totalHits, equalTo(5));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
@@ -128,15 +129,15 @@ public class PercolatorQueryTests extends ESTestCase {
         memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
 
-        BooleanQuery.Builder percolatorQueriesQuery = new BooleanQuery.Builder();
-        percolatorQueriesQuery.add(queryMetadataService.createQueryMetadataQuery(percolateSearcher.getIndexReader()), BooleanClause.Occur.FILTER);
-        percolatorQueriesQuery.add(new TermQuery(new Term("field", "value1")), BooleanClause.Occur.MUST);
-        PercolatorQuery percolatorQuery = new PercolatorQuery(
-                percolatorQueriesQuery.build(),
+        PercolatorQuery.Builder builder = new PercolatorQuery.Builder(
                 percolateSearcher,
-                queries
+                queries,
+                new MatchAllDocsQuery()
         );
+        builder.setQueriesMetaDataQuery(queryMetadataService);
+        builder.setPercolateQuery(new TermQuery(new Term("field", "value1")));
 
+        PercolatorQuery percolatorQuery = builder.build();
         TopDocs topDocs = shardSearcher.search(percolatorQuery, 1);
         assertThat(topDocs.totalHits, equalTo(1));
         assertThat(topDocs.scoreDocs.length, equalTo(1));

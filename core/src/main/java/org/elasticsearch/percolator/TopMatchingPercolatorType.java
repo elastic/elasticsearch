@@ -42,6 +42,7 @@ import org.elasticsearch.search.highlight.HighlightPhase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -154,10 +155,8 @@ class TopMatchingPercolatorType extends PercolatorType<TopScoreDocCollector> {
         long count = topDocs.totalHits;
         List<BytesRef> matches = new ArrayList<>(topDocs.scoreDocs.length);
         float[] scores = new float[topDocs.scoreDocs.length];
-        List<Map<String, HighlightField>> hls = null;
-        if (context.highlight() != null) {
-            hls = new ArrayList<>(topDocs.scoreDocs.length);
-        }
+        boolean hl = context.highlight() != null;
+        List<Map<String, HighlightField>> hls = hl ? new ArrayList<>(topDocs.scoreDocs.length) : Collections.emptyList();
 
         int i = 0;
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -168,7 +167,7 @@ class TopMatchingPercolatorType extends PercolatorType<TopScoreDocCollector> {
             atomicReaderContext.reader().document(segmentDocId, fieldsVisitor);
             BytesRef id = new BytesRef(fieldsVisitor.uid().id());
             matches.add(id);
-            if (hls != null) {
+            if (hl) {
                 Query query = registry.getPercolateQueries().get(id);
                 context.parsedQuery(new ParsedQuery(query));
                 context.hitContext().cache().clear();
@@ -177,11 +176,7 @@ class TopMatchingPercolatorType extends PercolatorType<TopScoreDocCollector> {
             }
             scores[i++] = scoreDoc.score;
         }
-        if (hls != null) {
-            return new PercolateShardResponse(matches.toArray(new BytesRef[matches.size()]), hls, count, scores, context);
-        } else {
-            return new PercolateShardResponse(matches.toArray(new BytesRef[matches.size()]), count, scores, context);
-        }
+        return new PercolateShardResponse(matches.toArray(new BytesRef[matches.size()]), hls, count, scores, context);
     }
 
 }

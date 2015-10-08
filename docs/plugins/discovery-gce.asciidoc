@@ -61,7 +61,7 @@ You can use {ref}/modules-network.html[core network host settings] or
 [[discovery-gce-network-host]]
 ==== GCE Network Host
 
-When the `cloud-gce` plugin is installed, the following are also allowed
+When the `discovery-gce` plugin is installed, the following are also allowed
 as valid network host settings:
 
 [cols="<,<",options="header",]

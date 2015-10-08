@@ -54,7 +54,7 @@ provided network interface. For example `_en0:ipv6_`.
 When the `discovery-ec2` plugin is installed, you can use
 {plugins}/discovery-ec2-discovery.html#discovery-ec2-network-host[ec2 specific host settings].
 
-When the `cloud-gce` plugin is installed, you can use
+When the `discovery-gce` plugin is installed, you can use
 {plugins}/discovery-gce-network-host.html[gce specific host settings].
 
 

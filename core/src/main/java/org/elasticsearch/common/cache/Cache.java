@@ -604,6 +604,7 @@ public class Cache<K, V> {
 
             if (before == null) {
                 // removing the head
+                assert head == entry;
                 head = after;
                 if (head != null) {
                     head.before = null;
@@ -616,6 +617,7 @@ public class Cache<K, V> {
 
             if (after == null) {
                 // removing tail
+                assert tail == entry;
                 tail = before;
                 if (tail != null) {
                     tail.after = null;

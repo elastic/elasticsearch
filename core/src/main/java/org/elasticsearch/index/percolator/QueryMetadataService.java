@@ -24,6 +24,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
@@ -54,7 +55,7 @@ public class QueryMetadataService {
         List<Term> queryTerms;
         try {
             queryTerms = extractQueryMetadata(query);
-        } catch (IllegalArgumentException e) {
+        } catch (UnsupportedQueryException e) {
             document.add(new Field(QUERY_METADATA_FIELD_UNKNOWN, new BytesRef(), QUERY_METADATA_FIELD_TYPE));
             return;
         }
@@ -70,7 +71,7 @@ public class QueryMetadataService {
      * since that those terms are likely to be the rarest. Boolean query's must_not clauses are always ignored ignored.
      *
      * If from part of the query, no query terms can be extracted then term extraction is stopped and
-     * an IllegalArgumentException is thrown.
+     * an UnsupportedQueryException is thrown.
      */
     public List<Term> extractQueryMetadata(Query query) {
         // TODO: add support for the TermsQuery when it has methods to access the actual terms it encapsulates
@@ -139,7 +140,7 @@ public class QueryMetadataService {
             Query wrappedQuery = ((BoostQuery) query).getQuery();
             return extractQueryMetadata(wrappedQuery);
         } else {
-            throw new IllegalArgumentException("unsupported query");
+            throw new UnsupportedQueryException(query);
         }
     }
 
@@ -187,6 +188,26 @@ public class QueryMetadataService {
             }
         }
         return new TermsQuery(extractedTerms);
+    }
+
+    /**
+     * Exception indicating that none or some query terms couldn't extracted from a percolator query.
+     */
+    public class UnsupportedQueryException extends RuntimeException {
+
+        private final Query unsupportedQuery;
+
+        public UnsupportedQueryException(Query unsupportedQuery) {
+            super(LoggerMessageFormat.format("no query terms can be extracted from query [{}]", unsupportedQuery));
+            this.unsupportedQuery = unsupportedQuery;
+        }
+
+        /**
+         * The actual Lucene query that was unsupported and caused this exception to be thrown.
+         */
+        public Query getUnsupportedQuery() {
+            return unsupportedQuery;
+        }
     }
 
 }

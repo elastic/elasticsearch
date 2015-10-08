@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.index.percolator.QueryMetadataService.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -144,21 +145,22 @@ public class QueryMetadataServiceTests extends ESTestCase {
 
         try {
             queryMetadataService.extractQueryMetadata(termRangeQuery);
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("unsupported query"));
+            fail("UnsupportedQueryException expected");
+        } catch (QueryMetadataService.UnsupportedQueryException e) {
+            assertThat(e.getUnsupportedQuery(), sameInstance(termRangeQuery));
         }
 
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         BooleanQuery.Builder builder = new BooleanQuery.Builder();;
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         builder.add(termRangeQuery, BooleanClause.Occur.SHOULD);
+        BooleanQuery bq = builder.build();
 
         try {
-            queryMetadataService.extractQueryMetadata(builder.build());
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("unsupported query"));
+            queryMetadataService.extractQueryMetadata(bq);
+            fail("UnsupportedQueryException expected");
+        } catch (QueryMetadataService.UnsupportedQueryException e) {
+            assertThat(e.getUnsupportedQuery(), sameInstance(termRangeQuery));
         }
     }
 

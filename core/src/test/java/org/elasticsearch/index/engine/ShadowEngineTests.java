@@ -965,4 +965,13 @@ public class ShadowEngineTests extends ESTestCase {
         // (shadow engine is already shut down in the try-with-resources)
         IOUtils.close(srStore, pEngine, pStore);
     }
+
+    public void testNoTranslog() {
+        try {
+            replicaEngine.getTranslog();
+            fail("shadow engine has no translog");
+        } catch (UnsupportedOperationException ex) {
+            // all good
+        }
+    }
 }

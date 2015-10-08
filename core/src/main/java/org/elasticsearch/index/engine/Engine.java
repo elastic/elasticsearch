@@ -379,6 +379,9 @@ public abstract class Engine implements Closeable {
         stats.addIndexWriterMaxMemoryInBytes(0);
     }
 
+    /** How much heap Lucene's IndexWriter is using */
+    abstract public long indexWriterRAMBytesUsed();
+
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
@@ -636,6 +639,8 @@ public abstract class Engine implements Closeable {
         Type opType();
 
         Origin origin();
+
+        long startTime();
     }
 
     public static abstract class IndexingOperation implements Operation {
@@ -738,6 +743,7 @@ public abstract class Engine implements Closeable {
         /**
          * Returns operation start time in nanoseconds.
          */
+        @Override
         public long startTime() {
             return this.startTime;
         }
@@ -896,6 +902,7 @@ public abstract class Engine implements Closeable {
         /**
          * Returns operation start time in nanoseconds.
          */
+        @Override
         public long startTime() {
             return this.startTime;
         }

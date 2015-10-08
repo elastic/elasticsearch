@@ -228,7 +228,7 @@ public class UpdateIT extends ESIntegTestCase {
                     assertNotNull(ctx);
                     Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
                     Number currentValue = (Number) source.get(field);
-                    Number inc = params == null ? 1L : (Number) params.getOrDefault("inc", 1);
+                    Number inc = params == null || params.containsKey("inc") == false ? 1L : (Number) params.get("inc");
                     source.put(field, currentValue.longValue() + inc.longValue());
                     return ctx;
                 }

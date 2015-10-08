@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.*;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class PercolatorQueryTests extends ESTestCase {
 
@@ -113,7 +115,40 @@ public class PercolatorQueryTests extends ESTestCase {
         assertThat(topDocs.scoreDocs[4].doc, equalTo(7));
     }
 
-    void addPercolatorQuery(String id, Query query, IndexWriter writer, QueryMetadataService queryMetadataService, Map<BytesRef, Query> queries) throws IOException {
+    public void testWithScoring() throws Exception {
+        Map<BytesRef, Query> queries = new HashMap<>();
+        QueryMetadataService queryMetadataService = new QueryMetadataService();
+        addPercolatorQuery("1", new TermQuery(new Term("field", "brown")), indexWriter, queryMetadataService, queries, "field", "value1");
+
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher =  new IndexSearcher(directoryReader);
+
+        MemoryIndex memoryIndex = new MemoryIndex();
+        memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
+        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+
+        BooleanQuery.Builder percolatorQueriesQuery = new BooleanQuery.Builder();
+        percolatorQueriesQuery.add(queryMetadataService.createQueryMetadataQuery(percolateSearcher.getIndexReader()), BooleanClause.Occur.FILTER);
+        percolatorQueriesQuery.add(new TermQuery(new Term("field", "value1")), BooleanClause.Occur.MUST);
+        PercolatorQuery percolatorQuery = new PercolatorQuery(
+                percolatorQueriesQuery.build(),
+                percolateSearcher,
+                queries
+        );
+
+        TopDocs topDocs = shardSearcher.search(percolatorQuery, 1);
+        assertThat(topDocs.totalHits, equalTo(1));
+        assertThat(topDocs.scoreDocs.length, equalTo(1));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
+        assertEquals(topDocs.scoreDocs[0].score, 0.3f, 0.01f);
+
+        Explanation explanation = shardSearcher.explain(percolatorQuery, 0);
+        assertThat(explanation.isMatch(), is(true));
+        assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[0].score));
+    }
+
+    void addPercolatorQuery(String id, Query query, IndexWriter writer, QueryMetadataService queryMetadataService, Map<BytesRef, Query> queries, String... extraFields) throws IOException {
         queries.put(new BytesRef(id), query);
         Document document = new Document();
         List<Term> queryTerms = queryMetadataService.extractQueryMetadata(query);
@@ -121,6 +156,11 @@ public class PercolatorQueryTests extends ESTestCase {
             document.add(new Field(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + term.field(), term.bytes(), QueryMetadataService.QUERY_METADATA_FIELD_TYPE));
         }
         document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorService.TYPE_NAME, id)));
+        assert extraFields.length % 2 == 0;
+        for (int i = 0; i < extraFields.length; i++) {
+            document.add(new StringField(extraFields[i], extraFields[++i], Field.Store.NO));
+        }
+
         writer.addDocument(document);
     }
 

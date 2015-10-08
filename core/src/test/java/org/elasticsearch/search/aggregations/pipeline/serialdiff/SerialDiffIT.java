@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.aggregations.pipeline.serialdiff;
 
-import com.google.common.collect.EvictingQueue;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
@@ -160,7 +160,7 @@ public class SerialDiffIT extends ESIntegTestCase {
      */
     private void setupExpected(MetricTarget target) {
         ArrayList<Double> values = new ArrayList<>(numBuckets);
-        EvictingQueue<Double> lagWindow = EvictingQueue.create(lag);
+        EvictingQueue<Double> lagWindow = new EvictingQueue<>(lag);
 
         int counter = 0;
         for (PipelineAggregationHelperTests.MockBucket mockBucket : mockHisto) {

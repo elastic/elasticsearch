@@ -30,8 +30,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -279,6 +283,9 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
         private SearchSourceBuilder cached;
 
         public SearchSource(BytesReference bytesArray) {
+            if (bytesArray == null) {
+                throw new IllegalArgumentException("bytesArray must not be null");
+            }
             this.binary = bytesArray;
         }
 
@@ -299,7 +306,7 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
             if (cached == null) {
                 try (XContentParser parser = XContentFactory.xContent(binary).createParser(binary)) {
                     ctx.reset(parser);
-                    cached = SearchSourceBuilder.PROTOTYPE.fromXContent(parser, ctx);
+                    cached = SearchSourceBuilder.parseSearchSource(parser, ctx);
                 }
             }
             return cached;

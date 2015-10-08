@@ -66,11 +66,6 @@ public class DummyQueryParserPlugin extends Plugin {
         }
 
         @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
         protected DummyQueryBuilder doReadFrom(StreamInput in) throws IOException {
             return new DummyQueryBuilder();
         }
@@ -88,6 +83,11 @@ public class DummyQueryParserPlugin extends Plugin {
         @Override
         protected boolean doEquals(DummyQueryBuilder other) {
             return true;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
     }
 

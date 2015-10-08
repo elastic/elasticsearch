@@ -60,12 +60,9 @@ import java.util.Objects;
 /**
  * A search source builder allowing to easily build search source. Simple
  * construction using
- * {@link org.elasticsearch.search.builder.NewSearchSourceBuilder#searchSource()}.
+ * {@link org.elasticsearch.search.builder.SearchSourceBuilder#searchSource()}.
  *
- * @see org.elasticsearch.action.search.SearchRequest#source(NewSearchSourceBuilder)
- */
-/**
- *
+ * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable<SearchSourceBuilder> {
 
@@ -95,7 +92,15 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField STATS_FIELD = new ParseField("stats");
     public static final ParseField EXT_FIELD = new ParseField("ext");
 
-    public static final SearchSourceBuilder PROTOTYPE = new SearchSourceBuilder();
+    private static final SearchSourceBuilder PROTOTYPE = new SearchSourceBuilder();
+
+    public static SearchSourceBuilder readSearchSourceFrom(StreamInput in) throws IOException {
+        return PROTOTYPE.readFrom(in);
+    }
+
+    public static SearchSourceBuilder parseSearchSource(XContentParser parser, QueryParseContext context) throws IOException {
+        return PROTOTYPE.fromXContent(parser, context);
+    }
 
     /**
      * A static factory method to construct a new search source.

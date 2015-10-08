@@ -45,8 +45,6 @@ import java.util.List;
  */
 public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder> {
 
-    private SearchSourceBuilder sourceBuilder;
-
     public SearchRequestBuilder(ElasticsearchClient client, SearchAction action) {
         super(client, action, new SearchRequest());
     }
@@ -475,54 +473,18 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-    /**
-     * Sets the source builder to be used with this request. Note, any operations done
-     * on this require builder before are discarded as this internal builder replaces
-     * what has been built up until this point.
-     */
-    public SearchRequestBuilder internalBuilder(SearchSourceBuilder sourceBuilder) {
-        this.sourceBuilder = sourceBuilder;
-        return this;
-    }
-
-    /**
-     * Returns the internal search source builder used to construct the request.
-     */
-    public SearchSourceBuilder internalBuilder() {
-        return sourceBuilder();
-    }
-
     @Override
     public String toString() {
-        if (sourceBuilder != null) {
-            return sourceBuilder.toString();
-        }
         if (request.source() != null) {
             return request.source().toString();
         }
         return new SearchSourceBuilder().toString();
     }
 
-    @Override
-    public SearchRequest request() {
-        if (sourceBuilder != null) {
-            request.source(sourceBuilder());
-        }
-        return request;
-    }
-
-    @Override
-    protected SearchRequest beforeExecute(SearchRequest request) {
-        if (sourceBuilder != null) {
-            request.source(sourceBuilder());
-        }
-        return request;
-    }
-
     private SearchSourceBuilder sourceBuilder() {
-        if (sourceBuilder == null) {
-            sourceBuilder = new SearchSourceBuilder();
+        if (request.source() == null) {
+            request.source(new SearchSourceBuilder());
         }
-        return sourceBuilder;
+        return request.source();
     }
 }

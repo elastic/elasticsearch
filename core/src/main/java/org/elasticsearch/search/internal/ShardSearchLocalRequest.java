@@ -175,7 +175,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
             scroll = readScroll(in);
         }
         if (in.readBoolean()) {
-            source = SearchSourceBuilder.PROTOTYPE.readFrom(in);
+            source = SearchSourceBuilder.readSearchSourceFrom(in);
         }
         types = in.readStringArray();
         filteringAliases = in.readStringArray();

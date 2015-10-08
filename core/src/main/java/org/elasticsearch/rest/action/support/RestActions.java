@@ -116,7 +116,7 @@ public class RestActions {
         XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes);
         QueryParseContext queryParseContext = new QueryParseContext(queryRegistry);
         queryParseContext.reset(parser);
-        SearchSourceBuilder source = SearchSourceBuilder.PROTOTYPE.fromXContent(parser, queryParseContext);
+        SearchSourceBuilder source = SearchSourceBuilder.parseSearchSource(parser, queryParseContext);
         return source;
     }
 

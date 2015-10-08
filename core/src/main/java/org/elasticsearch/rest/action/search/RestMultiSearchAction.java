@@ -34,7 +34,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.script.Template;
@@ -181,7 +184,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             } else {
                 try (XContentParser requestParser = XContentFactory.xContent(slice).createParser(slice)) {
                     queryParseContext.reset(requestParser);
-                    searchRequest.source(SearchSourceBuilder.PROTOTYPE.fromXContent(requestParser, queryParseContext));
+                    searchRequest.source(SearchSourceBuilder.parseSearchSource(requestParser, queryParseContext));
                 }
             }
             // move pointers

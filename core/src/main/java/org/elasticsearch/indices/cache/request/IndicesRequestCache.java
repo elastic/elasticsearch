@@ -60,8 +60,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.Strings.hasLength;
-
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
  * similar requests that are potentially expensive (because of aggs for example). The cache is fully coherent
@@ -207,6 +205,10 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
      * Can the shard request be cached at all?
      */
     public boolean canCache(ShardSearchRequest request, SearchContext context) {
+        if (request.template() != null) {
+            return false;
+        }
+
         // for now, only enable it for requests with no hits
         if (context.size() != 0) {
             return false;

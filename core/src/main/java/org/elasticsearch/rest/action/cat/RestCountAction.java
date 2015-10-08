@@ -72,13 +72,15 @@ public class RestCountAction extends AbstractCatAction {
         CountRequest countRequest = new CountRequest(indices);
         String source = request.param("source");
         if (source != null) {
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
             try (XContentParser requestParser = XContentFactory.xContent(source).createParser(source)) {
-                QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
                 context.reset(requestParser);
                 final QueryBuilder<?> builder = context.parseInnerQueryBuilder();
                 countRequest.query(builder);
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to parse source", e);
+            } finally {
+                context.reset(null);
             }
         } else {
             QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);

@@ -74,7 +74,7 @@ Then sit back and wait. There will probably be discussion about the pull request
 Contributing to the Elasticsearch codebase
 ------------------------------------------
 
-**Repository:** [https://github.com/elasticsearch/elasticsearch](https://github.com/elastic/elasticsearch)
+**Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
 Make sure you have [Maven](http://maven.apache.org) installed, as Elasticsearch uses it as its build system. Integration with IntelliJ and Eclipse should work out of the box. Eclipse users can automatically configure their IDE by running `mvn eclipse:eclipse` and then importing the project into their workspace: `File > Import > Existing project into workspace` and make sure to select `Search for nested projects...` option as Elasticsearch is a multi-module maven project. Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini` accordingly to avoid GC overhead errors. Please make sure the [m2e-connector](http://marketplace.eclipse.org/content/m2e-connector-maven-dependency-plugin) is not installed in your Eclipse distribution as it will interfere with setup performed by `mvn eclipse:eclipse`.
 

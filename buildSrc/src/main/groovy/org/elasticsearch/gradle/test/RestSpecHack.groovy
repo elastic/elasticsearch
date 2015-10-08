@@ -50,9 +50,9 @@ class RestSpecHack {
      */
     static Task configureTask(Project project, boolean includePackagedTests) {
         Map copyRestSpecProps = [
-            name: 'copyRestSpec',
-            type: Copy,
-            dependsOn: [project.configurations.restSpec, 'processTestResources']
+                name     : 'copyRestSpec',
+                type     : Copy,
+                dependsOn: [project.configurations.restSpec, 'processTestResources']
         ]
         Task copyRestSpec = project.tasks.create(copyRestSpecProps) {
             from { project.zipTree(project.configurations.restSpec.singleFile) }
@@ -64,7 +64,10 @@ class RestSpecHack {
         }
         project.idea {
             module {
-                scopes.TEST.plus.add(project.configurations.restSpec)
+                if (scopes.TEST != null) {
+                    // TODO: need to add the TEST scope somehow for rest test plugin...
+                    scopes.TEST.plus.add(project.configurations.restSpec)
+                }
             }
         }
         return copyRestSpec

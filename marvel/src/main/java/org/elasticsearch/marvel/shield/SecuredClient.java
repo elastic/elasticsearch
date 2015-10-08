@@ -1047,18 +1047,6 @@ public class SecuredClient implements Client {
             return new ValidateQueryRequestBuilder(this, ValidateQueryAction.INSTANCE).setIndices(indices);
         }
 
-        public ActionFuture<RenderSearchTemplateResponse> renderSearchTemplate(RenderSearchTemplateRequest request) {
-            return this.execute(RenderSearchTemplateAction.INSTANCE, request);
-        }
-
-        public void renderSearchTemplate(RenderSearchTemplateRequest request, ActionListener<RenderSearchTemplateResponse> listener) {
-            this.execute(RenderSearchTemplateAction.INSTANCE, request, listener);
-        }
-
-        public RenderSearchTemplateRequestBuilder prepareRenderSearchTemplate() {
-            return new RenderSearchTemplateRequestBuilder(this, RenderSearchTemplateAction.INSTANCE);
-        }
-
         public ActionFuture<PutWarmerResponse> putWarmer(PutWarmerRequest request) {
             return this.execute(PutWarmerAction.INSTANCE, request);
         }
@@ -1369,6 +1357,18 @@ public class SecuredClient implements Client {
 
         public SnapshotsStatusRequestBuilder prepareSnapshotStatus() {
             return new SnapshotsStatusRequestBuilder(this, SnapshotsStatusAction.INSTANCE);
+        }
+
+        public ActionFuture<RenderSearchTemplateResponse> renderSearchTemplate(RenderSearchTemplateRequest request) {
+            return this.execute(RenderSearchTemplateAction.INSTANCE, request);
+        }
+
+        public void renderSearchTemplate(RenderSearchTemplateRequest request, ActionListener<RenderSearchTemplateResponse> listener) {
+            this.execute(RenderSearchTemplateAction.INSTANCE, request, listener);
+        }
+
+        public RenderSearchTemplateRequestBuilder prepareRenderSearchTemplate() {
+            return new RenderSearchTemplateRequestBuilder(this, RenderSearchTemplateAction.INSTANCE);
         }
     }
 

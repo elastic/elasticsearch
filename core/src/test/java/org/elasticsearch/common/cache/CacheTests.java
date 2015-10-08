@@ -29,6 +29,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
+
 public class CacheTests extends ESTestCase {
     private int numberOfEntries;
 
@@ -488,6 +490,16 @@ public class CacheTests extends ESTestCase {
         latch.countDown();
         for (Thread thread : threads) {
             thread.join();
+        }
+    }
+
+    public void testComputeIfAbsentThrowsExceptionIfLoaderReturnsANullValue() {
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        try {
+            cache.computeIfAbsent(1, k -> null);
+            fail("expected ExecutionException");
+        } catch (ExecutionException e) {
+            assertThat(e.getCause(), instanceOf(NullPointerException.class));
         }
     }
 

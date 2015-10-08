@@ -307,9 +307,10 @@ public class Cache<K, V> {
                     } catch (Exception e) {
                         throw new ExecutionException(e);
                     }
-                    if (value != null) {
-                        put(key, value, now);
+                    if (value == null) {
+                        throw new ExecutionException(new NullPointerException("loader returned a null value"));
                     }
+                    put(key, value, now);
                 }
             }
         }

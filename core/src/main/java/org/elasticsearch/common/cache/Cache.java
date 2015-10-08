@@ -249,7 +249,7 @@ public class Cache<K, V> {
         }
     }
 
-    private CacheSegment<K, V>[] segments = new CacheSegment[256];
+    private final CacheSegment<K, V>[] segments = new CacheSegment[256];
 
     {
         for (int i = 0; i < segments.length; i++) {

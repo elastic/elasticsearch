@@ -91,6 +91,12 @@ is needed then the `max_children` option shouldn't be defined at all on the `has
 
 === Settings changes ===
 
+==== Analysis settings
+
+The `index.analysis.analyzer.default_index` analyzer is not supported anymore.
+If you wish to change the analyzer to use for indexing, change the
+`index.analysis.analyzer.default` analyzer instead.
+
 ==== Ping timeout settings
 
 Previously, there were three settings for the ping timeout: `discovery.zen.initial_ping_timeout`,

@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuild
 import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -439,6 +440,7 @@ public class FunctionScoreTests extends ESTestCase {
 
     @Test
     public void simpleWeightedFunctionsTest() throws IOException, ExecutionException, InterruptedException {
+        Matcher<Double> closeToOne = closeTo(1, 1.e-4d);
         int numFunctions = randomIntBetween(1, 3);
         float[] weights = randomFloats(numFunctions);
         float[] scores = randomFloats(numFunctions);
@@ -463,7 +465,7 @@ public class FunctionScoreTests extends ESTestCase {
         for (int i = 0; i < weights.length; i++) {
             score *= weights[i] * scores[i];
         }
-        assertThat(scoreWithWeight / score, closeTo(1, 1.e-5d));
+        assertThat(scoreWithWeight / score, closeToOne);
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.SUM
@@ -477,7 +479,8 @@ public class FunctionScoreTests extends ESTestCase {
         for (int i = 0; i < weights.length; i++) {
             sum += weights[i] * scores[i];
         }
-        assertThat(scoreWithWeight / sum, closeTo(1, 1.e-5d));
+        logger.error("{} {}", weights, scores);
+        assertThat(scoreWithWeight / sum, closeToOne);
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.AVG
@@ -493,7 +496,7 @@ public class FunctionScoreTests extends ESTestCase {
             norm += weights[i];
             sum += weights[i] * scores[i];
         }
-        assertThat(scoreWithWeight * norm / sum, closeTo(1, 1.e-5d));
+        assertThat(scoreWithWeight * norm / sum, closeToOne);
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.MIN
@@ -507,7 +510,7 @@ public class FunctionScoreTests extends ESTestCase {
         for (int i = 0; i < weights.length; i++) {
             min = Math.min(min, weights[i] * scores[i]);
         }
-        assertThat(scoreWithWeight / min, closeTo(1, 1.e-5d));
+        assertThat(scoreWithWeight / min, closeToOne);
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.MAX
@@ -521,7 +524,7 @@ public class FunctionScoreTests extends ESTestCase {
         for (int i = 0; i < weights.length; i++) {
             max = Math.max(max, weights[i] * scores[i]);
         }
-        assertThat(scoreWithWeight / max, closeTo(1, 1.e-5d));
+        assertThat(scoreWithWeight / max, closeToOne);
     }
 
     @Test

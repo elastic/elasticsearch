@@ -411,8 +411,7 @@ public abstract class StreamOutput extends OutputStream {
             writeBytesRef((BytesRef) value);
         } else if (type == GeoPoint.class) {
             writeByte((byte) 22);
-            writeDouble(((GeoPoint) value).lat());
-            writeDouble(((GeoPoint) value).lon());
+            writeGeoPoint((GeoPoint) value);
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }
@@ -455,14 +454,6 @@ public abstract class StreamOutput extends OutputStream {
             streamable.writeTo(this);
         } else {
             writeBoolean(false);
-        }
-    }
-
-    private static int parseIntSafe(String val, int defaultVal) {
-        try {
-            return Integer.parseInt(val);
-        } catch (NumberFormatException ex) {
-            return defaultVal;
         }
     }
 
@@ -572,5 +563,13 @@ public abstract class StreamOutput extends OutputStream {
     void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
+    }
+
+    /**
+     * Writes the given {@link GeoPoint} to the stream
+     */
+    public void writeGeoPoint(GeoPoint geoPoint) throws IOException {
+        writeDouble(geoPoint.lat());
+        writeDouble(geoPoint.lon());
     }
 }

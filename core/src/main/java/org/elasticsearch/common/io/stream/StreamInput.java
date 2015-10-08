@@ -337,19 +337,6 @@ public abstract class StreamInput extends InputStream {
     @Override
     public abstract void close() throws IOException;
 
-//    // IS
-//
-//    @Override public int read() throws IOException {
-//        return readByte();
-//    }
-//
-//    // Here, we assume that we always can read the full byte array
-//
-//    @Override public int read(byte[] b, int off, int len) throws IOException {
-//        readBytes(b, off, len);
-//        return len;
-//    }
-
     public String[] readStringArray() throws IOException {
         int size = readVInt();
         if (size == 0) {
@@ -457,6 +444,9 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    /**
+     * Reads a {@link GeoPoint} from this stream input
+     */
     public GeoPoint readGeoPoint() throws IOException {
         return new GeoPoint(readDouble(), readDouble());
     }

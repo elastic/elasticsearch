@@ -142,10 +142,14 @@
                                  that creates the conf.dir.-->
                             <directory>${packaging.elasticsearch.conf.dir}</directory>
                             <configuration>noreplace</configuration>
+                            <groupname>elasticsearch</groupname>
+                            <filemode>750</filemode>
                         </mapping>
                         <mapping>
                             <directory>${packaging.elasticsearch.conf.dir}/</directory>
                             <configuration>noreplace</configuration>
+                            <groupname>elasticsearch</groupname>
+                            <filemode>750</filemode>
                             <sources>
                                 <source>
                                     <location>${project.basedir}/../src/main/resources/config/</location>
@@ -158,6 +162,8 @@
                         <mapping>
                             <directory>${packaging.elasticsearch.conf.dir}/scripts</directory>
                             <configuration>noreplace</configuration>
+                            <groupname>elasticsearch</groupname>
+                            <filemode>750</filemode>
                         </mapping>
                         <!-- Add environment vars file -->
                         <mapping>

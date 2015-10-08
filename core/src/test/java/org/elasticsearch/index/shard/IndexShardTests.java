@@ -330,7 +330,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test").setSource("{}").get();
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        indicesService.indexService("test").shard(0).markAsInactive();
+        Boolean result = indicesService.indexService("test").shard(0).checkIdle(0);
+        assertEquals(Boolean.TRUE, result);
         assertBusy(new Runnable() { // should be very very quick
             @Override
             public void run() {
@@ -685,5 +686,4 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
         assertTrue(postIndexWithExceptionCalled.get());
     }
-
 }

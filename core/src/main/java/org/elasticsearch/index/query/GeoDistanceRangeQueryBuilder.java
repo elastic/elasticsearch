@@ -277,7 +277,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     @Override
     protected GeoDistanceRangeQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        GeoDistanceRangeQueryBuilder queryBuilder = new GeoDistanceRangeQueryBuilder(in.readString(), GeoPoint.readGeoPointFrom(in));
+        GeoDistanceRangeQueryBuilder queryBuilder = new GeoDistanceRangeQueryBuilder(in.readString(), in.readGeoPoint());
         queryBuilder.from = in.readGenericValue();
         queryBuilder.to = in.readGenericValue();
         queryBuilder.includeLower = in.readBoolean();
@@ -292,7 +292,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        point.writeTo(out);
+        out.writeGeoPoint(point);
         out.writeGenericValue(from);
         out.writeGenericValue(to);
         out.writeBoolean(includeLower);

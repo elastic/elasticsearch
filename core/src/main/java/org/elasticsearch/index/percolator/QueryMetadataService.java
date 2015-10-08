@@ -73,6 +73,7 @@ public class QueryMetadataService {
      * an IllegalArgumentException is thrown.
      */
     public List<Term> extractQueryMetadata(Query query) {
+        // TODO: add support for the TermsQuery when it has methods to access the actual terms it encapsulates
         if (query instanceof TermQuery) {
             return Collections.singletonList(((TermQuery) query).getTerm());
         } else if (query instanceof PhraseQuery) {
@@ -92,18 +93,23 @@ public class QueryMetadataService {
             return Collections.singletonList(longestTerm);
         } else if (query instanceof BooleanQuery) {
             List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
-            boolean hasShouldClauses = false;
+            boolean hasRequiredClauses = false;
             for (BooleanClause clause : clauses) {
-                if (clause.getOccur() == BooleanClause.Occur.SHOULD) {
-                    hasShouldClauses = true;
+                if (clause.isRequired()) {
+                    hasRequiredClauses = true;
                     break;
                 }
             }
-            if (!hasShouldClauses) {
+            if (hasRequiredClauses) {
                 List<Term> bestClause = null;
                 for (BooleanClause clause : clauses) {
                     if (clause.isProhibited()) {
                         // we don't need to remember the things that do *not* match...
+                        continue;
+                    }
+                    if (clause.getOccur() == BooleanClause.Occur.SHOULD) {
+                        // this bq has must clauses, so we don't need to remember should clauses,
+                        // since they are completely optional.
                         continue;
                     }
 

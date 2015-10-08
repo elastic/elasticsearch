@@ -113,7 +113,7 @@ public class QueryMetadataService {
                     }
 
                     Set<Term> temp = extractQueryMetadata(clause.getQuery());
-                    bestClause = selectTermsListWithHighestSumOfTermLength(temp, bestClause);
+                    bestClause = selectTermListWithTheLongestShortestTerm(temp, bestClause);
                 }
                 if (bestClause != null) {
                     return bestClause;
@@ -142,16 +142,16 @@ public class QueryMetadataService {
         }
     }
 
-    Set<Term> selectTermsListWithHighestSumOfTermLength(Set<Term> terms1, Set<Term> terms2) {
+    Set<Term> selectTermListWithTheLongestShortestTerm(Set<Term> terms1, Set<Term> terms2) {
         if (terms1 == null) {
             return terms2;
         } else if (terms2 == null) {
             return terms1;
         } else {
-            int terms1SumTermLength = computeSumOfTermLength(terms1);
-            int terms2SumTermLength = computeSumOfTermLength(terms2);
+            int terms1ShortestTerm = minTermLength(terms1);
+            int terms2ShortestTerm = minTermLength(terms2);
             // keep the clause with longest terms, this likely to be rarest.
-            if (terms1SumTermLength > terms2SumTermLength) {
+            if (terms1ShortestTerm > terms2ShortestTerm) {
                 return terms1;
             } else {
                 return terms2;
@@ -159,12 +159,12 @@ public class QueryMetadataService {
         }
     }
 
-    private int computeSumOfTermLength(Set<Term> terms) {
-        int sum = 0;
+    private int minTermLength(Set<Term> terms) {
+        int min = Integer.MAX_VALUE;
         for (Term term : terms) {
-            sum += term.bytes().length;
+            min = Math.min(min, term.bytes().length);
         }
-        return sum;
+        return min;
     }
 
     /**

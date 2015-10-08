@@ -32,7 +32,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.routing.DjbHashFunction;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -856,7 +856,7 @@ public class InternalEngine extends Engine {
     }
 
     private Object dirtyLock(BytesRef uid) {
-        int hash = DjbHashFunction.DJB_HASH(uid.bytes, uid.offset, uid.length);
+        int hash = Murmur3HashFunction.hash(uid.bytes, uid.offset, uid.length);
         return dirtyLocks[MathUtils.mod(hash, dirtyLocks.length)];
     }
 

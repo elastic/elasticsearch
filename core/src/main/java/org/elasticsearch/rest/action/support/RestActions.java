@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -137,6 +138,17 @@ public class RestActions {
         }
 
         return content;
+    }
+
+    public static QueryBuilder<?> getQueryContent(BytesReference source, QueryParseContext context) {
+        try (XContentParser requestParser = XContentFactory.xContent(source).createParser(source)) {
+            context.reset(requestParser);
+            return context.parseInnerQueryBuilder();
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to parse source", e);
+        } finally {
+            context.reset(null);
+        }
     }
 
     /**

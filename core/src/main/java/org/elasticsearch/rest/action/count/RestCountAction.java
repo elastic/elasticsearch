@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.count;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,8 +28,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -42,8 +39,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -75,14 +70,8 @@ public class RestCountAction extends BaseRestHandler {
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         if (RestActions.hasBodyContent(request)) {
             BytesReference restContent = RestActions.getRestContent(request);
-            try (XContentParser requestParser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-                context.reset(requestParser);
-                final QueryBuilder<?> builder = context.parseInnerQueryBuilder();
-                countRequest.query(builder);
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to parse source", e);
-            }
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+            countRequest.query(RestActions.getQueryContent(restContent, context));
         } else {
             QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
             if (queryBuilder != null) {

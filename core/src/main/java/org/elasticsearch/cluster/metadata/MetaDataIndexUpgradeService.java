@@ -166,7 +166,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
 
     /**
      * Elasticsearch 3.0 no longer supports indices with pre Lucene v5.0 (Elasticsearch v2.0.0.beta1) segments. All indices
-     * that were created before Elasticsearch v2.0.0.beta1 should be upgraded using upgrade plugin before they can
+     * that were created before Elasticsearch v2.0.0.beta1 should be upgraded using upgrade API before they can
      * be open by this version of elasticsearch.
      */
     private void checkSupportedVersion(IndexMetaData indexMetaData) {
@@ -184,10 +184,6 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         if (indexMetaData.creationVersion().onOrAfter(Version.V_2_0_0_beta1)) {
             // The index was created with elasticsearch that was using Lucene 5.2.1
             return true;
-        }
-        if (indexMetaData.getUpgradeVersion().onOrAfter(Version.V_2_0_0_beta1) == false) {
-            // early terminate if we are not upgrade - we don't even need to look at the segment version
-            return false;
         }
         if (indexMetaData.getMinimumCompatibleVersion() != null &&
                 indexMetaData.getMinimumCompatibleVersion().onOrAfter(org.apache.lucene.util.Version.LUCENE_5_0_0)) {

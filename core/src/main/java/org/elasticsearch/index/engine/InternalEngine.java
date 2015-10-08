@@ -172,21 +172,12 @@ public class InternalEngine extends Engine {
     }
 
     private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, boolean createNew) throws IOException {
-        final Translog.TranslogGeneration generation = loadTranslogIdFromCommit(writer);
+        final Translog.TranslogGeneration generation = loadTranslogIdFromCommit(writer, createNew);
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-
-        if (createNew == false) {
-            // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-            if (generation == null) {
-                throw new IllegalStateException("no translog generation present in commit data but translog is expected to exist");
-            }
-            translogConfig.setTranslogGeneration(generation);
-            if (generation != null && generation.translogUUID == null) {
-                throw new IndexFormatTooOldException("trasnlog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
-            }
-        }
+        translogConfig.setTranslogGeneration(generation);
         final Translog translog = new Translog(translogConfig);
         if (generation == null || generation.translogUUID == null) {
+            assert createNew;
             if (generation == null) {
                 logger.debug("no translog ID present in the current generation - creating one");
             } else if (generation.translogUUID == null) {
@@ -249,7 +240,7 @@ public class InternalEngine extends Engine {
      * translog id into lucene and returns null.
      */
     @Nullable
-    private Translog.TranslogGeneration loadTranslogIdFromCommit(IndexWriter writer) throws IOException {
+    private Translog.TranslogGeneration loadTranslogIdFromCommit(IndexWriter writer, boolean createNew) throws IOException {
         // commit on a just opened writer will commit even if there are no changes done to it
         // we rely on that for the commit data translog id key
         final Map<String, String> commitUserData = writer.getCommitData();
@@ -262,7 +253,15 @@ public class InternalEngine extends Engine {
             }
             final String translogUUID = commitUserData.get(Translog.TRANSLOG_UUID_KEY);
             final long translogGen = Long.parseLong(commitUserData.get(Translog.TRANSLOG_GENERATION_KEY));
+            if (createNew == false &&  translogUUID == null) {
+                throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
+            }
             return new Translog.TranslogGeneration(translogUUID, translogGen);
+        }
+
+        if (createNew == false) {
+            // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
+            throw new IllegalStateException("no translog generation present in commit data but translog is expected to exist");
         }
         return null;
     }

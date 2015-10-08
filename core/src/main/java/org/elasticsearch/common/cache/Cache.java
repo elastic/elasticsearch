@@ -367,9 +367,10 @@ public class Cache<K, V> {
      * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
      */
     public void invalidateAll() {
-        Entry<K, V> h = head;
+        Entry<K, V> h;
         Arrays.stream(segments).forEach(segment -> segment.segmentLock.writeLock().lock());
         try (ReleasableLock ignored = lruLock.acquire()) {
+            h = head;
             Arrays.stream(segments).forEach(segment -> segment.map = new HashMap<>());
             Entry<K, V> current = head;
             while (current != null) {

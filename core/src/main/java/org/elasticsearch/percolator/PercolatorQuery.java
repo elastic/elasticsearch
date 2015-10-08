@@ -185,7 +185,7 @@ final class PercolatorQuery extends Query {
 
                     @Override
                     public int advance(int target) throws IOException {
-                        for (int docId = approximation.advance(target); docId < NO_MORE_DOCS; docId = approximation.advance(docId + 1)) {
+                        for (int docId = approximation.advance(target); docId < NO_MORE_DOCS; docId = approximation.nextDoc()) {
                             if (matchDocId(docId, leafReader)) {
                                 return docId;
                             }

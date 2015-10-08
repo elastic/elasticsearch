@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.geo;
 
-
 /**
  *
  */
@@ -27,7 +26,6 @@ public final class GeoPoint {
 
     private double lat;
     private double lon;
-
     public GeoPoint() {
     }
 

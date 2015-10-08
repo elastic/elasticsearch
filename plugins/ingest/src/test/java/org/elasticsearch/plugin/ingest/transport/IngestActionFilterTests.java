@@ -82,7 +82,7 @@ public class IngestActionFilterTests extends ESTestCase {
     public void testApplyIngestIdViaContext() throws Exception {
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putInContext(IngestPlugin.INGEST_CONTEXT_KEY, "_id");
+        indexRequest.putInContext(IngestPlugin.INGEST_PAREM_CONTEXT_KEY, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
@@ -90,6 +90,20 @@ public class IngestActionFilterTests extends ESTestCase {
 
         verify(executionService).execute(any(Data.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         verifyZeroInteractions(actionFilterChain);
+    }
+
+    public void testApplyAlreadyProcessed() throws Exception {
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
+        indexRequest.source("field", "value");
+        indexRequest.putHeader(IngestPlugin.INGEST_PARAM, "_id");
+        indexRequest.putHeader(IngestPlugin.INGEST_ALREADY_PROCESSED, true);
+        ActionListener actionListener = mock(ActionListener.class);
+        ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
+
+        filter.apply("_action", indexRequest, actionListener, actionFilterChain);
+
+        verify(actionFilterChain).proceed("_action", indexRequest, actionListener);
+        verifyZeroInteractions(executionService, actionListener);
     }
 
     public void testApply_executed() throws Exception {

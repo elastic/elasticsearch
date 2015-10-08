@@ -41,6 +41,7 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
@@ -110,5 +111,10 @@ public final class ShadowIndexShard extends IndexShard {
 
     public boolean allowsPrimaryPromotion() {
         return false;
+    }
+
+    @Override
+    public TranslogStats translogStats() {
+        return null; // shadow engine has no translog
     }
 }

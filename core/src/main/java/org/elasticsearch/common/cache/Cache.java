@@ -300,6 +300,10 @@ public class Cache<K, V> {
         V value = get(key, now);
         if (value == null) {
             CacheSegment<K, V> segment = getCacheSegment(key);
+            // we synchronize against the segment lock; this is to avoid a scenario where another thread is inserting
+            // a value for the same key via put which would not be observed on this thread without a mechanism
+            // synchronizing the two threads; it is possible that the segment lock will be too expensive here (it blocks
+            // readers too!) so consider this as a possible place to optimize should contention be observed
             try (ReleasableLock ignored = segment.writeLock.acquire()) {
                 value = get(key, now);
                 if (value == null) {

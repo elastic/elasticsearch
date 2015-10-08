@@ -25,6 +25,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.util.Collection;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -102,7 +103,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
             return false;
         }
         final AtomicBoolean stopped = new AtomicBoolean(false);
-        clusterService.submitStateUpdateTask("service_disruption_delay", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("service_disruption_delay", Priority.IMMEDIATE, new ClusterStateUpdateTask<Void>() {
 
             @Override
             public boolean runOnlyOnMaster() {
@@ -110,7 +111,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) throws Exception {
                 long count = duration.millis() / 200;
                 // wait while checking for a stopped
                 for (; count > 0 && !stopped.get(); count--) {

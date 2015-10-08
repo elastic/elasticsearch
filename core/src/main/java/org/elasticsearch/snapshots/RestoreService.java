@@ -78,15 +78,8 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -215,11 +208,11 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
             // Now we can start the actual restore process by adding shards to be recovered in the cluster state
             // and updating cluster metadata (global and index) as needed
-            clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask<Void>() {
                 RestoreInfo restoreInfo = null;
 
                 @Override
-                public ClusterState execute(ClusterState currentState) {
+                public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                     // Check if another restore process is already running - cannot run two restore processes at the
                     // same time
                     RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
@@ -529,12 +522,12 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         logger.trace("received updated snapshot restore state [{}]", request);
         updatedSnapshotStateQueue.add(request);
 
-        clusterService.submitStateUpdateTask("update snapshot state", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update snapshot state", new ClusterStateUpdateTask<Void>() {
             private final List<UpdateIndexShardRestoreStatusRequest> drainedRequests = new ArrayList<>();
             private Map<SnapshotId, Tuple<RestoreInfo, Map<ShardId, ShardRestoreStatus>>> batchedRestoreInfo = null;
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) {
 
                 if (request.processed) {
                     return currentState;

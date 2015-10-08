@@ -56,10 +56,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -494,11 +491,11 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
         logger.trace("received updated snapshot restore state [{}]", request);
         updatedSnapshotStateQueue.add(request);
 
-        clusterService.submitStateUpdateTask("update snapshot state", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update snapshot state", new ClusterStateUpdateTask<Void>() {
             private final List<UpdateIndexShardSnapshotStatusRequest> drainedRequests = new ArrayList<>();
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                 // The request was already processed as a part of an early batch - skipping
                 if (request.isProcessed()) {
                     return currentState;

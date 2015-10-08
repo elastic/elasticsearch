@@ -103,12 +103,22 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     /**
      * Submits a task that will update the cluster state.
      */
-    void submitStateUpdateTask(final String source, Priority priority, final ClusterStateUpdateTask updateTask);
+    <P> void submitStateUpdateTask(final String source, Priority priority, final ClusterStateUpdateTask<P> updateTask, final P param);
 
     /**
      * Submits a task that will update the cluster state (the task has a default priority of {@link Priority#NORMAL}).
      */
-    void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask);
+    <P> void submitStateUpdateTask(final String source, final ClusterStateUpdateTask<P> updateTask, final P param);
+
+    /**
+     * Submits a non-batch task that will update the cluster state (the task has a default priority of {@link Priority#NORMAL}).
+     */
+    void submitStateUpdateTask(final String source, final ClusterStateUpdateTask<Void> updateTask);
+
+    /**
+     * Submits a non-batch task that will update the cluster state.
+     */
+    void submitStateUpdateTask(final String source, Priority priority, final ClusterStateUpdateTask<Void> updateTask);
 
     /**
      * Returns the tasks that are pending.

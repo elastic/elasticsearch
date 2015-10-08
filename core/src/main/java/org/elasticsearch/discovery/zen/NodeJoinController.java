@@ -132,7 +132,7 @@ public class NodeJoinController extends AbstractComponent {
 
     /** utility method to fail the given election context under the cluster state thread */
     private void failContext(final ElectionContext context, final String reason, final Throwable throwable) {
-        clusterService.submitStateUpdateTask("zen-disco-join(failure [" + reason + "])", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-join(failure [" + reason + "])", Priority.IMMEDIATE, new ClusterStateUpdateTask<Void>() {
 
             @Override
             public boolean runOnlyOnMaster() {
@@ -140,7 +140,7 @@ public class NodeJoinController extends AbstractComponent {
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) throws Exception {
                 context.onFailure(throwable);
                 return currentState;
             }
@@ -230,7 +230,7 @@ public class NodeJoinController extends AbstractComponent {
         final String source = "zen-disco-join(elected_as_master, [" + pendingMasterJoins + "] joins received)";
         clusterService.submitStateUpdateTask(source, Priority.IMMEDIATE, new ProcessJoinsTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                 // Take into account the previous known nodes, if they happen not to be available
                 // then fault detection will remove these nodes.
 
@@ -253,7 +253,7 @@ public class NodeJoinController extends AbstractComponent {
 
                 // Add the incoming join requests.
                 // Note: we only do this now (after the reroute) to avoid assigning shards to these nodes.
-                return super.execute(currentState);
+                return super.execute(currentState, params);
             }
 
             @Override
@@ -348,13 +348,13 @@ public class NodeJoinController extends AbstractComponent {
      * Processes any pending joins via a ClusterState update task.
      * Note: this task automatically fails (and fails all pending joins) if the current node is not marked as master
      */
-    class ProcessJoinsTask extends ClusterStateUpdateTask {
+    class ProcessJoinsTask extends ClusterStateUpdateTask<Void> {
 
         private final List<MembershipAction.JoinCallback> joinCallbacksToRespondTo = new ArrayList<>();
         private boolean nodeAdded = false;
 
         @Override
-        public ClusterState execute(ClusterState currentState) {
+        public ClusterState execute(ClusterState currentState, Collection<Void> params) {
             DiscoveryNodes.Builder nodesBuilder;
             synchronized (pendingJoinRequests) {
                 if (pendingJoinRequests.isEmpty()) {

@@ -56,7 +56,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", Priority.URGENT, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", Priority.URGENT, new ClusterStateUpdateTask<Void>() {
 
             @Override
             public TimeValue timeout() {
@@ -69,7 +69,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                 Set<String> templateNames = new HashSet<>();
                 for (ObjectCursor<String> cursor : currentState.metaData().templates().keys()) {
                     String templateName = cursor.value;
@@ -143,7 +143,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         }
         final IndexTemplateMetaData template = templateBuilder.build();
 
-        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]", Priority.URGENT, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]", Priority.URGENT, new ClusterStateUpdateTask<Void>() {
 
             @Override
             public TimeValue timeout() {
@@ -156,7 +156,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                 if (request.create && currentState.metaData().templates().containsKey(request.name)) {
                     throw new IndexTemplateAlreadyExistsException(request.name);
                 }

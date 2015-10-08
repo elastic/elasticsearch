@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -74,7 +75,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
     @Override
     protected void masterOperation(final DeleteWarmerRequest request, final ClusterState state, final ActionListener<DeleteWarmerResponse> listener) {
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
-        clusterService.submitStateUpdateTask("delete_warmer [" + Arrays.toString(request.names()) + "]", new AckedClusterStateUpdateTask<DeleteWarmerResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("delete_warmer [" + Arrays.toString(request.names()) + "]", new AckedClusterStateUpdateTask<Void, DeleteWarmerResponse>(request, listener) {
 
             @Override
             protected DeleteWarmerResponse newResponse(boolean acknowledged) {
@@ -88,7 +89,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
 
                 boolean globalFoundAtLeastOne = false;

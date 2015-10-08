@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collection;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -100,7 +101,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
     private void deleteIndex(final Request request, final Listener userListener, Semaphore mdLock) {
         final DeleteIndexListener listener = new DeleteIndexListener(mdLock, userListener);
-        clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", Priority.URGENT, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", Priority.URGENT, new ClusterStateUpdateTask<Void>() {
 
             @Override
             public TimeValue timeout() {
@@ -113,7 +114,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
             }
 
             @Override
-            public ClusterState execute(final ClusterState currentState) {
+            public ClusterState execute(final ClusterState currentState, Collection<Void> params) {
                 if (!currentState.metaData().hasConcreteIndex(request.index)) {
                     throw new IndexNotFoundException(request.index);
                 }

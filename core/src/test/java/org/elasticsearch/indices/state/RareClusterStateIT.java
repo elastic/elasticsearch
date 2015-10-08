@@ -111,9 +111,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
         final String masterName = internalCluster().getMasterName();
         final ClusterService clusterService = internalCluster().clusterService(masterName);
         final AllocationService allocationService = internalCluster().getInstance(AllocationService.class, masterName);
-        clusterService.submitStateUpdateTask("test-inject-node-and-reroute", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test-inject-node-and-reroute", new ClusterStateUpdateTask<Void>() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) throws Exception {
                 // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).put(new DiscoveryNode("_non_existent", DummyTransportAddress.INSTANCE, Version.CURRENT)));
@@ -141,9 +141,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
         ensureGreen(index);
         // remove the extra node
-        clusterService.submitStateUpdateTask("test-remove-injected-node", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test-remove-injected-node", new ClusterStateUpdateTask<Void>() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) throws Exception {
                 // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).remove("_non_existent"));

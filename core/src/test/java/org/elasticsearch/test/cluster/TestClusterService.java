@@ -183,6 +183,16 @@ public class TestClusterService implements ClusterService {
     }
 
     @Override
+    public <P> void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask<P> updateTask, P param) {
+        submitStateUpdateTask(source, priority, updateTask);
+    }
+
+    @Override
+    public <P> void submitStateUpdateTask(String source, ClusterStateUpdateTask<P> updateTask, P param) {
+        submitStateUpdateTask(source, updateTask);
+    }
+
+    @Override
     synchronized public void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
         logger.debug("processing [{}]", source);
         if (state().nodes().localNodeMaster() == false && updateTask.runOnlyOnMaster()) {
@@ -193,7 +203,7 @@ public class TestClusterService implements ClusterService {
         ClusterState newState;
         ClusterState previousClusterState = state;
         try {
-            newState = updateTask.execute(previousClusterState);
+            newState = updateTask.execute(previousClusterState, null);
         } catch (Exception e) {
             updateTask.onFailure(source, new ElasticsearchException("failed to process cluster state update task [" + source + "]", e));
             return;

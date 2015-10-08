@@ -208,9 +208,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
         private void addBlock() {
             // We should block after this task - add blocking cluster state update task
-            clusterService.submitStateUpdateTask("test_block", passThroughPriority, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("test_block", passThroughPriority, new ClusterStateUpdateTask<Void>() {
                 @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
+                public ClusterState execute(ClusterState currentState, Collection<Void> params) throws Exception {
                     while(System.currentTimeMillis() < stopWaitingAt) {
                         for (PendingClusterTask task : clusterService.pendingTasks()) {
                             if (task.getSource().string().equals("test_block") == false && passThroughPriority.sameOrAfter(task.getPriority())) {

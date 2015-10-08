@@ -93,14 +93,14 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             registrationListener = listener;
         }
 
-        clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, registrationListener) {
+        clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask<Void, ClusterStateUpdateResponse>(request, registrationListener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                 return new ClusterStateUpdateResponse(acknowledged);
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) throws IOException {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) throws IOException {
                 ensureRepositoryNotInUse(currentState, request.name);
                 // Trying to create the new repository on master to make sure it works
                 if (!registerRepository(newRepositoryMetaData)) {
@@ -158,14 +158,14 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
      * @param listener unregister repository listener
      */
     public void unregisterRepository(final UnregisterRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+        clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask<Void, ClusterStateUpdateResponse>(request, listener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                 return new ClusterStateUpdateResponse(acknowledged);
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                 ensureRepositoryNotInUse(currentState, request.name);
                 MetaData metaData = currentState.metaData();
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());

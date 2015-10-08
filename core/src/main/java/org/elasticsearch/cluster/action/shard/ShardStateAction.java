@@ -43,6 +43,7 @@ import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 
@@ -127,10 +128,10 @@ public class ShardStateAction extends AbstractComponent {
     private void handleShardFailureOnMaster(final ShardRoutingEntry shardRoutingEntry) {
         logger.warn("{} received shard failed for {}", shardRoutingEntry.failure, shardRoutingEntry.shardRouting.shardId(), shardRoutingEntry);
         failedShardQueue.add(shardRoutingEntry);
-        clusterService.submitStateUpdateTask("shard-failed (" + shardRoutingEntry.shardRouting + "), message [" + shardRoutingEntry.message + "]", Priority.HIGH, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("shard-failed (" + shardRoutingEntry.shardRouting + "), message [" + shardRoutingEntry.message + "]", Priority.HIGH, new ClusterStateUpdateTask<Void>() {
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                 if (shardRoutingEntry.processed) {
                     return currentState;
                 }
@@ -182,9 +183,9 @@ public class ShardStateAction extends AbstractComponent {
         startedShardsQueue.add(shardRoutingEntry);
 
         clusterService.submitStateUpdateTask("shard-started (" + shardRoutingEntry.shardRouting + "), reason [" + shardRoutingEntry.message + "]", Priority.URGENT,
-                new ClusterStateUpdateTask() {
+                new ClusterStateUpdateTask<Void>() {
                     @Override
-                    public ClusterState execute(ClusterState currentState) {
+                    public ClusterState execute(ClusterState currentState, Collection<Void> params) {
 
                         if (shardRoutingEntry.processed) {
                             return currentState;

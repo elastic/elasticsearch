@@ -263,9 +263,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     private void updateClusterState(final ClusterStateUpdater updater) throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask<Void>() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) throws Exception {
                 return updater.execute(currentState);
             }
 

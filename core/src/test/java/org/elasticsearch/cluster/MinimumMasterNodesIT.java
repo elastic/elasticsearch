@@ -372,14 +372,14 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         logger.debug("--> submitting for cluster state to be rejected");
         final ClusterService masterClusterService = internalCluster().clusterService(master);
-        masterClusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        masterClusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask<Void>() {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 latch.countDown();
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) throws Exception {
                 MetaData.Builder metaData = MetaData.builder(currentState.metaData()).persistentSettings(
                         Settings.builder().put(currentState.metaData().persistentSettings()).put("_SHOULD_NOT_BE_THERE_", true).build()
                 );

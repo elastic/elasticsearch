@@ -44,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -96,7 +97,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeAction<PutWarme
                     return;
                 }
 
-                clusterService.submitStateUpdateTask("put_warmer [" + request.name() + "]", new AckedClusterStateUpdateTask<PutWarmerResponse>(request, listener) {
+                clusterService.submitStateUpdateTask("put_warmer [" + request.name() + "]", new AckedClusterStateUpdateTask<Void, PutWarmerResponse>(request, listener) {
 
                     @Override
                     protected PutWarmerResponse newResponse(boolean acknowledged) {
@@ -110,7 +111,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeAction<PutWarme
                     }
 
                     @Override
-                    public ClusterState execute(ClusterState currentState) {
+                    public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                         MetaData metaData = currentState.metaData();
                         String[] concreteIndices = indexNameExpressionResolver.concreteIndices(currentState, request.searchRequest().indicesOptions(), request.searchRequest().indices());
 

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -103,6 +104,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     public static final String TRIBE_NAME = "tribe.name";
 
     private final ClusterService clusterService;
+    private final TribeBatchUpdateTask tribeBatchUpdateTask;
     private final String[] blockIndicesWrite;
     private final String[] blockIndicesRead;
     private final String[] blockIndicesMetadata;
@@ -117,6 +119,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     public TribeService(Settings settings, ClusterService clusterService, DiscoveryService discoveryService) {
         super(settings);
         this.clusterService = clusterService;
+        tribeBatchUpdateTask = new TribeBatchUpdateTask();
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
@@ -198,7 +201,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         }
     }
 
-    class TribeClusterStateListener implements ClusterStateListener {
+    private class TribeClusterStateListener implements ClusterStateListener {
 
         private final String tribeName;
 
@@ -209,127 +212,153 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         @Override
         public void clusterChanged(final ClusterChangedEvent event) {
             logger.debug("[{}] received cluster event, [{}]", tribeName, event.source());
-            clusterService.submitStateUpdateTask("cluster event from " + tribeName + ", " + event.source(), new ClusterStateUpdateTask() {
-                @Override
-                public boolean runOnlyOnMaster() {
-                    return false;
+            clusterService.submitStateUpdateTask("cluster event from " + tribeName + ", " + event.source(), tribeBatchUpdateTask, new Tuple<>(tribeName, event));
+        }
+    }
+
+    private class TribeBatchUpdateTask extends ClusterStateUpdateTask<Tuple<String, ClusterChangedEvent>> {
+        @Override
+        public boolean runOnlyOnMaster() {
+            return false;
+        }
+
+        @Override
+        public ClusterState execute(ClusterState currentState, Collection<Tuple<String, ClusterChangedEvent>> drainedRequests) {
+            Map<String, ClusterChangedEvent> eventMap = new HashMap<>();
+            // First select only the last event from each tribeName
+            for (Tuple<String, ClusterChangedEvent> request : drainedRequests) {
+                String tribeName = request.v1();
+                ClusterChangedEvent event = request.v2();
+                eventMap.put(tribeName, event);
+            }
+
+            // Now go and apply all events
+            DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(currentState.nodes());
+            // -- merge nodes
+            // go over existing nodes, and see if they need to be removed
+            for (DiscoveryNode discoNode : currentState.nodes()) {
+                String markedTribeName = discoNode.attributes().get(TRIBE_NAME);
+                if (markedTribeName != null) {
+                    ClusterChangedEvent event = eventMap.get(markedTribeName);
+                    if (event != null) {
+                        ClusterState tribeState = event.state();
+                        if (tribeState.nodes().get(discoNode.id()) == null) {
+                            logger.info("[{}] removing node [{}]", markedTribeName, discoNode);
+                            nodes.remove(discoNode.id());
+                        }
+                    }
                 }
+            }
+            // go over tribe nodes, and see if they need to be added
+            for (Map.Entry<String, ClusterChangedEvent> entry : eventMap.entrySet()) {
+                String tribeName = entry.getKey();
+                ClusterState tribeState = entry.getValue().state();
+                for (DiscoveryNode tribe : tribeState.nodes()) {
+                    if (currentState.nodes().get(tribe.id()) == null) {
+                        // a new node, add it, but also add the tribe name to the attributes
+                        ImmutableMap<String, String> tribeAttr = MapBuilder.newMapBuilder(tribe.attributes()).put(TRIBE_NAME, tribeName).immutableMap();
+                        DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.id(), tribe.getHostName(), tribe.getHostAddress(), tribe.address(), tribeAttr, tribe.version());
+                        logger.info("[{}] adding node [{}]", tribeName, discoNode);
+                        nodes.put(discoNode);
+                    }
+                }
+            }
 
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    ClusterState tribeState = event.state();
-                    DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(currentState.nodes());
-                    // -- merge nodes
-                    // go over existing nodes, and see if they need to be removed
-                    for (DiscoveryNode discoNode : currentState.nodes()) {
-                        String markedTribeName = discoNode.attributes().get(TRIBE_NAME);
-                        if (markedTribeName != null && markedTribeName.equals(tribeName)) {
-                            if (tribeState.nodes().get(discoNode.id()) == null) {
-                                logger.info("[{}] removing node [{}]", tribeName, discoNode);
-                                nodes.remove(discoNode.id());
-                            }
-                        }
-                    }
-                    // go over tribe nodes, and see if they need to be added
-                    for (DiscoveryNode tribe : tribeState.nodes()) {
-                        if (currentState.nodes().get(tribe.id()) == null) {
-                            // a new node, add it, but also add the tribe name to the attributes
-                            ImmutableMap<String, String> tribeAttr = MapBuilder.newMapBuilder(tribe.attributes()).put(TRIBE_NAME, tribeName).immutableMap();
-                            DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.id(), tribe.getHostName(), tribe.getHostAddress(), tribe.address(), tribeAttr, tribe.version());
-                            logger.info("[{}] adding node [{}]", tribeName, discoNode);
-                            nodes.put(discoNode);
-                        }
-                    }
-
-                    // -- merge metadata
-                    ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                    MetaData.Builder metaData = MetaData.builder(currentState.metaData());
-                    RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
-                    // go over existing indices, and see if they need to be removed
-                    for (IndexMetaData index : currentState.metaData()) {
-                        String markedTribeName = index.settings().get(TRIBE_NAME);
-                        if (markedTribeName != null && markedTribeName.equals(tribeName)) {
-                            IndexMetaData tribeIndex = tribeState.metaData().index(index.index());
-                            if (tribeIndex == null || tribeIndex.state() == IndexMetaData.State.CLOSE) {
-                                logger.info("[{}] removing index [{}]", tribeName, index.index());
-                                removeIndex(blocks, metaData, routingTable, index);
-                            } else {
-                                // always make sure to update the metadata and routing table, in case
-                                // there are changes in them (new mapping, shards moving from initializing to started)
-                                routingTable.add(tribeState.routingTable().index(index.index()));
-                                Settings tribeSettings = Settings.builder().put(tribeIndex.settings()).put(TRIBE_NAME, tribeName).build();
-                                metaData.put(IndexMetaData.builder(tribeIndex).settings(tribeSettings));
-                            }
-                        }
-                    }
-                    // go over tribe one, and see if they need to be added
-                    for (IndexMetaData tribeIndex : tribeState.metaData()) {
-                        // if there is no routing table yet, do nothing with it...
-                        IndexRoutingTable table = tribeState.routingTable().index(tribeIndex.index());
-                        if (table == null) {
-                            continue;
-                        }
-                        final IndexMetaData indexMetaData = currentState.metaData().index(tribeIndex.index());
-                        if (indexMetaData == null) {
-                            if (!droppedIndices.contains(tribeIndex.index())) {
-                                // a new index, add it, and add the tribe name as a setting
-                                logger.info("[{}] adding index [{}]", tribeName, tribeIndex.index());
-                                addNewIndex(tribeState, blocks, metaData, routingTable, tribeIndex);
-                            }
+            // -- merge metadata
+            ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+            MetaData.Builder metaData = MetaData.builder(currentState.metaData());
+            RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
+            // go over existing indices, and see if they need to be removed
+            for (IndexMetaData index : currentState.metaData()) {
+                String markedTribeName = index.settings().get(TRIBE_NAME);
+                if (markedTribeName != null) {
+                    ClusterChangedEvent event = eventMap.get(markedTribeName);
+                    if (event != null) {
+                        ClusterState tribeState = event.state();
+                        IndexMetaData tribeIndex = tribeState.metaData().index(index.index());
+                        if (tribeIndex == null || tribeIndex.state() == IndexMetaData.State.CLOSE) {
+                            logger.info("[{}] removing index [{}]", markedTribeName, index.index());
+                            removeIndex(blocks, metaData, routingTable, index);
                         } else {
-                            String existingFromTribe = indexMetaData.getSettings().get(TRIBE_NAME);
-                            if (!tribeName.equals(existingFromTribe)) {
-                                // we have a potential conflict on index names, decide what to do...
-                                if (ON_CONFLICT_ANY.equals(onConflict)) {
-                                    // we chose any tribe, carry on
-                                } else if (ON_CONFLICT_DROP.equals(onConflict)) {
-                                    // drop the indices, there is a conflict
-                                    logger.info("[{}] dropping index [{}] due to conflict with [{}]", tribeName, tribeIndex.index(), existingFromTribe);
+                            // always make sure to update the metadata and routing table, in case
+                            // there are changes in them (new mapping, shards moving from initializing to started)
+                            routingTable.add(tribeState.routingTable().index(index.index()));
+                            Settings tribeSettings = Settings.builder().put(tribeIndex.settings()).put(TRIBE_NAME, markedTribeName).build();
+                            metaData.put(IndexMetaData.builder(tribeIndex).settings(tribeSettings));
+                        }
+                    }
+                }
+            }
+            // go over tribe one, and see if they need to be added
+            for (Map.Entry<String, ClusterChangedEvent> entry : eventMap.entrySet()) {
+                String tribeName = entry.getKey();
+                ClusterState tribeState = entry.getValue().state();
+                for (IndexMetaData tribeIndex : tribeState.metaData()) {
+                    // if there is no routing table yet, do nothing with it...
+                    IndexRoutingTable table = tribeState.routingTable().index(tribeIndex.index());
+                    if (table == null) {
+                        continue;
+                    }
+                    final IndexMetaData indexMetaData = currentState.metaData().index(tribeIndex.index());
+                    if (indexMetaData == null) {
+                        if (!droppedIndices.contains(tribeIndex.index())) {
+                            // a new index, add it, and add the tribe name as a setting
+                            logger.info("[{}] adding index [{}]", tribeName, tribeIndex.index());
+                            addNewIndex(tribeState, blocks, metaData, routingTable, tribeName, tribeIndex);
+                        }
+                    } else {
+                        String existingFromTribe = indexMetaData.getSettings().get(TRIBE_NAME);
+                        if (!tribeName.equals(existingFromTribe)) {
+                            // we have a potential conflict on index names, decide what to do...
+                            if (ON_CONFLICT_ANY.equals(onConflict)) {
+                                // we chose any tribe, carry on
+                            } else if (ON_CONFLICT_DROP.equals(onConflict)) {
+                                // drop the indices, there is a conflict
+                                logger.info("[{}] dropping index [{}] due to conflict with [{}]", tribeName, tribeIndex.index(), existingFromTribe);
+                                removeIndex(blocks, metaData, routingTable, tribeIndex);
+                                droppedIndices.add(tribeIndex.index());
+                            } else if (onConflict.startsWith(ON_CONFLICT_PREFER)) {
+                                // on conflict, prefer a tribe...
+                                String preferredTribeName = onConflict.substring(ON_CONFLICT_PREFER.length());
+                                if (tribeName.equals(preferredTribeName)) {
+                                    // the new one is hte preferred one, replace...
+                                    logger.info("[{}] adding index [{}], preferred over [{}]", tribeName, tribeIndex.index(), existingFromTribe);
                                     removeIndex(blocks, metaData, routingTable, tribeIndex);
-                                    droppedIndices.add(tribeIndex.index());
-                                } else if (onConflict.startsWith(ON_CONFLICT_PREFER)) {
-                                    // on conflict, prefer a tribe...
-                                    String preferredTribeName = onConflict.substring(ON_CONFLICT_PREFER.length());
-                                    if (tribeName.equals(preferredTribeName)) {
-                                        // the new one is hte preferred one, replace...
-                                        logger.info("[{}] adding index [{}], preferred over [{}]", tribeName, tribeIndex.index(), existingFromTribe);
-                                        removeIndex(blocks, metaData, routingTable, tribeIndex);
-                                        addNewIndex(tribeState, blocks, metaData, routingTable, tribeIndex);
-                                    } // else: either the existing one is the preferred one, or we haven't seen one, carry on
-                                }
+                                    addNewIndex(tribeState, blocks, metaData, routingTable, tribeName, tribeIndex);
+                                } // else: either the existing one is the preferred one, or we haven't seen one, carry on
                             }
                         }
                     }
-
-                    return ClusterState.builder(currentState).incrementVersion().blocks(blocks).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
                 }
+            }
 
-                private void removeIndex(ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable, IndexMetaData index) {
-                    metaData.remove(index.index());
-                    routingTable.remove(index.index());
-                    blocks.removeIndexBlocks(index.index());
-                }
+            return ClusterState.builder(currentState).incrementVersion().blocks(blocks).nodes(nodes).metaData(metaData).routingTable(routingTable).incrementVersion().build();
+        }
 
-                private void addNewIndex(ClusterState tribeState, ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable, IndexMetaData tribeIndex) {
-                    Settings tribeSettings = Settings.builder().put(tribeIndex.settings()).put(TRIBE_NAME, tribeName).build();
-                    metaData.put(IndexMetaData.builder(tribeIndex).settings(tribeSettings));
-                    routingTable.add(tribeState.routingTable().index(tribeIndex.index()));
-                    if (Regex.simpleMatch(blockIndicesMetadata, tribeIndex.index())) {
-                        blocks.addIndexBlock(tribeIndex.index(), IndexMetaData.INDEX_METADATA_BLOCK);
-                    }
-                    if (Regex.simpleMatch(blockIndicesRead, tribeIndex.index())) {
-                        blocks.addIndexBlock(tribeIndex.index(), IndexMetaData.INDEX_READ_BLOCK);
-                    }
-                    if (Regex.simpleMatch(blockIndicesWrite, tribeIndex.index())) {
-                        blocks.addIndexBlock(tribeIndex.index(), IndexMetaData.INDEX_WRITE_BLOCK);
-                    }
-                }
+        private void removeIndex(ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable, IndexMetaData index) {
+            metaData.remove(index.index());
+            routingTable.remove(index.index());
+            blocks.removeIndexBlocks(index.index());
+        }
 
-                @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.warn("failed to process [{}]", t, source);
-                }
-            });
+        private void addNewIndex(ClusterState tribeState, ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable, String tribeName, IndexMetaData tribeIndex) {
+            Settings tribeSettings = Settings.builder().put(tribeIndex.settings()).put(TRIBE_NAME, tribeName).build();
+            metaData.put(IndexMetaData.builder(tribeIndex).settings(tribeSettings));
+            routingTable.add(tribeState.routingTable().index(tribeIndex.index()));
+            if (Regex.simpleMatch(blockIndicesMetadata, tribeIndex.index())) {
+                blocks.addIndexBlock(tribeIndex.index(), IndexMetaData.INDEX_METADATA_BLOCK);
+            }
+            if (Regex.simpleMatch(blockIndicesRead, tribeIndex.index())) {
+                blocks.addIndexBlock(tribeIndex.index(), IndexMetaData.INDEX_READ_BLOCK);
+            }
+            if (Regex.simpleMatch(blockIndicesWrite, tribeIndex.index())) {
+                blocks.addIndexBlock(tribeIndex.index(), IndexMetaData.INDEX_WRITE_BLOCK);
+            }
+        }
+
+        @Override
+        public void onFailure(String source, Throwable t) {
+            logger.warn("failed to process [{}]", t, source);
         }
     }
 }

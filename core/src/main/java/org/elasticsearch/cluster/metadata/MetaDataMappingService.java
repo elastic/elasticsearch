@@ -294,7 +294,7 @@ public class MetaDataMappingService extends AbstractComponent {
             insertOrder = ++refreshOrUpdateInsertOrder;
             refreshOrUpdateQueue.add(new RefreshTask(index, indexUUID, types));
         }
-        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", Priority.HIGH, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", Priority.HIGH, new ClusterStateUpdateTask<Void>() {
             private volatile List<MappingTask> allTasks;
 
             @Override
@@ -303,7 +303,7 @@ public class MetaDataMappingService extends AbstractComponent {
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) throws Exception {
                 Tuple<ClusterState, List<MappingTask>> tuple = executeRefreshOrUpdate(currentState, insertOrder);
                 this.allTasks = tuple.v2();
                 return tuple.v1();
@@ -327,7 +327,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
 
-        clusterService.submitStateUpdateTask("put-mapping [" + request.type() + "]", Priority.HIGH, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("put-mapping [" + request.type() + "]", Priority.HIGH, new AckedClusterStateUpdateTask<Void, ClusterStateUpdateResponse>(request, listener) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -335,7 +335,7 @@ public class MetaDataMappingService extends AbstractComponent {
             }
 
             @Override
-            public ClusterState execute(final ClusterState currentState) throws Exception {
+            public ClusterState execute(final ClusterState currentState, Collection<Void> params) throws Exception {
                 List<String> indicesToClose = new ArrayList<>();
                 try {
                     for (String index : request.indices()) {

@@ -164,12 +164,12 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     public void createSnapshot(final SnapshotRequest request, final CreateSnapshotListener listener) {
         final SnapshotId snapshotId = new SnapshotId(request.repository(), request.name());
         validate(snapshotId);
-        clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask<Void>() {
 
             private SnapshotsInProgress.Entry newSnapshot = null;
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                 validate(request, currentState);
 
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
@@ -285,13 +285,13 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 endSnapshot(snapshot);
                 return;
             }
-            clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshotId().getSnapshot() + "]", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshotId().getSnapshot() + "]", new ClusterStateUpdateTask<Void>() {
                 boolean accepted = false;
                 SnapshotsInProgress.Entry updatedSnapshot;
                 String failure = null;
 
                 @Override
-                public ClusterState execute(ClusterState currentState) {
+                public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                     SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                     List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
                     for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
@@ -511,9 +511,9 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         if (removedNodesCleanupNeeded(event)) {
             // Check if we just became the master
             final boolean newMaster = !event.previousState().nodes().localNodeMaster();
-            clusterService.submitStateUpdateTask("update snapshot state after node removal", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("update snapshot state after node removal", new ClusterStateUpdateTask<Void>() {
                 @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
+                public ClusterState execute(ClusterState currentState, Collection<Void> params) throws Exception {
                     DiscoveryNodes nodes = currentState.nodes();
                     SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                     if (snapshots == null) {
@@ -585,9 +585,9 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
     private void processStartedShards(ClusterChangedEvent event) {
         if (waitingShardsStartedOrUnassigned(event)) {
-            clusterService.submitStateUpdateTask("update snapshot state after shards started", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("update snapshot state after shards started", new ClusterStateUpdateTask<Void>() {
                 @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
+                public ClusterState execute(ClusterState currentState, Collection<Void> params) throws Exception {
                     RoutingTable routingTable = currentState.routingTable();
                     SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                     if (snapshots != null) {
@@ -787,9 +787,9 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param t          exception if snapshot failed
      */
     private void removeSnapshotFromClusterState(final SnapshotId snapshotId, final SnapshotInfo snapshot, final Throwable t) {
-        clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask<Void>() {
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 if (snapshots != null) {
                     boolean changed = false;
@@ -842,12 +842,12 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      */
     public void deleteSnapshot(final SnapshotId snapshotId, final DeleteSnapshotListener listener) {
         validate(snapshotId);
-        clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask<Void>() {
 
             boolean waitForSnapshot = false;
 
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState, Collection<Void> params) throws Exception {
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 if (snapshots == null) {
                     // No snapshots running - we can continue

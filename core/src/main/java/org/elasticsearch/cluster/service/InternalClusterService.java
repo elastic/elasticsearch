@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -87,6 +88,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private final Collection<ClusterStateListener> priorityClusterStateListeners = new CopyOnWriteArrayList<>();
     private final Collection<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
     private final Collection<ClusterStateListener> lastClusterStateListeners = new CopyOnWriteArrayList<>();
+    private final Map<ClusterStateUpdateTask<?>, BatchUpdateTaskHolder> batchUpdateTasks = new IdentityHashMap<>();
     // TODO this is rather frequently changing I guess a Synced Set would be better here and a dedicated remove API
     private final Collection<ClusterStateListener> postAppliedListeners = new CopyOnWriteArrayList<>();
     private final Iterable<ClusterStateListener> preAppliedListeners = Iterables.concat(priorityClusterStateListeners, clusterStateListeners, lastClusterStateListeners);
@@ -264,17 +266,46 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    public void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask) {
-        submitStateUpdateTask(source, Priority.NORMAL, updateTask);
+    public <P> void submitStateUpdateTask(final String source, final ClusterStateUpdateTask<P> updateTask, P params) {
+        submitStateUpdateTask(source, Priority.NORMAL, updateTask, params);
     }
 
     @Override
-    public void submitStateUpdateTask(final String source, Priority priority, final ClusterStateUpdateTask updateTask) {
+    public void submitStateUpdateTask(String source, ClusterStateUpdateTask<Void> updateTask) {
+        submitStateUpdateTask(source, Priority.NORMAL, updateTask, null);
+    }
+
+    @Override
+    public void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask<Void> updateTask) {
+        submitStateUpdateTask(source, priority, updateTask, null);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <P> void submitStateUpdateTask(final String source, Priority priority, final ClusterStateUpdateTask<P> updateTask, P params) {
         if (!lifecycle.started()) {
             return;
         }
         try {
-            final UpdateTask task = new UpdateTask(source, priority, updateTask);
+            BatchUpdateTaskHolder<P> holder = null;
+            if (params != null) {
+                // Batch task
+                synchronized (batchUpdateTasks) {
+                    holder = batchUpdateTasks.get(updateTask);
+                    if (holder == null) {
+                        holder = new BatchUpdateTaskHolder<>(priority);
+                        batchUpdateTasks.put(updateTask, holder);
+                    } else {
+                        if (holder.priority.equals(priority) == false) {
+                            logger.warn("all batch tasks have to have the same priority, expected priority: [{}], new priority: [{}], source: [{}]", holder.priority, priority, source);
+                            throw new IllegalArgumentException("all batch tasks have to have the same priority");
+                        }
+                    }
+                    holder.addTask(params);
+                }
+            }
+
+            final UpdateTask<P> task = new UpdateTask<>(source, priority, updateTask, holder != null);
             if (updateTask.timeout() != null) {
                 updateTasksExecutor.execute(task, threadPool.scheduler(), updateTask.timeout(), new Runnable() {
                     @Override
@@ -355,13 +386,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
     }
 
-    class UpdateTask extends SourcePrioritizedRunnable {
+    class UpdateTask<P> extends SourcePrioritizedRunnable {
 
-        public final ClusterStateUpdateTask updateTask;
+        public final ClusterStateUpdateTask<P> updateTask;
+        public final boolean batchTask;
 
-        UpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
+        UpdateTask(String source, Priority priority, ClusterStateUpdateTask<P> updateTask, boolean batchTask) {
             super(priority, source);
             this.updateTask = updateTask;
+            this.batchTask = batchTask;
         }
 
         @Override
@@ -380,7 +413,23 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             ClusterState newClusterState;
             long startTimeNS = System.nanoTime();
             try {
-                newClusterState = updateTask.execute(previousClusterState);
+                final Collection<P> params;
+                if (batchTask) {
+                    synchronized (batchUpdateTasks) {
+                        BatchUpdateTaskHolder<P> holder = batchUpdateTasks.get(updateTask);
+                        if (holder != null) {
+                            params = holder.tasks();
+                            batchUpdateTasks.remove(updateTask);
+                        } else {
+                            // We already processed it - return
+                            return;
+                        }
+                    }
+                } else {
+                    // Not a batch task - no parameters is required
+                    params = null;
+                }
+                newClusterState = updateTask.execute(previousClusterState, params);
             } catch (Throwable e) {
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)));
                 if (logger.isTraceEnabled()) {
@@ -784,6 +833,24 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         public void onRefreshSettings(Settings settings) {
             final TimeValue slowTaskLoggingThreshold = settings.getAsTime(SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD, InternalClusterService.this.slowTaskLoggingThreshold);
             InternalClusterService.this.slowTaskLoggingThreshold = slowTaskLoggingThreshold;
+        }
+    }
+
+    private class BatchUpdateTaskHolder<T> {
+        final Priority priority;
+        final List<T> stateQueue;
+
+        public BatchUpdateTaskHolder(Priority priority) {
+            this.priority = priority;
+            stateQueue = new ArrayList<>();
+        }
+
+        public void addTask(T task) {
+            stateQueue.add(task);
+        }
+
+        public List<T> tasks() {
+            return stateQueue;
         }
     }
 

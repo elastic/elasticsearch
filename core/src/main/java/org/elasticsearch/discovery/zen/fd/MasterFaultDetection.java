@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -342,10 +343,10 @@ public class MasterFaultDetection extends FaultDetection {
 
             if (!nodes.localNodeMaster() || !nodes.nodeExists(request.nodeId)) {
                 logger.trace("checking ping from [{}] under a cluster state thread", request.nodeId);
-                clusterService.submitStateUpdateTask("master ping (from: [" + request.nodeId + "])", new ClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("master ping (from: [" + request.nodeId + "])", new ClusterStateUpdateTask<Void>() {
 
                     @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
+                    public ClusterState execute(ClusterState currentState, Collection<Void> params) throws Exception {
                         // if we are no longer master, fail...
                         DiscoveryNodes nodes = currentState.nodes();
                         if (!nodes.nodeExists(request.nodeId)) {

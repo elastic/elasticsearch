@@ -38,6 +38,7 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -214,9 +215,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         @Override
         public void onSuccess(final ClusterState recoveredState) {
             logger.trace("successful state recovery, importing cluster state...");
-            clusterService.submitStateUpdateTask("local-gateway-elected-state", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("local-gateway-elected-state", new ClusterStateUpdateTask<Void>() {
                 @Override
-                public ClusterState execute(ClusterState currentState) {
+                public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                     assert currentState.metaData().indices().isEmpty();
 
                     // remove the block, since we recovered from gateway

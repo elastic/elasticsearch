@@ -112,9 +112,9 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
             for (int i = 0; i < request.indices.length; i++) {
                 indexNames[i] = request.indices[i].index();
             }
-            clusterService.submitStateUpdateTask("allocation dangled indices " + Arrays.toString(indexNames), new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("allocation dangled indices " + Arrays.toString(indexNames), new ClusterStateUpdateTask<Void>() {
                 @Override
-                public ClusterState execute(ClusterState currentState) {
+                public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                     if (currentState.blocks().disableStatePersistence()) {
                         return currentState;
                     }

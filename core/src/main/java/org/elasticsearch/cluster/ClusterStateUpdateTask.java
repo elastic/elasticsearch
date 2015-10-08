@@ -23,16 +23,18 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
+import java.util.Collection;
+
 /**
  * A task that can update the cluster state.
  */
-abstract public class ClusterStateUpdateTask {
+abstract public class ClusterStateUpdateTask<P> {
 
     /**
      * Update the cluster state based on the current state. Return the *same instance* if no state
      * should be changed.
      */
-    abstract public ClusterState execute(ClusterState currentState) throws Exception;
+    abstract public ClusterState execute(ClusterState currentState, Collection<P> params) throws Exception;
 
     /**
      * A callback called when execute fails.
@@ -55,7 +57,7 @@ abstract public class ClusterStateUpdateTask {
     }
 
     /**
-     * Called when the result of the {@link #execute(ClusterState)} have been processed
+     * Called when the result of the {@link #execute(ClusterState, Collection)} have been processed
      * properly by all listeners.
      */
     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {

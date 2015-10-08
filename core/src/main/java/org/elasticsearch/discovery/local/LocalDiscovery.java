@@ -39,6 +39,7 @@ import org.elasticsearch.discovery.*;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
@@ -124,7 +125,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 // we are the first master (and the master)
                 master = true;
                 final LocalDiscovery master = firstMaster;
-                clusterService.submitStateUpdateTask("local-disco-initial_connect(master)", new ClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("local-disco-initial_connect(master)", new ClusterStateUpdateTask<Void>() {
 
                     @Override
                     public boolean runOnlyOnMaster() {
@@ -132,7 +133,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     }
 
                     @Override
-                    public ClusterState execute(ClusterState currentState) {
+                    public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
                         for (LocalDiscovery discovery : clusterGroups.get(clusterName).members()) {
                             nodesBuilder.put(discovery.localNode);
@@ -156,14 +157,14 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
             } else if (firstMaster != null) {
                 // update as fast as we can the local node state with the new metadata (so we create indices for example)
                 final ClusterState masterState = firstMaster.clusterService.state();
-                clusterService.submitStateUpdateTask("local-disco(detected_master)", new ClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("local-disco(detected_master)", new ClusterStateUpdateTask<Void>() {
                     @Override
                     public boolean runOnlyOnMaster() {
                         return false;
                     }
 
                     @Override
-                    public ClusterState execute(ClusterState currentState) {
+                    public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                         // make sure we have the local node id set, we might need it as a result of the new metadata
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes()).put(localNode).localNodeId(localNode.id());
                         return ClusterState.builder(currentState).metaData(masterState.metaData()).nodes(nodesBuilder).build();
@@ -177,14 +178,14 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
                 // tell the master to send the fact that we are here
                 final LocalDiscovery master = firstMaster;
-                firstMaster.clusterService.submitStateUpdateTask("local-disco-receive(from node[" + localNode + "])", new ClusterStateUpdateTask() {
+                firstMaster.clusterService.submitStateUpdateTask("local-disco-receive(from node[" + localNode + "])", new ClusterStateUpdateTask<Void>() {
                     @Override
                     public boolean runOnlyOnMaster() {
                         return false;
                     }
 
                     @Override
-                    public ClusterState execute(ClusterState currentState) {
+                    public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
                         for (LocalDiscovery discovery : clusterGroups.get(clusterName).members()) {
                             nodesBuilder.put(discovery.localNode);
@@ -246,14 +247,14 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 }
 
                 final LocalDiscovery master = firstMaster;
-                master.clusterService.submitStateUpdateTask("local-disco-update", new ClusterStateUpdateTask() {
+                master.clusterService.submitStateUpdateTask("local-disco-update", new ClusterStateUpdateTask<Void>() {
                     @Override
                     public boolean runOnlyOnMaster() {
                         return false;
                     }
 
                     @Override
-                    public ClusterState execute(ClusterState currentState) {
+                    public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                         DiscoveryNodes newNodes = currentState.nodes().removeDeadMembers(newMembers, master.localNode.id());
                         DiscoveryNodes.Delta delta = newNodes.delta(currentState.nodes());
                         if (delta.added()) {
@@ -372,14 +373,14 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     assert nodeSpecificClusterState.nodes().masterNode() != null : "received a cluster state without a master";
                     assert !nodeSpecificClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
 
-                    discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ClusterStateUpdateTask() {
+                    discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ClusterStateUpdateTask<Void>() {
                         @Override
                         public boolean runOnlyOnMaster() {
                             return false;
                         }
 
                         @Override
-                        public ClusterState execute(ClusterState currentState) {
+                        public ClusterState execute(ClusterState currentState, Collection<Void> params) {
                             if (currentState.supersedes(nodeSpecificClusterState)) {
                                 return currentState;
                             }

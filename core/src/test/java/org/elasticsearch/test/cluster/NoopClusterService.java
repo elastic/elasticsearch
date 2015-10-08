@@ -115,6 +115,16 @@ public class NoopClusterService implements ClusterService {
     }
 
     @Override
+    public <P> void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask<P> updateTask, P param) {
+
+    }
+
+    @Override
+    public <P> void submitStateUpdateTask(String source, ClusterStateUpdateTask<P> updateTask, P param) {
+
+    }
+
+    @Override
     public void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
 
     }

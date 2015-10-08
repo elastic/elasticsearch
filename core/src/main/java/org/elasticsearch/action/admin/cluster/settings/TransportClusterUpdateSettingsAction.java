@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.ClusterState.builder;
@@ -91,7 +92,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         final Settings.Builder transientUpdates = Settings.settingsBuilder();
         final Settings.Builder persistentUpdates = Settings.settingsBuilder();
 
-        clusterService.submitStateUpdateTask("cluster_update_settings", Priority.IMMEDIATE, new AckedClusterStateUpdateTask<ClusterUpdateSettingsResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("cluster_update_settings", Priority.IMMEDIATE, new AckedClusterStateUpdateTask<Void, ClusterUpdateSettingsResponse>(request, listener) {
 
             private volatile boolean changed = false;
 
@@ -132,7 +133,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                 // in the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible
                 // to the components until the ClusterStateListener instances have been invoked, but are visible after
                 // the first update task has been completed.
-                clusterService.submitStateUpdateTask("reroute_after_cluster_update_settings", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterUpdateSettingsResponse>(request, listener) {
+                clusterService.submitStateUpdateTask("reroute_after_cluster_update_settings", Priority.URGENT, new AckedClusterStateUpdateTask<Void, ClusterUpdateSettingsResponse>(request, listener) {
 
                     @Override
                     public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -160,7 +161,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                     }
 
                     @Override
-                    public ClusterState execute(final ClusterState currentState) {
+                    public ClusterState execute(final ClusterState currentState, Collection<Void> params) {
                         // now, reroute in case things that require it changed (e.g. number of replicas)
                         RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
                         if (!routingResult.changed()) {
@@ -178,7 +179,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             }
 
             @Override
-            public ClusterState execute(final ClusterState currentState) {
+            public ClusterState execute(final ClusterState currentState, Collection<Void> params) {
                 Settings.Builder transientSettings = Settings.settingsBuilder();
                 transientSettings.put(currentState.metaData().transientSettings());
                 for (Map.Entry<String, String> entry : request.transientSettings().getAsMap().entrySet()) {

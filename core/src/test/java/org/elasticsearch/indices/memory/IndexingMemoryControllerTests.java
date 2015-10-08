@@ -22,13 +22,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -39,42 +43,26 @@ public class IndexingMemoryControllerTests extends ESTestCase {
 
         final static ByteSizeValue INACTIVE = new ByteSizeValue(-1);
 
-        final Map<ShardId, Long> translogIds = new HashMap<>();
-        final Map<ShardId, Long> translogOps = new HashMap<>();
-
         final Map<ShardId, ByteSizeValue> indexingBuffers = new HashMap<>();
         final Map<ShardId, ByteSizeValue> translogBuffers = new HashMap<>();
+
+        final Map<ShardId, Long> lastIndexTimeNanos = new HashMap<>();
+        final Set<ShardId> activeShards = new HashSet<>();
 
         long currentTimeSec = TimeValue.timeValueNanos(System.nanoTime()).seconds();
 
         public MockController(Settings settings) {
             super(Settings.builder()
                             .put(SHARD_INACTIVE_INTERVAL_TIME_SETTING, "200h") // disable it
-                            .put(SHARD_INACTIVE_TIME_SETTING, "0s") // immediate
+                            .put(SHARD_INACTIVE_TIME_SETTING, "1ms") // nearly immediate
                             .put(settings)
                             .build(),
                     null, null, 100 * 1024 * 1024); // fix jvm mem size to 100mb
         }
 
-        public void incTranslog(ShardId shard1, int id, int ops) {
-            setTranslog(shard1, translogIds.get(shard1) + id, translogOps.get(shard1) + ops);
-        }
-
-        public void setTranslog(ShardId id, long translogId, long ops) {
-            translogIds.put(id, translogId);
-            translogOps.put(id, ops);
-        }
-
         public void deleteShard(ShardId id) {
-            translogIds.remove(id);
-            translogOps.remove(id);
             indexingBuffers.remove(id);
             translogBuffers.remove(id);
-        }
-
-        public void assertActive(ShardId id) {
-            assertThat(indexingBuffers.get(id), not(equalTo(INACTIVE)));
-            assertThat(translogBuffers.get(id), not(equalTo(INACTIVE)));
         }
 
         public void assertBuffers(ShardId id, ByteSizeValue indexing, ByteSizeValue translog) {
@@ -94,29 +82,17 @@ public class IndexingMemoryControllerTests extends ESTestCase {
 
         @Override
         protected List<ShardId> availableShards() {
-            return new ArrayList<>(translogIds.keySet());
+            return new ArrayList<>(indexingBuffers.keySet());
         }
 
         @Override
         protected boolean shardAvailable(ShardId shardId) {
-            return translogIds.containsKey(shardId);
+            return indexingBuffers.containsKey(shardId);
         }
 
         @Override
-        protected void markShardAsInactive(ShardId shardId) {
-            indexingBuffers.put(shardId, INACTIVE);
-            translogBuffers.put(shardId, INACTIVE);
-        }
-
-        @Override
-        protected ShardIndexingStatus getTranslogStatus(ShardId shardId) {
-            if (!shardAvailable(shardId)) {
-                return null;
-            }
-            ShardIndexingStatus status = new ShardIndexingStatus();
-            status.translogId = translogIds.get(shardId);
-            status.translogNumberOfOperations = translogOps.get(shardId);
-            return status;
+        protected Boolean getShardActive(ShardId shardId) {
+            return activeShards.contains(shardId);
         }
 
         @Override
@@ -125,12 +101,34 @@ public class IndexingMemoryControllerTests extends ESTestCase {
             translogBuffers.put(shardId, shardTranslogBufferSize);
         }
 
+        @Override
+        protected Boolean checkIdle(ShardId shardId, long inactiveTimeNS) {
+            Long ns = lastIndexTimeNanos.get(shardId);
+            if (ns == null) {
+                return null;
+            } else if (currentTimeInNanos() - ns >= inactiveTimeNS) {
+                indexingBuffers.put(shardId, INACTIVE);
+                translogBuffers.put(shardId, INACTIVE);
+                activeShards.remove(shardId);
+                return true;
+            } else {
+                return false;
+            }
+        }
+
         public void incrementTimeSec(int sec) {
             currentTimeSec += sec;
         }
 
-        public void simulateFlush(ShardId shard) {
-            setTranslog(shard, translogIds.get(shard) + 1, 0);
+        public void simulateIndexing(ShardId shardId) {
+            lastIndexTimeNanos.put(shardId, currentTimeInNanos());
+            if (indexingBuffers.containsKey(shardId) == false) {
+                // First time we are seeing this shard; start it off with inactive buffers as IndexShard does:
+                indexingBuffers.put(shardId, IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER);
+                translogBuffers.put(shardId, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
+            }
+            activeShards.add(shardId);
+            forceCheck();
         }
     }
 
@@ -139,14 +137,12 @@ public class IndexingMemoryControllerTests extends ESTestCase {
                 .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "10mb")
                 .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "100kb").build());
         final ShardId shard1 = new ShardId("test", 1);
-        controller.setTranslog(shard1, randomInt(10), randomInt(10));
-        controller.forceCheck();
+        controller.simulateIndexing(shard1);
         controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB)); // translog is maxed at 64K
 
         // add another shard
         final ShardId shard2 = new ShardId("test", 2);
-        controller.setTranslog(shard2, randomInt(10), randomInt(10));
-        controller.forceCheck();
+        controller.simulateIndexing(shard2);
         controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
         controller.assertBuffers(shard2, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
 
@@ -161,8 +157,7 @@ public class IndexingMemoryControllerTests extends ESTestCase {
 
         // add a new one
         final ShardId shard3 = new ShardId("test", 3);
-        controller.setTranslog(shard3, randomInt(10), randomInt(10));
-        controller.forceCheck();
+        controller.simulateIndexing(shard3);
         controller.assertBuffers(shard3, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB)); // translog is maxed at 64K
     }
 
@@ -174,48 +169,42 @@ public class IndexingMemoryControllerTests extends ESTestCase {
                 .build());
 
         final ShardId shard1 = new ShardId("test", 1);
-        controller.setTranslog(shard1, 0, 0);
+        controller.simulateIndexing(shard1);
         final ShardId shard2 = new ShardId("test", 2);
-        controller.setTranslog(shard2, 0, 0);
-        controller.forceCheck();
+        controller.simulateIndexing(shard2);
         controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
         controller.assertBuffers(shard2, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
 
         // index into both shards, move the clock and see that they are still active
-        controller.setTranslog(shard1, randomInt(2), randomInt(2) + 1);
-        controller.setTranslog(shard2, randomInt(2) + 1, randomInt(2));
-        // the controller doesn't know when the ops happened, so even if this is more
-        // than the inactive time the shard is still marked as active
+        controller.simulateIndexing(shard1);
+        controller.simulateIndexing(shard2);
+
         controller.incrementTimeSec(10);
         controller.forceCheck();
-        controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
-        controller.assertBuffers(shard2, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
 
-        // index into one shard only, see other shard is made inactive correctly
-        controller.incTranslog(shard1, randomInt(2), randomInt(2) + 1);
-        controller.forceCheck(); // register what happened with the controller (shard is still active)
-        controller.incrementTimeSec(3); // increment but not enough
-        controller.forceCheck();
-        controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
-        controller.assertBuffers(shard2, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
+        // both shards now inactive
+        controller.assertInActive(shard1);
+        controller.assertInActive(shard2);
 
-        controller.incrementTimeSec(3); // increment some more
+        // index into one shard only, see it becomes active
+        controller.simulateIndexing(shard1);
+        controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
+        controller.assertInActive(shard2);
+
+        controller.incrementTimeSec(3); // increment but not enough to become inactive
         controller.forceCheck();
         controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
         controller.assertInActive(shard2);
 
-        if (randomBoolean()) {
-            // once a shard gets inactive it will be synced flushed and a new translog generation will be made
-            controller.simulateFlush(shard2);
-            controller.forceCheck();
-            controller.assertInActive(shard2);
-        }
+        controller.incrementTimeSec(3); // increment some more
+        controller.forceCheck();
+        controller.assertInActive(shard1);
+        controller.assertInActive(shard2);
 
         // index some and shard becomes immediately active
-        controller.incTranslog(shard2, randomInt(2), 1 + randomInt(2)); // we must make sure translog ops is never 0
-        controller.forceCheck();
-        controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
-        controller.assertBuffers(shard2, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
+        controller.simulateIndexing(shard2);
+        controller.assertInActive(shard1);
+        controller.assertBuffers(shard2, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
     }
 
     public void testMinShardBufferSizes() {
@@ -273,10 +262,9 @@ public class IndexingMemoryControllerTests extends ESTestCase {
 
     protected void assertTwoActiveShards(MockController controller, ByteSizeValue indexBufferSize, ByteSizeValue translogBufferSize) {
         final ShardId shard1 = new ShardId("test", 1);
-        controller.setTranslog(shard1, 0, 0);
+        controller.simulateIndexing(shard1);
         final ShardId shard2 = new ShardId("test", 2);
-        controller.setTranslog(shard2, 0, 0);
-        controller.forceCheck();
+        controller.simulateIndexing(shard2);
         controller.assertBuffers(shard1, indexBufferSize, translogBufferSize);
         controller.assertBuffers(shard2, indexBufferSize, translogBufferSize);
 

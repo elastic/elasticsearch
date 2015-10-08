@@ -271,7 +271,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>cloud-gce</artifactId>
+                   <artifactId>discovery-gce</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>

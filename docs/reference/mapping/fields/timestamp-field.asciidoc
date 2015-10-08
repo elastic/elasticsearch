@@ -1,8 +1,6 @@
 [[mapping-timestamp-field]]
 === `_timestamp` field
 
-deprecated[2.0.0,The `_timestamp` field is deprecated.  Instead, use a normal <<date,`date`>> field and set its value explicitly]
-
 The `_timestamp` field, when enabled, allows a timestamp to be indexed and
 stored with a document. The timestamp may be specified manually, generated
 automatically, or set to a default value:

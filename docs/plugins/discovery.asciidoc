@@ -17,9 +17,9 @@ The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] f
 
 The Azure discovery plugin uses the Azure API for unicast discovery.
 
-<<cloud-gce,GCE Cloud>>::
+<<discovery-gce,GCE discovery>>::
 
-The Google Compute Engine Cloud plugin uses the GCE API for unicast discovery.
+The Google Compute Engine discovery plugin uses the GCE API for unicast discovery.
 
 <<discovery-multicast,Multicast>>::
 
@@ -38,7 +38,7 @@ include::discovery-ec2.asciidoc[]
 
 include::discovery-azure.asciidoc[]
 
-include::cloud-gce.asciidoc[]
+include::discovery-gce.asciidoc[]
 
 include::discovery-multicast.asciidoc[]
 

@@ -103,11 +103,6 @@ public class ShadowEngine extends Engine {
 
 
     @Override
-    public void create(Create create) throws EngineException {
-        throw new UnsupportedOperationException(shardId + " create operation not allowed on shadow engine");
-    }
-
-    @Override
     public boolean index(Index index) throws EngineException {
         throw new UnsupportedOperationException(shardId + " index operation not allowed on shadow engine");
     }
@@ -245,4 +240,9 @@ public class ShadowEngine extends Engine {
         return lastCommittedSegmentInfos;
     }
 
+    @Override
+    public long indexWriterRAMBytesUsed() {
+        // No IndexWriter
+        throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
+    }
 }

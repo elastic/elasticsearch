@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 import org.junit.Test;
@@ -108,8 +109,12 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         GeoDistanceRangeQuery geoQuery = (GeoDistanceRangeQuery) query;
         assertThat(geoQuery.fieldName(), equalTo(queryBuilder.fieldName()));
         if (queryBuilder.point() != null) {
-            assertThat(geoQuery.lat(), equalTo(queryBuilder.point().lat()));
-            assertThat(geoQuery.lon(), equalTo(queryBuilder.point().lon()));
+            GeoPoint expectedPoint = new GeoPoint(queryBuilder.point());
+            if (GeoValidationMethod.isCoerce(queryBuilder.getValidationMethod())) {
+                GeoUtils.normalizePoint(expectedPoint, true, true);
+            }
+            assertThat(geoQuery.lat(), equalTo(expectedPoint.lat()));
+            assertThat(geoQuery.lon(), equalTo(expectedPoint.lon()));
         }
         assertThat(geoQuery.geoDistance(), equalTo(queryBuilder.geoDistance()));
         if (queryBuilder.from() != null && queryBuilder.from() instanceof Number) {

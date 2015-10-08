@@ -52,7 +52,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.LocalNodeIdModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
@@ -330,7 +329,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
         ModulesBuilder modules = new ModulesBuilder();
         modules.add(new IndexNameModule(index));
-        modules.add(new LocalNodeIdModule(localNodeId));
         modules.add(new IndexSettingsModule(index, indexSettings));
         // plugin modules must be added here, before others or we can get crazy injection errors...
         for (Module pluginModule : pluginsService.indexModules(indexSettings)) {
@@ -338,7 +336,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
         modules.add(new IndexStoreModule(indexSettings));
         modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));
-        modules.add(new SimilarityModule(indexSettings));
+        modules.add(new SimilarityModule(index, indexSettings));
         modules.add(new IndexCacheModule(indexSettings));
         modules.add(new IndexModule());
         

@@ -29,8 +29,16 @@ import java.io.IOException;
  */
 public class VersionConflictEngineException extends EngineException {
 
-    public VersionConflictEngineException(ShardId shardId, String type, String id, long current, long provided) {
-        super(shardId, "[" + type + "][" + id + "]: version conflict, current [" + current + "], provided [" + provided + "]");
+    public VersionConflictEngineException(ShardId shardId, String type, String id, String explanation) {
+        this(shardId, null, type, id, explanation);
+    }
+
+    public VersionConflictEngineException(ShardId shardId, Throwable cause, String type, String id, String explanation) {
+        this(shardId, "[{}][{}]: version conflict, {}", cause, type, id, explanation);
+    }
+
+    public VersionConflictEngineException(ShardId shardId, String msg, Throwable cause, Object... params) {
+        super(shardId, msg, cause, params);
     }
 
     @Override

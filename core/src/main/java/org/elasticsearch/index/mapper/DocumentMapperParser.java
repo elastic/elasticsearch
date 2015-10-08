@@ -43,7 +43,7 @@ import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 
@@ -57,7 +57,7 @@ public class DocumentMapperParser {
     final MapperService mapperService;
     final AnalysisService analysisService;
     private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
-    private final SimilarityLookupService similarityLookupService;
+    private final SimilarityService similarityService;
     private final ScriptService scriptService;
 
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
@@ -71,12 +71,12 @@ public class DocumentMapperParser {
     private volatile SortedMap<String, Mapper.TypeParser> additionalRootMappers;
 
     public DocumentMapperParser(@IndexSettings Settings indexSettings, MapperService mapperService, AnalysisService analysisService,
-                                SimilarityLookupService similarityLookupService, ScriptService scriptService) {
+                                SimilarityService similarityService, ScriptService scriptService) {
         this.indexSettings = indexSettings;
         this.parseFieldMatcher = new ParseFieldMatcher(indexSettings);
         this.mapperService = mapperService;
         this.analysisService = analysisService;
-        this.similarityLookupService = similarityLookupService;
+        this.similarityService = similarityService;
         this.scriptService = scriptService;
         MapBuilder<String, Mapper.TypeParser> typeParsersBuilder = new MapBuilder<String, Mapper.TypeParser>()
                 .put(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser())
@@ -142,7 +142,7 @@ public class DocumentMapperParser {
     }
 
     public Mapper.TypeParser.ParserContext parserContext(String type) {
-        return new Mapper.TypeParser.ParserContext(type, analysisService, similarityLookupService, mapperService, typeParsers, indexVersionCreated, parseFieldMatcher);
+        return new Mapper.TypeParser.ParserContext(type, analysisService, similarityService::getSimilarity, mapperService, typeParsers::get, indexVersionCreated, parseFieldMatcher);
     }
 
     public DocumentMapper parse(String source) throws MapperParsingException {

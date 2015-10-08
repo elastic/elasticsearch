@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.plugins;
 
+import com.google.common.hash.Hashing;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -587,7 +588,6 @@ public class PluginManagerIT extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("analysis-phonetic");
         PluginManager.checkForOfficialPlugins("analysis-smartcn");
         PluginManager.checkForOfficialPlugins("analysis-stempel");
-        PluginManager.checkForOfficialPlugins("cloud-gce");
         PluginManager.checkForOfficialPlugins("delete-by-query");
         PluginManager.checkForOfficialPlugins("lang-expression");
         PluginManager.checkForOfficialPlugins("lang-groovy");
@@ -598,6 +598,7 @@ public class PluginManagerIT extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("discovery-multicast");
         PluginManager.checkForOfficialPlugins("discovery-azure");
         PluginManager.checkForOfficialPlugins("discovery-ec2");
+        PluginManager.checkForOfficialPlugins("discovery-gce");
         PluginManager.checkForOfficialPlugins("repository-azure");
         PluginManager.checkForOfficialPlugins("repository-s3");
         PluginManager.checkForOfficialPlugins("store-smb");

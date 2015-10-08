@@ -19,9 +19,8 @@
 
 package org.elasticsearch.common.io;
 
-import com.google.common.collect.Iterators;
-
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.ESLogger;
 
 import java.io.BufferedReader;
@@ -35,6 +34,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.StreamSupport;
 
 import static java.nio.file.FileVisitResult.CONTINUE;
 import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
@@ -328,7 +328,7 @@ public final class FileSystemUtils {
      */
     public static Path[] files(Path from, DirectoryStream.Filter<Path> filter) throws IOException {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(from, filter)) {
-            return Iterators.toArray(stream.iterator(), Path.class);
+            return toArray(stream);
         }
     }
 
@@ -337,7 +337,7 @@ public final class FileSystemUtils {
      */
     public static Path[] files(Path directory) throws IOException {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
-            return Iterators.toArray(stream.iterator(), Path.class);
+            return toArray(stream);
         }
     }
 
@@ -346,8 +346,12 @@ public final class FileSystemUtils {
      */
     public static Path[] files(Path directory, String glob) throws IOException {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory, glob)) {
-            return Iterators.toArray(stream.iterator(), Path.class);
+            return toArray(stream);
         }
+    }
+
+    private static Path[] toArray(DirectoryStream<Path> stream) {
+        return StreamSupport.stream(stream.spliterator(), false).toArray(length -> new Path[length]);
     }
 
 }

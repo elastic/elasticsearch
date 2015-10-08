@@ -388,10 +388,10 @@
         <module>analysis-phonetic</module>
         <module>analysis-smartcn</module>
         <module>analysis-stempel</module>
-        <module>cloud-gce</module>
         <module>delete-by-query</module>
         <module>discovery-azure</module>
         <module>discovery-ec2</module>
+        <module>discovery-gce</module>
         <module>discovery-multicast</module>
         <module>lang-expression</module>
         <module>lang-groovy</module>

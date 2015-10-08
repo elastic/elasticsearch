@@ -34,8 +34,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.index.similarity.SimilarityService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -447,7 +447,7 @@ public abstract class FieldMapper extends Mapper {
         if (fieldType().similarity() != null) {
             builder.field("similarity", fieldType().similarity().name());
         } else if (includeDefaults) {
-            builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
+            builder.field("similarity", SimilarityService.DEFAULT_SIMILARITY);
         }
 
         if (includeDefaults || hasCustomFieldDataSettings()) {

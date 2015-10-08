@@ -122,7 +122,7 @@ class DocumentParser implements Closeable {
                 // entire type is disabled
                 parser.skipChildren();
             } else if (emptyDoc == false) {
-                Mapper update = parseObject(context, mapping.root);
+                Mapper update = parseObject(context, mapping.root, true);
                 if (update != null) {
                     context.addDynamicMappingsUpdate(update);
                 }
@@ -194,7 +194,7 @@ class DocumentParser implements Closeable {
         return doc;
     }
 
-    static ObjectMapper parseObject(ParseContext context, ObjectMapper mapper) throws IOException {
+    static ObjectMapper parseObject(ParseContext context, ObjectMapper mapper, boolean atRoot) throws IOException {
         if (mapper.isEnabled() == false) {
             context.parser().skipChildren();
             return null;
@@ -202,6 +202,10 @@ class DocumentParser implements Closeable {
         XContentParser parser = context.parser();
 
         String currentFieldName = parser.currentName();
+        if (atRoot && MapperService.isMetadataField(currentFieldName) &&
+            Version.indexCreated(context.indexSettings()).onOrAfter(Version.V_2_0_0_beta1)) {
+            throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside a document. Use the index API request parameters.");
+        }
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NULL) {
             // the object is null ("obj1" : null), simply bail
@@ -302,7 +306,7 @@ class DocumentParser implements Closeable {
 
     private static Mapper parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper) {
-            return parseObject(context, (ObjectMapper) mapper);
+            return parseObject(context, (ObjectMapper) mapper, false);
         } else {
             FieldMapper fieldMapper = (FieldMapper)mapper;
             Mapper update = fieldMapper.parse(context);

@@ -316,7 +316,8 @@ public class InternalEngine extends Engine {
                     }
                     if (get.versionType().isVersionConflictForReads(versionValue.version(), get.version())) {
                         Uid uid = Uid.createUid(get.uid().text());
-                        throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), versionValue.version(), get.version());
+                        throw new VersionConflictEngineException(shardId, uid.type(), uid.id(),
+                                get.versionType().explainConflictForReads(versionValue.version(), get.version()));
                     }
                     Translog.Operation op = translog.read(versionValue.translogLocation());
                     if (op != null) {
@@ -331,96 +332,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void create(Create create) throws EngineException {
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
-            if (create.origin() == Operation.Origin.RECOVERY) {
-                // Don't throttle recovery operations
-                innerCreate(create);
-            } else {
-                try (Releasable r = throttle.acquireThrottle()) {
-                    innerCreate(create);
-                }
-            }
-        } catch (OutOfMemoryError | IllegalStateException | IOException t) {
-            maybeFailEngine("create", t);
-            throw new CreateFailedEngineException(shardId, create.type(), create.id(), t);
-        }
-        checkVersionMapRefresh();
-    }
-
-    private void innerCreate(Create create) throws IOException {
-        synchronized (dirtyLock(create.uid())) {
-            final long currentVersion;
-            final VersionValue versionValue;
-            versionValue = versionMap.getUnderLock(create.uid().bytes());
-            if (versionValue == null) {
-                currentVersion = loadCurrentVersionFromIndex(create.uid());
-            } else {
-                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
-                    currentVersion = Versions.NOT_FOUND; // deleted, and GC
-                } else {
-                    currentVersion = versionValue.version();
-                }
-            }
-            innerCreateUnderLock(create, currentVersion, versionValue);
-        }
-    }
-
-    private void innerCreateUnderLock(Create create, long currentVersion, VersionValue versionValue) throws IOException {
-
-        // same logic as index
-        long updatedVersion;
-        long expectedVersion = create.version();
-        if (create.versionType().isVersionConflictForWrites(currentVersion, expectedVersion)) {
-            if (create.origin() == Operation.Origin.RECOVERY) {
-                return;
-            } else {
-                throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
-            }
-        }
-        updatedVersion = create.versionType().updateVersion(currentVersion, expectedVersion);
-
-        // if the doc exists
-        boolean doUpdate = false;
-        if ((versionValue != null && versionValue.delete() == false) || (versionValue == null && currentVersion != Versions.NOT_FOUND)) {
-            if (create.origin() == Operation.Origin.RECOVERY) {
-                return;
-            } else if (create.origin() == Operation.Origin.REPLICA) {
-                // #7142: the primary already determined it's OK to index this document, and we confirmed above that the version doesn't
-                // conflict, so we must also update here on the replica to remain consistent:
-                doUpdate = true;
-            } else {
-                // On primary, we throw DAEE if the _uid is already in the index with an older version:
-                assert create.origin() == Operation.Origin.PRIMARY;
-                throw new DocumentAlreadyExistsException(shardId, create.type(), create.id());
-            }
-        }
-
-        create.updateVersion(updatedVersion);
-
-        if (doUpdate) {
-            if (create.docs().size() > 1) {
-                indexWriter.updateDocuments(create.uid(), create.docs());
-            } else {
-                indexWriter.updateDocument(create.uid(), create.docs().get(0));
-            }
-        } else {
-            if (create.docs().size() > 1) {
-                indexWriter.addDocuments(create.docs());
-            } else {
-                indexWriter.addDocument(create.docs().get(0));
-            }
-        }
-        Translog.Location translogLocation = translog.add(new Translog.Create(create));
-
-        versionMap.putUnderLock(create.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
-        create.setTranslogLocation(translogLocation);
-        indexingService.postCreateUnderLock(create);
-    }
-
-    @Override
-    public boolean index(Index index) throws EngineException {
+    public boolean index(Index index) {
         final boolean created;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
@@ -438,6 +350,67 @@ public class InternalEngine extends Engine {
         }
         checkVersionMapRefresh();
         return created;
+    }
+
+    private boolean innerIndex(Index index) throws IOException {
+        synchronized (dirtyLock(index.uid())) {
+            final long currentVersion;
+            final boolean deleted;
+            VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
+            if (versionValue == null) {
+                currentVersion = loadCurrentVersionFromIndex(index.uid());
+                deleted = currentVersion == Versions.NOT_FOUND;
+            } else {
+                deleted = versionValue.delete();
+                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
+                    currentVersion = Versions.NOT_FOUND; // deleted, and GC
+                } else {
+                    currentVersion = versionValue.version();
+                }
+            }
+
+            long expectedVersion = index.version();
+            if (index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
+                if (index.origin() == Operation.Origin.RECOVERY) {
+                    return false;
+                } else {
+                    throw new VersionConflictEngineException(shardId, index.type(), index.id(),
+                            index.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
+                }
+            }
+            long updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
+
+            final boolean created;
+            index.updateVersion(updatedVersion);
+
+            if (currentVersion == Versions.NOT_FOUND) {
+                // document does not exists, we can optimize for create
+                created = true;
+                if (index.docs().size() > 1) {
+                    indexWriter.addDocuments(index.docs());
+                } else {
+                    indexWriter.addDocument(index.docs().get(0));
+                }
+            } else {
+                if (versionValue != null) {
+                    created = versionValue.delete(); // we have a delete which is not GC'ed...
+                } else {
+                    created = false;
+                }
+                if (index.docs().size() > 1) {
+                    indexWriter.updateDocuments(index.uid(), index.docs());
+                } else {
+                    indexWriter.updateDocument(index.uid(), index.docs().get(0));
+                }
+            }
+            Translog.Location translogLocation = translog.add(new Translog.Index(index));
+
+            versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
+            index.setTranslogLocation(translogLocation);
+
+            indexingService.postIndexUnderLock(index);
+            return created;
+        }
     }
 
     /**
@@ -467,62 +440,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private boolean innerIndex(Index index) throws IOException {
-        synchronized (dirtyLock(index.uid())) {
-            final long currentVersion;
-            VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
-            if (versionValue == null) {
-                currentVersion = loadCurrentVersionFromIndex(index.uid());
-            } else {
-                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
-                    currentVersion = Versions.NOT_FOUND; // deleted, and GC
-                } else {
-                    currentVersion = versionValue.version();
-                }
-            }
-
-            long updatedVersion;
-            long expectedVersion = index.version();
-            if (index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion)) {
-                if (index.origin() == Operation.Origin.RECOVERY) {
-                    return false;
-                } else {
-                    throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
-                }
-            }
-            updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
-
-            final boolean created;
-            index.updateVersion(updatedVersion);
-            if (currentVersion == Versions.NOT_FOUND) {
-                // document does not exists, we can optimize for create
-                created = true;
-                if (index.docs().size() > 1) {
-                    indexWriter.addDocuments(index.docs());
-                } else {
-                    indexWriter.addDocument(index.docs().get(0));
-                }
-            } else {
-                if (versionValue != null) {
-                    created = versionValue.delete(); // we have a delete which is not GC'ed...
-                } else {
-                    created = false;
-                }
-                if (index.docs().size() > 1) {
-                    indexWriter.updateDocuments(index.uid(), index.docs());
-                } else {
-                    indexWriter.updateDocument(index.uid(), index.docs().get(0));
-                }
-            }
-            Translog.Location translogLocation = translog.add(new Translog.Index(index));
-
-            versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
-            index.setTranslogLocation(translogLocation);
-            indexingService.postIndexUnderLock(index);
-            return created;
-        }
-    }
-
     @Override
     public void delete(Delete delete) throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
@@ -549,10 +466,13 @@ public class InternalEngine extends Engine {
     private void innerDelete(Delete delete) throws IOException {
         synchronized (dirtyLock(delete.uid())) {
             final long currentVersion;
+            final boolean deleted;
             VersionValue versionValue = versionMap.getUnderLock(delete.uid().bytes());
             if (versionValue == null) {
                 currentVersion = loadCurrentVersionFromIndex(delete.uid());
+                deleted = currentVersion == Versions.NOT_FOUND;
             } else {
+                deleted = versionValue.delete();
                 if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
                     currentVersion = Versions.NOT_FOUND; // deleted, and GC
                 } else {
@@ -562,11 +482,12 @@ public class InternalEngine extends Engine {
 
             long updatedVersion;
             long expectedVersion = delete.version();
-            if (delete.versionType().isVersionConflictForWrites(currentVersion, expectedVersion)) {
+            if (delete.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
                 if (delete.origin() == Operation.Origin.RECOVERY) {
                     return;
                 } else {
-                    throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion, expectedVersion);
+                    throw new VersionConflictEngineException(shardId, delete.type(), delete.id(),
+                            delete.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
                 }
             }
             updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
@@ -902,6 +823,11 @@ public class InternalEngine extends Engine {
         stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
         stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
         stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB() * 1024 * 1024));
+    }
+
+    @Override
+    public long indexWriterRAMBytesUsed() {
+        return indexWriter.ramBytesUsed();
     }
 
     @Override

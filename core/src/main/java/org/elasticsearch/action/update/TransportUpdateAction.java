@@ -48,9 +48,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
@@ -170,7 +169,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard);
         switch (result.operation()) {
             case UPSERT:
-                IndexRequest upsertRequest = new IndexRequest((IndexRequest)result.action(), request);
+                IndexRequest upsertRequest = new IndexRequest(result.action(), request);
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 indexAction.execute(upsertRequest, new ActionListener<IndexResponse>() {
@@ -189,7 +188,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     @Override
                     public void onFailure(Throwable e) {
                         e = ExceptionsHelper.unwrapCause(e);
-                        if (e instanceof VersionConflictEngineException || e instanceof DocumentAlreadyExistsException) {
+                        if (e instanceof VersionConflictEngineException) {
                             if (retryCount < request.retryOnConflict()) {
                                 threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
@@ -205,7 +204,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case INDEX:
-                IndexRequest indexRequest = new IndexRequest((IndexRequest)result.action(), request);
+                IndexRequest indexRequest = new IndexRequest(result.action(), request);
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
@@ -235,7 +234,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case DELETE:
-                DeleteRequest deleteRequest = new DeleteRequest((DeleteRequest)result.action(), request);
+                DeleteRequest deleteRequest = new DeleteRequest(result.action(), request);
                 deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                     @Override
                     public void onResponse(DeleteResponse response) {

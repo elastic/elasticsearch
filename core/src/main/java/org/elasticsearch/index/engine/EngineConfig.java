@@ -40,6 +40,7 @@ import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesWarmer;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
@@ -107,8 +108,6 @@ public final class EngineConfig {
 
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
-    public static final ByteSizeValue DEFAULT_INDEX_BUFFER_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
-    public static final ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb", "INACTIVE_SHARD_INDEXING_BUFFER");
 
     public static final String DEFAULT_VERSION_MAP_SIZE = "25%";
 
@@ -139,7 +138,8 @@ public final class EngineConfig {
         this.failedEngineListener = failedEngineListener;
         this.compoundOnFlush = indexSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush);
         codecName = indexSettings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
-        indexingBufferSize = DEFAULT_INDEX_BUFFER_SIZE;
+        // We start up inactive and rely on IndexingMemoryController to give us our fair share once we start indexing:
+        indexingBufferSize = IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER;
         gcDeletesInMillis = indexSettings.getAsTime(INDEX_GC_DELETES_SETTING, EngineConfig.DEFAULT_GC_DELETES).millis();
         versionMapSizeSetting = indexSettings.get(INDEX_VERSION_MAP_SIZE, DEFAULT_VERSION_MAP_SIZE);
         updateVersionMapSize();
@@ -258,10 +258,10 @@ public final class EngineConfig {
 
     /**
      * Returns a {@link org.elasticsearch.index.indexing.ShardIndexingService} used inside the engine to inform about
-     * pre and post index and create operations. The operations are used for statistic purposes etc.
+     * pre and post index. The operations are used for statistic purposes etc.
      *
-     * @see org.elasticsearch.index.indexing.ShardIndexingService#postCreate(org.elasticsearch.index.engine.Engine.Create)
-     * @see org.elasticsearch.index.indexing.ShardIndexingService#preCreate(org.elasticsearch.index.engine.Engine.Create)
+     * @see org.elasticsearch.index.indexing.ShardIndexingService#postIndex(Engine.Index)
+     * @see org.elasticsearch.index.indexing.ShardIndexingService#preIndex(Engine.Index)
      *
      */
     public ShardIndexingService getIndexingService() {

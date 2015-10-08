@@ -791,33 +791,4 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         sh = sr.getHits();
         assertThat((double) (sh.getAt(0).getScore()), closeTo((sh.getAt(1).getScore()), 1.e-6d));
     }
-
-    @Test
-    public void testExplainString() throws IOException, ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
-                        .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
-        ensureYellow();
-
-
-        client().prepareIndex().setType("type1").setId("1").setIndex("test")
-                .setSource(jsonBuilder().startObject().field("test", "value").array("num", 0.5, 0.7).endObject()).get();
-
-        refresh();
-
-        SearchResponse response = client().search(
-                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true)
-                                .query(functionScoreQuery(termQuery("test", "value"), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(gaussDecayFunction("num", 1.0, 5.0, 1.0)),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(linearDecayFunction("num", 1.0, 5.0, 1.0)),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(exponentialDecayFunction("num", 1.0, 5.0, 1.0))
-                                }).boostMode(CombineFunction.REPLACE)))).get();
-        String explanation = response.getHits().getAt(0).getExplanation().toString();
-        assertThat(explanation, containsString(" 1.0 = exp(-0.5*pow(MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)],2.0)/18.033688011112044)"));
-        assertThat(explanation, containsString("1.0 = max(0.0, ((10.0 - MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)])/10.0)"));
-        assertThat(explanation, containsString("1.0 = exp(- MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)] * 0.13862943611198905)"));
-
-    }
 }

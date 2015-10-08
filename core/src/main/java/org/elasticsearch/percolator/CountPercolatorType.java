@@ -44,7 +44,7 @@ class CountPercolatorType extends PercolatorType<TotalHitCountCollector> {
     PercolatorService.ReduceResult reduce(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {
         long finalCount = 0;
         for (PercolateShardResponse shardResponse : shardResults) {
-            finalCount += shardResponse.count();
+            finalCount += shardResponse.topDocs().totalHits;
         }
 
         assert !shardResults.isEmpty();

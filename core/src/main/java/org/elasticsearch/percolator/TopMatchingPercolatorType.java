@@ -41,10 +41,7 @@ import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 class TopMatchingPercolatorType extends PercolatorType<TopScoreDocCollector> {
 
@@ -61,87 +58,26 @@ class TopMatchingPercolatorType extends PercolatorType<TopScoreDocCollector> {
     }
 
     @Override
-    PercolatorService.ReduceResult reduce(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {
+    PercolatorService.ReduceResult reduce(List<PercolateShardResponse> shardResponses, HasContextAndHeaders headersContext) throws IOException {
+        int requestedSize = shardResponses.get(0).requestedSize();
+        TopDocs[] shardResults = new TopDocs[shardResponses.size()];
         long foundMatches = 0;
-        int nonEmptyResponses = 0;
-        int firstNonEmptyIndex = 0;
-        for (int i = 0; i < shardResults.size(); i++) {
-            PercolateShardResponse response = shardResults.get(i);
-            foundMatches += response.count();
-            if (response.matches().length != 0) {
-                if (firstNonEmptyIndex == 0) {
-                    firstNonEmptyIndex = i;
-                }
-                nonEmptyResponses++;
-            }
+        for (int i = 0; i < shardResults.length; i++) {
+            TopDocs shardResult = shardResponses.get(i).topDocs();
+            foundMatches += shardResult.totalHits;
+            shardResults[i] = shardResult;
         }
-
-        int requestedSize = shardResults.get(0).requestedSize();
-
-        // Use a custom impl of AbstractBigArray for Object[]?
-        List<PercolateResponse.Match> finalMatches = new ArrayList<>(requestedSize);
-        if (nonEmptyResponses == 1) {
-            PercolateShardResponse response = shardResults.get(firstNonEmptyIndex);
-            Text index = new StringText(response.getIndex());
-            for (int i = 0; i < response.matches().length; i++) {
-                float score = response.scores().length == 0 ? Float.NaN : response.scores()[i];
-                Text match = new BytesText(new BytesArray(response.matches()[i]));
-                if (!response.hls().isEmpty()) {
-                    Map<String, HighlightField> hl = response.hls().get(i);
-                    finalMatches.add(new PercolateResponse.Match(index, match, score, hl));
-                } else {
-                    finalMatches.add(new PercolateResponse.Match(index, match, score));
-                }
-            }
-        } else {
-            int[] slots = new int[shardResults.size()];
-            while (true) {
-                float lowestScore = Float.NEGATIVE_INFINITY;
-                int requestIndex = -1;
-                int itemIndex = -1;
-                for (int i = 0; i < shardResults.size(); i++) {
-                    int scoreIndex = slots[i];
-                    float[] scores = shardResults.get(i).scores();
-                    if (scoreIndex >= scores.length) {
-                        continue;
-                    }
-
-                    float score = scores[scoreIndex];
-                    int cmp = Float.compare(lowestScore, score);
-                    // TODO: Maybe add a tie?
-                    if (cmp < 0) {
-                        requestIndex = i;
-                        itemIndex = scoreIndex;
-                        lowestScore = score;
-                    }
-                }
-
-                // This means the shard matches have been exhausted and we should bail
-                if (requestIndex == -1) {
-                    break;
-                }
-
-                slots[requestIndex]++;
-
-                PercolateShardResponse shardResponse = shardResults.get(requestIndex);
-                Text index = new StringText(shardResponse.getIndex());
-                Text match = new BytesText(new BytesArray(shardResponse.matches()[itemIndex]));
-                float score = shardResponse.scores()[itemIndex];
-                if (!shardResponse.hls().isEmpty()) {
-                    Map<String, HighlightField> hl = shardResponse.hls().get(itemIndex);
-                    finalMatches.add(new PercolateResponse.Match(index, match, score, hl));
-                } else {
-                    finalMatches.add(new PercolateResponse.Match(index, match, score));
-                }
-                if (finalMatches.size() == requestedSize) {
-                    break;
-                }
-            }
+        TopDocs merged = TopDocs.merge(requestedSize, shardResults);
+        PercolateResponse.Match[] matches = new PercolateResponse.Match[merged.scoreDocs.length];
+        for (int i = 0; i < merged.scoreDocs.length; i++) {
+            ScoreDoc doc = merged.scoreDocs[i];
+            PercolateShardResponse shardResponse = shardResponses.get(doc.shardIndex);
+            String id = shardResponse.ids().get(doc.doc);
+            Map<String, HighlightField> hl = shardResponse.hls().get(doc.doc);
+            matches[i] = new PercolateResponse.Match(new StringText(shardResponse.getIndex()), new StringText(id), doc.score, hl);
         }
-
-        assert !shardResults.isEmpty();
-        InternalAggregations reducedAggregations = reduceAggregations(shardResults, headersContext);
-        return new PercolatorService.ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]), reducedAggregations);
+        InternalAggregations reducedAggregations = reduceAggregations(shardResponses, headersContext);
+        return new PercolatorService.ReduceResult(foundMatches, matches, reducedAggregations);
     }
 
     @Override
@@ -152,31 +88,26 @@ class TopMatchingPercolatorType extends PercolatorType<TopScoreDocCollector> {
     @Override
     PercolateShardResponse processResults(PercolateContext context, PercolatorQueriesRegistry registry, TopScoreDocCollector collector) throws IOException {
         TopDocs topDocs = collector.topDocs();
-        long count = topDocs.totalHits;
-        List<BytesRef> matches = new ArrayList<>(topDocs.scoreDocs.length);
-        float[] scores = new float[topDocs.scoreDocs.length];
-        boolean hl = context.highlight() != null;
-        List<Map<String, HighlightField>> hls = hl ? new ArrayList<>(topDocs.scoreDocs.length) : Collections.emptyList();
+        Map<Integer, String> ids = new HashMap<>();
+        Map<Integer, Map<String, HighlightField>> hls = new HashMap<>();
 
-        int i = 0;
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
             LeafReaderContext atomicReaderContext = context.searcher().getIndexReader().leaves().get(segmentIdx);
             final int segmentDocId = scoreDoc.doc - atomicReaderContext.docBase;
             SingleFieldsVisitor fieldsVisitor = new SingleFieldsVisitor(UidFieldMapper.NAME);
             atomicReaderContext.reader().document(segmentDocId, fieldsVisitor);
-            BytesRef id = new BytesRef(fieldsVisitor.uid().id());
-            matches.add(id);
-            if (hl) {
-                Query query = registry.getPercolateQueries().get(id);
+            String id = fieldsVisitor.uid().id();
+            ids.put(scoreDoc.doc, id);
+            if (context.highlight() != null) {
+                Query query = registry.getPercolateQueries().get(new BytesRef(id));
                 context.parsedQuery(new ParsedQuery(query));
                 context.hitContext().cache().clear();
                 highlightPhase.hitExecute(context, context.hitContext());
-                hls.add(i, context.hitContext().hit().getHighlightFields());
+                hls.put(scoreDoc.doc, context.hitContext().hit().getHighlightFields());
             }
-            scores[i++] = scoreDoc.score;
         }
-        return new PercolateShardResponse(matches.toArray(new BytesRef[matches.size()]), hls, count, scores, context);
+        return new PercolateShardResponse(topDocs, ids, hls, context);
     }
 
 }

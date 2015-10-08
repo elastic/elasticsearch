@@ -24,6 +24,7 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CloseableThreadLocal;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
@@ -121,7 +122,11 @@ public class PercolatorService extends AbstractComponent {
 
     public ReduceResult reduce(byte percolatorTypeId, List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {
         PercolatorType percolatorType = percolatorTypes.get(percolatorTypeId);
-        return percolatorType.reduce(shardResults, headersContext);
+        try {
+            return percolatorType.reduce(shardResults, headersContext);
+        } catch (IOException e) {
+            throw new ElasticsearchException("exception during reduce", e);
+        }
     }
 
     public PercolateShardResponse percolate(PercolateShardRequest request) throws IOException {

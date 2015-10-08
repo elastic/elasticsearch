@@ -56,7 +56,7 @@ abstract class PercolatorType<C extends Collector> {
     // 0x00 is reserved for empty type.
     abstract byte id();
 
-    abstract PercolatorService.ReduceResult reduce(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext);
+    abstract PercolatorService.ReduceResult reduce(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) throws IOException;
 
     C doPercolate(Query percolateQuery, Query aliasQuery, Query percolateTypeQuery, PercolatorQueriesRegistry queriesRegistry, IndexSearcher shardSearcher, IndexSearcher percolateSearcher, int size, Collector... extraCollectors) throws IOException {
         if (size > shardSearcher.getIndexReader().numDocs()) {

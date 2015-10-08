@@ -93,35 +93,4 @@ public class BinaryMappingTests extends ESSingleNodeTestCase {
             assertEquals(new BytesArray(value), originalValue);
         }
     }
-
-    public void testCompressedBackCompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "binary")
-                .field("store", "yes")
-                .endObject()
-                .endObject()
-                .endObject().endObject().string();
-
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_5_0).build();
-        DocumentMapper mapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
-
-        final byte[] original = new byte[100];
-        original[56] = 1;
-        BytesStreamOutput out = new BytesStreamOutput();
-        try (StreamOutput compressed = CompressorFactory.defaultCompressor().streamOutput(out)) {
-            new BytesArray(original).writeTo(compressed);
-        }
-        final byte[] binaryValue = out.bytes().toBytes();
-        assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue)));
-        
-        ParsedDocument doc = mapper.parse("test", "type", "id", XContentFactory.jsonBuilder().startObject().field("field", binaryValue).endObject().bytes());
-        BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
-        assertEquals(new BytesRef(binaryValue), indexedValue);
-        FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");
-        Object originalValue = fieldMapper.fieldType().valueForSearch(indexedValue);
-        assertEquals(new BytesArray(original), originalValue);
-    }
-
 }

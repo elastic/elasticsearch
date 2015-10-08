@@ -36,7 +36,7 @@ public class RecoveryWithUnsupportedIndicesIT extends StaticIndexBackwardCompati
             internalCluster().startNode(nodeSettings);
             fail();
         } catch (Exception ex) {
-            assertThat(ex.getMessage(), containsString(" was created before v0.90.0 and wasn't upgraded"));
+            assertThat(ex.getMessage(), containsString(" was created before v2.0.0.beta1 and wasn't upgraded"));
         }
     }
 }

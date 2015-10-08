@@ -1686,10 +1686,6 @@ public class InternalEngineTests extends ESTestCase {
         Collections.shuffle(indexes, random());
         for (Path indexFile : indexes.subList(0, scaledRandomIntBetween(1, indexes.size() / 2))) {
             final String indexName = indexFile.getFileName().toString().replace(".zip", "").toLowerCase(Locale.ROOT);
-            Version version = Version.fromString(indexName.replace("index-", ""));
-            if (version.onOrAfter(Version.V_2_0_0_beta1)) {
-                continue;
-            }
             Path unzipDir = createTempDir();
             Path unzipDataDir = unzipDir.resolve("data");
             // decompress the index
@@ -1709,11 +1705,9 @@ public class InternalEngineTests extends ESTestCase {
             assertTrue("[" + indexFile + "] missing index dir: " + src.toString(), Files.exists(src));
             assertTrue("[" + indexFile + "] missing translog dir: " + translog.toString(), Files.exists(translog));
             Path[] tlogFiles = filterExtraFSFiles(FileSystemUtils.files(translog));
-            assertEquals(Arrays.toString(tlogFiles), tlogFiles.length, 1);
+            assertEquals(Arrays.toString(tlogFiles), tlogFiles.length, 2); // ckp & tlog
+            Path tlogFile = tlogFiles[0].getFileName().toString().endsWith("tlog") ? tlogFiles[0] : tlogFiles[1];
             final long size = Files.size(tlogFiles[0]);
-
-            final long generation = TranslogTests.parseLegacyTranslogFile(tlogFiles[0]);
-            assertTrue(generation >= 1);
             logger.debug("upgrading index {} file: {} size: {}", indexName, tlogFiles[0].getFileName(), size);
             Directory directory = newFSDirectory(src.resolve("0").resolve("index"));
             Store store = createStore(directory);
@@ -1870,7 +1864,7 @@ public class InternalEngineTests extends ESTestCase {
         public final AtomicInteger recoveredOps = new AtomicInteger(0);
 
         public TranslogHandler(String indexName, ESLogger logger) {
-            super(new ShardId("test", 0), null, null, null, null, logger);
+            super(new ShardId("test", 0), null, logger);
             Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             Index index = new Index(indexName);
@@ -1891,13 +1885,6 @@ public class InternalEngineTests extends ESTestCase {
         @Override
         protected void operationProcessed() {
             recoveredOps.incrementAndGet();
-        }
-
-        @Override
-        public void performRecoveryOperation(Engine engine, Translog.Operation operation, boolean allowMappingUpdates) {
-            if (operation.opType() != Translog.Operation.Type.DELETE_BY_QUERY) { // we don't support del by query in this test
-                super.performRecoveryOperation(engine, operation, allowMappingUpdates);
-            }
         }
     }
 

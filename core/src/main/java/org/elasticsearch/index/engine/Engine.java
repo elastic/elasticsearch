@@ -206,10 +206,6 @@ public abstract class Engine implements Closeable {
 
     public abstract void delete(Delete delete) throws EngineException;
 
-    /** @deprecated This was removed, but we keep this API so translog can replay any DBQs on upgrade. */
-    @Deprecated
-    public abstract void delete(DeleteByQuery delete) throws EngineException;
-
     /**
      * Attempts to do a special commit where the given syncID is put into the commit data. The attempt
      * succeeds if there are not pending writes in lucene and the current point is equal to the expected one.

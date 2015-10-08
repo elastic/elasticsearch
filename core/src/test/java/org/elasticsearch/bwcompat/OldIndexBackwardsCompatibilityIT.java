@@ -246,7 +246,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (Version v : VersionUtils.allVersions()) {
             if (v.snapshot()) continue;  // snapshots are unreleased, so there is no backcompat yet
-            if (v.onOrBefore(Version.V_0_20_6)) continue; // we can only test back one major lucene version
+            if (v.onOrBefore(Version.V_2_0_0_beta1)) continue; // we can only test back one major lucene version
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             expectedVersions.add("index-" + v.toString() + ".zip");
         }
@@ -312,7 +312,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             client().admin().indices().prepareOpen(indexName).get();
             fail("Shouldn't be able to open an old index");
         } catch (IllegalStateException ex) {
-            assertThat(ex.getMessage(), containsString("was created before v0.90.0 and wasn't upgraded"));
+            assertThat(ex.getMessage(), containsString("was created before v2.0.0.beta1 and wasn't upgraded"));
         }
         unloadIndex(indexName);
         logger.info("--> Done testing " + index + ", took " + ((System.currentTimeMillis() - startTime) / 1000.0) + " seconds");

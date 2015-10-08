@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import com.carrotsearch.hppc.LongArrayList;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
@@ -31,14 +30,10 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.*;
@@ -170,21 +165,12 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
 
     protected Explicit<Boolean> coerce;
     
-    /** 
-     * True if index version is 1.4+
-     * <p>
-     * In this case numerics are encoded with SORTED_NUMERIC docvalues,
-     * otherwise for older indexes we must continue to write BINARY (for now)
-     */
-    protected final boolean useSortedNumericDocValues;
-
     protected NumberFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                 Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Settings indexSettings,
                                 MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
-        this.useSortedNumericDocValues = Version.indexCreated(indexSettings).onOrAfter(Version.V_1_4_0_Beta1);
     }
 
     @Override
@@ -225,17 +211,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
     protected abstract void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException;
 
     protected final void addDocValue(ParseContext context, List<Field> fields, long value) {
-        if (useSortedNumericDocValues) {
-            fields.add(new SortedNumericDocValuesField(fieldType().names().indexName(), value));
-        } else {
-            CustomLongNumericDocValuesField field = (CustomLongNumericDocValuesField) context.doc().getByKey(fieldType().names().indexName());
-            if (field != null) {
-                field.add(value);
-            } else {
-                field = new CustomLongNumericDocValuesField(fieldType().names().indexName(), value);
-                context.doc().addWithKey(fieldType().names().indexName(), field);
-            }
-        }
+        fields.add(new SortedNumericDocValuesField(fieldType().names().indexName(), value));
     }
 
     /**
@@ -410,40 +386,6 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) throws IOException {
             return null;
-        }
-
-    }
-
-
-    public static class CustomLongNumericDocValuesField extends CustomNumericDocValuesField {
-
-        private final LongArrayList values;
-
-        public CustomLongNumericDocValuesField(String  name, long value) {
-            super(name);
-            values = new LongArrayList();
-            add(value);
-        }
-
-        public void add(long value) {
-            values.add(value);
-        }
-
-        @Override
-        public BytesRef binaryValue() {
-            CollectionUtils.sortAndDedup(values);
-
-            // here is the trick:
-            //  - the first value is zig-zag encoded so that eg. -5 would become positive and would be better compressed by vLong
-            //  - for other values, we only encode deltas using vLong
-            final byte[] bytes = new byte[values.size() * ByteUtils.MAX_BYTES_VLONG];
-            final ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
-            ByteUtils.writeVLong(out, ByteUtils.zigZagEncode(values.get(0)));
-            for (int i = 1; i < values.size(); ++i) {
-                final long delta = values.get(i) - values.get(i - 1);
-                ByteUtils.writeVLong(out, delta);
-            }
-            return new BytesRef(bytes, 0, out.getPosition());
         }
 
     }

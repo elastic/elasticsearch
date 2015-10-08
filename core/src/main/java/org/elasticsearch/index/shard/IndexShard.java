@@ -124,12 +124,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     private final ThreadPool threadPool;
     private final MapperService mapperService;
-    private final IndexQueryParserService queryParserService;
     private final IndexCache indexCache;
     private final InternalIndicesLifecycle indicesLifecycle;
     private final Store store;
     private final MergeSchedulerConfig mergeSchedulerConfig;
-    private final IndexAliasesService indexAliasesService;
     private final ShardIndexingService indexingService;
     private final ShardSearchStats searchService;
     private final ShardGetService getService;
@@ -211,11 +209,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.indicesLifecycle = (InternalIndicesLifecycle) provider.getIndicesLifecycle();
         this.store = store;
         this.mergeSchedulerConfig = new MergeSchedulerConfig(indexSettings);
-        this.threadPool =  provider.getThreadPool();
-        this.mapperService =  provider.getMapperService();
-        this.queryParserService =  provider.getQueryParserService();
-        this.indexCache =  provider.getIndexCache();
-        this.indexAliasesService =  provider.getIndexAliasesService();
+        this.threadPool = provider.getThreadPool();
+        this.mapperService = provider.getMapperService();
+        this.indexCache = provider.getIndexCache();
         this.indexingService = new ShardIndexingService(shardId, indexSettings);
         this.getService = new ShardGetService(this, mapperService);
         this.termVectorsService =  provider.getTermVectorsService();
@@ -254,7 +250,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.indexingMemoryController = provider.getIndexingMemoryController();
 
         this.searcherWrapper = provider.getIndexSearcherWrapper();
-        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryParserService, indexingService, mapperService, indexFieldDataService);
+        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, provider.getQueryParserService(), indexingService, mapperService, indexFieldDataService);
         if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
             percolatorQueriesRegistry.enableRealTimePercolator();
         }
@@ -1442,8 +1438,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     }
 
     private final EngineConfig newEngineConfig(TranslogConfig translogConfig, QueryCachingPolicy cachingPolicy) {
-        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, queryParserService,
-                indexAliasesService, indexCache, logger) {
+        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, logger) {
             @Override
             protected void operationProcessed() {
                 assert recoveryState != null;

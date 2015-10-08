@@ -112,13 +112,6 @@ public class ShadowEngine extends Engine {
         throw new UnsupportedOperationException(shardId + " delete operation not allowed on shadow engine");
     }
 
-    /** @deprecated This was removed, but we keep this API so translog can replay any DBQs on upgrade. */
-    @Deprecated
-    @Override
-    public void delete(DeleteByQuery delete) throws EngineException {
-        throw new UnsupportedOperationException(shardId + " delete-by-query operation not allowed on shadow engine");
-    }
-
     @Override
     public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) {
         throw new UnsupportedOperationException(shardId + " sync commit operation not allowed on shadow engine");

@@ -336,12 +336,13 @@
                     <excludes>
                         <!-- Guice -->
                         <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
-                        <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
+                        <!-- Forks of Lucene classes -->
                         <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
-                        <!-- t-digest -->
-                        <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java</exclude>
                         <!-- netty pipelining -->
                         <exclude>src/main/java/org/elasticsearch/http/netty/pipelining/**</exclude>
+                        <!-- Joda -->
+                        <exclude>src/main/java/org/joda/time/base/BaseDateTime.java</exclude>
+                        <exclude>src/main/java/org/joda/time/format/StrictISODateTimeFormat.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>

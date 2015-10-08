@@ -97,7 +97,6 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
                 if (v.snapshot()) continue;
                 if (v.onOrBefore(Version.V_2_0_0_beta1)) continue;
                 if (v.equals(Version.CURRENT)) continue;
-
                 expectedVersions.add(v.toString());
             }
         }

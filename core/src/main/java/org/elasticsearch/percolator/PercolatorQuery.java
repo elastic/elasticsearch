@@ -75,12 +75,14 @@ final class PercolatorQuery extends Query {
 
             @Override
             public Explanation explain(LeafReaderContext leafReaderContext, int docId) throws IOException {
-                boolean match = matchDocId(docId, leafReaderContext.reader());
-                if (match) {
-                    return Explanation.match(getBoost(), "PercolatorQuery");
-                } else {
-                    return Explanation.noMatch("PercolatorQuery");
+                Scorer scorer = scorer(leafReaderContext);
+                if (scorer != null) {
+                    int result = scorer.advance(docId);
+                    if (result == docId) {
+                        return Explanation.match(scorer.score(), "PercolatorQuery");
+                    }
                 }
+                return Explanation.noMatch("PercolatorQuery");
             }
 
             @Override

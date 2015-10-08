@@ -20,12 +20,15 @@
 package org.elasticsearch.search.basic;
 
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.script.Script;
@@ -60,6 +63,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -365,25 +369,26 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertThat(all.getDocCount(), equalTo(100l));
     }
 
-//    @Test
-//    public void testFailedSearchWithWrongQuery() throws Exception {
-//        prepareData();
-//
-//        NumShards test = getNumShards("test");
-//
-//        logger.info("Start Testing failed search with wrong query");
-//        try {
-//            SearchResponse searchResponse = client().search(searchRequest("test").source(new BytesArray("{ xxx }"))).actionGet();
-//            assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
-//            assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
-//            assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
-//            fail("search should fail");
-//        } catch (ElasticsearchException e) {
-//            assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
-//            // all is well
-//        }
-//        logger.info("Done Testing failed search");
-    // } NORELEASE can this still be tested? if so, how?
+    @Test
+    public void testFailedSearchWithWrongQuery() throws Exception {
+        prepareData();
+
+        NumShards test = getNumShards("test");
+
+        logger.info("Start Testing failed search with wrong query");
+        try {
+            SearchResponse searchResponse = client().search(
+                    searchRequest("test").source(new SearchSourceBuilder().query(new GeohashCellQuery.Builder("foo", "biz")))).actionGet();
+            assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
+            assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
+            assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
+            fail("search should fail");
+        } catch (ElasticsearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
+            // all is well
+        }
+        logger.info("Done Testing failed search");
+     }
 
     @Test
     public void testFailedSearchWithWrongFrom() throws Exception {

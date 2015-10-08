@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
 import org.junit.BeforeClass;
@@ -99,22 +100,19 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         assertParsedQuery(query, expectedBuilder);
     }
 
-    // NORELEASE Can we actually test raw templates in either unit or
-    // integration tests now?
     @Test
-    @AwaitsFix(bugUrl = "Can we actually test raw templates in either unit or integration tests now?")
     public void testRawTemplate() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("match_{{template}}");
         builder.endObject();
         builder.endObject();
-        String expectedTemplateString = "{\"match_{{template}}\": {}}";
+        String expectedTemplateString = "{\"match_{{template}}\":{}}";
         String query = "{\"template\": {\"query\": {\"match_{{template}}\": {}},\"params\" : {\"template\" : \"all\"}}}";
         Map<String, Object> params = new HashMap<>();
         params.put("template", "all");
-        QueryBuilder<?> expectedBuilder = new TemplateQueryBuilder(new Template(expectedTemplateString, ScriptType.INLINE, null, null,
-                params));
+        QueryBuilder<?> expectedBuilder = new TemplateQueryBuilder(new Template(expectedTemplateString, ScriptType.INLINE, null,
+                XContentType.JSON, params));
         assertParsedQuery(query, expectedBuilder);
     }
 

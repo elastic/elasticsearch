@@ -719,7 +719,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
                 XContentLocation location = completeSortParser != null ? completeSortParser.getTokenLocation() : null;
                 throw new SearchParseException(context, "failed to parse sort source [" + sSource + "]", location, e);
-            } // NORELEASE fix this to be more elegant
+            }
         }
         context.trackScores(source.trackScores());
         if (source.minScore() != null) {
@@ -754,7 +754,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
                 XContentLocation location = completeAggregationsParser != null ? completeAggregationsParser.getTokenLocation() : null;
                 throw new SearchParseException(context, "failed to parse rescore source [" + sSource + "]", location, e);
-            } // NORELEASE fix this to be more elegant
+            }
         }
         if (source.suggest() != null) {
             XContentParser suggestParser = null;
@@ -801,7 +801,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
                 XContentLocation location = completeRescoreParser != null ? completeRescoreParser.getTokenLocation() : null;
                 throw new SearchParseException(context, "failed to parse rescore source [" + sSource + "]", location, e);
-            } // NORELEASE fix this to be more elegant
+            }
         }
         if (source.fields() != null) {
             context.fieldNames().addAll(source.fields());

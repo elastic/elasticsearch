@@ -26,6 +26,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.IOException;
 
@@ -81,5 +82,10 @@ public final class ShadowIndexShard extends IndexShard {
 
     public boolean allowsPrimaryPromotion() {
         return false;
+    }
+
+    @Override
+    public TranslogStats translogStats() {
+        return null; // shadow engine has no translog
     }
 }

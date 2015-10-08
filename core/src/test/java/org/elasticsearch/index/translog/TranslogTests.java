@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -276,32 +277,63 @@ public class TranslogTests extends ESTestCase {
         final long firstOperationPosition = translog.getFirstOperationPosition();
         TranslogStats stats = stats();
         assertThat(stats.estimatedNumberOfOperations(), equalTo(0l));
-        long lastSize = stats.translogSizeInBytes().bytes();
+        long lastSize = stats.getTranslogSizeInBytes();
         assertThat((int) firstOperationPosition, greaterThan(CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC)));
         assertThat(lastSize, equalTo(firstOperationPosition));
-
+        TranslogStats total = new TranslogStats();
         translog.add(new Translog.Index("test", "1", new byte[]{1}));
         stats = stats();
+        total.add(stats);
         assertThat(stats.estimatedNumberOfOperations(), equalTo(1l));
-        assertThat(stats.translogSizeInBytes().bytes(), greaterThan(lastSize));
-        lastSize = stats.translogSizeInBytes().bytes();
+        assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
+        lastSize = stats.getTranslogSizeInBytes();
 
         translog.add(new Translog.Delete(newUid("2")));
         stats = stats();
+        total.add(stats);
         assertThat(stats.estimatedNumberOfOperations(), equalTo(2l));
-        assertThat(stats.translogSizeInBytes().bytes(), greaterThan(lastSize));
-        lastSize = stats.translogSizeInBytes().bytes();
+        assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
+        lastSize = stats.getTranslogSizeInBytes();
 
         translog.add(new Translog.Delete(newUid("3")));
         translog.prepareCommit();
         stats = stats();
+        total.add(stats);
         assertThat(stats.estimatedNumberOfOperations(), equalTo(3l));
-        assertThat(stats.translogSizeInBytes().bytes(), greaterThan(lastSize));
+        assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
 
         translog.commit();
         stats = stats();
+        total.add(stats);
         assertThat(stats.estimatedNumberOfOperations(), equalTo(0l));
-        assertThat(stats.translogSizeInBytes().bytes(), equalTo(firstOperationPosition));
+        assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
+        assertEquals(6, total.estimatedNumberOfOperations());
+        assertEquals(431, total.getTranslogSizeInBytes());
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        total.writeTo(out);
+        TranslogStats copy = new TranslogStats();
+        copy.readFrom(StreamInput.wrap(out.bytes()));
+
+        assertEquals(6, copy.estimatedNumberOfOperations());
+        assertEquals(431, copy.getTranslogSizeInBytes());
+        assertEquals("\"translog\"{\n" +
+                "  \"operations\" : 6,\n" +
+                "  \"size_in_bytes\" : 431\n" +
+                "}", copy.toString().trim());
+
+        try {
+            new TranslogStats(1, -1);
+            fail("must be positive");
+        } catch (IllegalArgumentException ex) {
+            //all well
+        }
+        try {
+            new TranslogStats(-1, 1);
+            fail("must be positive");
+        } catch (IllegalArgumentException ex) {
+            //all well
+        }
     }
 
     @Test

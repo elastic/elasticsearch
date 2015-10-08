@@ -1,3 +1,4 @@
+cluster:admin/render/template/search
 cluster:admin/snapshot/status[nodes]
 cluster:admin/snapshot/status[nodes][n]
 cluster:monitor/nodes/hot_threads[n]
@@ -16,7 +17,6 @@ indices:admin/mappings/fields/get[index][s]
 indices:admin/optimize[n]
 indices:admin/refresh[s]
 indices:admin/refresh[s][r]
-indices:admin/render/template/search
 indices:admin/upgrade
 indices:admin/upgrade[n]
 indices:admin/validate/query[s]

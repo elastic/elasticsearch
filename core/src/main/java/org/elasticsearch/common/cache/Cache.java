@@ -249,7 +249,8 @@ public class Cache<K, V> {
         }
     }
 
-    private final CacheSegment<K, V>[] segments = new CacheSegment[256];
+    public static final int NUMBER_OF_SEGMENTS = 256;
+    private final CacheSegment<K, V>[] segments = new CacheSegment[NUMBER_OF_SEGMENTS];
 
     {
         for (int i = 0; i < segments.length; i++) {
@@ -368,20 +369,32 @@ public class Cache<K, V> {
      */
     public void invalidateAll() {
         Entry<K, V> h;
-        Arrays.stream(segments).forEach(segment -> segment.segmentLock.writeLock().lock());
-        try (ReleasableLock ignored = lruLock.acquire()) {
-            h = head;
-            Arrays.stream(segments).forEach(segment -> segment.map = new HashMap<>());
-            Entry<K, V> current = head;
-            while (current != null) {
-                current.state = State.DELETED;
-                current = current.after;
+
+        boolean[] haveSegmentLock = new boolean[NUMBER_OF_SEGMENTS];
+        try {
+            for (int i = 0; i < NUMBER_OF_SEGMENTS; i++) {
+                segments[i].segmentLock.writeLock().lock();
+                haveSegmentLock[i] = true;
             }
-            head = tail = null;
-            count = 0;
-            weight = 0;
+            try (ReleasableLock ignored = lruLock.acquire()) {
+                h = head;
+                Arrays.stream(segments).forEach(segment -> segment.map = new HashMap<>());
+                Entry<K, V> current = head;
+                while (current != null) {
+                    current.state = State.DELETED;
+                    current = current.after;
+                }
+                head = tail = null;
+                count = 0;
+                weight = 0;
+            }
+        } finally {
+            for (int i = 0; i < NUMBER_OF_SEGMENTS; i++) {
+                if (haveSegmentLock[i]) {
+                    segments[i].segmentLock.writeLock().unlock();
+                }
+            }
         }
-        Arrays.stream(segments).forEach(segment -> segment.segmentLock.writeLock().unlock());
         while (h != null) {
             removalListener.onRemoval(new RemovalNotification<>(h.key, h.value, RemovalNotification.RemovalReason.INVALIDATED));
             h = h.after;

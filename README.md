@@ -6,7 +6,7 @@
 The easiest way to play/get to know Marvel is to install the latest release version of it. To do so, just run the following command on every node on your cluster (restart node for it to have effect):
 
 ```
-./bin/plugin -i elasticsearch/marvel/latest
+./bin/kibana plugin -i elasticsearch/marvel/latest
 ```
 
 Once done, open up the following url (assuming standard ES config): http://localhost:9200/_plugin/marvel  . This will take you to the Overview Dashboard. Use Kibana's Load dashboard menu to navigate to the Cluster Pulse dashboard

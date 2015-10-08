@@ -240,4 +240,9 @@ public class ShadowEngine extends Engine {
         return lastCommittedSegmentInfos;
     }
 
+    @Override
+    public long indexWriterRAMBytesUsed() {
+        // No IndexWriter
+        throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
+    }
 }

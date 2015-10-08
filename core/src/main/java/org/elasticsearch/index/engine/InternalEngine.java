@@ -826,6 +826,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public long indexWriterRAMBytesUsed() {
+        return indexWriter.ramBytesUsed();
+    }
+
+    @Override
     public List<Segment> segments(boolean verbose) {
         try (ReleasableLock lock = readLock.acquire()) {
             Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, verbose);

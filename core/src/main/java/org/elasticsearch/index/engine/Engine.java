@@ -365,6 +365,9 @@ public abstract class Engine implements Closeable {
         stats.addIndexWriterMaxMemoryInBytes(0);
     }
 
+    /** How much heap Lucene's IndexWriter is using */
+    abstract public long indexWriterRAMBytesUsed();
+
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();

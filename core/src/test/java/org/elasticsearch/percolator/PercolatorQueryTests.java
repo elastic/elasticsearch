@@ -37,10 +37,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -152,7 +149,7 @@ public class PercolatorQueryTests extends ESTestCase {
     void addPercolatorQuery(String id, Query query, IndexWriter writer, QueryMetadataService queryMetadataService, Map<BytesRef, Query> queries, String... extraFields) throws IOException {
         queries.put(new BytesRef(id), query);
         Document document = new Document();
-        List<Term> queryTerms = queryMetadataService.extractQueryMetadata(query);
+        Set<Term> queryTerms = queryMetadataService.extractQueryMetadata(query);
         for (Term term : queryTerms) {
             document.add(new Field(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + term.field(), term.bytes(), QueryMetadataService.QUERY_METADATA_FIELD_TYPE));
         }

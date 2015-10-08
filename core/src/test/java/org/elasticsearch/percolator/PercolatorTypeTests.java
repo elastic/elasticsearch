@@ -47,6 +47,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -117,7 +118,7 @@ public class PercolatorTypeTests extends ESTestCase {
     void addPercolatorQuery(String id, Query query, IndexWriter writer, PercolatorQueriesRegistry registry) throws IOException {
         registry.getPercolateQueries().put(new BytesRef(id), query);
         Document document = new Document();
-        List<Term> queryTerms = registry.getQueryMetadataService().extractQueryMetadata(query);
+        Set<Term> queryTerms = registry.getQueryMetadataService().extractQueryMetadata(query);
         for (Term term : queryTerms) {
             document.add(new Field(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + term.field(), term.bytes(), QueryMetadataService.QUERY_METADATA_FIELD_TYPE));
         }

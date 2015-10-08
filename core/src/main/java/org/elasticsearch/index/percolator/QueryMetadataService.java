@@ -28,9 +28,7 @@ import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * Utility to extract query terms from queries and create queries from documents.
@@ -52,7 +50,7 @@ public class QueryMetadataService {
      * Extracts all terms from the specified query and adds it to the specified document.
      */
     public void extractQueryMetadata(Query query, ParseContext.Document document) {
-        List<Term> queryTerms;
+        Set<Term> queryTerms;
         try {
             queryTerms = extractQueryMetadata(query);
         } catch (UnsupportedQueryException e) {
@@ -73,14 +71,14 @@ public class QueryMetadataService {
      * If from part of the query, no query terms can be extracted then term extraction is stopped and
      * an UnsupportedQueryException is thrown.
      */
-    public List<Term> extractQueryMetadata(Query query) {
+    public Set<Term> extractQueryMetadata(Query query) {
         // TODO: add support for the TermsQuery when it has methods to access the actual terms it encapsulates
         if (query instanceof TermQuery) {
-            return Collections.singletonList(((TermQuery) query).getTerm());
+            return Collections.singleton(((TermQuery) query).getTerm());
         } else if (query instanceof PhraseQuery) {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
-                return Collections.emptyList();
+                return Collections.emptySet();
             }
 
             // the longest term is likely to be the rarest,
@@ -91,7 +89,7 @@ public class QueryMetadataService {
                     longestTerm = term;
                 }
             }
-            return Collections.singletonList(longestTerm);
+            return Collections.singleton(longestTerm);
         } else if (query instanceof BooleanQuery) {
             List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
             boolean hasRequiredClauses = false;
@@ -102,7 +100,7 @@ public class QueryMetadataService {
                 }
             }
             if (hasRequiredClauses) {
-                List<Term> bestClause = null;
+                Set<Term> bestClause = null;
                 for (BooleanClause clause : clauses) {
                     if (clause.isProhibited()) {
                         // we don't need to remember the things that do *not* match...
@@ -114,16 +112,16 @@ public class QueryMetadataService {
                         continue;
                     }
 
-                    List<Term> temp = extractQueryMetadata(clause.getQuery());
+                    Set<Term> temp = extractQueryMetadata(clause.getQuery());
                     bestClause = selectTermsListWithHighestSumOfTermLength(temp, bestClause);
                 }
                 if (bestClause != null) {
                     return bestClause;
                 } else {
-                    return Collections.emptyList();
+                    return Collections.emptySet();
                 }
             } else {
-                List<Term> terms = new ArrayList<>();
+                Set<Term> terms = new HashSet<>();
                 for (BooleanClause clause : clauses) {
                     if (clause.isProhibited()) {
                         // we don't need to remember the things that do *not* match...
@@ -144,7 +142,7 @@ public class QueryMetadataService {
         }
     }
 
-    List<Term> selectTermsListWithHighestSumOfTermLength(List<Term> terms1, List<Term> terms2) {
+    Set<Term> selectTermsListWithHighestSumOfTermLength(Set<Term> terms1, Set<Term> terms2) {
         if (terms1 == null) {
             return terms2;
         } else if (terms2 == null) {
@@ -161,7 +159,7 @@ public class QueryMetadataService {
         }
     }
 
-    private int computeSumOfTermLength(List<Term> terms) {
+    private int computeSumOfTermLength(Set<Term> terms) {
         int sum = 0;
         for (Term term : terms) {
             sum += term.bytes().length;

@@ -28,8 +28,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import static org.elasticsearch.index.percolator.QueryMetadataService.*;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,7 +41,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
 
     public void testExtractQueryMetadata_termQuery() {
         TermQuery termQuery = new TermQuery(new Term("_field", "_term"));
-        List<Term> terms = queryMetadataService.extractQueryMetadata(termQuery);
+        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(termQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery.getTerm().bytes()));
@@ -50,7 +49,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
 
     public void testExtractQueryMetadata_phraseQuery() {
         PhraseQuery phraseQuery = new PhraseQuery("_field", "_term1", "term2");
-        List<Term> terms = queryMetadataService.extractQueryMetadata(phraseQuery);
+        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(phraseQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(phraseQuery.getTerms()[0].field()));
         assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
@@ -71,7 +70,8 @@ public class QueryMetadataServiceTests extends ESTestCase {
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Term> terms = queryMetadataService.extractQueryMetadata(booleanQuery);
+        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(booleanQuery));
+        Collections.sort(terms);
         assertThat(terms.size(), equalTo(3));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
@@ -83,9 +83,9 @@ public class QueryMetadataServiceTests extends ESTestCase {
 
     public void testExtractQueryMetadata_booleanQuery_onlyShould() {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
+        TermQuery termQuery1 = new TermQuery(new Term("_field", "_term1"));
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
-        TermQuery termQuery2 = new TermQuery(new Term("_field", "_term"));
+        TermQuery termQuery2 = new TermQuery(new Term("_field", "_term2"));
         builder.add(termQuery2, BooleanClause.Occur.SHOULD);
 
         BooleanQuery.Builder subBuilder = new BooleanQuery.Builder();
@@ -96,7 +96,8 @@ public class QueryMetadataServiceTests extends ESTestCase {
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Term> terms = queryMetadataService.extractQueryMetadata(booleanQuery);
+        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(booleanQuery));
+        Collections.sort(terms);
         assertThat(terms.size(), equalTo(4));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
@@ -116,7 +117,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
         builder.add(phraseQuery, BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Term> terms = queryMetadataService.extractQueryMetadata(booleanQuery);
+        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(booleanQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(phraseQuery.getTerms()[0].field()));
         assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
@@ -125,7 +126,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
     public void testExtractQueryMetadata_constantScoreQuery() {
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         ConstantScoreQuery constantScoreQuery = new ConstantScoreQuery(termQuery1);
-        List<Term> terms = queryMetadataService.extractQueryMetadata(constantScoreQuery);
+        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(constantScoreQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
@@ -134,7 +135,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
     public void testExtractQueryMetadata_boostQuery() {
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         BoostQuery constantScoreQuery = new BoostQuery(termQuery1, 1f);
-        List<Term> terms = queryMetadataService.extractQueryMetadata(constantScoreQuery);
+        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(constantScoreQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
@@ -197,7 +198,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
     }
 
     public void testSelectTermsListWithHighestSumOfTermLength() {
-        List<Term> terms1 = new ArrayList<>();
+        Set<Term> terms1 = new HashSet<>();
         int sumTermLength = randomIntBetween(32, 64);
         while (sumTermLength > 0) {
             int length = randomInt(sumTermLength);
@@ -205,7 +206,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
             sumTermLength -= length;
         }
 
-        List<Term> terms2 = new ArrayList<>();
+        Set<Term> terms2 = new HashSet<>();
         sumTermLength = randomIntBetween(65, 128);
         while (sumTermLength > 0) {
             int length = randomInt(sumTermLength);
@@ -213,7 +214,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
             sumTermLength -= length;
         }
 
-        List<Term> result = queryMetadataService.selectTermsListWithHighestSumOfTermLength(terms1, terms2);
+        Set<Term> result = queryMetadataService.selectTermsListWithHighestSumOfTermLength(terms1, terms2);
         assertThat(result, sameInstance(terms2));
     }
 

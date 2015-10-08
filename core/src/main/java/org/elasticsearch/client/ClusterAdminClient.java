@@ -77,6 +77,9 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequest;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequestBuilder;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 
 /**
  * Administrative actions/operations against indices.
@@ -423,4 +426,25 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      */
     SnapshotsStatusRequestBuilder prepareSnapshotStatus();
 
+
+    /**
+     * Return the rendered search request for a given search template.
+     *
+     * @param request The request
+     * @return The result future
+     */
+    ActionFuture<RenderSearchTemplateResponse> renderSearchTemplate(RenderSearchTemplateRequest request);
+
+    /**
+     * Return the rendered search request for a given search template.
+     *
+     * @param request  The request
+     * @param listener A listener to be notified of the result
+     */
+    void renderSearchTemplate(RenderSearchTemplateRequest request, ActionListener<RenderSearchTemplateResponse> listener);
+
+    /**
+     * Return the rendered search request for a given search template.
+     */
+    RenderSearchTemplateRequestBuilder prepareRenderSearchTemplate();
 }

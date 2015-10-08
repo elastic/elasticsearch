@@ -160,7 +160,7 @@ You can no longer create fields with dots in the name.
 
 In 1.x, Elasticsearch would issue a warning if a type name included a dot,
 e.g. `my.type`.  Now that type names are no longer used to distinguish between
-fields in differnt types, this warning has been relaxed: type names may now
+fields in different types, this warning has been relaxed: type names may now
 contain dots, but they may not *begin* with a dot.  The only exception to this
 is the special `.percolator` type.
 

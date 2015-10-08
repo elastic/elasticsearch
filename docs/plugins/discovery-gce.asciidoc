@@ -168,7 +168,7 @@ scopes=compute-rw
 --------------------------------------------------
 
 Failing to set this will result in unauthorized messages when starting Elasticsearch.
-See <<cloud-gce-usage-discovery-tips-permissions>>.
+See <<discovery-gce-usage-tips-permissions>>.
 ==============================================
 
 

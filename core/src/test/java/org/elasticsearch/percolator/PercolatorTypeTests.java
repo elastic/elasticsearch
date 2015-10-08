@@ -79,7 +79,7 @@ public class PercolatorTypeTests extends ESTestCase {
 
         indexWriter.close();
         directoryReader = DirectoryReader.open(directory);
-        IndexSearcher shardSearcher =  new IndexSearcher(directoryReader);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
 
 
         MemoryIndex memoryIndex = new MemoryIndex();

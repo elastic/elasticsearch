@@ -41,6 +41,7 @@ import java.util.*;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class PercolatorQueryTests extends ESTestCase {
 
@@ -91,7 +92,7 @@ public class PercolatorQueryTests extends ESTestCase {
 
         indexWriter.close();
         directoryReader = DirectoryReader.open(directory);
-        IndexSearcher shardSearcher =  new IndexSearcher(directoryReader);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
 
         MemoryIndex memoryIndex = new MemoryIndex();
         memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
@@ -120,7 +121,7 @@ public class PercolatorQueryTests extends ESTestCase {
 
         indexWriter.close();
         directoryReader = DirectoryReader.open(directory);
-        IndexSearcher shardSearcher =  new IndexSearcher(directoryReader);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
 
         MemoryIndex memoryIndex = new MemoryIndex();
         memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
@@ -139,7 +140,7 @@ public class PercolatorQueryTests extends ESTestCase {
         assertThat(topDocs.totalHits, equalTo(1));
         assertThat(topDocs.scoreDocs.length, equalTo(1));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
-        assertEquals(topDocs.scoreDocs[0].score, 0.3f, 0.01f);
+        assertThat(topDocs.scoreDocs[0].score, not(1f));
 
         Explanation explanation = shardSearcher.explain(percolatorQuery, 0);
         assertThat(explanation.isMatch(), is(true));

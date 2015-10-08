@@ -25,7 +25,6 @@ import org.junit.Before;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -43,7 +42,7 @@ public class CacheTests extends ESTestCase {
 
     // cache some entries, then randomly lookup keys that do not exist, then check the stats
     public void testCacheStats() {
-        AtomicInteger evictions = new AtomicInteger();
+        AtomicLong evictions = new AtomicLong();
         Set<Integer> keys = new HashSet<>();
         Cache<Integer, String> cache =
                 CacheBuilder.<Integer, String>builder()
@@ -59,9 +58,9 @@ public class CacheTests extends ESTestCase {
             keys.add(i);
             cache.put(i, Integer.toString(i));
         }
-        int hits = 0;
-        int misses = 0;
-        int missingKey = 0;
+        long hits = 0;
+        long misses = 0;
+        Integer missingKey = 0;
         for (Integer key : keys) {
             --missingKey;
             if (rarely()) {
@@ -74,7 +73,7 @@ public class CacheTests extends ESTestCase {
         }
         assertEquals(hits, cache.stats().getHits());
         assertEquals(misses, cache.stats().getMisses());
-        assertEquals((int) Math.ceil(numberOfEntries / 2.0), evictions.get());
+        assertEquals((long) Math.ceil(numberOfEntries / 2.0), evictions.get());
         assertEquals(evictions.get(), cache.stats().getEvictions());
     }
 
@@ -84,7 +83,7 @@ public class CacheTests extends ESTestCase {
     // for each batch
     public void testCacheEvictions() {
         int maximumWeight = randomIntBetween(1, numberOfEntries);
-        AtomicInteger evictions = new AtomicInteger();
+        AtomicLong evictions = new AtomicLong();
         List<Integer> evictedKeys = new ArrayList<>();
         Cache<Integer, String> cache =
                 CacheBuilder.<Integer, String>builder()
@@ -145,7 +144,7 @@ public class CacheTests extends ESTestCase {
     public void testWeigher() {
         int maximumWeight = 2 * numberOfEntries;
         int weight = randomIntBetween(2, 10);
-        AtomicInteger evictions = new AtomicInteger();
+        AtomicLong evictions = new AtomicLong();
         Cache<Integer, String> cache =
                 CacheBuilder.<Integer, String>builder()
                         .setMaximumWeight(maximumWeight)

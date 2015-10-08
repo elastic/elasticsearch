@@ -504,37 +504,37 @@ public class Cache<K, V> {
      * @return the current cache statistics
      */
     public CacheStats stats() {
-        int hits = 0;
-        int misses = 0;
-        int evictions = 0;
+        long hits = 0;
+        long misses = 0;
+        long evictions = 0;
         for (int i = 0; i < segments.length; i++) {
-            hits += segments[i].segmentStats.hits.intValue();
-            misses += segments[i].segmentStats.misses.intValue();
-            evictions += segments[i].segmentStats.evictions.intValue();
+            hits += segments[i].segmentStats.hits.longValue();
+            misses += segments[i].segmentStats.misses.longValue();
+            evictions += segments[i].segmentStats.evictions.longValue();
         }
         return new CacheStats(hits, misses, evictions);
     }
 
     public static class CacheStats {
-        private int hits;
-        private int misses;
-        private int evictions;
+        private long hits;
+        private long misses;
+        private long evictions;
 
-        public CacheStats(int hits, int misses, int evictions) {
+        public CacheStats(long hits, long misses, long evictions) {
             this.hits = hits;
             this.misses = misses;
             this.evictions = evictions;
         }
 
-        public int getHits() {
+        public long getHits() {
             return hits;
         }
 
-        public int getMisses() {
+        public long getMisses() {
             return misses;
         }
 
-        public int getEvictions() {
+        public long getEvictions() {
             return evictions;
         }
     }

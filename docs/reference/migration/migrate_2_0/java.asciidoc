@@ -22,8 +22,8 @@ Client client = TransportClient.builder().settings(settings).build();
 --------------------------------------------------
 
 The transport client also no longer supports loading settings from config files.
-If you have have a config file, you can load into settings yourself before
-consturcting the transport client:
+If you have a config file, you can load it into settings yourself before
+constructing the transport client:
 
 [source,java]
 --------------------------------------------------

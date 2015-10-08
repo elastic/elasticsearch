@@ -39,6 +39,8 @@ sudo update-rc.d elasticsearch defaults 95 10
 sudo /etc/init.d/elasticsearch start
 --------------------------------------------------
 
+Users running Debian 8 or Ubuntu 14 or later may require configuration of systemd instead of `update-rc.d`. In those cases, please refer to the <<using-systemd>> section.
+
 [float]
 ===== Installing the oracle JDK
 
@@ -69,11 +71,11 @@ sudo /sbin/chkconfig --add elasticsearch
 sudo service elasticsearch start
 --------------------------------------------------
 
-
+[[using-systemd]]
 [float]
 ==== Using systemd
 
-Distributions like SUSE do not use the `chkconfig` tool to register services, but rather `systemd` and its command `/bin/systemctl` to start and stop services (at least in newer versions, otherwise use the `chkconfig` commands above). The configuration file is also placed at `/etc/sysconfig/elasticsearch` if the system is rpm based and `/etc/default/elasticsearch` if it is deb. After installing the RPM, you have to change the systemd configuration and then start up elasticsearch
+Distributions like Debian Jessie, Ubuntu 14, and many of the SUSE derivitives do not use the `chkconfig` tool to register services, but rather `systemd` and its command `/bin/systemctl` to start and stop services (at least in newer versions, otherwise use the `chkconfig` commands above). The configuration file is also placed at `/etc/sysconfig/elasticsearch` if the system is rpm based and `/etc/default/elasticsearch` if it is deb. After installing the RPM, you have to change the systemd configuration and then start up elasticsearch
 
 [source,sh]
 --------------------------------------------------

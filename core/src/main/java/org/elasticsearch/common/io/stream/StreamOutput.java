@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.ReadableInstant;
 
@@ -408,6 +409,9 @@ public abstract class StreamOutput extends OutputStream {
         } else if (value instanceof BytesRef) {
             writeByte((byte) 21);
             writeBytesRef((BytesRef) value);
+        } else if (type == GeoPoint.class) {
+            writeByte((byte) 22);
+            writeGeoPoint((GeoPoint) value);
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }
@@ -450,14 +454,6 @@ public abstract class StreamOutput extends OutputStream {
             streamable.writeTo(this);
         } else {
             writeBoolean(false);
-        }
-    }
-
-    private static int parseIntSafe(String val, int defaultVal) {
-        try {
-            return Integer.parseInt(val);
-        } catch (NumberFormatException ex) {
-            return defaultVal;
         }
     }
 
@@ -567,5 +563,13 @@ public abstract class StreamOutput extends OutputStream {
     void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
+    }
+
+    /**
+     * Writes the given {@link GeoPoint} to the stream
+     */
+    public void writeGeoPoint(GeoPoint geoPoint) throws IOException {
+        writeDouble(geoPoint.lat());
+        writeDouble(geoPoint.lon());
     }
 }

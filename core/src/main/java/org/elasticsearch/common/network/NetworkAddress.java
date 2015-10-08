@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.network;
 
-import com.google.common.net.InetAddresses;
-
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.net.Inet6Address;

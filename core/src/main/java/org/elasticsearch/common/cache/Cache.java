@@ -434,7 +434,9 @@ public class Cache<K, V> {
     }
 
     /**
-     * An LRU sequencing of the keys in the cache that supports removal.
+     * An LRU sequencing of the keys in the cache that supports removal. This sequence is not protected from mutations
+     * to the cache (except for {@link Iterator#remove()}. The result of iteration under any other mutation is
+     * undefined.
      *
      * @return an LRU-ordered {@link Iterable} over the keys in the cache
      */
@@ -460,7 +462,8 @@ public class Cache<K, V> {
     }
 
     /**
-     * An LRU sequencing of the values in the cache.
+     * An LRU sequencing of the values in the cache. This sequence is not protected from mutations
+     * to the cache. The result of iteration under mutation is undefined.
      *
      * @return an LRU-ordered {@link Iterable} over the values in the cache
      */

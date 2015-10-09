@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.parseDate;
 import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.readDate;
@@ -326,8 +327,9 @@ public class WatchStatus implements ToXContent, Streamable {
         if (state == null) {
             state = new State(true, WatcherXContentParser.clock(parser).nowUTC());
         }
+        actions = actions == null ? emptyMap() : unmodifiableMap(actions);
 
-        return new WatchStatus(-1, state, lastChecked, lastMetCondition, unmodifiableMap(actions));
+        return new WatchStatus(-1, state, lastChecked, lastMetCondition, actions);
     }
 
     public static class State implements ToXContent {

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.plugins;
 
-import com.google.common.hash.Hashing;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;

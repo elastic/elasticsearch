@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import com.google.common.collect.ImmutableMap;
-
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,19 +27,22 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.Collections.unmodifiableMap;
+
 /**
  * A registry for all the aggregator parser, also servers as the main parser for the aggregations module
  */
 public class AggregatorParsers {
-
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
-    private final ImmutableMap<String, Aggregator.Parser> aggParsers;
-    private final ImmutableMap<String, PipelineAggregator.Parser> pipelineAggregatorParsers;
+
+    private final Map<String, Aggregator.Parser> aggParsers;
+    private final Map<String, PipelineAggregator.Parser> pipelineAggregatorParsers;
 
 
     /**
@@ -55,16 +55,16 @@ public class AggregatorParsers {
      */
     @Inject
     public AggregatorParsers(Set<Aggregator.Parser> aggParsers, Set<PipelineAggregator.Parser> pipelineAggregatorParsers) {
-        MapBuilder<String, Aggregator.Parser> aggParsersBuilder = MapBuilder.newMapBuilder();
+        Map<String, Aggregator.Parser> aggParsersBuilder = new HashMap<>(aggParsers.size());
         for (Aggregator.Parser parser : aggParsers) {
             aggParsersBuilder.put(parser.type(), parser);
         }
-        this.aggParsers = aggParsersBuilder.immutableMap();
-        MapBuilder<String, PipelineAggregator.Parser> pipelineAggregatorParsersBuilder = MapBuilder.newMapBuilder();
+        this.aggParsers = unmodifiableMap(aggParsersBuilder);
+        Map<String, PipelineAggregator.Parser> pipelineAggregatorParsersBuilder = new HashMap<>(pipelineAggregatorParsers.size());
         for (PipelineAggregator.Parser parser : pipelineAggregatorParsers) {
             pipelineAggregatorParsersBuilder.put(parser.type(), parser);
         }
-        this.pipelineAggregatorParsers = pipelineAggregatorParsersBuilder.immutableMap();
+        this.pipelineAggregatorParsers = unmodifiableMap(pipelineAggregatorParsersBuilder);
     }
 
     /**

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.Sort;
@@ -34,17 +32,19 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -62,16 +62,16 @@ public class SortParseElement implements SearchParseElement {
     public static final String SCORE_FIELD_NAME = "_score";
     public static final String DOC_FIELD_NAME = "_doc";
 
-    private final ImmutableMap<String, SortParser> parsers;
+    private static final Map<String, SortParser> PARSERS;
 
-    public SortParseElement() {
-        ImmutableMap.Builder<String, SortParser> builder = ImmutableMap.builder();
-        addParser(builder, new ScriptSortParser());
-        addParser(builder, new GeoDistanceSortParser());
-        this.parsers = builder.build();
+    static {
+        Map<String, SortParser> parsers = new HashMap<>();
+        addParser(parsers, new ScriptSortParser());
+        addParser(parsers, new GeoDistanceSortParser());
+        PARSERS = unmodifiableMap(parsers);
     }
 
-    private void addParser(ImmutableMap.Builder<String, SortParser> parsers, SortParser parser) {
+    private static void addParser(Map<String, SortParser> parsers, SortParser parser) {
         for (String name : parser.names()) {
             parsers.put(name, parser);
         }
@@ -140,8 +140,8 @@ public class SortParseElement implements SearchParseElement {
                     }
                     addSortField(context, sortFields, fieldName, reverse, unmappedType, missing, sortMode, nestedFilterParseHelper);
                 } else {
-                    if (parsers.containsKey(fieldName)) {
-                        sortFields.add(parsers.get(fieldName).parse(parser, context));
+                    if (PARSERS.containsKey(fieldName)) {
+                        sortFields.add(PARSERS.get(fieldName).parse(parser, context));
                     } else {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {

@@ -22,7 +22,6 @@ package org.elasticsearch.search;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -112,6 +111,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
@@ -160,7 +160,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
-    private final ImmutableMap<String, SearchParseElement> elementParsers;
+    private final Map<String, SearchParseElement> elementParsers;
 
     private final ParseFieldMatcher parseFieldMatcher;
 
@@ -212,7 +212,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         elementParsers.putAll(queryPhase.parseElements());
         elementParsers.putAll(fetchPhase.parseElements());
         elementParsers.put("stats", new StatsGroupsParseElement());
-        this.elementParsers = ImmutableMap.copyOf(elementParsers);
+        this.elementParsers = unmodifiableMap(elementParsers);
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -68,10 +67,13 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -91,8 +93,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private final String defaultLang;
 
     private final Set<ScriptEngineService> scriptEngines;
-    private final ImmutableMap<String, ScriptEngineService> scriptEnginesByLang;
-    private final ImmutableMap<String, ScriptEngineService> scriptEnginesByExt;
+    private final Map<String, ScriptEngineService> scriptEnginesByLang;
+    private final Map<String, ScriptEngineService> scriptEnginesByExt;
 
     private final ConcurrentMap<String, CompiledScript> staticCache = ConcurrentCollections.newConcurrentMap();
 
@@ -160,8 +162,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
         }
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
-        ImmutableMap.Builder<String, ScriptEngineService> enginesByLangBuilder = ImmutableMap.builder();
-        ImmutableMap.Builder<String, ScriptEngineService> enginesByExtBuilder = ImmutableMap.builder();
+        Map<String, ScriptEngineService> enginesByLangBuilder = new HashMap<>();
+        Map<String, ScriptEngineService> enginesByExtBuilder = new HashMap<>();
         for (ScriptEngineService scriptEngine : scriptEngines) {
             for (String type : scriptEngine.types()) {
                 enginesByLangBuilder.put(type, scriptEngine);
@@ -170,8 +172,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 enginesByExtBuilder.put(ext, scriptEngine);
             }
         }
-        this.scriptEnginesByLang = enginesByLangBuilder.build();
-        this.scriptEnginesByExt = enginesByExtBuilder.build();
+        this.scriptEnginesByLang = unmodifiableMap(enginesByLangBuilder);
+        this.scriptEnginesByExt = unmodifiableMap(enginesByExtBuilder);
 
         this.scriptModes = new ScriptModes(this.scriptEnginesByLang, scriptContextRegistry, settings);
 

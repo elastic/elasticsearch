@@ -19,10 +19,15 @@
 
 package org.elasticsearch.tribe;
 
-import com.google.common.collect.ImmutableMap;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -33,7 +38,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -46,8 +50,14 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.rest.RestStatus;
 
-import java.util.*;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * The tribe service holds a list of node clients connected to a list of tribe members, and uses their
@@ -234,8 +244,12 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     for (DiscoveryNode tribe : tribeState.nodes()) {
                         if (currentState.nodes().get(tribe.id()) == null) {
                             // a new node, add it, but also add the tribe name to the attributes
-                            ImmutableMap<String, String> tribeAttr = MapBuilder.newMapBuilder(tribe.attributes()).put(TRIBE_NAME, tribeName).immutableMap();
-                            DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.id(), tribe.getHostName(), tribe.getHostAddress(), tribe.address(), tribeAttr, tribe.version());
+                            Map<String, String> tribeAttr = new HashMap<>();
+                            for (ObjectObjectCursor<String, String> attr : tribe.attributes()) {
+                                tribeAttr.put(attr.key, attr.value);
+                            }
+                            tribeAttr.put(TRIBE_NAME, tribeName);
+                            DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.id(), tribe.getHostName(), tribe.getHostAddress(), tribe.address(), unmodifiableMap(tribeAttr), tribe.version());
                             logger.info("[{}] adding node [{}]", tribeName, discoNode);
                             nodes.put(discoNode);
                         }
@@ -301,7 +315,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                         }
                     }
 
-                    return ClusterState.builder(currentState).incrementVersion().blocks(blocks).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+                    return ClusterState.builder(currentState).incrementVersion().blocks(blocks).nodes(nodes).metaData(metaData).routingTable(routingTable.build()).build();
                 }
 
                 private void removeIndex(ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable, IndexMetaData index) {

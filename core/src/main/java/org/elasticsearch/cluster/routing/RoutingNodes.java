@@ -21,16 +21,24 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -82,8 +90,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         // fill in the inverse of node -> shards allocated
         // also fill replicaSet information
-        for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
-            for (IndexShardRoutingTable indexShard : indexRoutingTable) {
+        for (ObjectCursor<IndexRoutingTable> indexRoutingTable : routingTable.indicesRouting().values()) {
+            for (IndexShardRoutingTable indexShard : indexRoutingTable.value) {
                 for (ShardRouting shard : indexShard) {
                     // to get all the shards belonging to an index, including the replicas,
                     // we define a replica set and keep track of it. A replica set is identified

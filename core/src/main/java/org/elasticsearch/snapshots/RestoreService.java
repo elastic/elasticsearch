@@ -22,7 +22,6 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -55,6 +54,7 @@ import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -228,11 +228,11 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
-                    final ImmutableMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards;
+                    ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards;
                     Set<String> aliases = new HashSet<>();
                     if (!renamedIndices.isEmpty()) {
                         // We have some indices to restore
-                        ImmutableMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableMap.builder();
+                        ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
                         for (Map.Entry<String, String> indexEntry : renamedIndices.entrySet()) {
                             String index = indexEntry.getValue();
                             boolean partial = checkPartial(index);
@@ -307,7 +307,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshotId, RestoreInProgress.State.INIT, Collections.unmodifiableList(new ArrayList<>(renamedIndices.keySet())), shards);
                         builder.putCustom(RestoreInProgress.TYPE, new RestoreInProgress(restoreEntry));
                     } else {
-                        shards = ImmutableMap.of();
+                        shards = ImmutableOpenMap.of();
                     }
 
                     checkAliasNameConflicts(renamedIndices, aliases);
@@ -321,8 +321,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 shards.size(), shards.size() - failedShards(shards));
                     }
 
-                    ClusterState updatedState = builder.metaData(mdBuilder).blocks(blocks).routingTable(rtBuilder).build();
-                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
+                    RoutingTable rt = rtBuilder.build();
+                    ClusterState updatedState = builder.metaData(mdBuilder).blocks(blocks).routingTable(rt).build();
+                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rt).build());
                     return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }
 
@@ -527,7 +528,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
         clusterService.submitStateUpdateTask("update snapshot state", new ClusterStateUpdateTask() {
             private final List<UpdateIndexShardRestoreStatusRequest> drainedRequests = new ArrayList<>();
-            private Map<SnapshotId, Tuple<RestoreInfo, Map<ShardId, ShardRestoreStatus>>> batchedRestoreInfo = null;
+            private Map<SnapshotId, Tuple<RestoreInfo, ImmutableOpenMap<ShardId, ShardRestoreStatus>>> batchedRestoreInfo = null;
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -550,7 +551,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     int changedCount = 0;
                     final List<RestoreInProgress.Entry> entries = new ArrayList<>();
                     for (RestoreInProgress.Entry entry : restore.entries()) {
-                        Map<ShardId, ShardRestoreStatus> shards = null;
+                        ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = null;
 
                         for (int i = 0; i < batchSize; i++) {
                             final UpdateIndexShardRestoreStatusRequest updateSnapshotState = drainedRequests.get(i);
@@ -558,17 +559,18 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                             if (entry.snapshotId().equals(updateSnapshotState.snapshotId())) {
                                 logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshotId(), updateSnapshotState.shardId(), updateSnapshotState.status().state());
-                                if (shards == null) {
-                                    shards = new HashMap<>(entry.shards());
+                                if (shardsBuilder == null) {
+                                    shardsBuilder = ImmutableOpenMap.builder(entry.shards());
                                 }
-                                shards.put(updateSnapshotState.shardId(), updateSnapshotState.status());
+                                shardsBuilder.put(updateSnapshotState.shardId(), updateSnapshotState.status());
                                 changedCount++;
                             }
                         }
 
-                        if (shards != null) {
+                        if (shardsBuilder != null) {
+                            ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = shardsBuilder.build();
                             if (!completed(shards)) {
-                                entries.add(new RestoreInProgress.Entry(entry.snapshotId(), RestoreInProgress.State.STARTED, entry.indices(), ImmutableMap.copyOf(shards)));
+                                entries.add(new RestoreInProgress.Entry(entry.snapshotId(), RestoreInProgress.State.STARTED, entry.indices(), shards));
                             } else {
                                 logger.info("restore [{}] is done", entry.snapshotId());
                                 if (batchedRestoreInfo == null) {
@@ -605,15 +607,15 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (batchedRestoreInfo != null) {
-                    for (final Entry<SnapshotId, Tuple<RestoreInfo, Map<ShardId, ShardRestoreStatus>>> entry : batchedRestoreInfo.entrySet()) {
+                    for (final Entry<SnapshotId, Tuple<RestoreInfo, ImmutableOpenMap<ShardId, ShardRestoreStatus>>> entry : batchedRestoreInfo.entrySet()) {
                         final SnapshotId snapshotId = entry.getKey();
                         final RestoreInfo restoreInfo = entry.getValue().v1();
-                        final Map<ShardId, ShardRestoreStatus> shards = entry.getValue().v2();
+                        final ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = entry.getValue().v2();
                         RoutingTable routingTable = newState.getRoutingTable();
                         final List<ShardId> waitForStarted = new ArrayList<>();
-                        for (Map.Entry<ShardId, ShardRestoreStatus> shard : shards.entrySet()) {
-                            if (shard.getValue().state() == RestoreInProgress.State.SUCCESS ) {
-                                ShardId shardId = shard.getKey();
+                        for (ObjectObjectCursor<ShardId, ShardRestoreStatus> shard : shards) {
+                            if (shard.value.state() == RestoreInProgress.State.SUCCESS ) {
+                                ShardId shardId = shard.key;
                                 ShardRouting shardRouting = findPrimaryShard(routingTable, shardId);
                                 if (shardRouting != null && !shardRouting.active()) {
                                     logger.trace("[{}][{}] waiting for the shard to start", snapshotId, shardId);
@@ -673,19 +675,19 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         });
     }
 
-    private boolean completed(Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards) {
-        for (RestoreInProgress.ShardRestoreStatus status : shards.values()) {
-            if (!status.state().completed()) {
+    private boolean completed(ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards) {
+        for (ObjectCursor<RestoreInProgress.ShardRestoreStatus> status : shards.values()) {
+            if (!status.value.state().completed()) {
                 return false;
             }
         }
         return true;
     }
 
-    private int failedShards(Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards) {
+    private int failedShards(ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards) {
         int failedShards = 0;
-        for (RestoreInProgress.ShardRestoreStatus status : shards.values()) {
-            if (status.state() == RestoreInProgress.State.FAILURE) {
+        for (ObjectCursor<RestoreInProgress.ShardRestoreStatus> status : shards.values()) {
+            if (status.value.state() == RestoreInProgress.State.FAILURE) {
                 failedShards++;
             }
         }
@@ -740,13 +742,13 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             // Some indices were deleted, let's make sure all indices that we are restoring still exist
             for (RestoreInProgress.Entry entry : restore.entries()) {
                 List<ShardId> shardsToFail = null;
-                for (ImmutableMap.Entry<ShardId, ShardRestoreStatus> shard : entry.shards().entrySet()) {
-                    if (!shard.getValue().state().completed()) {
-                        if (!event.state().metaData().hasIndex(shard.getKey().getIndex())) {
+                for (ObjectObjectCursor<ShardId, ShardRestoreStatus> shard : entry.shards()) {
+                    if (!shard.value.state().completed()) {
+                        if (!event.state().metaData().hasIndex(shard.key.getIndex())) {
                             if (shardsToFail == null) {
                                 shardsToFail = new ArrayList<>();
                             }
-                            shardsToFail.add(shard.getKey());
+                            shardsToFail.add(shard.key);
                         }
                     }
                 }

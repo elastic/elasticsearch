@@ -19,23 +19,21 @@
 
 package org.elasticsearch.cluster.settings;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.regex.Regex;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.regex.Regex;
 
 /**
  * A container for setting names and validation methods for those settings.
  */
 public class DynamicSettings {
-
-    private final Map<String, Validator> dynamicSettings;
+    private final ImmutableOpenMap<String, Validator> dynamicSettings;
 
     public static class Builder {
-        private Map<String, Validator> settings = new HashMap<>();
+        private ImmutableOpenMap.Builder<String, Validator> settings = ImmutableOpenMap.builder();
 
         public void addSetting(String setting, Validator validator) {
             Validator old = settings.put(setting, validator);
@@ -45,12 +43,12 @@ public class DynamicSettings {
         }
 
         public DynamicSettings build() {
-            return new DynamicSettings(settings);
+            return new DynamicSettings(settings.build());
         }
     }
 
-    private DynamicSettings(Map<String, Validator> settings) {
-        this.dynamicSettings = Collections.unmodifiableMap(settings);
+    private DynamicSettings(ImmutableOpenMap<String, Validator> settings) {
+        this.dynamicSettings = settings;
     }
 
     public boolean isDynamicOrLoggingSetting(String key) {
@@ -58,8 +56,8 @@ public class DynamicSettings {
     }
 
     public boolean hasDynamicSetting(String key) {
-        for (String dynamicSetting : dynamicSettings.keySet()) {
-            if (Regex.simpleMatch(dynamicSetting, key)) {
+        for (ObjectCursor<String> dynamicSetting : dynamicSettings.keys()) {
+            if (Regex.simpleMatch(dynamicSetting.value, key)) {
                 return true;
             }
         }
@@ -67,9 +65,9 @@ public class DynamicSettings {
     }
 
     public String validateDynamicSetting(String dynamicSetting, String value, ClusterState clusterState) {
-        for (Map.Entry<String, Validator> setting : dynamicSettings.entrySet()) {
-            if (Regex.simpleMatch(setting.getKey(), dynamicSetting)) {
-                return setting.getValue().validate(dynamicSetting, value, clusterState);
+        for (ObjectObjectCursor<String, Validator> setting : dynamicSettings) {
+            if (Regex.simpleMatch(setting.key, dynamicSetting)) {
+                return setting.value.validate(dynamicSetting, value, clusterState);
             }
         }
         return null;

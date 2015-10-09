@@ -37,7 +37,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -158,10 +164,11 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     }
                     logger.info("auto importing dangled indices {} from [{}]", sb.toString(), request.fromNode);
 
-                    ClusterState updatedState = ClusterState.builder(currentState).metaData(metaData).blocks(blocks).routingTable(routingTableBuilder).build();
+                    RoutingTable routingTable = routingTableBuilder.build();
+                    ClusterState updatedState = ClusterState.builder(currentState).metaData(metaData).blocks(blocks).routingTable(routingTable).build();
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
+                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTable).build());
 
                     return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }

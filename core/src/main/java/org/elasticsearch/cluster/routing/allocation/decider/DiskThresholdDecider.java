@@ -19,6 +19,10 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import com.carrotsearch.hppc.ObjectLookupContainer;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -30,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -38,7 +43,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -164,23 +168,23 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         @Override
         public void onNewInfo(ClusterInfo info) {
-            Map<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
+            ImmutableOpenMap<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
             if (usages != null) {
                 boolean reroute = false;
                 String explanation = "";
 
                 // Garbage collect nodes that have been removed from the cluster
                 // from the map that tracks watermark crossing
-                Set<String> nodes = usages.keySet();
+                ObjectLookupContainer<String> nodes = usages.keys();
                 for (String node : nodeHasPassedWatermark) {
                     if (nodes.contains(node) == false) {
                         nodeHasPassedWatermark.remove(node);
                     }
                 }
 
-                for (Map.Entry<String, DiskUsage> entry : usages.entrySet()) {
-                    String node = entry.getKey();
-                    DiskUsage usage = entry.getValue();
+                for (ObjectObjectCursor<String, DiskUsage> entry : usages) {
+                    String node = entry.key;
+                    DiskUsage usage = entry.value;
                     warnAboutDiskIfNeeded(usage);
                     if (usage.getFreeBytes() < DiskThresholdDecider.this.freeBytesThresholdHigh.bytes() ||
                             usage.getFreeDiskAsPercentage() < DiskThresholdDecider.this.freeDiskThresholdHigh) {
@@ -336,7 +340,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         ClusterInfo clusterInfo = allocation.clusterInfo();
-        Map<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
+        ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
         final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
@@ -451,7 +455,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             throw new IllegalArgumentException("Shard [" + shardRouting + "] is not allocated on node: [" + node.nodeId() + "]");
         }
         final ClusterInfo clusterInfo = allocation.clusterInfo();
-        final Map<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
+        final ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
         final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
@@ -488,7 +492,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "enough disk for shard to remain on node, free: [%s]", new ByteSizeValue(freeBytes));
     }
 
-    private DiskUsage getDiskUsage(RoutingNode node, RoutingAllocation allocation,  Map<String, DiskUsage> usages) {
+    private DiskUsage getDiskUsage(RoutingNode node, RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
         ClusterInfo clusterInfo = allocation.clusterInfo();
         DiskUsage usage = usages.get(node.nodeId());
         if (usage == null) {
@@ -521,15 +525,15 @@ public class DiskThresholdDecider extends AllocationDecider {
      * @param usages Map of nodeId to DiskUsage for all known nodes
      * @return DiskUsage representing given node using the average disk usage
      */
-    public DiskUsage averageUsage(RoutingNode node, Map<String, DiskUsage> usages) {
+    public DiskUsage averageUsage(RoutingNode node, ImmutableOpenMap<String, DiskUsage> usages) {
         if (usages.size() == 0) {
             return new DiskUsage(node.nodeId(), node.node().name(), "_na_", 0, 0);
         }
         long totalBytes = 0;
         long freeBytes = 0;
-        for (DiskUsage du : usages.values()) {
-            totalBytes += du.getTotalBytes();
-            freeBytes += du.getFreeBytes();
+        for (ObjectCursor<DiskUsage> du : usages.values()) {
+            totalBytes += du.value.getTotalBytes();
+            freeBytes += du.value.getFreeBytes();
         }
         return new DiskUsage(node.nodeId(), node.node().name(), "_na_", totalBytes / usages.size(), freeBytes / usages.size());
     }
@@ -592,7 +596,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
     }
 
-    private Decision earlyTerminate(RoutingAllocation allocation, final Map<String, DiskUsage> usages) {
+    private Decision earlyTerminate(RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
         // Always allow allocation if the decider is disabled
         if (!enabled) {
             return allocation.decision(Decision.YES, NAME, "disk threshold decider disabled");

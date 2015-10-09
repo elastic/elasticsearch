@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -35,10 +36,6 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.AbstractMap;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -116,30 +113,24 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
         return new CountDownLatch(0);
     }
 
+    @Override
     public ClusterInfo getClusterInfo() {
         ClusterInfo clusterInfo = super.getClusterInfo();
-        return new ClusterInfo(clusterInfo.getNodeLeastAvailableDiskUsages(), clusterInfo.getNodeMostAvailableDiskUsages(), clusterInfo.shardSizes, DEV_NULL_MAP);
+        return new DevNullClusterInfo(clusterInfo.getNodeLeastAvailableDiskUsages(), clusterInfo.getNodeMostAvailableDiskUsages(), clusterInfo.shardSizes);
     }
 
-    public static final Map<ShardRouting, String> DEV_NULL_MAP = Collections.unmodifiableMap(new StaticValueMap("/dev/null"));
-
-    // a test only map that always returns the same value no matter what key is passed
-    private static final class StaticValueMap extends AbstractMap<ShardRouting, String> {
-
-        private final String value;
-
-        private StaticValueMap(String value) {
-            this.value = value;
+    /**
+     * ClusterInfo that always points to DevNull.
+     */
+    public static class DevNullClusterInfo extends ClusterInfo {
+        public DevNullClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
+            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage, ImmutableOpenMap<String, Long> shardSizes) {
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null);
         }
 
         @Override
-        public String get(Object key) {
-            return value;
-        }
-
-        @Override
-        public Set<Entry<ShardRouting, String>> entrySet() {
-            throw new UnsupportedOperationException("this is a test-only map that only supports #get(Object key)");
+        public String getDataPath(ShardRouting shardRouting) {
+            return "/dev/null";
         }
     }
 }

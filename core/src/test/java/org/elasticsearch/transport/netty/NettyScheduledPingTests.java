@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport.netty;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -29,11 +28,19 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseOptions;
 import org.junit.Test;
 
 import java.io.IOException;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -57,8 +64,8 @@ public class NettyScheduledPingTests extends ESTestCase {
         MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool);
         serviceB.start();
 
-        DiscoveryNode nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), Version.CURRENT);
-        DiscoveryNode nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), Version.CURRENT);
+        DiscoveryNode nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), Version.CURRENT);
+        DiscoveryNode nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), Version.CURRENT);
 
         serviceA.connectToNode(nodeB);
         serviceB.connectToNode(nodeA);

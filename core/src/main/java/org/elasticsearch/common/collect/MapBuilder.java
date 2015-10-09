@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.collect;
 
-import com.google.common.collect.ImmutableMap;
-
 import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -83,7 +83,15 @@ public class MapBuilder<K, V> {
         return this.map;
     }
 
-    public ImmutableMap<K, V> immutableMap() {
-        return ImmutableMap.copyOf(map);
+    /**
+     * Build an immutable copy of the map under construction.
+     *
+     * @deprecated always copies the map under construction. prefer building a
+     *             HashMap by hand and wrapping it in an unmodifiableMap
+     */
+    @Deprecated
+    public Map<K, V> immutableMap() {
+        // Note that this whole method is going to have to go next but we're changing it like this here just to keep the commit smaller.
+        return unmodifiableMap(new HashMap<>(map));
     }
 }

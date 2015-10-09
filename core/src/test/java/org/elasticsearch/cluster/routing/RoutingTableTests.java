@@ -35,6 +35,7 @@ import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -55,6 +56,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             .build());
     private ClusterState clusterState;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -263,5 +265,35 @@ public class RoutingTableTests extends ESAllocationTestCase {
         } catch (IndexNotFoundException e) {
             fail("Calling with non-existing index should be ignored at the moment");
         }
+    }
+
+    public void testRoutingTableBuiltMoreThanOnce() {
+        RoutingTable.Builder b = RoutingTable.builder();
+        b.build(); // Ok the first time
+        try {
+            b.build();
+            fail("expected exception");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("cannot be reused"));
+        }
+        try {
+            b.add((IndexRoutingTable) null);
+            fail("expected exception");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("cannot be reused"));
+        }
+        try {
+            b.updateNumberOfReplicas(1, "foo");
+            fail("expected exception");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("cannot be reused"));
+        }
+        try {
+            b.remove("foo");
+            fail("expected exception");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("cannot be reused"));
+        }
+
     }
 }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
@@ -34,6 +36,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -53,7 +56,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -149,24 +151,24 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
         ClusterInfo info = infoService.refresh();
         assertNotNull("info should not be null", info);
-        final Map<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
-        final Map<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
-        final Map<String, Long> shardSizes = info.shardSizes;
+        ImmutableOpenMap<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
+        ImmutableOpenMap<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
+        ImmutableOpenMap<String, Long> shardSizes = info.shardSizes;
         assertNotNull(leastUsages);
         assertNotNull(shardSizes);
         assertThat("some usages are populated", leastUsages.values().size(), Matchers.equalTo(2));
         assertThat("some shard sizes are populated", shardSizes.values().size(), greaterThan(0));
-        for (DiskUsage usage : leastUsages.values()) {
-            logger.info("--> usage: {}", usage);
-            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
+        for (ObjectCursor<DiskUsage> usage : leastUsages.values()) {
+            logger.info("--> usage: {}", usage.value);
+            assertThat("usage has be retrieved", usage.value.getFreeBytes(), greaterThan(0L));
         }
-        for (DiskUsage usage : mostUsages.values()) {
-            logger.info("--> usage: {}", usage);
-            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
+        for (ObjectCursor<DiskUsage> usage : mostUsages.values()) {
+            logger.info("--> usage: {}", usage.value);
+            assertThat("usage has be retrieved", usage.value.getFreeBytes(), greaterThan(0L));
         }
-        for (Long size : shardSizes.values()) {
-            logger.info("--> shard size: {}", size);
-            assertThat("shard size is greater than 0", size, greaterThanOrEqualTo(0L));
+        for (ObjectCursor<Long> size : shardSizes.values()) {
+            logger.info("--> shard size: {}", size.value);
+            assertThat("shard size is greater than 0", size.value, greaterThanOrEqualTo(0L));
         }
         ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getMasterName());
         ClusterState state = clusterService.state();

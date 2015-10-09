@@ -73,7 +73,7 @@ remove_plugin() {
     fi
 }
 
-# Install the jvm-example plugin which fully excercises the special case file
+# Install the jvm-example plugin which fully exercises the special case file
 # placements for non-site plugins.
 install_jvm_example() {
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
@@ -81,14 +81,27 @@ install_jvm_example() {
 
     assert_file_exist "$ESHOME/bin/jvm-example"
     assert_file_exist "$ESHOME/bin/jvm-example/test"
-    assert_file_exist "$ESCONFIG/jvm-example"
-    assert_file_exist "$ESCONFIG/jvm-example/example.yaml"
+
+    #owner group and permissions vary depending on how es was installed
+    #just make sure that everything is the same as $CONFIG_DIR, which was properly set up during install
+    config_user=$(find "$ESCONFIG" -maxdepth 0 -printf "%u")
+    config_owner=$(find "$ESCONFIG" -maxdepth 0 -printf "%g")
+    config_privileges=$(find "$ESCONFIG" -maxdepth 0 -printf "%m")
+    assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner $config_privileges
+    #the original file has no execute permissions and that must not change, but all other permissions
+    #need to be inherited from the parent config dir. We check this by applying the 111 mask to the config dir privileges.
+    for i in `seq 0 2`; do
+        current_perm_dir=${config_privileges:$i:1}
+        final_perm=$(($current_perm_dir & ~1))
+        expected_file_privileges+=$final_perm
+    done
+    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner $expected_file_privileges
 
     echo "Running jvm-example's bin script...."
     "$ESHOME/bin/jvm-example/test" | grep test
 }
 
-# Remove the jvm-example plugin which fully excercises the special cases of
+# Remove the jvm-example plugin which fully exercises the special cases of
 # removing bin and not removing config.
 remove_jvm_example() {
     remove_plugin jvm-example

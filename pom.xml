@@ -302,7 +302,7 @@
             <dependency>
                 <groupId>com.github.spullara.mustache.java</groupId>
                 <artifactId>compiler</artifactId>
-                <version>0.8.13</version>
+                <version>0.9.1</version>
             </dependency>
 
             <!-- Used in plugins -->

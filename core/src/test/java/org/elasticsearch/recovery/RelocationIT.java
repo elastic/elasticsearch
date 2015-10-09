@@ -21,6 +21,7 @@ package org.elasticsearch.recovery;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
+
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -51,10 +52,14 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.*;
-import org.junit.Test;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -71,10 +76,11 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  */
@@ -88,7 +94,6 @@ public class RelocationIT extends ESIntegTestCase {
         return pluginList(MockTransportService.TestPlugin.class);
     }
 
-    @Test
     public void testSimpleRelocationNoIndexing() {
         logger.info("--> starting [node1] ...");
         final String node_1 = internalCluster().startNode();
@@ -136,7 +141,6 @@ public class RelocationIT extends ESIntegTestCase {
         assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().totalHits(), equalTo(20l));
     }
 
-    @Test
     public void testRelocationWhileIndexingRandom() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
@@ -245,7 +249,6 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testRelocationWhileRefreshing() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
@@ -345,7 +348,6 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testCancellationCleansTempFiles() throws Exception {
         final String indexName = "test";
 

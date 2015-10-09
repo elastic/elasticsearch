@@ -22,14 +22,12 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -38,7 +36,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -47,12 +44,11 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE)
 public class ScriptQuerySearchTests extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
@@ -62,7 +58,6 @@ public class ScriptQuerySearchTests extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testCustomScriptBoost() throws Exception {
         createIndex("test");
         client().prepareIndex("test", "type1", "1")

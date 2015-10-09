@@ -48,7 +48,6 @@ import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,7 +75,7 @@ public class VersionsTests extends ESTestCase {
         }
         return newReader;
     }
-    @Test
+
     public void testVersions() throws Exception {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -128,7 +127,6 @@ public class VersionsTests extends ESTestCase {
         dir.close();
     }
 
-    @Test
     public void testNestedDocuments() throws IOException {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -169,7 +167,6 @@ public class VersionsTests extends ESTestCase {
         dir.close();
     }
 
-    @Test
     public void testBackwardCompatibility() throws IOException {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -236,7 +233,6 @@ public class VersionsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testMergingOldIndices() throws Exception {
         final IndexWriterConfig iwConf = new IndexWriterConfig(new KeywordAnalyzer());
         iwConf.setMergePolicy(new ElasticsearchMergePolicy(iwConf.getMergePolicy()));

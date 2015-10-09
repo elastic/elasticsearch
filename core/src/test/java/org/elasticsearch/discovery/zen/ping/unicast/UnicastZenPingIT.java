@@ -38,15 +38,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
-import org.junit.Test;
 
 import java.net.InetSocketAddress;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class UnicastZenPingIT extends ESTestCase {
-
-    @Test
     public void testSimplePings() throws InterruptedException {
         Settings settings = Settings.EMPTY;
         int startPort = 11000 + randomIntBetween(0, 1000);

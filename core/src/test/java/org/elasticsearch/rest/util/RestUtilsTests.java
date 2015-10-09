@@ -21,7 +21,6 @@ package org.elasticsearch.rest.util;
 
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -35,7 +34,6 @@ import static org.hamcrest.Matchers.*;
  */
 public class RestUtilsTests extends ESTestCase {
 
-    @Test
     public void testDecodeQueryString() {
         Map<String, String> params = new HashMap<>();
 
@@ -62,7 +60,6 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(0));
     }
 
-    @Test
     public void testDecodeQueryStringEdgeCases() {
         Map<String, String> params = new HashMap<>();
 
@@ -123,7 +120,6 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("p1"), equalTo("v1"));
     }
 
-    @Test
     public void testCorsSettingIsARegex() {
         assertCorsSettingRegex("/foo/", Pattern.compile("foo"));
         assertCorsSettingRegex("/.*/", Pattern.compile(".*"));

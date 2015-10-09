@@ -35,7 +35,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -53,8 +52,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(AwarenessAllocationTests.class);
 
-    @Test
-    public void moveShardOnceNewNodeWithAttributeAdded1() {
+    public void testMoveShardOnceNewNodeWithAttributeAdded1() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -122,8 +120,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
     }
 
-    @Test
-    public void moveShardOnceNewNodeWithAttributeAdded2() {
+    public void testMoveShardOnceNewNodeWithAttributeAdded2() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -192,8 +189,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
     }
 
-    @Test
-    public void moveShardOnceNewNodeWithAttributeAdded3() {
+    public void testMoveShardOnceNewNodeWithAttributeAdded3() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
@@ -293,8 +289,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
     }
 
-    @Test
-    public void moveShardOnceNewNodeWithAttributeAdded4() {
+    public void testMoveShardOnceNewNodeWithAttributeAdded4() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
@@ -389,8 +384,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
     }
 
-    @Test
-    public void moveShardOnceNewNodeWithAttributeAdded5() {
+    public void testMoveShardOnceNewNodeWithAttributeAdded5() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -468,8 +462,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
     }
 
-    @Test
-    public void moveShardOnceNewNodeWithAttributeAdded6() {
+    public void testMoveShardOnceNewNodeWithAttributeAdded6() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -549,8 +542,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
     }
 
-    @Test
-    public void fullAwareness1() {
+    public void testFullAwareness1() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -617,8 +609,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
     }
 
-    @Test
-    public void fullAwareness2() {
+    public void testFullAwareness2() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -686,8 +677,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
     }
 
-    @Test
-    public void fullAwareness3() {
+    public void testFullAwareness3() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
@@ -771,7 +761,6 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
     }
 
-    @Test
     public void testUnbalancedZones() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
@@ -836,7 +825,6 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("B-0").size(), equalTo(5));
     }
 
-    @Test
     public void testUnassignedShardsWithUnbalancedZones() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)

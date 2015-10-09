@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -31,7 +30,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQueryBuilder> {
-
     @Override
     protected SpanNearQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
@@ -57,7 +55,6 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         }
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             new SpanNearQueryBuilder(null, 1);

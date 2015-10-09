@@ -42,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,7 +50,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BitSetFilterCacheTests extends ESTestCase {
-
     private static int matchCount(BitSetProducer producer, IndexReader reader) throws IOException {
         int count = 0;
         for (LeafReaderContext ctx : reader.leaves()) {
@@ -63,7 +61,6 @@ public class BitSetFilterCacheTests extends ESTestCase {
         return count;
     }
 
-    @Test
     public void testInvalidateEntries() throws Exception {
         IndexWriter writer = new IndexWriter(
                 new RAMDirectory(),

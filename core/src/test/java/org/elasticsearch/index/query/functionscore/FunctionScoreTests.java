@@ -23,15 +23,39 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.search.function.*;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
+import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
@@ -40,7 +64,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -261,7 +284,6 @@ public class FunctionScoreTests extends ESTestCase {
         dir.close();
     }
 
-    @Test
     public void testExplainFunctionScoreQuery() throws IOException {
 
         Explanation functionExplanation = getFunctionScoreExplanation(searcher, RANDOM_SCORE_FUNCTION);
@@ -307,7 +329,6 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(randomExplanation.getDetails()[0].getDescription(), equalTo(functionExpl));
     }
 
-    @Test
     public void testExplainFiltersFunctionScoreQuery() throws IOException {
         Explanation functionExplanation = getFiltersFunctionScoreExplanation(searcher, RANDOM_SCORE_FUNCTION);
         checkFiltersFunctionScoreExplanation(functionExplanation, "random score function (seed: 0)", 0);
@@ -437,8 +458,7 @@ public class FunctionScoreTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void simpleWeightedFunctionsTest() throws IOException, ExecutionException, InterruptedException {
+    public void testSimpleWeightedFunction() throws IOException, ExecutionException, InterruptedException {
         int numFunctions = randomIntBetween(1, 3);
         float[] weights = randomFloats(numFunctions);
         double[] scores = randomDoubles(numFunctions);
@@ -534,8 +554,7 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(explainedScore / scoreWithWeight, is(1f));
     }
 
-    @Test
-    public void checkWeightOnlyCreatesBoostFunction() throws IOException {
+    public void testWeightOnlyCreatesBoostFunction() throws IOException {
         FunctionScoreQuery filtersFunctionScoreQueryWithWeights = new FunctionScoreQuery(new MatchAllDocsQuery(), new WeightFactorFunction(2), 0.0f, CombineFunction.MULTIPLY, 100);
         TopDocs topDocsWithWeights = searcher.search(filtersFunctionScoreQueryWithWeights, 1);
         float score = topDocsWithWeights.scoreDocs[0].score;

@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -69,7 +68,6 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         //no-op boost is checked already above as part of doAssertLuceneQuery as we rely on lucene equals impl
     }
 
-    @Test
     public void testIllegalArgument() {
         try {
             if (randomBoolean()) {

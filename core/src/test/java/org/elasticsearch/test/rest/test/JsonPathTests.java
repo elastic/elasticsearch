@@ -21,17 +21,19 @@ package org.elasticsearch.test.rest.test;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.test.rest.json.JsonPath;
-import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class JsonPathTests extends ESTestCase {
-
-    @Test
     public void testEvaluateObjectPathEscape() throws Exception {
         String json = "{ \"field1\": { \"field2.field3\" : \"value2\" } }";
         JsonPath jsonPath = new JsonPath(json);
@@ -40,7 +42,6 @@ public class JsonPathTests extends ESTestCase {
         assertThat((String)object, equalTo("value2"));
     }
 
-    @Test
     public void testEvaluateObjectPathWithDoubleDot() throws Exception {
         String json = "{ \"field1\": { \"field2\" : \"value2\" } }";
         JsonPath jsonPath = new JsonPath(json);
@@ -49,7 +50,6 @@ public class JsonPathTests extends ESTestCase {
         assertThat((String)object, equalTo("value2"));
     }
 
-    @Test
     public void testEvaluateObjectPathEndsWithDot() throws Exception {
         String json = "{ \"field1\": { \"field2\" : \"value2\" } }";
         JsonPath jsonPath = new JsonPath(json);
@@ -58,7 +58,6 @@ public class JsonPathTests extends ESTestCase {
         assertThat((String)object, equalTo("value2"));
     }
 
-    @Test
     public void testEvaluateString() throws Exception {
         String json = "{ \"field1\": { \"field2\" : \"value2\" } }";
         JsonPath jsonPath = new JsonPath(json);
@@ -67,7 +66,6 @@ public class JsonPathTests extends ESTestCase {
         assertThat((String)object, equalTo("value2"));
     }
 
-    @Test
     public void testEvaluateInteger() throws Exception {
         String json = "{ \"field1\": { \"field2\" : 333 } }";
         JsonPath jsonPath = new JsonPath(json);
@@ -76,7 +74,6 @@ public class JsonPathTests extends ESTestCase {
         assertThat((Integer)object, equalTo(333));
     }
 
-    @Test
     public void testEvaluateDouble() throws Exception {
         String json = "{ \"field1\": { \"field2\" : 3.55 } }";
         JsonPath jsonPath = new JsonPath(json);
@@ -85,7 +82,6 @@ public class JsonPathTests extends ESTestCase {
         assertThat((Double)object, equalTo(3.55));
     }
 
-    @Test
     public void testEvaluateArray() throws Exception {
         String json = "{ \"field1\": { \"array1\" : [ \"value1\", \"value2\" ] } }";
         JsonPath jsonPath = new JsonPath(json);
@@ -99,7 +95,6 @@ public class JsonPathTests extends ESTestCase {
         assertThat((String)list.get(1), equalTo("value2"));
     }
 
-    @Test
     public void testEvaluateArrayElement() throws Exception {
         String json = "{ \"field1\": { \"array1\" : [ \"value1\", \"value2\" ] } }";
         JsonPath jsonPath = new JsonPath(json);
@@ -108,7 +103,6 @@ public class JsonPathTests extends ESTestCase {
         assertThat((String)object, equalTo("value2"));
     }
 
-    @Test
     public void testEvaluateArrayElementObject() throws Exception {
         String json = "{ \"field1\": { \"array1\" : [ {\"element\": \"value1\"}, {\"element\":\"value2\"} ] } }";
         JsonPath jsonPath = new JsonPath(json);
@@ -117,7 +111,6 @@ public class JsonPathTests extends ESTestCase {
         assertThat((String)object, equalTo("value2"));
     }
 
-    @Test
     public void testEvaluateArrayElementObjectWrongPath() throws Exception {
         String json = "{ \"field1\": { \"array1\" : [ {\"element\": \"value1\"}, {\"element\":\"value2\"} ] } }";
         JsonPath jsonPath = new JsonPath(json);
@@ -125,7 +118,6 @@ public class JsonPathTests extends ESTestCase {
         assertThat(object, nullValue());
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testEvaluateObjectKeys() throws Exception {
         String json = "{ \"metadata\": { \"templates\" : {\"template_1\": { \"field\" : \"value\"}, \"template_2\": { \"field\" : \"value\"} } } }";
@@ -138,7 +130,6 @@ public class JsonPathTests extends ESTestCase {
         assertThat(strings, contains("template_1", "template_2"));
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testEvaluateEmptyPath() throws Exception {
         String json = "{ \"field1\": { \"array1\" : [ {\"element\": \"value1\"}, {\"element\":\"value2\"} ] } }";
@@ -149,7 +140,6 @@ public class JsonPathTests extends ESTestCase {
         assertThat(((Map<String, Object>)object).containsKey("field1"), equalTo(true));
     }
 
-    @Test
     public void testEvaluateStashInPropertyName() throws Exception {
         String json = "{ \"field1\": { \"elements\" : {\"element1\": \"value1\"}}}";
         JsonPath jsonPath = new JsonPath(json);

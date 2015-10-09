@@ -44,7 +44,6 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -59,7 +58,6 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     final int numberOfShards = 2;
     final int numberOfReplicas = 2;
 
-    @Test
     public void testIndexBalance() {
         /* Tests balance over indices only */
         final float indexBalance = 1.0f;
@@ -85,7 +83,6 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
     }
 
-    @Test
     public void testReplicaBalance() {
         /* Tests balance over replicas only */
         final float indexBalance = 0.0f;
@@ -280,7 +277,6 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testPersistedSettings() {
         Settings.Builder settings = settingsBuilder();
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, 0.2);
@@ -318,7 +314,6 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         assertThat(allocator.getThreshold(), Matchers.equalTo(3.0f));
     }
 
-    @Test
     public void testNoRebalanceOnPrimaryOverload() {
         Settings.Builder settings = settingsBuilder();
         AllocationService strategy = new AllocationService(settings.build(), randomAllocationDeciders(settings.build(),

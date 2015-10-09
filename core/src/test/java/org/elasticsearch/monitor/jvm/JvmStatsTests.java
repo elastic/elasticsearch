@@ -22,17 +22,17 @@ package org.elasticsearch.monitor.jvm;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class JvmStatsTests extends ESTestCase {
-
-    @Test
     public void testJvmStats() throws IOException {
         JvmStats stats = JvmStats.jvmStats();
         assertNotNull(stats);

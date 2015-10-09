@@ -22,14 +22,16 @@ package org.elasticsearch.action.admin.indices.segments;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.is;
+
 public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
-    
+
     @Before
     public void setupIndex() {
         Settings settings = Settings.builder()
@@ -51,7 +53,7 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
         List<Segment> segments = rsp.getIndices().get("test").iterator().next().getShards()[0].getSegments();
         assertNull(segments.get(0).ramTree);
     }
-    
+
     public void testVerbose() {
         IndicesSegmentResponse rsp = client().admin().indices().prepareSegments("test").setVerbose(true).get();
         List<Segment> segments = rsp.getIndices().get("test").iterator().next().getShards()[0].getSegments();
@@ -61,10 +63,14 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
     /**
      * with the default IndicesOptions inherited from BroadcastOperationRequest this will raise an exception
      */
-    @Test(expected=org.elasticsearch.indices.IndexClosedException.class)
     public void testRequestOnClosedIndex() {
         client().admin().indices().prepareClose("test").get();
-        client().admin().indices().prepareSegments("test").get();
+        try {
+            client().admin().indices().prepareSegments("test").get();
+            fail("Expected IndexClosedException");
+        } catch (IndexClosedException e) {
+            assertThat(e.getMessage(), is("closed"));
+        }
     }
 
     /**

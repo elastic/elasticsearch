@@ -20,52 +20,80 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
 
-public class TableTests extends ESTestCase {
+import static org.hamcrest.Matchers.is;
 
-    @Test(expected = IllegalStateException.class)
+public class TableTests extends ESTestCase {
     public void testFailOnStartRowWithoutHeader() {
         Table table = new Table();
-        table.startRow();
+        try {
+            table.startRow();
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("no headers added..."));
+        }
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailOnEndHeadersWithoutStart() {
         Table table = new Table();
-        table.endHeaders();
+        try {
+            table.endHeaders();
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("no headers added..."));
+        }
+
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailOnAddCellWithoutHeader() {
         Table table = new Table();
-        table.addCell("error");
+        try {
+            table.addCell("error");
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("no block started..."));
+        }
+
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailOnAddCellWithoutRow() {
         Table table = this.getTableWithHeaders();
-        table.addCell("error");
+        try {
+            table.addCell("error");
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("no block started..."));
+        }
+
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailOnEndRowWithoutStart() {
         Table table = this.getTableWithHeaders();
-        table.endRow();
+        try {
+            table.endRow();
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("no row started..."));
+        }
+
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailOnLessCellsThanDeclared() {
         Table table = this.getTableWithHeaders();
         table.startRow();
         table.addCell("foo");
-        table.endRow(true);
+        try {
+            table.endRow(true);
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("mismatch on number of cells 1 in a row compared to header 2"));
+        }
+
     }
 
-    @Test
     public void testOnLessCellsThanDeclaredUnchecked() {
         Table table = this.getTableWithHeaders();
         table.startRow();
@@ -73,16 +101,20 @@ public class TableTests extends ESTestCase {
         table.endRow(false);
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailOnMoreCellsThanDeclared() {
         Table table = this.getTableWithHeaders();
         table.startRow();
         table.addCell("foo");
         table.addCell("bar");
-        table.addCell("foobar");
+        try {
+            table.addCell("foobar");
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("can't add more cells to a row than the header"));
+        }
+
     }
 
-    @Test
     public void testSimple() {
         Table table = this.getTableWithHeaders();
         table.startRow();

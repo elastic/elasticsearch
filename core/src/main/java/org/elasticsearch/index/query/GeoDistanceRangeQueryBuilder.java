@@ -177,7 +177,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     public GeoDistanceRangeQueryBuilder optimizeBbox(String optimizeBbox) {
         if (optimizeBbox == null) {
-            throw new IllegalArgumentException("optimizeBox must not be null");
+            throw new IllegalArgumentException("optimizeBbox must not be null");
         }
         switch (optimizeBbox) {
             case "none":
@@ -200,7 +200,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         this.validationMethod = method;
         return this;
     }
-    
+
     /** Returns validation method for coordinates. */
     public GeoValidationMethod getValidationMethod() {
         return this.validationMethod;
@@ -305,7 +305,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     @Override
     protected boolean doEquals(GeoDistanceRangeQueryBuilder other) {
-        return ((Objects.equals(fieldName, other.fieldName)) && 
+        return ((Objects.equals(fieldName, other.fieldName)) &&
                 (Objects.equals(point, other.point)) &&
                 (Objects.equals(from, other.from)) &&
                 (Objects.equals(to, other.to)) &&

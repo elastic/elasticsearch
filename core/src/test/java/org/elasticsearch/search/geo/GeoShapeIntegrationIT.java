@@ -38,7 +38,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -55,8 +54,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GeoShapeIntegrationIT extends ESIntegTestCase {
-
-    @Test
     public void testNullShape() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -71,7 +68,6 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(result.getField("location"), nullValue());
     }
 
-    @Test
     public void testIndexPointsFilterRectangle() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -121,9 +117,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
     }
 
-    @Test
     public void testEdgeCases() throws Exception {
-
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
@@ -161,7 +155,6 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("blakely"));
     }
 
-    @Test
     public void testIndexedShapeReference() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -205,7 +198,6 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
     }
 
-    @Test
     public void testReusableBuilder() throws IOException {
         ShapeBuilder polygon = ShapeBuilder.newPolygon()
                 .point(170, -10).point(190, -10).point(190, 10).point(170, 10)
@@ -225,7 +217,6 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(before, equalTo(after));
     }
 
-    @Test
     public void testShapeFetchingPath() throws Exception {
         createIndex("shapes");
         assertAcked(prepareCreate("test").addMapping("type", "location", "type=geo_shape"));
@@ -308,7 +299,6 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9904")
-    @Test
     public void testShapeFilterWithRandomGeoCollection() throws Exception {
         // Create a random geometry collection.
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(getRandom());
@@ -333,7 +323,6 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertHitCount(result, 1);
     }
 
-    @Test
     public void testShapeFilterWithDefinedGeoCollection() throws Exception {
         createIndex("shapes");
         assertAcked(prepareCreate("test").addMapping("type", "location", "type=geo_shape"));
@@ -448,7 +437,6 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
     }
 
-    @Test
     public void testPointsOnly() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")

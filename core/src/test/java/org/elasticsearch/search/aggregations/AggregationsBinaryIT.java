@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +60,6 @@ public class AggregationsBinaryIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
     public void testAggregationsBinary() throws Exception {
         TermsBuilder termsBuilder = AggregationBuilders.terms("terms").field(STRING_FIELD_NAME);
         TermsBuilder subTerm = AggregationBuilders.terms("subterms").field(INT_FIELD_NAME);
@@ -101,7 +99,6 @@ public class AggregationsBinaryIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testAggregationsBinarySameContentType() throws Exception {
         TermsBuilder termsBuilder = AggregationBuilders.terms("terms").field(STRING_FIELD_NAME);
         TermsBuilder subTerm = AggregationBuilders.terms("subterms").field(INT_FIELD_NAME);

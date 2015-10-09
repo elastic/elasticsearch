@@ -36,7 +36,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -53,7 +52,6 @@ import static org.hamcrest.Matchers.is;
 
 public class HeadersAndContextCopyClientTests extends ESTestCase {
 
-    @Test
     public void testRegisterRelevantHeaders() throws InterruptedException {
 
         final RestController restController = new RestController(Settings.EMPTY);
@@ -91,7 +89,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         assertThat(relevantHeaders, equalTo(headersArray));
     }
 
-    @Test
     public void testCopyHeadersRequest() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
@@ -137,7 +134,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCopyHeadersClusterAdminRequest() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
@@ -183,7 +179,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCopyHeadersIndicesAdminRequest() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
@@ -229,7 +224,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCopyHeadersRequestBuilder() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
@@ -270,7 +264,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCopyHeadersClusterAdminRequestBuilder() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
@@ -310,7 +303,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCopyHeadersIndicesAdminRequestBuilder() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));

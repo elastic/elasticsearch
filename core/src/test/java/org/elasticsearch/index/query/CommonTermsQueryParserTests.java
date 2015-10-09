@@ -21,12 +21,10 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
 public class CommonTermsQueryParserTests extends ESSingleNodeTestCase {
-    @Test
     public void testWhenParsedQueryIsNullNoNullPointerExceptionIsThrown() throws IOException {
         final String index = "test-index";
         final String type = "test-type";

@@ -26,7 +26,6 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -58,8 +57,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         localAddress = null;
     }
 
-    @Test
-    public void nameMatch() {
+    public void testNameMatch() {
         Settings settings = Settings.settingsBuilder()
                 .put("xxx.name", "name1")
                 .build();
@@ -72,8 +70,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void idMatch() {
+    public void testIdMatch() {
         Settings settings = Settings.settingsBuilder()
                 .put("xxx._id", "id1")
                 .build();
@@ -86,8 +83,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void idOrNameMatch() {
+    public void testIdOrNameMatch() {
         Settings settings = shuffleSettings(Settings.settingsBuilder()
                 .put("xxx._id", "id1,blah")
                 .put("xxx.name", "blah,name2")
@@ -104,8 +100,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void tagAndGroupMatch() {
+    public void testTagAndGroupMatch() {
         Settings settings = shuffleSettings(Settings.settingsBuilder()
                 .put("xxx.tag", "A")
                 .put("xxx.group", "B")
@@ -139,8 +134,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void starMatch() {
+    public void testStarMatch() {
         Settings settings = Settings.settingsBuilder()
                 .put("xxx.name", "*")
                 .build();
@@ -150,8 +144,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(true));
     }
 
-    @Test
-    public void ipBindFilteringMatchingAnd() {
+    public void testIpBindFilteringMatchingAnd() {
         Settings settings = shuffleSettings(Settings.settingsBuilder()
                 .put("xxx.tag", "A")
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "192.1.1.54")
@@ -162,8 +155,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(true));
     }
 
-    @Test
-    public void ipBindFilteringNotMatching() {
+    public void testIpBindFilteringNotMatching() {
         Settings settings = shuffleSettings(Settings.settingsBuilder()
                 .put("xxx.tag", "B")
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "192.1.1.54")
@@ -174,8 +166,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void ipBindFilteringNotMatchingAnd() {
+    public void testIpBindFilteringNotMatchingAnd() {
         Settings settings = shuffleSettings(Settings.settingsBuilder()
                 .put("xxx.tag", "A")
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "8.8.8.8")
@@ -186,8 +177,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void ipBindFilteringMatchingOr() {
+    public void testIpBindFilteringMatchingOr() {
         Settings settings = shuffleSettings(Settings.settingsBuilder()
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "192.1.1.54")
                 .put("xxx.tag", "A")
@@ -198,8 +188,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(true));
     }
 
-    @Test
-    public void ipBindFilteringNotMatchingOr() {
+    public void testIpBindFilteringNotMatchingOr() {
         Settings settings = shuffleSettings(Settings.settingsBuilder()
                 .put("xxx.tag", "A")
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "8.8.8.8")
@@ -210,8 +199,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(true));
     }
 
-    @Test
-    public void ipPublishFilteringMatchingAnd() {
+    public void testIpPublishFilteringMatchingAnd() {
         Settings settings = shuffleSettings(Settings.settingsBuilder()
                 .put("xxx.tag", "A")
                 .put("xxx._publish_ip", "192.1.1.54")
@@ -222,8 +210,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(true));
     }
 
-    @Test
-    public void ipPublishFilteringNotMatchingAnd() {
+    public void testIpPublishFilteringNotMatchingAnd() {
         Settings settings = shuffleSettings(Settings.settingsBuilder()
                 .put("xxx.tag", "A")
                 .put("xxx._publish_ip", "8.8.8.8")
@@ -234,8 +221,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void ipPublishFilteringMatchingOr() {
+    public void testIpPublishFilteringMatchingOr() {
         Settings settings = shuffleSettings(Settings.settingsBuilder()
                 .put("xxx._publish_ip", "192.1.1.54")
                 .put("xxx.tag", "A")
@@ -246,8 +232,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(true));
     }
 
-    @Test
-    public void ipPublishFilteringNotMatchingOr() {
+    public void testIpPublishFilteringNotMatchingOr() {
         Settings settings = shuffleSettings(Settings.settingsBuilder()
                 .put("xxx.tag", "A")
                 .put("xxx._publish_ip", "8.8.8.8")
@@ -260,13 +245,11 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
 
     private Settings shuffleSettings(Settings source) {
         Settings.Builder settings = Settings.settingsBuilder();
-        List<String> keys = new ArrayList(source.getAsMap().keySet());
+        List<String> keys = new ArrayList<>(source.getAsMap().keySet());
         Collections.shuffle(keys, getRandom());
         for (String o : keys) {
             settings.put(o, source.getAsMap().get(o));
         }
         return settings.build();
     }
-
-
 }

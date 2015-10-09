@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 
@@ -40,8 +39,6 @@ import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST, numClientNodes = 0, transportClientRatio = 0.0)
 public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
-
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -60,7 +57,6 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
         return 3;
     }
 
-    @Test
     public void testReusePeerRecovery() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)

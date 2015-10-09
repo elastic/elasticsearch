@@ -30,18 +30,16 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /** Unit test(s) for IndexService */
 public class IndexServiceTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testDetermineShadowEngineShouldBeUsed() {
         Settings regularSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
@@ -73,9 +71,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         return new CompressedXContent(builder.string());
     }
 
-    @Test
     public void testFilteringAliases() throws Exception {
-
         IndexService indexService = newIndexService();
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         add(indexService, "dogs", filter(termQuery("animal", "dog")));
@@ -98,7 +94,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertThat(indexService.aliasFilter("dogs", "cats").toString(), equalTo("animal:canine animal:feline"));
     }
 
-    @Test
     public void testAliasFilters() throws Exception {
         IndexService indexService = newIndexService();
         add(indexService, "cats", filter(termQuery("animal", "cat")));
@@ -114,17 +109,19 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertThat(indexService.aliasFilter("dogs", "cats").toString(), equalTo("animal:canine animal:feline"));
     }
 
-    @Test(expected = InvalidAliasNameException.class)
     public void testRemovedAliasFilter() throws Exception {
         IndexService indexService = newIndexService();
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         remove(indexService, "cats");
-        indexService.aliasFilter("cats");
+        try {
+            indexService.aliasFilter("cats");
+            fail("Expected InvalidAliasNameException");
+        } catch (InvalidAliasNameException e) {
+            assertThat(e.getMessage(), containsString("Invalid alias name [cats]"));
+        }
     }
 
-
-    @Test
     public void testUnknownAliasFilter() throws Exception {
         IndexService indexService = newIndexService();
         add(indexService, "cats", filter(termQuery("animal", "cat")));

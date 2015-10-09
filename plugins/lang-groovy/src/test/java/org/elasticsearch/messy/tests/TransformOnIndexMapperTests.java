@@ -32,7 +32,6 @@ import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -57,14 +56,12 @@ import static org.hamcrest.Matchers.not;
  */
 @SuppressCodecs("*") // requires custom completion format
 public class TransformOnIndexMapperTests extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
 
-    @Test
-    public void searchOnTransformed() throws Exception {
+    public void testSearchOnTransformed() throws Exception {
         setup(true);
 
         // Searching by the field created in the transport finds the entry
@@ -79,8 +76,7 @@ public class TransformOnIndexMapperTests extends ESIntegTestCase {
         assertHitCount(response, 0);
     }
 
-    @Test
-    public void getTransformed() throws Exception {
+    public void testGetTransformed() throws Exception {
         setup(getRandom().nextBoolean());
         GetResponse response = client().prepareGet("test", "test", "righttitle").get();
         assertExists(response);
@@ -94,8 +90,7 @@ public class TransformOnIndexMapperTests extends ESIntegTestCase {
     // TODO: the completion suggester currently returns payloads with no reencoding so this test
     // exists to make sure that _source transformation and completion work well together. If we
     // ever fix the completion suggester to reencode the payloads then we can remove this test.
-    @Test
-    public void contextSuggestPayloadTransformed() throws Exception {
+    public void testContextSuggestPayloadTransformed() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder.startObject("properties");
         builder.startObject("suggest").field("type", "completion").field("payloads", true).endObject();
@@ -182,5 +177,4 @@ public class TransformOnIndexMapperTests extends ESIntegTestCase {
     private void assertRightTitleSourceTransformed(Map<String, Object> source) {
         assertThat(source, both(hasEntry("destination", (Object) "findme")).and(not(hasKey("content"))));
     }
-
 }

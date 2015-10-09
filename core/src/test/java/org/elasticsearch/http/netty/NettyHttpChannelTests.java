@@ -19,33 +19,42 @@
 
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.*;
-import org.jboss.netty.handler.codec.http.*;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelConfig;
+import org.jboss.netty.channel.ChannelFactory;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.handler.codec.http.DefaultHttpHeaders;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
+import org.jboss.netty.handler.codec.http.HttpMethod;
+import org.jboss.netty.handler.codec.http.HttpRequest;
+import org.jboss.netty.handler.codec.http.HttpResponse;
+import org.jboss.netty.handler.codec.http.HttpVersion;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class NettyHttpChannelTests extends ESTestCase {
-
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
@@ -69,7 +78,6 @@ public class NettyHttpChannelTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCorsEnabledWithoutAllowOrigins() {
         // Set up a HTTP transport with only the CORS enabled setting
         Settings settings = Settings.builder()
@@ -93,7 +101,6 @@ public class NettyHttpChannelTests extends ESTestCase {
         assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), nullValue());
     }
 
-    @Test
     public void testCorsEnabledWithAllowOrigins() {
         // create a http transport with CORS enabled and allow origin configured
         Settings settings = Settings.builder()

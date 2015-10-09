@@ -23,13 +23,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class CustomBoostMappingTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testCustomBoostValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("s_field").field("type", "string").endObject()

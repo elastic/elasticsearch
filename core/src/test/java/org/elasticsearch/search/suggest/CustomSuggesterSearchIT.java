@@ -26,7 +26,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -42,13 +41,11 @@ import static org.hamcrest.Matchers.is;
  */
 @ClusterScope(scope= Scope.SUITE, numDataNodes =1)
 public class CustomSuggesterSearchIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(CustomSuggesterPlugin.class);
     }
 
-    @Test
     public void testThatCustomSuggestersCanBeRegisteredAndWork() throws Exception {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource(jsonBuilder()

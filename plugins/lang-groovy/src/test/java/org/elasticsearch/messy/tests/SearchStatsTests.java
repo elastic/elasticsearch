@@ -36,7 +36,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -61,7 +60,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SearchStatsTests extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
@@ -72,7 +70,6 @@ public class SearchStatsTests extends ESIntegTestCase {
         return 0;
     }
 
-    @Test
     public void testSimpleStats() throws Exception {
         // clear all stats first
         client().admin().indices().prepareStats().clear().execute().actionGet();
@@ -147,9 +144,9 @@ public class SearchStatsTests extends ESIntegTestCase {
                 assertThat(total.getQueryTimeInMillis(), equalTo(0l));
             }
         }
-        
+
         assertThat(num, greaterThan(0));
-     
+
     }
 
     private Set<String> nodeIdsWithIndex(String... indices) {
@@ -167,7 +164,6 @@ public class SearchStatsTests extends ESIntegTestCase {
         return nodes;
     }
 
-    @Test
     public void testOpenContexts() {
         String index = "test1";
         createIndex(index);

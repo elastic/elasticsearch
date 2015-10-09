@@ -27,12 +27,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SearchRequestBuilderTests extends ESTestCase {
-
     private static Client client;
 
     @BeforeClass
@@ -51,27 +49,23 @@ public class SearchRequestBuilderTests extends ESTestCase {
         client = null;
     }
 
-    @Test
     public void testEmptySourceToString() {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().toString()));
     }
 
-    @Test
     public void testQueryBuilderQueryToString() {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         searchRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
         assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).toString()));
     }
 
-    @Test
     public void testSearchSourceBuilderToString() {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         searchRequestBuilder.setSource(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
         assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).toString()));
     }
 
-    @Test
     public void testThatToStringDoesntWipeRequestSource() {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch().setSource(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
         String preToString = searchRequestBuilder.request().toString();

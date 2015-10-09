@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,8 +35,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ThreadPoolStatsTests extends ESTestCase {
-
-    @Test
     public void testThreadPoolStatsSort() throws IOException {
         List<ThreadPoolStats.Stats> stats = new ArrayList<>();
         stats.add(new ThreadPoolStats.Stats("z", -1, 0, 0, 0, 0, 0L));
@@ -64,7 +61,6 @@ public class ThreadPoolStatsTests extends ESTestCase {
         assertThat(threads, contains(-1, -1, 1, 2, 3,-1,-1));
     }
 
-    @Test
     public void testThreadPoolStatsToXContent() throws IOException {
         try (BytesStreamOutput os = new BytesStreamOutput()) {
 

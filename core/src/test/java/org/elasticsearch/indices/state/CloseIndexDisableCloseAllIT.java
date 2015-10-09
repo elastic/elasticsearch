@@ -26,17 +26,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import static org.elasticsearch.test.ESIntegTestCase.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope= Scope.TEST, numDataNodes =2)
 public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
-
-    @Test
     // Combined multiple tests into one, because cluster scope is test.
     // The cluster scope is test b/c we can't clear cluster settings.
     public void testCloseAllRequiresName() {

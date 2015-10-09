@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.List;
 
@@ -34,7 +33,10 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.geoCentr
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Integration Test for GeoCentroid metric aggregator
@@ -43,8 +45,7 @@ import static org.hamcrest.Matchers.*;
 public class GeoCentroidIT extends AbstractGeoTestCase {
     private static final String aggName = "geoCentroid";
 
-    @Test
-    public void emptyAggregation() throws Exception {
+    public void testEmptyAggregation() throws Exception {
         SearchResponse response = client().prepareSearch(EMPTY_IDX_NAME)
                 .setQuery(matchAllQuery())
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
@@ -59,8 +60,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(centroid, equalTo(null));
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME)
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
                 .execute().actionGet();
@@ -73,8 +73,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(centroid, equalTo(null));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME)
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
                 .execute().actionGet();
@@ -88,8 +87,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(centroid.lon(), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
     }
 
-    @Test
-    public void singleValuedField() throws Exception {
+    public void testSingleValuedField() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_NAME)
                 .setQuery(matchAllQuery())
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
@@ -104,8 +102,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(centroid.lon(), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
     }
 
-    @Test
-    public void singleValueField_getProperty() throws Exception {
+    public void testSingleValueFieldGetProperty() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_NAME)
                 .setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME)))
@@ -132,8 +129,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat((double) global.getProperty(aggName + ".lon"), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
     }
 
-    @Test
-    public void multiValuedField() throws Exception {
+    public void testMultiValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch(IDX_NAME)
                 .setQuery(matchAllQuery())
                 .addAggregation(geoCentroid(aggName).field(MULTI_VALUED_FIELD_NAME))
@@ -148,8 +144,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(centroid.lon(), closeTo(multiCentroid.lon(), GEOHASH_TOLERANCE));
     }
 
-    @Test
-    public void singleValueFieldAsSubAggToGeohashGrid() throws Exception {
+    public void testSingleValueFieldAsSubAggToGeohashGrid() throws Exception {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
                 .addAggregation(geohashGrid("geoGrid").field(SINGLE_VALUED_FIELD_NAME)
                 .subAggregation(geoCentroid(aggName)))

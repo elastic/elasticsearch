@@ -41,7 +41,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.engine.MockEngineSupportModule;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -57,13 +56,11 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for the circuit breaker while random exceptions are happening
  */
 public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class);
     }
 
-    @Test
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         for (NodeStats node : client().admin().cluster().prepareNodesStats()
                 .clear().setBreaker(true).execute().actionGet().getNodes()) {

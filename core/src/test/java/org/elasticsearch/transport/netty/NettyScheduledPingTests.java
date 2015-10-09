@@ -36,7 +36,6 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -47,8 +46,6 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  */
 public class NettyScheduledPingTests extends ESTestCase {
-
-    @Test
     public void testScheduledPing() throws Exception {
         ThreadPool threadPool = new ThreadPool(getClass().getName());
 

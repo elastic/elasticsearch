@@ -28,12 +28,15 @@ import com.spatial4j.core.shape.impl.PointImpl;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.Polygon;
+
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiLineString;
+import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiPolygon;
+import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertPolygon;
+import static org.hamcrest.Matchers.containsString;
 /**
  * Tests for {@link ShapeBuilder}
  */
@@ -105,7 +108,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .point(-45.0, -15.0)
             .point(-110.0, -15.0)
             .point(-110.0, 55.0).build();
-        
+
         // Building a linestring that needs to be wrapped
         ShapeBuilder.newLineString()
         .point(100.0, 50.0)
@@ -117,7 +120,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .point(130.0, -30.0)
         .point(130.0, 60.0)
         .build();
-        
+
         // Building a lineString on the dateline
         ShapeBuilder.newLineString()
         .point(-180.0, 80.0)
@@ -125,7 +128,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .point(-180.0, -40.0)
         .point(-180.0, -80.0)
         .build();
-        
+
         // Building a lineString on the dateline
         ShapeBuilder.newLineString()
         .point(180.0, 80.0)
@@ -151,7 +154,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .end()
             .build();
 
-        
+
         // LineString that needs to be wrappped
         ShapeBuilder.newMultiLinestring()
             .linestring()
@@ -169,14 +172,18 @@ public class ShapeBuilderTests extends ESTestCase {
             .build();
     }
 
-    @Test(expected = InvalidShapeException.class)
     public void testPolygonSelfIntersection() {
-        ShapeBuilder.newPolygon()
-                .point(-40.0, 50.0)
-                .point(40.0, 50.0)
-                .point(-40.0, -50.0)
-                .point(40.0, -50.0)
-                .close().build();
+        try {
+            ShapeBuilder.newPolygon()
+                    .point(-40.0, 50.0)
+                    .point(40.0, 50.0)
+                    .point(-40.0, -50.0)
+                    .point(40.0, -50.0)
+                    .close().build();
+            fail("Expected InvalidShapeException");
+        } catch (InvalidShapeException e) {
+            assertThat(e.getMessage(), containsString("Self-intersection at or near point (0.0"));
+        }
     }
 
     public void testGeoCircle() {
@@ -211,7 +218,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .point(-250.0, -65.0)
             .point(-150.0, -65.0)
             .close().build();
-        
+
         assertMultiPolygon(shape);
     }
 
@@ -488,7 +495,6 @@ public class ShapeBuilderTests extends ESTestCase {
         assertMultiPolygon(shape);
     }
 
-    @Test(expected = InvalidShapeException.class)
     public void testShapeWithInvalidTangentialHole() {
         // test a shape with one invalid tangential (shared) vertex (should throw exception)
         PolygonBuilder builder = ShapeBuilder.newPolygon()
@@ -504,8 +510,12 @@ public class ShapeBuilderTests extends ESTestCase {
                 .point(175, 5)
                 .point(179, -10)
                 .point(164, 0);
-        Shape shape = builder.close().build();
-        assertMultiPolygon(shape);
+        try {
+            builder.close().build();
+            fail("Expected InvalidShapeException");
+        } catch (InvalidShapeException e) {
+            assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
+        }
     }
 
     public void testBoundaryShapeWithTangentialHole() {
@@ -532,7 +542,6 @@ public class ShapeBuilderTests extends ESTestCase {
         assertMultiPolygon(shape);
     }
 
-    @Test(expected = InvalidShapeException.class)
     public void testBoundaryShapeWithInvalidTangentialHole() {
         // test shape with two tangential (shared) vertices (should throw exception)
         PolygonBuilder builder = ShapeBuilder.newPolygon()
@@ -548,14 +557,17 @@ public class ShapeBuilderTests extends ESTestCase {
                 .point(180, -5)
                 .point(176, -10)
                 .point(-177, 10);
-        Shape shape = builder.close().build();
-        assertMultiPolygon(shape);
+        try {
+            builder.close().build();
+            fail("Expected InvalidShapeException");
+        } catch (InvalidShapeException e) {
+            assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
+        }
     }
 
     /**
      * Test an enveloping polygon around the max mercator bounds
      */
-    @Test
     public void testBoundaryShape() {
         PolygonBuilder builder = ShapeBuilder.newPolygon()
                 .point(-180, 90)
@@ -568,7 +580,6 @@ public class ShapeBuilderTests extends ESTestCase {
         assertPolygon(shape);
     }
 
-    @Test
     public void testShapeWithAlternateOrientation() {
         // cw: should produce a multi polygon spanning hemispheres
         PolygonBuilder builder = ShapeBuilder.newPolygon()
@@ -592,7 +603,6 @@ public class ShapeBuilderTests extends ESTestCase {
         assertMultiPolygon(shape);
      }
 
-    @Test(expected = InvalidShapeException.class)
     public void testInvalidShapeWithConsecutiveDuplicatePoints() {
         PolygonBuilder builder = ShapeBuilder.newPolygon()
                 .point(180, 0)
@@ -600,7 +610,11 @@ public class ShapeBuilderTests extends ESTestCase {
                 .point(176, 4)
                 .point(-176, 4)
                 .point(180, 0);
-        Shape shape = builder.close().build();
-        assertPolygon(shape);
+        try {
+            builder.close().build();
+            fail("Expected InvalidShapeException");
+        } catch (InvalidShapeException e) {
+            assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
+        }
     }
 }

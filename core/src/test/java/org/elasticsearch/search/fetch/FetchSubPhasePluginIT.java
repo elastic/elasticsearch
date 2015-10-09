@@ -40,7 +40,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,13 +58,11 @@ import static org.hamcrest.CoreMatchers.equalTo;
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class FetchSubPhasePluginIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(FetchTermVectorsPlugin.class);
     }
 
-    @Test
     public void testPlugin() throws Exception {
         client().admin()
                 .indices()

@@ -31,9 +31,13 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,8 +51,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  *
  */
 public class SimpleVersioningIT extends ESIntegTestCase {
-
-    @Test
     public void testExternalVersioningInitialDelete() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -69,7 +71,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(indexResponse.getVersion(), equalTo(18L));
     }
 
-    @Test
     public void testForce() throws Exception {
         createIndex("test");
         ensureGreen("test"); // we are testing force here which doesn't work if we are recovering at the same time - zzzzz...
@@ -100,7 +101,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(deleteResponse.getVersion(), equalTo(v));
     }
 
-    @Test
     public void testExternalGTE() throws Exception {
         createIndex("test");
 
@@ -147,7 +147,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(deleteResponse.getVersion(), equalTo(18l));
     }
 
-    @Test
     public void testExternalVersioning() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -211,7 +210,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(indexResponse.getVersion(), equalTo(20l));
     }
 
-    @Test
     public void testRequireUnitsOnUpdateSettings() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -226,7 +224,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testInternalVersioningInitialDelete() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -239,8 +236,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(indexResponse.getVersion(), equalTo(1l));
     }
 
-
-    @Test
     public void testInternalVersioning() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -298,7 +293,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(deleteResponse.getVersion(), equalTo(4l));
     }
 
-    @Test
     public void testSimpleVersioningWithFlush() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -336,7 +330,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testVersioningWithBulk() {
         createIndex("test");
         ensureGreen();
@@ -521,8 +514,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         }
     }
 
-
-    @Test
     public void testRandomIDsAndVersions() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -719,7 +710,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDeleteNotLost() throws Exception {
 
         // We require only one shard for this test, so that the 2nd delete provokes pruning the deletes map:
@@ -799,9 +789,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 equalTo(-1L));
     }
 
-    @Test
     public void testGCDeletesZero() throws Exception {
-
         createIndex("test");
         ensureGreen();
 

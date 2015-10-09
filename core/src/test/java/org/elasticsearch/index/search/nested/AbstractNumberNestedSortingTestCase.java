@@ -42,7 +42,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.search.MultiValueMode;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,8 +52,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public abstract class AbstractNumberNestedSortingTestCase extends AbstractFieldDataTestCase {
-
-    @Test
     public void testNestedSorting() throws Exception {
         List<Document> docs = new ArrayList<>();
         Document document = new Document();

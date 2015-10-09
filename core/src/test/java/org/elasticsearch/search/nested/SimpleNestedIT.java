@@ -36,18 +36,24 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SimpleNestedIT extends ESIntegTestCase {
-
-    @Test
-    public void simpleNested() throws Exception {
+    public void testSimpleNested() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", "nested1", "type=nested").addMapping("type2", "nested1", "type=nested"));
         ensureGreen();
 
@@ -156,8 +162,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
-    public void multiNested() throws Exception {
+    public void testMultiNested() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
@@ -226,11 +231,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
     }
 
-    @Test
     // When IncludeNestedDocsQuery is wrapped in a FilteredQuery then a in-finite loop occurs b/c of a bug in IncludeNestedDocsQuery#advance()
     // This IncludeNestedDocsQuery also needs to be aware of the filter from alias
     public void testDeleteNestedDocsWithAlias() throws Exception {
-
         assertAcked(prepareCreate("test")
                 .setSettings(settingsBuilder().put(indexSettings()).put("index.referesh_interval", -1).build())
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -282,9 +285,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertDocumentCount("test", 6);
     }
 
-    @Test
     public void testExplain() throws Exception {
-
         assertAcked(prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
@@ -325,7 +326,6 @@ public class SimpleNestedIT extends ESIntegTestCase {
 //        assertThat(explanation.getDetails()[1].getDescription(), equalTo("Child[1]"));
     }
 
-    @Test
     public void testSimpleNestedSorting() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(settingsBuilder()
@@ -408,9 +408,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("2"));
     }
 
-
-    @Test
-    public void testSimpleNestedSorting_withNestedFilterMissing() throws Exception {
+    public void testSimpleNestedSortingWithNestedFilterMissing() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put(indexSettings())
@@ -510,7 +508,6 @@ public class SimpleNestedIT extends ESIntegTestCase {
         client().prepareClearScroll().addScrollId("_all").get();
     }
 
-    @Test
     public void testSortNestedWithNestedFilter() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject()
@@ -867,8 +864,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
     }
 
-    @Test
-    // https://github.com/elasticsearch/elasticsearch/issues/9305
+    // Issue #9305
     public void testNestedSortingWithNestedFilterAsFilter() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", jsonBuilder().startObject().startObject("properties")
                 .startObject("officelocation").field("type", "string").endObject()
@@ -1004,7 +1000,6 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(1).sortValues()[1].toString(), equalTo("fname3"));
     }
 
-    @Test
     public void testCheckFixedBitSetCache() throws Exception {
         boolean loadFixedBitSeLazily = randomBoolean();
         Settings.Builder settingsBuilder = Settings.builder().put(indexSettings())

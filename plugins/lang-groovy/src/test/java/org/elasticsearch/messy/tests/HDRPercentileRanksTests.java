@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesMethod;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -42,22 +41,26 @@ import java.util.Map;
 
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.percentileRanks;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  *
  */
 public class HDRPercentileRanksTests extends AbstractNumericTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
-    private static double[] randomPercents(long minValue, long maxValue) {
 
+    private static double[] randomPercents(long minValue, long maxValue) {
         final int length = randomIntBetween(1, 20);
         final double[] percents = new double[length];
         for (int i = 0; i < percents.length; ++i) {
@@ -107,9 +110,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
     public void testEmptyAggregation() throws Exception {
-
         int sigDigits = randomSignificantDigits();
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx")
@@ -137,7 +138,6 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
     public void testUnmapped() throws Exception {
         int sigDigits = randomSignificantDigits();
         SearchResponse searchResponse = client()
@@ -159,7 +159,6 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
     public void testSingleValuedField() throws Exception {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValue, maxValue);
@@ -177,8 +176,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testSingleValuedField_getProperty() throws Exception {
+    public void testSingleValuedFieldGetProperty() throws Exception {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValue, maxValue);
         SearchResponse searchResponse = client()
@@ -205,7 +203,6 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
 
     }
 
-    @Test
     public void testSingleValuedFieldOutsideRange() throws Exception {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = new double[] { minValue - 1, maxValue + 1 };
@@ -223,8 +220,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testSingleValuedField_PartiallyUnmapped() throws Exception {
+    public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValue, maxValue);
         SearchResponse searchResponse = client()
@@ -241,8 +237,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testSingleValuedField_WithValueScript() throws Exception {
+    public void testSingleValuedFieldWithValueScript() throws Exception {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValue - 1, maxValue - 1);
         SearchResponse searchResponse = client()
@@ -259,8 +254,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
+    public void testSingleValuedFieldWithValueScriptWithParams() throws Exception {
         int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
@@ -280,7 +274,6 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
     public void testMultiValuedField() throws Exception {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValues, maxValues);
@@ -298,8 +291,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testMultiValuedField_WithValueScript() throws Exception {
+    public void testMultiValuedFieldWithValueScript() throws Exception {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValues - 1, maxValues - 1);
         SearchResponse searchResponse = client()
@@ -315,8 +307,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
         assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1, sigDigits);
     }
 
-    @Test
-    public void testMultiValuedField_WithValueScript_Reverse() throws Exception {
+    public void testMultiValuedFieldWithValueScriptReverse() throws Exception {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(20 - maxValues, 20 - minValues);
         SearchResponse searchResponse = client()
@@ -333,8 +324,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
+    public void testMultiValuedFieldWithValueScriptWithParams() throws Exception {
         int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
@@ -354,8 +344,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_SingleValued() throws Exception {
+    public void testScriptSingleValued() throws Exception {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValue, maxValue);
         SearchResponse searchResponse = client()
@@ -372,8 +361,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_SingleValued_WithParams() throws Exception {
+    public void testScriptSingleValuedWithParams() throws Exception {
         int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
@@ -393,8 +381,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_ExplicitSingleValued_WithParams() throws Exception {
+    public void testScriptExplicitSingleValuedWithParams() throws Exception {
         int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
@@ -414,8 +401,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_MultiValued() throws Exception {
+    public void testScriptMultiValued() throws Exception {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValues, maxValues);
         SearchResponse searchResponse = client()
@@ -432,8 +418,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_ExplicitMultiValued() throws Exception {
+    public void testScriptExplicitMultiValued() throws Exception {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValues, maxValues);
         SearchResponse searchResponse = client()
@@ -450,8 +435,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_MultiValued_WithParams() throws Exception {
+    public void testScriptMultiValuedWithParams() throws Exception {
         int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
@@ -473,7 +457,6 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
         assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1, sigDigits);
     }
 
-    @Test
     public void testOrderBySubAggregation() {
         int sigDigits = randomSignificantDigits();
         boolean asc = randomBoolean();

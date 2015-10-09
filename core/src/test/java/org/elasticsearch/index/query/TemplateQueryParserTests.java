@@ -53,10 +53,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Proxy;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Test parsing and executing a template request.
@@ -120,7 +121,6 @@ public class TemplateQueryParserTests extends ESTestCase {
         terminate(injector.getInstance(ThreadPool.class));
     }
 
-    @Test
     public void testParser() throws IOException {
         String templateString = "{" + "\"query\":{\"match_{{template}}\": {}}," + "\"params\":{\"template\":\"all\"}" + "}";
 
@@ -133,7 +133,6 @@ public class TemplateQueryParserTests extends ESTestCase {
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 
-    @Test
     public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
         String templateString = "{" + "  \"inline\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
                 + "    \"template\":\"all\"," + "    \"use_it\": true" + "  }" + "}";
@@ -150,7 +149,6 @@ public class TemplateQueryParserTests extends ESTestCase {
      * expressed as a single string but still it expects only the query
      * specification (thus this test should fail with specific exception).
      */
-    @Test(expected = ParsingException.class)
     public void testParseTemplateFailsToParseCompleteQueryAsSingleString() throws IOException {
         String templateString = "{" + "  \"inline\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
                 + "  \"params\":{" + "    \"size\":2" + "  }\n" + "}";
@@ -159,10 +157,14 @@ public class TemplateQueryParserTests extends ESTestCase {
         context.reset(templateSourceParser);
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        parser.fromXContent(context.parseContext()).toQuery(context);
+        try {
+            parser.fromXContent(context.parseContext()).toQuery(context);
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
+            assertThat(e.getMessage(), containsString("query malformed, no field after start_object"));
+        }
     }
 
-    @Test
     public void testParserCanExtractTemplateNames() throws Exception {
         String templateString = "{ \"file\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } ";
 

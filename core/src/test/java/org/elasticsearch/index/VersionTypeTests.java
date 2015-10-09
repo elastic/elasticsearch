@@ -21,14 +21,11 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class VersionTypeTests extends ESTestCase {
-    @Test
     public void testInternalVersionConflict() throws Exception {
-
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, Versions.MATCH_ANY, randomBoolean()));
         assertFalse(VersionType.INTERNAL.isVersionConflictForReads(10, Versions.MATCH_ANY));
         // if we don't have a version in the index we accept everything
@@ -70,7 +67,6 @@ public class VersionTypeTests extends ESTestCase {
 //        updatedVersion = (currentVersion == Versions.NOT_SET || currentVersion == Versions.NOT_FOUND) ? 1 : currentVersion + 1;
     }
 
-    @Test
     public void testVersionValidation() {
         assertTrue(VersionType.EXTERNAL.validateVersionForWrites(randomIntBetween(1, Integer.MAX_VALUE)));
         assertFalse(VersionType.EXTERNAL.validateVersionForWrites(Versions.MATCH_ANY));
@@ -101,9 +97,7 @@ public class VersionTypeTests extends ESTestCase {
         assertFalse(VersionType.INTERNAL.validateVersionForReads(randomIntBetween(Integer.MIN_VALUE, -1)));
     }
 
-    @Test
     public void testExternalVersionConflict() throws Exception {
-
         assertFalse(VersionType.EXTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, 10, randomBoolean()));
         assertFalse(VersionType.EXTERNAL.isVersionConflictForWrites(Versions.NOT_SET, 10, randomBoolean()));
         // MATCH_ANY must throw an exception in the case of external version, as the version must be set! it used as the new value
@@ -139,9 +133,7 @@ public class VersionTypeTests extends ESTestCase {
 //        updatedVersion = index.version();
     }
 
-    @Test
     public void testExternalGTEVersionConflict() throws Exception {
-
         assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(Versions.NOT_FOUND, 10, randomBoolean()));
         assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(Versions.NOT_SET, 10, randomBoolean()));
         // MATCH_ANY must throw an exception in the case of external version, as the version must be set! it used as the new value
@@ -168,9 +160,7 @@ public class VersionTypeTests extends ESTestCase {
 
     }
 
-    @Test
     public void testForceVersionConflict() throws Exception {
-
         assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_FOUND, 10, randomBoolean()));
         assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_SET, 10, randomBoolean()));
 
@@ -201,9 +191,7 @@ public class VersionTypeTests extends ESTestCase {
         assertFalse(VersionType.FORCE.isVersionConflictForReads(10, Versions.MATCH_ANY));
     }
 
-    @Test
     public void testUpdateVersion() {
-
         assertThat(VersionType.INTERNAL.updateVersion(Versions.NOT_SET, 10), equalTo(1l));
         assertThat(VersionType.INTERNAL.updateVersion(Versions.NOT_FOUND, 10), equalTo(1l));
         assertThat(VersionType.INTERNAL.updateVersion(1, 1), equalTo(2l));

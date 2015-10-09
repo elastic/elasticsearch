@@ -24,16 +24,13 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class SnapshotRequestsTests extends ESTestCase {
-    @Test
     public void testRestoreSnapshotRequestParsing() throws IOException {
-
         RestoreSnapshotRequest request = new RestoreSnapshotRequest("test-repo", "test-snap");
 
         XContentBuilder builder = jsonBuilder().startObject();
@@ -94,9 +91,7 @@ public class SnapshotRequestsTests extends ESTestCase {
 
     }
 
-    @Test
     public void testCreateSnapshotRequestParsing() throws IOException {
-
         CreateSnapshotRequest request = new CreateSnapshotRequest("test-repo", "test-snap");
 
         XContentBuilder builder = jsonBuilder().startObject();

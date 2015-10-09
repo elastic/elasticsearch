@@ -50,7 +50,6 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -64,7 +63,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
-
     private final ShardId shardId = new ShardId("test", 0);
     private final DiscoveryNode node1 = newNode("node1");
     private final DiscoveryNode node2 = newNode("node2");
@@ -80,7 +78,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     /**
      * Verifies that when we are still fetching data in an async manner, the replica shard moves to ignore unassigned.
      */
-    @Test
     public void testNoAsyncFetchData() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         testAllocator.clean();
@@ -93,7 +90,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * Verifies that on index creation, we don't go and fetch data, but keep the replica shard unassigned to let
      * the shard allocator to allocate it. There isn't a copy around to find anyhow.
      */
-    @Test
     public void testNoAsyncFetchOnIndexCreation() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(), Settings.EMPTY, UnassignedInfo.Reason.INDEX_CREATED);
         testAllocator.clean();
@@ -107,7 +103,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * Verifies that for anything but index creation, fetch data ends up being called, since we need to go and try
      * and find a better copy for the shard.
      */
-    @Test
     public void testAsyncFetchOnAnythingButIndexCreation() {
         UnassignedInfo.Reason reason = RandomPicks.randomFrom(getRandom(), EnumSet.complementOf(EnumSet.of(UnassignedInfo.Reason.INDEX_CREATED)));
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(), Settings.EMPTY, reason);
@@ -119,7 +114,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     /**
      * Verifies that when there is a full match (syncId and files) we allocate it to matching node.
      */
-    @Test
     public void testSimpleFullMatchAllocation() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         DiscoveryNode nodeToMatch = randomBoolean() ? node2 : node3;
@@ -133,7 +127,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     /**
      * Verifies that when there is a sync id match but no files match, we allocate it to matching node.
      */
-    @Test
     public void testSyncIdMatch() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         DiscoveryNode nodeToMatch = randomBoolean() ? node2 : node3;
@@ -147,7 +140,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     /**
      * Verifies that when there is no sync id match but files match, we allocate it to matching node.
      */
-    @Test
     public void testFileChecksumMatch() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         DiscoveryNode nodeToMatch = randomBoolean() ? node2 : node3;
@@ -164,7 +156,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * adding a replica and having that replica actually recover and cause the corruption to be identified
      * See CorruptFileTest#
      */
-    @Test
     public void testNoPrimaryData() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         testAllocator.addData(node2, true, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
@@ -177,7 +168,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * Verifies that when there is primary data, but no data at all on other nodes, the shard keeps
      * unassigned to be allocated later on.
      */
-    @Test
     public void testNoDataForReplicaOnAnyNode() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         testAllocator.addData(node1, true, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
@@ -190,7 +180,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * Verifies that when there is primary data, but no matching data at all on other nodes, the shard keeps
      * unassigned to be allocated later on.
      */
-    @Test
     public void testNoMatchingFilesForReplicaOnAnyNode() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         testAllocator.addData(node1, true, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
@@ -204,7 +193,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * When there is no decision or throttle decision across all nodes for the shard, make sure the shard
      * moves to the ignore unassigned list.
      */
-    @Test
     public void testNoOrThrottleDecidersRemainsInUnassigned() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(randomBoolean() ? noAllocationDeciders() : throttleAllocationDeciders());
         testAllocator.addData(node1, true, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
@@ -218,7 +206,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * Tests when the node to allocate to due to matching is being throttled, we move the shard to ignored
      * to wait till throttling on it is done.
      */
-    @Test
     public void testThrottleWhenAllocatingToMatchingNode() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(new AllocationDeciders(Settings.EMPTY,
                 new AllocationDecider[]{new TestAllocateDecision(Decision.YES), new AllocationDecider(Settings.EMPTY) {
@@ -237,7 +224,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
     }
 
-    @Test
     public void testDelayedAllocation() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(),
                 Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, TimeValue.timeValueHours(1)).build(), UnassignedInfo.Reason.NODE_LEFT);
@@ -260,7 +246,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), equalTo(node2.id()));
     }
 
-    @Test
     public void testCancelRecoveryBetterSyncId() {
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
         testAllocator.addData(node1, true, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
@@ -272,7 +257,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
     }
 
-    @Test
     public void testNotCancellingRecoveryIfSyncedOnExistingRecovery() {
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
         testAllocator.addData(node1, true, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
@@ -283,7 +267,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
     }
 
-    @Test
     public void testNotCancellingRecovery() {
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
         testAllocator.addData(node1, true, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))

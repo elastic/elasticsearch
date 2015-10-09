@@ -27,7 +27,8 @@ import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.junit.Test;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class FieldDataFieldsTests extends ESTestCase {
 
@@ -55,7 +56,6 @@ public class FieldDataFieldsTests extends ESTestCase {
         parseElement.parse(parser, context);
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testInvalidFieldDataField() throws Exception {
         FieldDataFieldsParseElement parseElement = new FieldDataFieldsParseElement();
 
@@ -70,6 +70,11 @@ public class FieldDataFieldsTests extends ESTestCase {
         parser.nextToken();
         parser.nextToken();
         SearchContext context = new TestSearchContext();
-        parseElement.parse(parser, context);
+        try {
+            parseElement.parse(parser, context);
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("Expected either a VALUE_STRING or an START_ARRAY but got "));
+        }
     }
 }

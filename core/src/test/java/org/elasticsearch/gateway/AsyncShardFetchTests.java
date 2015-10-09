@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,7 +44,6 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  */
 public class AsyncShardFetchTests extends ESTestCase {
-
     private final DiscoveryNode node1 = new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, Version.CURRENT);
     private final Response response1 = new Response(node1);
     private final Throwable failure1 = new Throwable("simulated failure 1");
@@ -69,7 +67,6 @@ public class AsyncShardFetchTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    @Test
     public void testClose() throws Exception {
         DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).build();
         test.addSimulation(node1.getId(), response1);
@@ -92,8 +89,6 @@ public class AsyncShardFetchTests extends ESTestCase {
         }
     }
 
-
-    @Test
     public void testFullCircleSingleNodeSuccess() throws Exception {
         DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).build();
         test.addSimulation(node1.getId(), response1);
@@ -113,7 +108,6 @@ public class AsyncShardFetchTests extends ESTestCase {
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
     }
 
-    @Test
     public void testFullCircleSingleNodeFailure() throws Exception {
         DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).build();
         // add a failed response for node1
@@ -146,7 +140,6 @@ public class AsyncShardFetchTests extends ESTestCase {
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
     }
 
-    @Test
     public void testTwoNodesOnSetup() throws Exception {
         DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).put(node2).build();
         test.addSimulation(node1.getId(), response1);
@@ -175,7 +168,6 @@ public class AsyncShardFetchTests extends ESTestCase {
         assertThat(fetchData.getData().get(node2), sameInstance(response2));
     }
 
-    @Test
     public void testTwoNodesOnSetupAndFailure() throws Exception {
         DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).put(node2).build();
         test.addSimulation(node1.getId(), response1);
@@ -202,7 +194,6 @@ public class AsyncShardFetchTests extends ESTestCase {
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
     }
 
-    @Test
     public void testTwoNodesAddedInBetween() throws Exception {
         DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).build();
         test.addSimulation(node1.getId(), response1);

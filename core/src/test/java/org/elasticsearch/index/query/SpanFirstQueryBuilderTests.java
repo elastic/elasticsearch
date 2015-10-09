@@ -24,7 +24,6 @@ import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -32,7 +31,6 @@ import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQueryBuilder> {
-
     @Override
     protected SpanFirstQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(1);
@@ -47,9 +45,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
     /**
      * test exception on missing `end` and `match` parameter in parser
      */
-    @Test
     public void testParseEnd() throws IOException {
-
         {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
@@ -66,7 +62,6 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
                 assertTrue(e.getMessage().contains("spanFirst must have [end] set"));
             }
         }
-
         {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();

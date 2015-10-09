@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -38,8 +37,6 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class AliasResolveRoutingIT extends ESIntegTestCase {
-
-    @Test
     public void testResolveIndexRouting() throws Exception {
         createIndex("test1");
         createIndex("test2");
@@ -78,8 +75,6 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         }
     }
 
-
-    @Test
     public void testResolveSearchRouting() throws Exception {
         createIndex("test1");
         createIndex("test2");

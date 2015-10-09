@@ -25,12 +25,11 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.test.ESIntegTestCase.*;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -38,8 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class SimpleDataNodesIT extends ESIntegTestCase {
-
-    @Test
     public void testDataNodes() throws Exception {
         internalCluster().startNode(settingsBuilder().put("node.data", false).build());
         client().admin().indices().create(createIndexRequest("test")).actionGet();

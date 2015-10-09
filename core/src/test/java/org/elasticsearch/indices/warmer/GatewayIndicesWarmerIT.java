@@ -28,11 +28,10 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
-import static org.elasticsearch.test.ESIntegTestCase.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -40,12 +39,9 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ClusterScope(numDataNodes =0, scope= Scope.TEST)
 public class GatewayIndicesWarmerIT extends ESIntegTestCase {
-
     private final ESLogger logger = Loggers.getLogger(GatewayIndicesWarmerIT.class);
 
-    @Test
     public void testStatePersistence() throws Exception {
-
         logger.info("--> starting 1 nodes");
         internalCluster().startNode();
 

@@ -94,7 +94,6 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
     }
 
     public void testSimpleRetry() throws Exception {
-
         FailThenSuccessBackoffTransport fakeTransport =
                 new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 3);
 
@@ -153,7 +152,6 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
     }
 
     public void testIOExceptionRetry() throws Exception {
-
         FailThenSuccessBackoffTransport fakeTransport =
                 new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 1, true);
 
@@ -174,4 +172,3 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
         assertThat(response.getStatusCode(), equalTo(200));
     }
 }
-

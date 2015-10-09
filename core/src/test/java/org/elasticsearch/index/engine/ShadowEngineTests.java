@@ -23,7 +23,13 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -60,7 +66,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -70,7 +75,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * TODO: document me!
@@ -258,8 +268,6 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
     }
 
-
-    @Test
     public void testSegments() throws Exception {
         primaryEngine.close(); // recreate without merging
         primaryEngine = createInternalEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
@@ -433,7 +441,6 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.get(2).isCompound(), equalTo(true));
     }
 
-    @Test
     public void testVerboseSegments() throws Exception {
         primaryEngine.close(); // recreate without merging
         primaryEngine = createInternalEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
@@ -473,7 +480,6 @@ public class ShadowEngineTests extends ESTestCase {
 
     }
 
-    @Test
     public void testShadowEngineIgnoresWriteOperations() throws Exception {
         // create a document
         ParseContext.Document document = testDocumentWithTextField();
@@ -563,7 +569,6 @@ public class ShadowEngineTests extends ESTestCase {
         getResult.release();
     }
 
-    @Test
     public void testSimpleOperations() throws Exception {
         Engine.Searcher searchResult = primaryEngine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
@@ -776,7 +781,6 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
     }
 
-    @Test
     public void testSearchResultRelease() throws Exception {
         Engine.Searcher searchResult = replicaEngine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
@@ -827,7 +831,6 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
     }
 
-    @Test
     public void testFailEngineOnCorruption() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
@@ -852,7 +855,6 @@ public class ShadowEngineTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testExtractShardId() {
         try (Engine.Searcher test = replicaEngine.acquireSearcher("test")) {
             ShardId shardId = ShardUtils.extractShardId(test.getDirectoryReader());
@@ -865,7 +867,6 @@ public class ShadowEngineTests extends ESTestCase {
      * Random test that throws random exception and ensures all references are
      * counted down / released and resources are closed.
      */
-    @Test
     public void testFailStart() throws IOException {
         // Need a commit point for this
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
@@ -910,13 +911,11 @@ public class ShadowEngineTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSettings() {
         CodecService codecService = new CodecService(shardId.index());
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
     }
 
-    @Test
     public void testShadowEngineCreationRetry() throws Exception {
         final Path srDir = createTempDir();
         final Store srStore = createStore(srDir);

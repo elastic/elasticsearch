@@ -36,7 +36,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -54,8 +53,6 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  */
 public class UnassignedInfoTests extends ESAllocationTestCase {
-
-    @Test
     public void testReasonOrdinalOrder() {
         UnassignedInfo.Reason[] order = new UnassignedInfo.Reason[]{
                 UnassignedInfo.Reason.INDEX_CREATED,
@@ -76,7 +73,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(UnassignedInfo.Reason.values().length, equalTo(order.length));
     }
 
-    @Test
     public void testSerialization() throws Exception {
         UnassignedInfo meta = new UnassignedInfo(RandomPicks.randomFrom(getRandom(), UnassignedInfo.Reason.values()), randomBoolean() ? randomAsciiOfLength(4) : null);
         BytesStreamOutput out = new BytesStreamOutput();
@@ -90,7 +86,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
     }
 
-    @Test
     public void testIndexCreated() {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
@@ -103,7 +98,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testClusterRecovered() {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
@@ -116,7 +110,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testIndexReopened() {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
@@ -129,7 +122,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testNewIndexRestored() {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
@@ -142,7 +134,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testExistingIndexRestored() {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
@@ -155,7 +146,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testDanglingIndexImported() {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
@@ -168,7 +158,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testReplicaAdded() {
         AllocationService allocation = createAllocationService();
         MetaData metaData = MetaData.builder()
@@ -195,7 +184,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     /**
      * The unassigned meta is kept when a shard goes to INITIALIZING, but cleared when it moves to STARTED.
      */
-    @Test
     public void testStateTransitionMetaHandling() {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 1, null, null, null, true, ShardRoutingState.UNASSIGNED, 1, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         ShardRouting mutable = new ShardRouting(shard);
@@ -211,7 +199,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     /**
      * Tests that during reroute when a node is detected as leaving the cluster, the right unassigned meta is set
      */
-    @Test
     public void testNodeLeave() {
         AllocationService allocation = createAllocationService();
         MetaData metaData = MetaData.builder()
@@ -241,7 +228,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     /**
      * Verifies that when a shard fails, reason is properly set and details are preserved.
      */
-    @Test
     public void testFailedShard() {
         AllocationService allocation = createAllocationService();
         MetaData metaData = MetaData.builder()
@@ -273,7 +259,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     /**
      * Verifies that delayed allocation calculation are correct.
      */
-    @Test
     public void testUnassignedDelayedOnlyOnNodeLeft() throws Exception {
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null);
         long delay = unassignedInfo.getAllocationDelayTimeoutSetting(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), Settings.EMPTY);
@@ -292,7 +277,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     /**
      * Verifies that delayed allocation is only computed when the reason is NODE_LEFT.
      */
-    @Test
     public void testUnassignedDelayOnlyNodeLeftNonNodeLeftReason() throws Exception {
         EnumSet<UnassignedInfo.Reason> reasons = EnumSet.allOf(UnassignedInfo.Reason.class);
         reasons.remove(UnassignedInfo.Reason.NODE_LEFT);
@@ -304,7 +288,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(delay, equalTo(0l));
     }
 
-    @Test
     public void testNumberOfDelayedUnassigned() throws Exception {
         AllocationService allocation = createAllocationService();
         MetaData metaData = MetaData.builder()
@@ -330,7 +313,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), clusterState), equalTo(2));
     }
 
-    @Test
     public void testFindNextDelayedAllocation() {
         AllocationService allocation = createAllocationService();
         MetaData metaData = MetaData.builder()

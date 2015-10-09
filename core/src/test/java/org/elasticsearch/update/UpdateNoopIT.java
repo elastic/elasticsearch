@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -35,8 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * Tests for noop updates.
  */
 public class UpdateNoopIT extends ESIntegTestCase {
-    @Test
-    public void singleField() throws Exception {
+    public void testSingleField() throws Exception {
         updateAndCheckSource(1, fields("bar", "baz"));
         updateAndCheckSource(1, fields("bar", "baz"));
         updateAndCheckSource(2, fields("bar", "bir"));
@@ -51,8 +49,7 @@ public class UpdateNoopIT extends ESIntegTestCase {
         assertEquals(4, totalNoopUpdates());
     }
 
-    @Test
-    public void twoFields() throws Exception {
+    public void testTwoFields() throws Exception {
         // Use random keys so we get random iteration order.
         String key1 = 1 + randomAsciiOfLength(3);
         String key2 = 2 + randomAsciiOfLength(3);
@@ -74,8 +71,7 @@ public class UpdateNoopIT extends ESIntegTestCase {
         assertEquals(5, totalNoopUpdates());
     }
 
-    @Test
-    public void arrayField() throws Exception {
+    public void testArrayField() throws Exception {
         updateAndCheckSource(1, fields("bar", "baz"));
         updateAndCheckSource(2, fields("bar", new String[] {"baz", "bort"}));
         updateAndCheckSource(2, fields("bar", new String[] {"baz", "bort"}));
@@ -92,8 +88,7 @@ public class UpdateNoopIT extends ESIntegTestCase {
         assertEquals(5, totalNoopUpdates());
     }
 
-    @Test
-    public void map() throws Exception {
+    public void testMap() throws Exception {
         // Use random keys so we get variable iteration order.
         String key1 = 1 + randomAsciiOfLength(3);
         String key2 = 2 + randomAsciiOfLength(3);
@@ -143,8 +138,7 @@ public class UpdateNoopIT extends ESIntegTestCase {
         assertEquals(3, totalNoopUpdates());
     }
 
-    @Test
-    public void mapAndField() throws Exception {
+    public void testMapAndField() throws Exception {
         updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
                 .field("f", "foo")
                 .startObject("m")
@@ -216,8 +210,7 @@ public class UpdateNoopIT extends ESIntegTestCase {
      * Totally empty requests are noop if and only if detect noops is true and
      * its true by default.
      */
-    @Test
-    public void totallyEmpty() throws Exception {
+    public void testTotallyEmpty() throws Exception {
         updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
                 .field("f", "foo")
                 .startObject("m")

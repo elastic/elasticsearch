@@ -20,6 +20,7 @@ package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -41,7 +42,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,16 +54,16 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DuelFieldDataTests extends AbstractFieldDataTestCase {
-
     @Override
     protected FieldDataType getFieldDataType() {
         return null;
     }
 
-    @Test
     public void testDuelAllTypesSingleValue() throws Exception {
         final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -140,8 +140,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
         }
     }
 
-
-    @Test
     public void testDuelIntegers() throws Exception {
         final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -163,7 +161,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
             for (int j = 0; j < numValues; ++j) {
                 vals.add(randomByte());
             }
-            
+
             numValues = vals.size();
             int upto = 0;
             for (Byte bb : vals) {
@@ -225,7 +223,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
 
     }
 
-    @Test
     public void testDuelDoubles() throws Exception {
         final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -308,8 +305,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
 
     }
 
-
-    @Test
     public void testDuelStrings() throws Exception {
         Random random = getRandom();
         int atLeast = scaledRandomIntBetween(200, 1500);

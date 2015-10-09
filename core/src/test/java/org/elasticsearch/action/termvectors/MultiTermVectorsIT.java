@@ -28,16 +28,16 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
-
-    @Test
     public void testDuelESLucene() throws Exception {
         AbstractTermVectorsTestCase.TestFieldSetting[] testFieldSettings = getFieldSettings();
         createIndexBasedOnFieldSettings("test", "alias", testFieldSettings);
@@ -73,7 +73,6 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
 
     }
 
-    @Test
     public void testMissingIndexThrowsMissingIndex() throws Exception {
         TermVectorsRequestBuilder requestBuilder = client().prepareTermVectors("testX", "typeX", Integer.toString(1));
         MultiTermVectorsRequestBuilder mtvBuilder = client().prepareMultiTermVectors();
@@ -84,7 +83,6 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getResponses()[0].getFailure().getCause().getMessage(), equalTo("no such index"));
     }
 
-    @Test
     public void testMultiTermVectorsWithVersion() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));

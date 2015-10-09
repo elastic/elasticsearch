@@ -43,18 +43,18 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, transportClientRatio = 0.0)
 abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase {
-
     @Override
     public Settings indexSettings() {
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same
@@ -83,7 +83,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         cleanRepositoryFiles(basePath);
     }
 
-    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
     public void testSimpleWorkflow() {
         Client client = client();
         Settings.Builder settings = Settings.settingsBuilder()
@@ -161,7 +161,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
     }
 
-    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
     public void testEncryption() {
         Client client = client();
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
@@ -254,20 +254,21 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
      * This test verifies that the test configuration is set up in a manner that
      * does not make the test {@link #testRepositoryWithCustomCredentials()} pointless.
      */
-    @Test(expected = RepositoryVerificationException.class)
-    public void assertRepositoryWithCustomCredentialsIsNotAccessibleByDefaultCredentials() {
+    public void testRepositoryWithCustomCredentialsIsNotAccessibleByDefaultCredentials() {
         Client client = client();
         Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.private-bucket.");
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
-        client.admin().cluster().preparePutRepository("test-repo")
-        .setType("s3").setSettings(Settings.settingsBuilder()
-                .put("base_path", basePath)
-                .put("bucket", bucketSettings.get("bucket"))
-                ).get();
-        fail("repository verification should have raise an exception!");
+        try {
+            client.admin().cluster().preparePutRepository("test-repo")
+                .setType("s3").setSettings(Settings.settingsBuilder()
+                        .put("base_path", basePath)
+                        .put("bucket", bucketSettings.get("bucket"))
+                        ).get();
+            fail("repository verification should have raise an exception!");
+        } catch (RepositoryVerificationException e) {
+        }
     }
 
-    @Test
     public void testRepositoryWithCustomCredentials() {
         Client client = client();
         Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.private-bucket.");
@@ -285,7 +286,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         assertRepositoryIsOperational(client, "test-repo");
     }
 
-    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
     public void testRepositoryWithCustomEndpointProtocol() {
         Client client = client();
         Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.external-bucket.");
@@ -306,23 +307,24 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
      * This test verifies that the test configuration is set up in a manner that
      * does not make the test {@link #testRepositoryInRemoteRegion()} pointless.
      */
-    @Test(expected = RepositoryVerificationException.class)
-    public void assertRepositoryInRemoteRegionIsRemote() {
+    public void testRepositoryInRemoteRegionIsRemote() {
         Client client = client();
         Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.remote-bucket.");
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
-        client.admin().cluster().preparePutRepository("test-repo")
-        .setType("s3").setSettings(Settings.settingsBuilder()
-                .put("base_path", basePath)
-                .put("bucket", bucketSettings.get("bucket"))
-                // Below setting intentionally omitted to assert bucket is not available in default region.
-                //                        .put("region", privateBucketSettings.get("region"))
-                ).get();
-
-        fail("repository verification should have raise an exception!");
+        try {
+            client.admin().cluster().preparePutRepository("test-repo")
+                .setType("s3").setSettings(Settings.settingsBuilder()
+                    .put("base_path", basePath)
+                    .put("bucket", bucketSettings.get("bucket"))
+                    // Below setting intentionally omitted to assert bucket is not available in default region.
+                    //                        .put("region", privateBucketSettings.get("region"))
+                    ).get();
+            fail("repository verification should have raise an exception!");
+        } catch (RepositoryVerificationException e) {
+        }
     }
 
-    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
     public void testRepositoryInRemoteRegion() {
         Client client = client();
         Settings settings = internalCluster().getInstance(Settings.class);
@@ -342,8 +344,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
     /**
      * Test case for issue #86: https://github.com/elasticsearch/elasticsearch-cloud-aws/issues/86
      */
-    @Test
-    public void testNonExistingRepo_86() {
+    public void testNonExistingRepo86() {
         Client client = client();
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
@@ -364,8 +365,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
     /**
      * For issue #86: https://github.com/elasticsearch/elasticsearch-cloud-aws/issues/86
      */
-    @Test
-    public void testGetDeleteNonExistingSnapshot_86() {
+    public void testGetDeleteNonExistingSnapshot86() {
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating s3 repository without any path");
         PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo")

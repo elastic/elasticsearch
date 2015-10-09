@@ -30,7 +30,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,7 +51,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class FunctionScoreTests extends ESIntegTestCase {
-
     static final String TYPE = "type";
     static final String INDEX = "index";
 
@@ -60,9 +58,7 @@ public class FunctionScoreTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
 
-    @Test
     public void testScriptScoresNested() throws IOException {
         createIndex(INDEX);
         ensureYellow();
@@ -84,7 +80,6 @@ public class FunctionScoreTests extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).score(), equalTo(1.0f));
     }
 
-    @Test
     public void testScriptScoresWithAgg() throws IOException {
         createIndex(INDEX);
         ensureYellow();
@@ -132,7 +127,6 @@ public class FunctionScoreTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testMinScoreFunctionScoreManyDocsAndRandomMinScore() throws IOException, ExecutionException, InterruptedException {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int numDocs = randomIntBetween(1, 100);
@@ -175,7 +169,6 @@ public class FunctionScoreTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testWithEmptyFunctions() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test"));
         ensureYellow();

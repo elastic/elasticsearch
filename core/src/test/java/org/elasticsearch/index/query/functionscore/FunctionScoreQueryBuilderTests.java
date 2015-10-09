@@ -20,14 +20,26 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.lucene.search.function.*;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.AbstractQueryTestCase;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.RandomQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
@@ -39,7 +51,6 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MultiValueMode;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,7 +60,12 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<FunctionScoreQueryBuilder> {
 
@@ -180,7 +196,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         super.testToQuery();
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             new FunctionScoreQueryBuilder((QueryBuilder<?>)null);
@@ -274,7 +289,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
     }
 
-    @Test
     public void testParseFunctionsArray() throws IOException {
         String functionScoreQuery = "{\n" +
                     "    \"function_score\":{\n" +
@@ -359,7 +373,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
     }
 
-    @Test
     public void testParseSingleFunction() throws IOException {
         String functionScoreQuery = "{\n" +
                 "    \"function_score\":{\n" +
@@ -407,7 +420,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
     }
 
-    @Test
     public void testProperErrorMessageWhenTwoFunctionsDefinedInQueryBody() throws IOException {
         //without a functions array, we support only a single function, weight can't be associated with the function either.
         String functionScoreQuery = "{\n" +
@@ -426,7 +438,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
     }
 
-    @Test
     public void testProperErrorMessageWhenTwoFunctionsDefinedInFunctionsArray() throws IOException {
         String functionScoreQuery = "{\n" +
                 "    \"function_score\":{\n" +
@@ -457,7 +468,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
     }
 
-    @Test
     public void testProperErrorMessageWhenMissingFunction() throws IOException {
         String functionScoreQuery = "{\n" +
                 "    \"function_score\":{\n" +
@@ -480,7 +490,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
     }
 
-    @Test
     public void testWeight1fStillProducesWeightFunction() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String queryString = jsonBuilder().startObject()
@@ -515,7 +524,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertThat(weightFactorFunction.getScoreFunction(), instanceOf(FieldValueFactorFunction.class));
     }
 
-    @Test
     public void testProperErrorMessagesForMisplacedWeightsAndFunctions() throws IOException {
         String query = jsonBuilder().startObject().startObject("function_score")
                 .startArray("functions")
@@ -543,13 +551,16 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
     }
 
-    @Test(expected = JsonParseException.class)
-    public void ensureMalformedThrowsException() throws IOException {
-        parseQuery(copyToStringFromClasspath("/org/elasticsearch/index/query/faulty-function-score-query.json"));
+    public void testMalformedThrowsException() throws IOException {
+        try {
+            parseQuery(copyToStringFromClasspath("/org/elasticsearch/index/query/faulty-function-score-query.json"));
+            fail("Expected JsonParseException");
+        } catch (JsonParseException e) {
+            assertThat(e.getMessage(), containsString("Unexpected character ('{"));
+        }
     }
 
-    @Test
-    public void testCustomWeightFactorQueryBuilder_withFunctionScore() throws IOException {
+    public void testCustomWeightFactorQueryBuilderWithFunctionScore() throws IOException {
         Query parsedQuery = parseQuery(functionScoreQuery(termQuery("name.last", "banon"), ScoreFunctionBuilders.weightFactorFunction(1.3f)).buildAsBytes()).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
@@ -557,8 +568,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertThat((double) ((WeightFactorFunction) functionScoreQuery.getFunction()).getWeight(), closeTo(1.3, 0.001));
     }
 
-    @Test
-    public void testCustomWeightFactorQueryBuilder_withFunctionScoreWithoutQueryGiven() throws IOException {
+    public void testCustomWeightFactorQueryBuilderWithFunctionScoreWithoutQueryGiven() throws IOException {
         Query parsedQuery = parseQuery(functionScoreQuery(ScoreFunctionBuilders.weightFactorFunction(1.3f)).buildAsBytes()).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
@@ -566,7 +576,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertThat((double) ((WeightFactorFunction) functionScoreQuery.getFunction()).getWeight(), closeTo(1.3, 0.001));
     }
 
-    @Test
     public void testFieldValueFactorFactorArray() throws IOException {
         // don't permit an array of factors
         String querySource = "{" +

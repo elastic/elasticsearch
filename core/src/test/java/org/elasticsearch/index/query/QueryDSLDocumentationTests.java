@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.Fil
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,8 +38,51 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.disMaxQuery;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoDistanceRangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoHashCellQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
+import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
+import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
+import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
+import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanContainingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanFirstQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanMultiTermQueryBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanOrQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanWithinQuery;
+import static org.elasticsearch.index.query.QueryBuilders.templateQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
 
 /**
  * If one of the following tests doesn't compile make sure to not only fix the compilation error here
@@ -50,7 +92,6 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
  * documented in the java api query dsl part of our reference guide.
  * */
 public class QueryDSLDocumentationTests extends ESTestCase {
-    @Test
     public void testBool() {
         boolQuery()
                 .must(termQuery("content", "test1"))
@@ -60,24 +101,20 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 .filter(termQuery("content", "test5"));
     }
 
-    @Test
     public void testBoosting() {
         boostingQuery(termQuery("name","kimchy"), termQuery("name","dadoonet"))
                 .negativeBoost(0.2f);
     }
 
-    @Test
     public void testCommonTerms() {
         commonTermsQuery("name", "kimchy");
     }
 
-    @Test
     public void testConstantScore() {
         constantScoreQuery(termQuery("name","kimchy"))
             .boost(2.0f);
     }
 
-    @Test
     public void testDisMax() {
         disMaxQuery()
                 .add(termQuery("name", "kimchy"))
@@ -86,12 +123,10 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 .tieBreaker(0.7f);
     }
 
-    @Test
     public void testExists() {
         existsQuery("name");
     }
 
-    @Test
     public void testFunctionScore() {
         FilterFunctionBuilder[] functions = {
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder(
@@ -103,17 +138,14 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         functionScoreQuery(functions);
     }
 
-    @Test
     public void testFuzzy() {
         fuzzyQuery("name", "kimchy");
     }
 
-    @Test
     public void testGeoBoundingBox() {
         geoBoundingBoxQuery("pin.location").setCorners(40.73, -74.1, 40.717, -73.99);
     }
 
-    @Test
     public void testGeoDistance() {
         geoDistanceQuery("pin.location")
             .point(40, -70)
@@ -122,7 +154,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             .geoDistance(GeoDistance.ARC);
     }
 
-    @Test
     public void testGeoDistanceRange() {
         geoDistanceRangeQuery("pin.location", new GeoPoint(40, -70)) // TODO check why I need the point here but not above
             .from("200km")
@@ -133,7 +164,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             .geoDistance(GeoDistance.ARC);
     }
 
-    @Test
     public void testGeoPolygon() {
         List<GeoPoint> points = new ArrayList<GeoPoint>();
         points.add(new GeoPoint(40, -70));
@@ -142,7 +172,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         geoPolygonQuery("pin.location", points);
     }
 
-    @Test
     public void testGeoShape() throws IOException {
         GeoShapeQueryBuilder qb = geoShapeQuery(
                 "pin.location",
@@ -163,7 +192,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             .indexedShapePath("location");
     }
 
-    @Test
     public void testGeoHashCell() {
         geoHashCellQuery("pin.location",
                 new GeoPoint(13.4080, 52.5186))
@@ -171,7 +199,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             .precision(3);
     }
 
-    @Test
     public void testHasChild() {
         hasChildQuery(
                 "blog_tag",
@@ -179,7 +206,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             );
     }
 
-    @Test
     public void testHasParent() {
         hasParentQuery(
             "blog",
@@ -187,7 +213,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         );
     }
 
-    @Test
     public void testIds() {
         idsQuery("my_type", "type2")
                 .addIds("1", "4", "100");
@@ -195,7 +220,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         idsQuery().addIds("1", "4", "100");
     }
 
-    @Test
     public void testIndices() {
         indicesQuery(
                 termQuery("tag", "wow"),
@@ -208,22 +232,18 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             ).noMatchQuery("all");
     }
 
-    @Test
     public void testMatchAll() {
         matchAllQuery();
     }
 
-    @Test
     public void testMatch() {
         matchQuery("name", "kimchy elasticsearch");
     }
 
-    @Test
     public void testMissing() {
         missingQuery("user", true, true);
     }
 
-    @Test
     public void testMLT() {
         String[] fields = {"name.first", "name.last"};
         String[] texts = {"text like this one"};
@@ -234,12 +254,10 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         .maxQueryTerms(12);
     }
 
-    @Test
     public void testMultiMatch() {
         multiMatchQuery("kimchy elasticsearch", "user", "message");
     }
 
-    @Test
     public void testNested() {
         nestedQuery(
                 "obj1",
@@ -250,17 +268,14 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             .scoreMode(ScoreMode.Avg);
     }
 
-    @Test
     public void testPrefix() {
         prefixQuery("brand", "heine");
     }
 
-    @Test
     public void testQueryString() {
         queryStringQuery("+kimchy -elasticsearch");
     }
 
-    @Test
     public void testRange() {
         rangeQuery("price")
         .from(5)
@@ -273,12 +288,10 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         .lt("20");
     }
 
-    @Test
     public void testRegExp() {
         regexpQuery("name.first", "s.*y");
     }
 
-    @Test
     public void testScript() {
         scriptQuery(
                 new Script("doc['num1'].value > 1")
@@ -296,12 +309,10 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     }
 
-    @Test
     public void testSimpleQueryString() {
         simpleQueryStringQuery("+kimchy -elasticsearch");
     }
 
-    @Test
     public void testSpanContaining() {
         spanContainingQuery(
                 spanNearQuery(spanTermQuery("field1","bar"), 5)
@@ -310,7 +321,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 spanTermQuery("field1","foo"));
     }
 
-    @Test
     public void testSpanFirst() {
         spanFirstQuery(
                 spanTermQuery("user", "kimchy"),
@@ -318,12 +328,10 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             );
     }
 
-    @Test
     public void testSpanMultiTerm() {
         spanMultiTermQueryBuilder(prefixQuery("user", "ki"));
     }
 
-    @Test
     public void testSpanNear() {
         spanNearQuery(spanTermQuery("field","value1"), 12)
         .clause(spanTermQuery("field","value2"))
@@ -332,25 +340,21 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         .collectPayloads(false);
     }
 
-    @Test
     public void testSpanNot() {
         spanNotQuery(spanTermQuery("field","value1"),
                 spanTermQuery("field","value2"));
     }
 
-    @Test
     public void testSpanOr() {
         spanOrQuery(spanTermQuery("field","value1"))
         .clause(spanTermQuery("field","value2"))
         .clause(spanTermQuery("field","value3"));
     }
 
-    @Test
     public void testSpanTerm() {
         spanTermQuery("user", "kimchy");
     }
 
-    @Test
     public void testSpanWithin() {
         spanWithinQuery(
                 spanNearQuery(spanTermQuery("field1", "bar"), 5)
@@ -359,7 +363,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 spanTermQuery("field1", "foo"));
     }
 
-    @Test
     public void testTemplate() {
         templateQuery(
                 "gender_template",
@@ -367,22 +370,18 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 new HashMap<>());
     }
 
-    @Test
     public void testTerm() {
         termQuery("name", "kimchy");
     }
 
-    @Test
     public void testTerms() {
         termsQuery("tags", "blue", "pill");
     }
 
-    @Test
     public void testType() {
         typeQuery("my_type");
     }
 
-    @Test
     public void testWildcard() {
         wildcardQuery("user", "k?mch*");
     }

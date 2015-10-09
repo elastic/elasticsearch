@@ -27,7 +27,6 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -37,7 +36,6 @@ import static org.hamcrest.Matchers.containsString;
 
 //TODO: please convert to unit tests!
 public class IndexedExpressionTests extends ESIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
@@ -53,7 +51,6 @@ public class IndexedExpressionTests extends ESIntegTestCase {
         return Collections.singleton(ExpressionPlugin.class);
     }
 
-    @Test
     public void testAllOpsDisabledIndexedScripts() throws IOException {
         if (randomBoolean()) {
             client().preparePutIndexedScript(ExpressionScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();

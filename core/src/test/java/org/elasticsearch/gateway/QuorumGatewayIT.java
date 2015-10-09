@@ -26,8 +26,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
-import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
@@ -35,7 +35,6 @@ import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,13 +46,11 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @ClusterScope(numDataNodes =0, scope= Scope.TEST)
 public class QuorumGatewayIT extends ESIntegTestCase {
-
     @Override
     protected int numberOfReplicas() {
         return 2;
     }
 
-    @Test
     public void testChangeInitialShardsRecovery() throws Exception {
         logger.info("--> starting 3 nodes");
         final String[] nodes = internalCluster().startNodesAsync(3).get().toArray(new String[0]);
@@ -73,7 +70,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2l);
         }
-        
+
         final String nodeToRemove = nodes[between(0,2)];
         logger.info("--> restarting 1 nodes -- kill 2");
         internalCluster().fullRestart(new RestartCallback() {
@@ -81,7 +78,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
             public Settings onNodeStopped(String nodeName) throws Exception {
                 return Settings.EMPTY;
             }
-            
+
             @Override
             public boolean doRestart(String nodeName) {
                 return nodeToRemove.equals(nodeName);
@@ -115,9 +112,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testQuorumRecovery() throws Exception {
-
         logger.info("--> starting 3 nodes");
         internalCluster().startNodesAsync(3).get();
         // we are shutting down nodes - make sure we don't have 2 clusters if we test network
@@ -162,7 +157,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
                     }
                 }
             }
-            
+
         });
         logger.info("--> all nodes are started back, verifying we got the latest version");
         logger.info("--> running cluster_health (wait for the shards to startup)");

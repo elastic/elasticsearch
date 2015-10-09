@@ -23,16 +23,12 @@ import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 
 public class SimpleExistsIT extends ESIntegTestCase {
-
-
-    @Test
     public void testExistsRandomPreference() throws Exception {
         createIndex("test");
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("field", "value"),
@@ -56,9 +52,7 @@ public class SimpleExistsIT extends ESIntegTestCase {
         }
     }
 
-
-    @Test
-    public void simpleIpTests() throws Exception {
+    public void testSimpleIp() throws Exception {
         createIndex("test");
 
         client().admin().indices().preparePutMapping("test").setType("type1")
@@ -80,8 +74,7 @@ public class SimpleExistsIT extends ESIntegTestCase {
         assertExists(existsResponse, false);
     }
 
-    @Test
-    public void simpleIdTests() {
+    public void testSimpleId() {
         createIndex("test");
 
         client().prepareIndex("test", "type", "XXX1").setSource("field", "value").setRefresh(true).execute().actionGet();
@@ -99,8 +92,7 @@ public class SimpleExistsIT extends ESIntegTestCase {
         assertExists(existsResponse, true);
     }
 
-    @Test
-    public void simpleNonExistenceTests() throws Exception {
+    public void testSimpleNonExistence() throws Exception {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("field", 2).execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field", 5).execute().actionGet();

@@ -20,8 +20,16 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldFilterLeafReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Constants;
@@ -41,8 +49,12 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -68,7 +80,11 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
@@ -81,7 +97,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -95,19 +110,23 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Simple unit-test IndexShard related operations.
  */
 public class IndexShardTests extends ESSingleNodeTestCase {
-
     public void testFlushOnDeleteSetting() throws Exception {
         boolean initValue = randomBoolean();
         createIndex("test", settingsBuilder().put(IndexShard.INDEX_FLUSH_ON_CLOSE, initValue).build());
@@ -153,7 +172,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testLockTryingToDelete() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -300,7 +318,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
     }
 
-    @Test
     public void testDeleteIndexDecreasesCounter() throws InterruptedException, ExecutionException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
         ensureGreen("test");
@@ -317,7 +334,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testIndexShardCounter() throws InterruptedException, ExecutionException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
         ensureGreen("test");
@@ -334,7 +350,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(0, indexShard.getOperationsCount());
     }
 
-    @Test
     public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
@@ -720,6 +735,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread() {
+                @Override
                 public void run() {
                     try {
                         barrier.await();
@@ -1036,7 +1052,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     }
 
     private static class FieldMaskingReader extends FilterDirectoryReader {
-
         private final String field;
         public FieldMaskingReader(String field, DirectoryReader in) throws IOException {
             super(in, new SubReaderWrapper() {

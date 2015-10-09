@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -39,7 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class CompressSourceMappingTests extends ESSingleNodeTestCase {
     Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
 
-    @Test
     public void testCompressDisabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_source").field("compress", false).endObject()
@@ -55,7 +53,6 @@ public class CompressSourceMappingTests extends ESSingleNodeTestCase {
         assertThat(CompressorFactory.isCompressed(new BytesArray(bytes)), equalTo(false));
     }
 
-    @Test
     public void testCompressEnabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_source").field("compress", true).endObject()
@@ -72,7 +69,6 @@ public class CompressSourceMappingTests extends ESSingleNodeTestCase {
         assertThat(CompressorFactory.isCompressed(new BytesArray(bytes)), equalTo(true));
     }
 
-    @Test
     public void testCompressThreshold() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_source").field("compress_threshold", "200b").endObject()

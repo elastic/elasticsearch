@@ -23,20 +23,19 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
 public class ToAndFromJsonMetaDataTests extends ESTestCase {
-
-    @Test
     public void testSimpleJsonFromAndTo() throws IOException {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1")

@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -32,12 +31,14 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SearchPreferenceIT extends ESIntegTestCase {
-
-    @Test // see #2896
+    // see #2896
     public void testStopOneNodePreferenceWithRedState() throws InterruptedException, IOException {
         assertAcked(prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", cluster().numDataNodes()+2).put("index.number_of_replicas", 0)));
         ensureGreen();
@@ -67,14 +68,13 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
     }
 
-    @Test
-    public void noPreferenceRandom() throws Exception {
+    public void testNoPreferenceRandom() throws Exception {
         assertAcked(prepareCreate("test").setSettings(
                 //this test needs at least a replica to make sure two consecutive searches go to two different copies of the same data
                 settingsBuilder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))
         ));
         ensureGreen();
-        
+
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
         refresh();
 
@@ -87,8 +87,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         assertThat(firstNodeId, not(equalTo(secondNodeId)));
     }
 
-    @Test
-    public void simplePreferenceTests() throws Exception {
+    public void testSimplePreference() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings("number_of_replicas=1").get();
         ensureGreen();
 
@@ -121,7 +120,6 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
     public void testReplicaPreference() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings("number_of_replicas=0").get();
         ensureGreen();
@@ -146,11 +144,15 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         assertThat(resp.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test (expected = IllegalArgumentException.class)
     public void testThatSpecifyingNonExistingNodesReturnsUsefulError() throws Exception {
         createIndex("test");
         ensureGreen();
 
-        client().prepareSearch().setQuery(matchAllQuery()).setPreference("_only_node:DOES-NOT-EXIST").execute().actionGet();
+        try {
+            client().prepareSearch().setQuery(matchAllQuery()).setPreference("_only_node:DOES-NOT-EXIST").execute().actionGet();
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("No data node with id[DOES-NOT-EXIST] found"));
+        }
     }
 }

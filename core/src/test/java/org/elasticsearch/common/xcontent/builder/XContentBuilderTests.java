@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -54,8 +53,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class XContentBuilderTests extends ESTestCase {
-
-    @Test
     public void testPrettyWithLfAtEnd() throws Exception {
         FastCharArrayWriter writer = new FastCharArrayWriter();
         XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(writer);
@@ -74,8 +71,7 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(writer.unsafeCharArray()[writer.size() - 1], equalTo('\n'));
     }
 
-    @Test
-    public void verifyReuseJsonGenerator() throws Exception {
+    public void testReuseJsonGenerator() throws Exception {
         FastCharArrayWriter writer = new FastCharArrayWriter();
         XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(writer);
         generator.writeStartObject();
@@ -95,7 +91,6 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(writer.toStringTrim(), equalTo("{\"test\":\"value\"}"));
     }
 
-    @Test
     public void testRaw() throws IOException {
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -141,7 +136,6 @@ public class XContentBuilderTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSimpleGenerator() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("test", "value").endObject();
@@ -152,14 +146,12 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(builder.string(), equalTo("{\"test\":\"value\"}"));
     }
 
-    @Test
     public void testOverloadedList() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("test", Arrays.asList("1", "2")).endObject();
         assertThat(builder.string(), equalTo("{\"test\":[\"1\",\"2\"]}"));
     }
 
-    @Test
     public void testWritingBinaryToStream() throws Exception {
         BytesStreamOutput bos = new BytesStreamOutput();
 
@@ -177,7 +169,6 @@ public class XContentBuilderTests extends ESTestCase {
         System.out.println("DATA: " + sData);
     }
 
-    @Test
     public void testFieldCaseConversion() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).fieldCaseConversion(CAMELCASE);
         builder.startObject().field("test_name", "value").endObject();
@@ -188,14 +179,12 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(builder.string(), equalTo("{\"test_name\":\"value\"}"));
     }
 
-    @Test
     public void testByteConversion() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("test_name", (Byte)(byte)120).endObject();
         assertThat(builder.bytes().toUtf8(), equalTo("{\"test_name\":120}"));
     }
 
-    @Test
     public void testDateTypesConversion() throws Exception {
         Date date = new Date();
         String expectedDate = XContentBuilder.defaultDatePrinter.print(date.getTime());
@@ -222,7 +211,6 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(builder.string(), equalTo("{\"calendar\":\"" + expectedCalendar + "\"}"));
     }
 
-    @Test
     public void testCopyCurrentStructure() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject()
@@ -277,19 +265,16 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(i, equalTo(terms.size()));
     }
 
-    @Test
     public void testHandlingOfPath() throws IOException {
         Path path = PathUtils.get("path");
         checkPathSerialization(path);
     }
 
-    @Test
     public void testHandlingOfPath_relative() throws IOException {
         Path path = PathUtils.get("..", "..", "path");
         checkPathSerialization(path);
     }
 
-    @Test
     public void testHandlingOfPath_absolute() throws IOException {
         Path path = createTempDir().toAbsolutePath();
         checkPathSerialization(path);
@@ -305,7 +290,6 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(pathBuilder.string(), equalTo(stringBuilder.string()));
     }
 
-    @Test
     public void testHandlingOfPath_XContentBuilderStringName() throws IOException {
         Path path = PathUtils.get("path");
         XContentBuilderString name = new XContentBuilderString("file");
@@ -319,7 +303,6 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(pathBuilder.string(), equalTo(stringBuilder.string()));
     }
 
-    @Test
     public void testHandlingOfCollectionOfPaths() throws IOException {
         Path path = PathUtils.get("path");
 

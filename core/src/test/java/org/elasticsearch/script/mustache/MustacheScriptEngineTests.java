@@ -24,7 +24,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -47,7 +46,6 @@ public class MustacheScriptEngineTests extends ESTestCase {
         escaper = new JsonEscapingMustacheFactory();
     }
 
-    @Test
     public void testSimpleParameterReplace() {
         {
             String template = "GET _search {\"query\": " + "{\"boosting\": {" + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
@@ -72,7 +70,6 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testEscapeJson() throws IOException {
         {
             StringWriter writer = new StringWriter();
@@ -86,9 +83,9 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
 
         Character[] specialChars = new Character[]{
-                '\"', 
-                '\\', 
-                '\u0000', 
+                '\"',
+                '\\',
+                '\u0000',
                 '\u0001',
                 '\u0002',
                 '\u0003',
@@ -104,9 +101,9 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 '\u000F',
                 '\u001F'};
         String[] escapedChars = new String[]{
-                "\\\"", 
-                "\\\\", 
-                "\\u0000", 
+                "\\\"",
+                "\\\\",
+                "\\u0000",
                 "\\u0001",
                 "\\u0002",
                 "\\u0003",
@@ -150,14 +147,14 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
         return string;
     }
-    
+
     /**
      * From https://www.ietf.org/rfc/rfc4627.txt:
-     * 
+     *
      * All Unicode characters may be placed within the
      * quotation marks except for the characters that must be escaped:
      * quotation mark, reverse solidus, and the control characters (U+0000
-     * through U+001F). 
+     * through U+001F).
      * */
     private static boolean isEscapeChar(char c) {
         switch (c) {
@@ -165,7 +162,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         case '\\':
             return true;
         }
-        
+
         if (c < '\u002F')
             return true;
         return false;

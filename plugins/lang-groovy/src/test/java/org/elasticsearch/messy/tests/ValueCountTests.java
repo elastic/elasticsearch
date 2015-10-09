@@ -26,7 +26,6 @@ import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -51,7 +50,7 @@ public class ValueCountTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
@@ -69,8 +68,7 @@ public class ValueCountTests extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(count("count").field("value"))
@@ -84,9 +82,7 @@ public class ValueCountTests extends ESIntegTestCase {
         assertThat(valueCount.getValue(), equalTo(0l));
     }
 
-    @Test
-    public void singleValuedField() throws Exception {
-
+    public void testSingleValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(count("count").field("value"))
@@ -100,9 +96,7 @@ public class ValueCountTests extends ESIntegTestCase {
         assertThat(valueCount.getValue(), equalTo(10l));
     }
 
-    @Test
-    public void singleValuedField_getProperty() throws Exception {
-
+    public void testSingleValuedFieldGetProperty() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(count("count").field("value"))).execute().actionGet();
 
@@ -124,8 +118,7 @@ public class ValueCountTests extends ESIntegTestCase {
         assertThat((double) valueCount.getProperty("value"), equalTo(10d));
     }
 
-    @Test
-    public void singleValuedField_PartiallyUnmapped() throws Exception {
+    public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(count("count").field("value"))
@@ -139,9 +132,7 @@ public class ValueCountTests extends ESIntegTestCase {
         assertThat(valueCount.getValue(), equalTo(10l));
     }
 
-    @Test
-    public void multiValuedField() throws Exception {
-
+    public void testMultiValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(count("count").field("values"))
@@ -155,8 +146,7 @@ public class ValueCountTests extends ESIntegTestCase {
         assertThat(valueCount.getValue(), equalTo(20l));
     }
 
-    @Test
-    public void singleValuedScript() throws Exception {
+    public void testSingleValuedScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(count("count").script(new Script("doc['value'].value"))).execute().actionGet();
 
@@ -168,8 +158,7 @@ public class ValueCountTests extends ESIntegTestCase {
         assertThat(valueCount.getValue(), equalTo(10l));
     }
 
-    @Test
-    public void multiValuedScript() throws Exception {
+    public void testMultiValuedScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(count("count").script(new Script("doc['values'].values"))).execute().actionGet();
 
@@ -181,8 +170,7 @@ public class ValueCountTests extends ESIntegTestCase {
         assertThat(valueCount.getValue(), equalTo(20l));
     }
 
-    @Test
-    public void singleValuedScriptWithParams() throws Exception {
+    public void testSingleValuedScriptWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("s", "value");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
@@ -196,8 +184,7 @@ public class ValueCountTests extends ESIntegTestCase {
         assertThat(valueCount.getValue(), equalTo(10l));
     }
 
-    @Test
-    public void multiValuedScriptWithParams() throws Exception {
+    public void testMultiValuedScriptWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("s", "values");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
@@ -210,5 +197,4 @@ public class ValueCountTests extends ESIntegTestCase {
         assertThat(valueCount.getName(), equalTo("count"));
         assertThat(valueCount.getValue(), equalTo(20l));
     }
-
 }

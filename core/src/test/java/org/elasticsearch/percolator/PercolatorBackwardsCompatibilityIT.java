@@ -23,9 +23,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.index.percolator.PercolatorException;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.index.query.QueryShardException;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -36,8 +35,6 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  */
 public class PercolatorBackwardsCompatibilityIT extends ESIntegTestCase {
-
-    @Test
     public void testPercolatorUpgrading() throws Exception {
         // Simulates an index created on an node before 1.4.0 where the field resolution isn't strict.
         assertAcked(prepareCreate("test")
@@ -53,7 +50,7 @@ public class PercolatorBackwardsCompatibilityIT extends ESIntegTestCase {
         PercolateResponse response = client().preparePercolate().setIndices("test").setDocumentType("type")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("field1", "value"))
                 .get();
-        assertMatchCount(response, (long) numDocs);
+        assertMatchCount(response, numDocs);
 
         // After upgrade indices, indices created before the upgrade allow that queries refer to fields not available in mapping
         client().prepareIndex("test", PercolatorService.TYPE_NAME)

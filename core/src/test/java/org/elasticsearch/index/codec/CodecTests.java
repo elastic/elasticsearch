@@ -41,14 +41,11 @@ import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
@@ -62,17 +59,17 @@ public class CodecTests extends ESSingleNodeTestCase {
         assertThat(codecService.codec("Lucene41"), instanceOf(Lucene41Codec.class));
         assertThat(codecService.codec("Lucene42"), instanceOf(Lucene42Codec.class));
     }
-    
+
     public void testDefault() throws Exception {
         Codec codec = createCodecService().codec("default");
         assertCompressionEquals(Mode.BEST_SPEED, codec);
     }
-    
+
     public void testBestCompression() throws Exception {
         Codec codec = createCodecService().codec("best_compression");
         assertCompressionEquals(Mode.BEST_COMPRESSION, codec);
     }
-    
+
     // write some docs with it, inspect .si to see this was the used compression
     private void assertCompressionEquals(Mode expected, Codec actual) throws Exception {
         Directory dir = newDirectory();

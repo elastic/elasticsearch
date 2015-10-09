@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -56,7 +55,6 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         assertThat(wildcardQuery.getTerm().text(), equalTo(queryBuilder.value()));
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             if (randomBoolean()) {
@@ -77,7 +75,6 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         }
     }
 
-    @Test
     public void testEmptyValue() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);

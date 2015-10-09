@@ -41,7 +41,6 @@ import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -121,7 +120,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 .endObject();
     }
 
-    @Test
     public void testDfsQueryThenFetch() throws Exception {
         Settings.Builder settingsBuilder = settingsBuilder()
             .put(indexSettings())
@@ -161,7 +159,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertEquals(100, total);
     }
 
-    @Test
     public void testDfsQueryThenFetchWithSort() throws Exception {
         prepareData();
 
@@ -186,7 +183,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertEquals(100, total);
     }
 
-    @Test
     public void testQueryThenFetch() throws Exception {
         prepareData();
 
@@ -211,7 +207,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertEquals(100, total);
     }
 
-    @Test
     public void testQueryThenFetchWithFrom() throws Exception {
         Set<String> fullExpectedIds = prepareData();
 
@@ -240,7 +235,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertThat(collectedIds, equalTo(fullExpectedIds));
     }
 
-    @Test
     public void testQueryThenFetchWithSort() throws Exception {
         prepareData();
 
@@ -265,7 +259,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertEquals(100, total);
     }
 
-    @Test
     public void testQueryAndFetch() throws Exception {
         prepareData(3);
 
@@ -305,7 +298,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
-    @Test
     public void testDfsQueryAndFetch() throws Exception {
         prepareData(3);
 
@@ -347,7 +339,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
-    @Test
     public void testSimpleFacets() throws Exception {
         prepareData();
 
@@ -369,7 +360,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertThat(all.getDocCount(), equalTo(100l));
     }
 
-    @Test
     public void testFailedSearchWithWrongQuery() throws Exception {
         prepareData();
 
@@ -390,7 +380,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         logger.info("Done Testing failed search");
      }
 
-    @Test
     public void testFailedSearchWithWrongFrom() throws Exception {
         prepareData();
 
@@ -421,7 +410,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         logger.info("Done Testing failed search");
     }
 
-    @Test
     public void testFailedMultiSearchWithWrongQuery() throws Exception {
         prepareData();
 
@@ -445,8 +433,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         logger.info("Done Testing failed search");
     }
 
-    @Test
-    public void testFailedMultiSearchWithWrongQuery_withFunctionScore() throws Exception {
+    public void testFailedMultiSearchWithWrongQueryWithFunctionScore() throws Exception {
         prepareData();
 
         logger.info("Start Testing failed multi search with a wrong query");

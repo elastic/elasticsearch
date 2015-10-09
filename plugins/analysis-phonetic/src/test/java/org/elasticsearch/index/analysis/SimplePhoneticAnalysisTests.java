@@ -33,7 +33,6 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
@@ -41,8 +40,6 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  */
 public class SimplePhoneticAnalysisTests extends ESTestCase {
-
-    @Test
     public void testPhoneticTokenFilterFactory() {
         String yaml = "/org/elasticsearch/index/analysis/phonetic-1.yml";
         Settings settings = settingsBuilder().loadFromStream(yaml, getClass().getResourceAsStream(yaml))

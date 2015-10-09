@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -174,21 +173,18 @@ public class FreqTermsEnumTests extends ESTestCase {
         super.tearDown();
     }
 
-    @Test
     public void testAllFreqs() throws Exception {
         assertAgainstReference(true, true, null, referenceAll);
         assertAgainstReference(true, false, null, referenceAll);
         assertAgainstReference(false, true, null, referenceAll);
     }
 
-    @Test
     public void testNonDeletedFreqs() throws Exception {
         assertAgainstReference(true, true, Queries.newMatchAllQuery(), referenceNotDeleted);
         assertAgainstReference(true, false, Queries.newMatchAllQuery(), referenceNotDeleted);
         assertAgainstReference(false, true, Queries.newMatchAllQuery(), referenceNotDeleted);
     }
 
-    @Test
     public void testFilterFreqs() throws Exception {
         assertAgainstReference(true, true, filter, referenceFilter);
         assertAgainstReference(true, false, filter, referenceFilter);

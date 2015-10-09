@@ -23,16 +23,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 
 /**
  *
  */
 public class PreBuiltTokenizerFactoryFactoryTests extends ESTestCase {
-
-    @Test
     public void testThatDifferentVersionsCanBeLoaded() {
         PreBuiltTokenizerFactoryFactory factory = new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.STANDARD.getTokenizerFactory(Version.CURRENT));
 
@@ -45,5 +43,4 @@ public class PreBuiltTokenizerFactoryFactoryTests extends ESTestCase {
         assertThat(currentTokenizerFactory, is(not(former090TokenizerFactoryCopy)));
         assertThat(former090TokenizerFactory, is(former090TokenizerFactoryCopy));
     }
-
 }

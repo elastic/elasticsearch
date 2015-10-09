@@ -19,18 +19,20 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import java.io.*;
+import org.elasticsearch.test.ESTestCase;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class SlicedInputStreamTests extends ESTestCase {
-
-    @Test
-    public void readRandom() throws IOException {
+    public void testReadRandom() throws IOException {
         int parts = randomIntBetween(1, 20);
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         int numWriteOps = scaledRandomIntBetween(1000, 10000);

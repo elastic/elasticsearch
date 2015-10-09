@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,9 +41,18 @@ import java.util.Set;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.children;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  */
@@ -120,7 +128,6 @@ public class ChildrenIT extends ESIntegTestCase {
         ensureSearchable("test");
     }
 
-    @Test
     public void testChildrenAggs() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(matchQuery("randomized", true))
@@ -162,7 +169,6 @@ public class ChildrenIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testParentWithMultipleBuckets() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(matchQuery("randomized", false))
@@ -225,7 +231,6 @@ public class ChildrenIT extends ESIntegTestCase {
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
     }
 
-    @Test
     public void testWithDeletes() throws Exception {
         String indexName = "xyz";
         assertAcked(
@@ -270,7 +275,6 @@ public class ChildrenIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testNonExistingChildType() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .addAggregation(
@@ -283,7 +287,6 @@ public class ChildrenIT extends ESIntegTestCase {
         assertThat(children.getDocCount(), equalTo(0l));
     }
 
-    @Test
     public void testPostCollection() throws Exception {
         String indexName = "prodcatalog";
         String masterType = "masterprod";
@@ -343,7 +346,6 @@ public class ChildrenIT extends ESIntegTestCase {
         assertThat(termsAgg.getBucketByKey("44").getDocCount(), equalTo(1l));
     }
 
-    @Test
     public void testHierarchicalChildrenAggs() {
         String indexName = "geo";
         String grandParentType = "continent";

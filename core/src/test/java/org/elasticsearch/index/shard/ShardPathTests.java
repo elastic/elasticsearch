@@ -18,23 +18,21 @@
  */
 package org.elasticsearch.index.shard;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Set;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 /**
  */
 public class ShardPathTests extends ESTestCase {
-
     public void testLoadShardPath() throws IOException {
         try (final NodeEnvironment env = newNodeEnvironment(settingsBuilder().build())) {
             Settings.Builder builder = settingsBuilder().put(IndexMetaData.SETTING_INDEX_UUID, "0xDEADBEEF");
@@ -52,7 +50,6 @@ public class ShardPathTests extends ESTestCase {
         }
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailLoadShardPathOnMultiState() throws IOException {
         try (final NodeEnvironment env = newNodeEnvironment(settingsBuilder().build())) {
             Settings.Builder builder = settingsBuilder().put(IndexMetaData.SETTING_INDEX_UUID, "0xDEADBEEF");
@@ -63,10 +60,12 @@ public class ShardPathTests extends ESTestCase {
             int id = randomIntBetween(1, 10);
             ShardStateMetaData.FORMAT.write(new ShardStateMetaData(id, true, "0xDEADBEEF"), id, paths);
             ShardPath.loadShardPath(logger, env, shardId, settings);
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("more than one shard state found"));
         }
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailLoadShardPathIndexUUIDMissmatch() throws IOException {
         try (final NodeEnvironment env = newNodeEnvironment(settingsBuilder().build())) {
             Settings.Builder builder = settingsBuilder().put(IndexMetaData.SETTING_INDEX_UUID, "foobar");
@@ -77,13 +76,20 @@ public class ShardPathTests extends ESTestCase {
             int id = randomIntBetween(1, 10);
             ShardStateMetaData.FORMAT.write(new ShardStateMetaData(id, true, "0xDEADBEEF"), id, path);
             ShardPath.loadShardPath(logger, env, shardId, settings);
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("expected: foobar on shard path"));
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testIllegalCustomDataPath() {
         final Path path = createTempDir().resolve("foo").resolve("0");
-        new ShardPath(true, path, path, "foo", new ShardId("foo", 0));
+        try {
+            new ShardPath(true, path, path, "foo", new ShardId("foo", 0));
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("shard state path must be different to the data path when using custom data paths"));
+        }
     }
 
     public void testValidCtor() {

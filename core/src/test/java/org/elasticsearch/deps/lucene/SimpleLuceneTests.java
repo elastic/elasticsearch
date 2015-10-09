@@ -19,9 +19,34 @@
 
 package org.elasticsearch.deps.lucene;
 
-import org.apache.lucene.document.*;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SlowCompositeReaderWrapper;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
@@ -29,7 +54,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,8 +64,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class SimpleLuceneTests extends ESTestCase {
-
-    @Test
     public void testSortValues() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -61,7 +83,6 @@ public class SimpleLuceneTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSimpleNumericOps() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -93,7 +114,6 @@ public class SimpleLuceneTests extends ESTestCase {
      * of the field. This means that heavily accessed fields that use field selector should be added
      * first (with load and break).
      */
-    @Test
     public void testOrdering() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -122,7 +142,6 @@ public class SimpleLuceneTests extends ESTestCase {
         indexWriter.close();
     }
 
-    @Test
     public void testBoost() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -157,7 +176,6 @@ public class SimpleLuceneTests extends ESTestCase {
         indexWriter.close();
     }
 
-    @Test
     public void testNRTSearchOnClosedWriter() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -182,7 +200,6 @@ public class SimpleLuceneTests extends ESTestCase {
      * A test just to verify that term freqs are not stored for numeric fields. <tt>int1</tt> is not storing termFreq
      * and <tt>int2</tt> does.
      */
-    @Test
     public void testNumericTermDocsFreqs() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));

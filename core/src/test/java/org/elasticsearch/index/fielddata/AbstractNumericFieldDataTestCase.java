@@ -24,10 +24,14 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.MultiValueMode;
-import org.junit.Test;
 
 import java.util.Locale;
 
@@ -36,7 +40,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public abstract class AbstractNumericFieldDataTestCase extends AbstractFieldDataImplTestCase {
-
     @Override
     protected abstract FieldDataType getFieldDataType();
 
@@ -50,7 +53,6 @@ public abstract class AbstractNumericFieldDataTestCase extends AbstractFieldData
         return builder;
     }
 
-    @Test
     public void testSingleValueAllSetNumber() throws Exception {
         fillSingleValueAllSet();
         IndexNumericFieldData indexFieldData = getForField("value");
@@ -106,7 +108,6 @@ public abstract class AbstractNumericFieldDataTestCase extends AbstractFieldData
         assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
     }
 
-    @Test
     public void testSingleValueWithMissingNumber() throws Exception {
         fillSingleValueWithMissing();
         IndexNumericFieldData indexFieldData = getForField("value");
@@ -188,7 +189,6 @@ public abstract class AbstractNumericFieldDataTestCase extends AbstractFieldData
         assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
     }
 
-    @Test
     public void testMultiValueAllSetNumber() throws Exception {
         fillMultiValueAllSet();
         IndexNumericFieldData indexFieldData = getForField("value");
@@ -229,7 +229,6 @@ public abstract class AbstractNumericFieldDataTestCase extends AbstractFieldData
         assertThat(doubleValues.valueAt(0), equalTo(3d));
     }
 
-    @Test
     public void testMultiValueWithMissingNumber() throws Exception {
         fillMultiValueWithMissing();
         IndexNumericFieldData indexFieldData = getForField("value");
@@ -270,7 +269,6 @@ public abstract class AbstractNumericFieldDataTestCase extends AbstractFieldData
     }
 
     @Override
-    @Test
     public void testMissingValueForAll() throws Exception {
         fillAllMissing();
         IndexNumericFieldData indexFieldData = getForField("value");
@@ -320,7 +318,6 @@ public abstract class AbstractNumericFieldDataTestCase extends AbstractFieldData
     }
 
     @Override
-    @Test
     public void testSortMultiValuesFields() throws Exception {
         fillExtendedMvSet();
         IndexFieldData indexFieldData = getForField("value");

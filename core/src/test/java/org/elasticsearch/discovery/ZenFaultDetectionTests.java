@@ -39,7 +39,6 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -48,7 +47,6 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ZenFaultDetectionTests extends ESTestCase {
-
     protected ThreadPool threadPool;
 
     protected static final Version version0 = Version.fromId(/*0*/99);
@@ -129,7 +127,6 @@ public class ZenFaultDetectionTests extends ESTestCase {
         return builder.build();
     }
 
-    @Test
     public void testNodesFaultDetectionConnectOnDisconnect() throws InterruptedException {
         Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
@@ -178,9 +175,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
         assertThat(failureReason[0], matcher);
     }
 
-    @Test
     public void testMasterFaultDetectionConnectOnDisconnect() throws InterruptedException {
-
         Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
         // make sure we don't ping

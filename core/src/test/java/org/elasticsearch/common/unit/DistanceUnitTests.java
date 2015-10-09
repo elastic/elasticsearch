@@ -20,7 +20,6 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -29,8 +28,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class DistanceUnitTests extends ESTestCase {
-
-    @Test
     public void testSimpleDistanceUnit() {
         assertThat(DistanceUnit.KILOMETERS.convert(10, DistanceUnit.MILES), closeTo(16.09344, 0.001));
         assertThat(DistanceUnit.MILES.convert(10, DistanceUnit.MILES), closeTo(10, 0.001));
@@ -41,8 +38,7 @@ public class DistanceUnitTests extends ESTestCase {
         assertThat(DistanceUnit.KILOMETERS.convert(1000,DistanceUnit.METERS), closeTo(1, 0.001));
         assertThat(DistanceUnit.METERS.convert(1, DistanceUnit.KILOMETERS), closeTo(1000, 0.001));
     }
-    
-    @Test
+
     public void testDistanceUnitParsing() {
         assertThat(DistanceUnit.Distance.parseDistance("50km").unit, equalTo(DistanceUnit.KILOMETERS));
         assertThat(DistanceUnit.Distance.parseDistance("500m").unit, equalTo(DistanceUnit.METERS));
@@ -53,7 +49,7 @@ public class DistanceUnitTests extends ESTestCase {
         assertThat(DistanceUnit.Distance.parseDistance("12in").unit, equalTo(DistanceUnit.INCH));
         assertThat(DistanceUnit.Distance.parseDistance("23mm").unit, equalTo(DistanceUnit.MILLIMETERS));
         assertThat(DistanceUnit.Distance.parseDistance("23cm").unit, equalTo(DistanceUnit.CENTIMETERS));
-        
+
         double testValue = 12345.678;
         for (DistanceUnit unit : DistanceUnit.values()) {
             assertThat("Unit can be parsed from '" + unit.toString() + "'", DistanceUnit.fromString(unit.toString()), equalTo(unit));
@@ -61,5 +57,4 @@ public class DistanceUnitTests extends ESTestCase {
             assertThat("Value can be parsed from '" + testValue + unit.toString() + "'", DistanceUnit.Distance.parseDistance(unit.toString(testValue)).value, equalTo(testValue));
         }
     }
-
 }

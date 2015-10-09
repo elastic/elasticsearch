@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,8 +32,6 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ZenPingTests extends ESTestCase {
-
-    @Test
     public void testPingCollection() {
         DiscoveryNode[] nodes = new DiscoveryNode[randomIntBetween(1, 30)];
         long maxIdPerNode[] = new long[nodes.length];

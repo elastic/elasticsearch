@@ -40,7 +40,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder.QueryRescorer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -66,8 +65,6 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 public class QueryRescorerIT extends ESIntegTestCase {
-
-    @Test
     public void testEnforceWindowSize() {
         createIndex("test");
         // this
@@ -101,7 +98,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testRescorePhrase() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping(
@@ -148,7 +144,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertThirdHit(searchResponse, hasId("3"));
     }
 
-    @Test
     public void testMoreDocs() throws Exception {
         Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
@@ -227,7 +222,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
     }
 
     // Tests a rescore window smaller than number of hits:
-    @Test
     public void testSmallRescoreWindow() throws Exception {
         Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
@@ -298,7 +292,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
     }
 
     // Tests a rescorer that penalizes the scores:
-    @Test
     public void testRescorerMadeScoresWorse() throws Exception {
         Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
@@ -411,7 +404,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     // forces QUERY_THEN_FETCH because of https://github.com/elasticsearch/elasticsearch/issues/4829
     public void testEquivalence() throws Exception {
         // no dummy docs since merges can change scores while we run queries.
@@ -496,7 +488,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testExplain() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping(
@@ -596,7 +587,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testScoring() throws Exception {
         int numDocs = indexRandomNumbers("keyword");
 
@@ -689,7 +679,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testMultipleRescores() throws Exception {
         int numDocs = indexRandomNumbers("keyword", 1, true);
         QueryRescorer eightIsGreat = RescoreBuilder.queryRescorer(

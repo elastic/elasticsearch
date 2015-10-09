@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -166,8 +165,7 @@ public class NestedIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void simple() throws Exception {
+    public void testSimple() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(nested("nested").path("nested")
                         .subAggregation(stats("nested_value_stats").field("nested.value")))
@@ -205,8 +203,7 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(stats.getAvg(), equalTo((double) sum / count));
     }
 
-    @Test
-    public void nonExistingNestedField() throws Exception {
+    public void testNonExistingNestedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .addAggregation(nested("nested").path("value")
                         .subAggregation(stats("nested_value_stats").field("nested.value")))
@@ -218,8 +215,7 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(nested.getDocCount(), is(0l));
     }
 
-    @Test
-    public void nestedWithSubTermsAgg() throws Exception {
+    public void testNestedWithSubTermsAgg() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(nested("nested").path("nested")
                         .subAggregation(terms("values").field("nested.value").size(100)
@@ -270,8 +266,7 @@ public class NestedIT extends ESIntegTestCase {
         assertThat((LongTerms) nested.getProperty("values"), sameInstance(values));
     }
 
-    @Test
-    public void nestedAsSubAggregation() throws Exception {
+    public void testNestedAsSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("top_values").field("value").size(100)
                         .collectMode(aggCollectionMode)
@@ -299,8 +294,7 @@ public class NestedIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void nestNestedAggs() throws Exception {
+    public void testNestNestedAggs() throws Exception {
         SearchResponse response = client().prepareSearch("idx_nested_nested_aggs")
                 .addAggregation(nested("level1").path("nested1")
                         .subAggregation(terms("a").field("nested1.a")
@@ -335,9 +329,7 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(sum.getValue(), equalTo(2d));
     }
 
-
-    @Test
-    public void emptyAggregation() throws Exception {
+    public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
@@ -356,8 +348,7 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(nested.getDocCount(), is(0l));
     }
 
-    @Test
-    public void nestedOnObjectField() throws Exception {
+    public void testNestedOnObjectField() throws Exception {
         try {
             client().prepareSearch("idx")
                     .setQuery(matchAllQuery())
@@ -369,7 +360,6 @@ public class NestedIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     // Test based on: https://github.com/elasticsearch/elasticsearch/issues/9280
     public void testParentFilterResolvedCorrectly() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("provider").startObject("properties")
@@ -468,8 +458,7 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(tags.getBuckets().size(), equalTo(0)); // and this must be empty
     }
 
-    @Test
-    public void nestedSameDocIdProcessedMultipleTime() throws Exception {
+    public void testNestedSameDocIdProcessedMultipleTime() throws Exception {
         assertAcked(
                 prepareCreate("idx4")
                         .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))

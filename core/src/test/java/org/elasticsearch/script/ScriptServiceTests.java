@@ -30,7 +30,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -74,7 +73,7 @@ public class ScriptServiceTests extends ESTestCase {
                 .put("path.conf", genericConfigFolder)
                 .build();
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
-        scriptEngineServices = newHashSet(new TestEngineService(), 
+        scriptEngineServices = newHashSet(new TestEngineService(),
                                                new MustacheScriptEngineService(baseSettings));
         scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(scriptEngineServices);
         //randomly register custom script contexts
@@ -112,7 +111,6 @@ public class ScriptServiceTests extends ESTestCase {
         };
     }
 
-    @Test
     public void testNotSupportedDisableDynamicSetting() throws IOException {
         try {
             buildScriptService(Settings.builder().put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomUnicodeOfLength(randomIntBetween(1, 10))).build());
@@ -122,7 +120,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testScriptsWithoutExtensions() throws IOException {
 
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
@@ -154,7 +151,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testInlineScriptCompiledOnceCache() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -165,7 +161,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
-    @Test
     public void testInlineScriptCompiledOnceMultipleLangAcronyms() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -176,7 +171,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
-    @Test
     public void testFileScriptCompiledOnceMultipleLangAcronyms() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -188,7 +182,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
-    @Test
     public void testDefaultBehaviourFineGrainedSettings() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings.Builder builder = Settings.builder();
@@ -217,7 +210,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testFineGrainedSettings() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         //collect the fine-grained settings to set for this run
@@ -342,7 +334,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCompileNonRegisteredContext() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -366,7 +357,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCompileCountedInCompilationStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -374,7 +364,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testExecutableCountedInCompilationStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -382,14 +371,12 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testSearchCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         scriptService.search(null, new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testMultipleCompilationsCountedInCompilationStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -401,7 +388,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(numberOfCompilations, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testCompilationStatsOnCacheHit() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings.Builder builder = Settings.builder();
@@ -412,7 +398,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testFileScriptCountedInCompilationStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -421,7 +406,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testIndexedScriptCountedInCompilationStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -429,7 +413,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testCacheEvictionCountedInCacheEvictionsStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings.Builder builder = Settings.builder();

@@ -61,7 +61,6 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -125,7 +124,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testBlocks() throws ExecutionException, InterruptedException {
         Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -162,7 +160,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertEquals(1, count.get());
     }
 
-    @Test
     public void testNotStartedPrimary() throws InterruptedException, ExecutionException {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
@@ -192,7 +189,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertIndexShardCounter(1);
     }
 
-    @Test
     public void testRoutingToPrimary() {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
@@ -227,7 +223,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testWriteConsistency() throws ExecutionException, InterruptedException {
         action = new ActionWithConsistency(Settings.EMPTY, "testActionWithConsistency", transportService, clusterService, threadPool);
         final String index = "test";
@@ -295,7 +290,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testReplication() throws ExecutionException, InterruptedException {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
@@ -319,7 +313,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         runReplicateTest(shardRoutingTable, assignedReplicas, totalShards);
     }
 
-    @Test
     public void testReplicationWithShadowIndex() throws ExecutionException, InterruptedException {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
@@ -410,7 +403,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertIndexShardCounter(1);
     }
 
-    @Test
     public void testCounterOnPrimary() throws InterruptedException, ExecutionException, IOException {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
@@ -451,7 +443,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(transport.capturedRequests().length, equalTo(0));
     }
 
-    @Test
     public void testCounterIncrementedWhileReplicationOngoing() throws InterruptedException, ExecutionException, IOException {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
@@ -479,7 +470,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertIndexShardCounter(1);
     }
 
-    @Test
     public void testReplicasCounter() throws Exception {
         final ShardId shardId = new ShardId("test", 0);
         clusterService.setState(state(shardId.index().getName(), true,
@@ -514,7 +504,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertIndexShardCounter(1);
     }
 
-    @Test
     public void testCounterDecrementedIfShardOperationThrowsException() throws InterruptedException, ExecutionException, IOException {
         action = new ActionWithExceptions(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
         final String index = "test";

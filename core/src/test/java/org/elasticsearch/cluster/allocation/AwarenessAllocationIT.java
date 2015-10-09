@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.allocation;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -34,7 +35,6 @@ import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -55,7 +55,6 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         return 1;
     }
 
-    @Test
     public void testSimpleAwareness() throws Exception {
         Settings commonSettings = Settings.settingsBuilder()
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
@@ -104,8 +103,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
                 TimeUnit.SECONDS
         ), equalTo(true));
     }
-    
-    @Test
+
     public void testAwarenessZones() throws Exception {
         Settings commonSettings = Settings.settingsBuilder()
                 .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP + "zone.values", "a,b")
@@ -153,8 +151,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(counts.get(A_0), anyOf(equalTo(2),equalTo(3)));
         assertThat(counts.get(B_0), anyOf(equalTo(2),equalTo(3)));
     }
-    
-    @Test
+
     public void testAwarenessZonesIncrementalNodes() throws Exception {
         Settings commonSettings = Settings.settingsBuilder()
                 .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
@@ -208,7 +205,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(counts.get(A_0), equalTo(5));
         assertThat(counts.get(B_0), equalTo(3));
         assertThat(counts.get(B_1), equalTo(2));
-        
+
         String noZoneNode = internalCluster().startNode();
         health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("4").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
@@ -227,7 +224,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
                 }
             }
         }
-        
+
         assertThat(counts.get(A_0), equalTo(5));
         assertThat(counts.get(B_0), equalTo(3));
         assertThat(counts.get(B_1), equalTo(2));
@@ -248,7 +245,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
                 }
             }
         }
-        
+
         assertThat(counts.get(A_0), equalTo(3));
         assertThat(counts.get(B_0), equalTo(3));
         assertThat(counts.get(B_1), equalTo(2));

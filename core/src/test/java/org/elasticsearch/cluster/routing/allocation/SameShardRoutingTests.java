@@ -33,7 +33,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -44,11 +43,9 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class SameShardRoutingTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(SameShardRoutingTests.class);
 
-    @Test
-    public void sameHost() {
+    public void testSameHost() {
         AllocationService strategy = createAllocationService(settingsBuilder().put(SameShardAllocationDecider.SAME_HOST_SETTING, true).build());
 
         MetaData metaData = MetaData.builder()

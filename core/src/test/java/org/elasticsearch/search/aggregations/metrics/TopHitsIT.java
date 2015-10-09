@@ -46,7 +46,6 @@ import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -88,7 +87,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
     private static final String TERMS_AGGS_FIELD = "terms";
     private static final String SORT_FIELD = "sort";
-    
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(MockScriptEngine.TestPlugin.class);
@@ -249,7 +248,6 @@ public class TopHitsIT extends ESIntegTestCase {
         return bucket.getKeyAsString();
     }
 
-    @Test
     public void testBasics() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -289,7 +287,6 @@ public class TopHitsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testIssue11119() throws Exception {
         // Test that top_hits aggregation is fed scores if query results size=0
         SearchResponse response = client()
@@ -348,7 +345,6 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
 
-    @Test
     public void testBreadthFirst() throws Exception {
         // breadth_first will be ignored since we need scores
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
@@ -380,8 +376,7 @@ public class TopHitsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testBasics_getProperty() throws Exception {
+    public void testBasicsGetProperty() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(topHits("hits"))).execute().actionGet();
 
@@ -400,7 +395,6 @@ public class TopHitsIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testPagination() throws Exception {
         int size = randomIntBetween(1, 10);
         int from = randomIntBetween(0, 10);
@@ -446,7 +440,6 @@ public class TopHitsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testSortByBucket() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
@@ -486,7 +479,6 @@ public class TopHitsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testFieldCollapsing() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -530,7 +522,6 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(hits.getAt(0).id(), equalTo("2"));
     }
 
-    @Test
     public void testFetchFeatures() {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .setQuery(matchQuery("text", "text").queryName("test"))
@@ -585,7 +576,6 @@ public class TopHitsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testInvalidSortField() throws Exception {
         try {
             client().prepareSearch("idx").setTypes("type")
@@ -602,7 +592,6 @@ public class TopHitsIT extends ESIntegTestCase {
         }
     }
 
-    // @Test
     // public void testFailWithSubAgg() throws Exception {
     // String source = "{\n" +
     // "  \"aggs\": {\n" +
@@ -636,7 +625,6 @@ public class TopHitsIT extends ESIntegTestCase {
     // }
     // } NORELEASE this needs to be tested in a top_hits aggregations unit test
 
-    @Test
     public void testEmptyIndex() throws Exception {
         SearchResponse response = client().prepareSearch("empty").setTypes("type")
                 .addAggregation(topHits("hits"))
@@ -649,7 +637,6 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(hits.getHits().totalHits(), equalTo(0l));
     }
 
-    @Test
     public void testTrackScores() throws Exception {
         boolean[] trackScores = new boolean[]{true, false};
         for (boolean trackScore : trackScores) {
@@ -696,7 +683,6 @@ public class TopHitsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testTopHitsInNestedSimple() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("articles")
                 .setQuery(matchQuery("title", "title"))
@@ -748,7 +734,6 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat((Integer) searchHits.getAt(0).getSource().get("date"), equalTo(4));
     }
 
-    @Test
     public void testTopHitsInSecondLayerNested() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("articles")
                 .setQuery(matchQuery("title", "title"))
@@ -849,7 +834,6 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
     }
 
-    @Test
     public void testNestedFetchFeatures() {
         String hlType = randomFrom("plain", "fvh", "postings");
         HighlightBuilder.Field hlField = new HighlightBuilder.Field("comments.message")
@@ -902,7 +886,6 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(searchHit.sourceAsMap().get("message").toString(), equalTo("some comment"));
     }
 
-    @Test
     public void testTopHitsInNested() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("articles")
                 .addAggregation(
@@ -944,7 +927,6 @@ public class TopHitsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDontExplode() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")

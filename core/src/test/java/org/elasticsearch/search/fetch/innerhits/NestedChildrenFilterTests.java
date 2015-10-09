@@ -40,7 +40,6 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext.NestedInnerHits.NestedChildrenQuery;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,8 +49,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class NestedChildrenFilterTests extends ESTestCase {
-
-    @Test
     public void testNestedChildrenFilter() throws Exception {
         int numParentDocs = scaledRandomIntBetween(0, 32);
         int maxChildDocsPerParent = scaledRandomIntBetween(8, 16);

@@ -26,20 +26,20 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Unit tests for the circuit breaker
  */
 public class CircuitBreakerUnitTests extends ESTestCase {
-
     public static long pctBytes(String percentString) {
         return Settings.EMPTY.getAsMemory("", percentString).bytes();
     }
 
-    @Test
     public void testBreakerSettingsValidationWithValidSettings() {
         // parent: {:limit 70}, fd: {:limit 50}, request: {:limit 20}
         BreakerSettings fd = new BreakerSettings(CircuitBreaker.FIELDDATA, pctBytes("50%"), 1.0);
@@ -52,7 +52,6 @@ public class CircuitBreakerUnitTests extends ESTestCase {
         HierarchyCircuitBreakerService.validateSettings(new BreakerSettings[]{fd, request});
     }
 
-    @Test
     public void testBreakerSettingsValidationNegativeOverhead() {
         // parent: {:limit 70}, fd: {:limit 50}, request: {:limit 20}
         BreakerSettings fd = new BreakerSettings(CircuitBreaker.FIELDDATA, pctBytes("50%"), -0.1);
@@ -66,7 +65,6 @@ public class CircuitBreakerUnitTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testRegisterCustomBreaker() throws Exception {
         CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new NodeSettingsService(Settings.EMPTY));
         String customName = "custom";
@@ -78,5 +76,4 @@ public class CircuitBreakerUnitTests extends ESTestCase {
         assertThat(breaker, instanceOf(CircuitBreaker.class));
         assertThat(breaker.getName(), is(customName));
     }
-
 }

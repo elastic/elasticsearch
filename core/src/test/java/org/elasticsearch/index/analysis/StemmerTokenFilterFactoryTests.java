@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
@@ -27,7 +27,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -40,8 +39,6 @@ import static org.hamcrest.Matchers.instanceOf;
  *
  */
 public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
-
-    @Test
     public void testEnglishBackwardsCompatibility() throws IOException {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
@@ -75,7 +72,6 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
 
     }
 
-    @Test
     public void testPorter2BackwardsCompatibility() throws IOException {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {

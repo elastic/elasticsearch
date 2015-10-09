@@ -21,7 +21,11 @@ package org.elasticsearch.discovery.zen.publish;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -43,25 +47,38 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BytesTransportRequest;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportConnectionListener;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseOptions;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @TestLogging("discovery.zen.publish:TRACE")
 public class PublishClusterStateActionTests extends ESTestCase {
-
     protected ThreadPool threadPool;
     protected Map<String, MockNode> nodes = new HashMap<>();
 
@@ -224,7 +241,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
         return new MockPublishAction(settings, transportService, nodesProvider, listener, discoverySettings, ClusterName.DEFAULT);
     }
 
-    @Test
     public void testSimpleClusterStatePublishing() throws Exception {
         MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT).setAsMaster();
         MockNode nodeB = createMockNode("nodeB", Settings.EMPTY, Version.CURRENT);
@@ -304,9 +320,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertSameStateFromFull(nodeC.clusterState, clusterState);
     }
 
-    @Test
     public void testUnexpectedDiffPublishing() throws Exception {
-
         MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT, new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
@@ -330,7 +344,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertSameStateFromDiff(nodeB.clusterState, clusterState);
     }
 
-    @Test
     public void testDisablingDiffPublishing() throws Exception {
         Settings noDiffPublishingSettings = Settings.builder().put(DiscoverySettings.PUBLISH_DIFF_ENABLE, false).build();
 
@@ -368,7 +381,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
     /**
      * Test not waiting on publishing works correctly (i.e., publishing times out)
      */
-    @Test
     public void testSimultaneousClusterStatePublishing() throws Exception {
         int numberOfNodes = randomIntBetween(2, 10);
         int numberOfIterations = scaledRandomIntBetween(5, 50);
@@ -416,9 +428,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSerializationFailureDuringDiffPublishing() throws Exception {
-
         MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT, new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {

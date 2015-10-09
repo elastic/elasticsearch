@@ -39,10 +39,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import java.io.InputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
@@ -68,8 +67,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to work with ExtrasFS
 public class MetaDataStateFormatTests extends ESTestCase {
-
-
     /**
      * Ensure we can read a pre-generated cluster state.
      */
@@ -138,7 +135,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testVersionMismatch() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
@@ -208,7 +204,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 long filePointer = raf.position();
                 ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
                 raf.read(bb);
-                
+
                 bb.flip();
                 byte oldValue = bb.get(0);
                 byte newValue = (byte) ~oldValue;
@@ -315,7 +311,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
         assertEquals(state.clusterUUID(), uuid);
     }
 
-    @Test
     public void testLoadState() throws IOException {
         final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         final Path[] dirs = new Path[randomIntBetween(1, 5)];

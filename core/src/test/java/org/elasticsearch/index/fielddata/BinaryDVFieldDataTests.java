@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -36,13 +36,11 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
-
     @Override
     protected boolean hasDocValues() {
         return true;
     }
 
-    @Test
     public void testDocValue() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("test")
                 .startObject("properties")

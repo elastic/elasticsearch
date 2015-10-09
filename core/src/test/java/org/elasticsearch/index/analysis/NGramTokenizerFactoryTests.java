@@ -22,7 +22,12 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.ngram.*;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
+import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenFilter;
+import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenizer;
+import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
+import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,7 +35,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -45,9 +49,6 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntB
 import static org.hamcrest.Matchers.instanceOf;
 
 public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
-
-
-    @Test
     public void testParseTokenChars() {
         final Index index = new Index("test");
         final String name = "ngr";
@@ -68,7 +69,6 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         }
     }
 
-    @Test
     public void testNoTokenChars() throws IOException {
         final Index index = new Index("test");
         final String name = "ngr";
@@ -79,7 +79,6 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         assertTokenStreamContents(tokenizer, new String[] {"1.", "1.3", "1.34", ".3", ".34", "34"});
     }
 
-    @Test
     public void testPreTokenization() throws IOException {
         // Make sure that pretokenization works well and that it can be used even with token chars which are supplementary characters
         final Index index = new Index("test");
@@ -97,7 +96,6 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
             new String[] {" a", " a!", "a!", "a!$", "!$", "!$ ", "$ ", "$ 9", " 9"});
     }
 
-    @Test
     public void testPreTokenizationEdge() throws IOException {
         // Make sure that pretokenization works well and that it can be used even with token chars which are supplementary characters
         final Index index = new Index("test");
@@ -114,8 +112,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         assertTokenStreamContents(tokenizer,
                 new String[] {" a", " a!"});
     }
-    
-    @Test
+
     public void testBackwardsCompatibilityEdgeNgramTokenizer() throws Exception {
         int iters = scaledRandomIntBetween(20, 100);
         final Index index = new Index("test");
@@ -154,10 +151,9 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
             fail("should fail side:back is not supported anymore");
         } catch (IllegalArgumentException ex) {
         }
-        
+
     }
-    
-    @Test
+
     public void testBackwardsCompatibilityNgramTokenizer() throws Exception {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
@@ -174,7 +170,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
                 Tokenizer nGramTokenizer = new NGramTokenizerFactory(index, indexSettings, name, settings).create();
                 nGramTokenizer.setReader(new StringReader("foo bar"));
-                if (compatVersion) { 
+                if (compatVersion) {
                     assertThat(nGramTokenizer, instanceOf(Lucene43NGramTokenizer.class));
                 } else {
                     assertThat(nGramTokenizer, instanceOf(NGramTokenizer.class));
@@ -189,8 +185,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
             }
         }
     }
-    
-    @Test
+
     public void testBackwardsCompatibilityEdgeNgramTokenFilter() throws Exception {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
@@ -214,7 +209,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(index, indexSettings, name, settings).create(tokenizer);
                 if (reverse) {
                     assertThat(edgeNGramTokenFilter, instanceOf(ReverseStringFilter.class));
-                } else if (compatVersion) { 
+                } else if (compatVersion) {
                     assertThat(edgeNGramTokenFilter, instanceOf(Lucene43EdgeNGramTokenFilter.class));
                 } else {
                     assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
@@ -240,7 +235,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         }
     }
 
-    
+
     private Version randomVersion(Random random) throws IllegalArgumentException, IllegalAccessException {
         Field[] declaredFields = Version.class.getDeclaredFields();
         List<Field> versionFields = new ArrayList<>();

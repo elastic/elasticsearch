@@ -21,11 +21,12 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 @SuppressWarnings("deprecation")
 public class QueryFilterBuilderTests extends AbstractQueryTestCase<QueryFilterBuilder> {
@@ -56,7 +57,6 @@ public class QueryFilterBuilderTests extends AbstractQueryTestCase<QueryFilterBu
     /**
      * test that wrapping an inner filter that returns <tt>null</tt> also returns <tt>null</tt> to pass on upwards
      */
-    @Test
     public void testInnerQueryReturnsNull() throws IOException {
         // create inner filter
         String queryString = "{ \"constant_score\" : { \"filter\" : {} } }";
@@ -66,7 +66,6 @@ public class QueryFilterBuilderTests extends AbstractQueryTestCase<QueryFilterBu
         assertNull(queryFilterQuery.toQuery(createShardContext()));
     }
 
-    @Test
     public void testValidate() {
         try {
             new QueryFilterBuilder(null);

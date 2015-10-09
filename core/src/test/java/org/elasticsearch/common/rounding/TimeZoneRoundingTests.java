@@ -24,7 +24,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
-import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
@@ -35,10 +34,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  */
 public class TimeZoneRoundingTests extends ESTestCase {
-
     final static DateTimeZone JERUSALEM_TIMEZONE = DateTimeZone.forID("Asia/Jerusalem");
 
-    @Test
     public void testUTCTimeUnitRounding() {
         Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.MONTH_OF_YEAR).build();
         assertThat(tzRounding.round(utc("2009-02-03T01:01:01")), equalTo(utc("2009-02-01T00:00:00.000Z")));
@@ -53,7 +50,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
         assertThat(tzRounding.nextRoundingValue(utc("2012-01-08T00:00:00.000Z")), equalTo(utc("2012-01-15T00:00:00.000Z")));
     }
 
-    @Test
     public void testUTCIntervalRounding() {
         Rounding tzRounding = TimeZoneRounding.builder(TimeValue.timeValueHours(12)).build();
         assertThat(tzRounding.round(utc("2009-02-03T01:01:01")), equalTo(utc("2009-02-03T00:00:00.000Z")));
@@ -74,7 +70,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
     /**
      * test TimeIntervalTimeZoneRounding, (interval &lt; 12h) with time zone shift
      */
-    @Test
     public void testTimeIntervalTimeZoneRounding() {
         Rounding tzRounding = TimeZoneRounding.builder(TimeValue.timeValueHours(6)).timeZone(DateTimeZone.forOffsetHours(-1)).build();
         assertThat(tzRounding.round(utc("2009-02-03T00:01:01")), equalTo(utc("2009-02-02T19:00:00.000Z")));
@@ -90,7 +85,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
     /**
      * test DayIntervalTimeZoneRounding, (interval &gt;= 12h) with time zone shift
      */
-    @Test
     public void testDayIntervalTimeZoneRounding() {
         Rounding tzRounding = TimeZoneRounding.builder(TimeValue.timeValueHours(12)).timeZone(DateTimeZone.forOffsetHours(-8)).build();
         assertThat(tzRounding.round(utc("2009-02-03T00:01:01")), equalTo(utc("2009-02-02T20:00:00.000Z")));
@@ -103,7 +97,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
         assertThat(tzRounding.nextRoundingValue(utc("2009-02-03T08:00:00.000Z")), equalTo(utc("2009-02-03T20:00:00.000Z")));
     }
 
-    @Test
     public void testDayTimeZoneRounding() {
         int timezoneOffset = -2;
         Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.forOffsetHours(timezoneOffset))
@@ -139,7 +132,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
         assertThat(tzRounding.nextRoundingValue(utc("2009-02-03T02:00:00")), equalTo(utc("2009-02-04T02:00:00")));
     }
 
-    @Test
     public void testTimeTimeZoneRounding() {
         // hour unit
         Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.forOffsetHours(-2)).build();
@@ -151,7 +143,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
         assertThat(tzRounding.nextRoundingValue(utc("2009-02-03T01:00:00")), equalTo(utc("2009-02-03T02:00:00")));
     }
 
-    @Test
     public void testTimeUnitRoundingDST() {
         Rounding tzRounding;
         // testing savings to non savings switch
@@ -203,7 +194,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
     /**
      * randomized test on TimeUnitRounding with random time units and time zone offsets
      */
-    @Test
     public void testTimeZoneRoundingRandom() {
         for (int i = 0; i < 1000; ++i) {
             DateTimeUnit timeUnit = randomTimeUnit();
@@ -223,7 +213,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
     /**
      * randomized test on TimeIntervalRounding with random interval and time zone offsets
      */
-    @Test
     public void testIntervalRoundingRandom() {
         for (int i = 0; i < 1000; ++i) {
             // max random interval is a year, can be negative
@@ -245,7 +234,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
     /**
      * special test for DST switch from #9491
      */
-    @Test
     public void testAmbiguousHoursAfterDSTSwitch() {
         Rounding tzRounding;
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(JERUSALEM_TIMEZONE).build();
@@ -284,7 +272,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
      * test for #10025, strict local to UTC conversion can cause joda exceptions
      * on DST start
      */
-    @Test
     public void testLenientConversionDST() {
         DateTimeZone tz = DateTimeZone.forID("America/Sao_Paulo");
         long start = time("2014-10-18T20:50:00.000", tz);

@@ -39,22 +39,23 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.util.HashMap;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
 public class NoMasterNodeIT extends ESIntegTestCase {
-
-    @Test
     public void testNoMasterActions() throws Exception {
         // note, sometimes, we want to check with the fact that an index gets created, sometimes not...
         boolean autoCreateIndex = randomBoolean();
@@ -211,8 +212,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testNoMasterActions_writeMasterBlock() throws Exception {
+    public void testNoMasterActionsWriteMasterBlock() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("action.auto_create_index", false)

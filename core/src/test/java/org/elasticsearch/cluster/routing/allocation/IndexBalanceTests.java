@@ -30,9 +30,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -41,10 +42,8 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class IndexBalanceTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(IndexBalanceTests.class);
 
-    @Test
     public void testBalanceAllNodesStarted() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
@@ -175,7 +174,6 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").shardsWithState("test1", STARTED).size(), equalTo(2));
     }
 
-    @Test
     public void testBalanceIncrementallyStartNodes() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
@@ -338,7 +336,6 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").shardsWithState("test1", STARTED).size(), equalTo(2));
     }
 
-    @Test
     public void testBalanceAllNodesStartedAddIndex() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)

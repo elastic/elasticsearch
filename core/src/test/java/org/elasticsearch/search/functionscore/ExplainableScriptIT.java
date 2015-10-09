@@ -27,7 +27,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.AbstractDoubleSearchScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ExplainableSearchScript;
+import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -35,7 +39,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,15 +58,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class ExplainableScriptIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(ExplainableScriptPlugin.class);
     }
 
-    @Test
     public void testNativeExplainScript() throws InterruptedException, IOException, ExecutionException {
-
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             indexRequests.add(client().prepareIndex("test", "type").setId(Integer.toString(i)).setSource(

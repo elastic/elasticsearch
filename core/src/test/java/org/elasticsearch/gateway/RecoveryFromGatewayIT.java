@@ -34,10 +34,10 @@ import org.elasticsearch.indices.flush.SyncedFlushUtil;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
-import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -45,7 +45,6 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,8 +54,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 public class RecoveryFromGatewayIT extends ESIntegTestCase {
-
-    @Test
     public void testOneNodeRecoverFromGateway() throws Exception {
 
         internalCluster().startNode();
@@ -98,9 +95,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
     }
 
-    @Test
     public void testSingleNodeNoFlush() throws Exception {
-
         internalCluster().startNode();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
@@ -183,10 +178,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("num", 179)).get(), value1Docs);
         }
     }
-    
-    @Test
-    public void testSingleNodeWithFlush() throws Exception {
 
+    public void testSingleNodeWithFlush() throws Exception {
         internalCluster().startNode();
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         flush();
@@ -217,9 +210,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testTwoNodeFirstNodeCleared() throws Exception {
-
         final String firstNode = internalCluster().startNode();
         internalCluster().startNode();
 
@@ -256,7 +247,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testLatestVersionLoaded() throws Exception {
         // clean two nodes
         internalCluster().startNodesAsync(2, settingsBuilder().put("gateway.recover_after_nodes", 2).build()).get();
@@ -329,7 +319,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         assertThat(state.metaData().index("test").getAliases().get("test_alias").filter(), notNullValue());
     }
 
-    @Test
     @TestLogging("gateway:TRACE,indices.recovery:TRACE,index.engine:TRACE")
     public void testReusePeerRecovery() throws Exception {
         final Settings settings = settingsBuilder()
@@ -438,7 +427,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 

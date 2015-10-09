@@ -29,18 +29,17 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateRequestTests extends ESTestCase {
-
-    @Test
     public void testUpdateRequest() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type", "1");
         // simple script
@@ -126,7 +125,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }
 
-    @Test // Related to issue 3256
+    // Related to issue 3256
     public void testUpdateRequestWithTTL() throws Exception {
         long providedTTLValue = randomIntBetween(500, 1000);
         Settings settings = settings(Version.CURRENT).build();

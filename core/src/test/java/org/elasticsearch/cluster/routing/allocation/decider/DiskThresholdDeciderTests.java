@@ -49,7 +49,6 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -71,8 +70,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         return new ShardsAllocators(NoopGatewayAllocator.INSTANCE);
     }
 
-    @Test
-    public void diskThresholdTest() {
+    public void testDiskThreshold() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.7)
@@ -266,8 +264,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node4").size(), equalTo(1));
     }
 
-    @Test
-    public void diskThresholdWithAbsoluteSizesTest() {
+    public void testDiskThresholdWithAbsoluteSizes() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "30b")
@@ -535,8 +532,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node5").size(), equalTo(1));
     }
 
-    @Test
-    public void diskThresholdWithShardSizes() {
+    public void testDiskThresholdWithShardSizes() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.7)
@@ -603,8 +599,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
     }
 
-    @Test
-    public void unknownDiskUsageTest() {
+    public void testUnknownDiskUsage() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.7)
@@ -678,8 +673,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
     }
 
-    @Test
-    public void averageUsageUnitTest() {
+    public void testAverageUsage() {
         RoutingNode rn = new RoutingNode("node1", newNode("node1"));
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY);
 
@@ -692,8 +686,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(node1Usage.getFreeBytes(), equalTo(25L));
     }
 
-    @Test
-    public void freeDiskPercentageAfterShardAssignedUnitTest() {
+    public void testFreeDiskPercentageAfterShardAssigned() {
         RoutingNode rn = new RoutingNode("node1", newNode("node1"));
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY);
 
@@ -705,7 +698,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(after, equalTo(19.0));
     }
 
-    @Test
     public void testShardRelocationsTakenIntoAccount() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
@@ -812,7 +804,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     }
 
-    @Test
     public void testCanRemainWithShardRelocatingAway() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)

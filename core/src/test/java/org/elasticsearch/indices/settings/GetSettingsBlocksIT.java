@@ -22,19 +22,19 @@ package org.elasticsearch.indices.settings;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class GetSettingsBlocksIT extends ESIntegTestCase {
-
-    @Test
     public void testGetSettingsWithBlocks() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.settingsBuilder()

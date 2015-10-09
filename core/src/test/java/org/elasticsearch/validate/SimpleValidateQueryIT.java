@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.validate;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
@@ -37,9 +36,9 @@ import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
-import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -47,6 +46,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -54,9 +54,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ClusterScope(randomDynamicTemplates = false, scope = Scope.SUITE)
 public class SimpleValidateQueryIT extends ESIntegTestCase {
-
-    @Test
-    public void simpleValidateQuery() throws Exception {
+    public void testSimpleValidateQuery() throws Exception {
         createIndex("test");
         ensureGreen();
         client().admin().indices().preparePutMapping("test").setType("type1")
@@ -80,8 +78,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1 AND")).execute().actionGet().isValid(), equalTo(false));
     }
 
-    @Test
-    public void explainValidateQueryTwoNodes() throws IOException {
+    public void testExplainValidateQueryTwoNodes() throws IOException {
         createIndex("test");
         ensureGreen();
         client().admin().indices().preparePutMapping("test").setType("type1")
@@ -119,8 +116,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test //https://github.com/elasticsearch/elasticsearch/issues/3629
-    public void explainDateRangeInQueryString() {
+    // Issue #3629
+    public void testExplainDateRangeInQueryString() {
         assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder()
                 .put(indexSettings())
                 .put("index.number_of_shards", 1)));
@@ -145,13 +142,16 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(response.isValid(), equalTo(true));
     }
 
-    @Test(expected = IndexNotFoundException.class)
-    public void validateEmptyCluster() {
-        client().admin().indices().prepareValidateQuery().get();
+    public void testValidateEmptyCluster() {
+        try {
+            client().admin().indices().prepareValidateQuery().get();
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test
-    public void explainNoQuery() {
+    public void testExplainNoQuery() {
         createIndex("test");
         ensureGreen();
 
@@ -162,8 +162,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), equalTo("*:*"));
     }
 
-    @Test
-    public void explainFilteredAlias() {
+    public void testExplainFilteredAlias() {
         assertAcked(prepareCreate("test")
                 .addMapping("test", "field", "type=string")
                 .addAlias(new Alias("alias").filter(QueryBuilders.termQuery("field", "value1"))));
@@ -177,8 +176,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:value1"));
     }
 
-    @Test
-    public void explainMatchPhrasePrefix() {
+    public void testExplainMatchPhrasePrefix() {
         assertAcked(prepareCreate("test").setSettings(
                 Settings.settingsBuilder().put(indexSettings())
                         .put("index.analysis.filter.syns.type", "synonym")
@@ -214,8 +212,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo (one* two*)\""));
     }
 
-    @Test
-    public void explainWithRewriteValidateQuery() throws Exception {
+    public void testExplainWithRewriteValidateQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field", "type=string,analyzer=whitespace")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
@@ -258,8 +255,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 containsString("field:huge field:pidgin"), true);
     }
 
-    @Test
-    public void irrelevantPropertiesBeforeQuery() throws IOException {
+    public void testIrrelevantPropertiesBeforeQuery() throws IOException {
         createIndex("test");
         ensureGreen();
         refresh();
@@ -267,8 +263,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareValidateQuery("test").setSource(new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}")).get().isValid(), equalTo(false));
     }
 
-    @Test
-    public void irrelevantPropertiesAfterQuery() throws IOException {
+    public void testIrrelevantPropertiesAfterQuery() throws IOException {
         createIndex("test");
         ensureGreen();
         refresh();

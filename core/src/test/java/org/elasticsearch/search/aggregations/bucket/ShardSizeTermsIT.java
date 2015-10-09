@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -32,9 +31,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardSizeTermsIT extends ShardSizeTestCase {
-
-    @Test
-    public void noShardSize_string() throws Exception {
+    public void testNoShardSizeString() throws Exception {
         createIdx("type=string,index=not_analyzed");
 
         indexData();
@@ -57,8 +54,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void shardSizeEqualsSize_string() throws Exception {
+    public void testShardSizeEqualsSizeString() throws Exception {
         createIdx("type=string,index=not_analyzed");
 
         indexData();
@@ -81,8 +77,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void withShardSize_string() throws Exception {
+    public void testWithShardSizeString() throws Exception {
 
         createIdx("type=string,index=not_analyzed");
 
@@ -106,8 +101,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void withShardSize_string_singleShard() throws Exception {
+    public void testWithShardSizeStringSingleShard() throws Exception {
 
         createIdx("type=string,index=not_analyzed");
 
@@ -131,8 +125,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void noShardSizeTermOrder_string() throws Exception {
+    public void testNoShardSizeTermOrderString() throws Exception {
         createIdx("type=string,index=not_analyzed");
 
         indexData();
@@ -155,9 +148,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void noShardSize_long() throws Exception {
-
+    public void testNoShardSizeLong() throws Exception {
         createIdx("type=long");
 
         indexData();
@@ -180,9 +171,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void shardSizeEqualsSize_long() throws Exception {
-
+    public void testShardSizeEqualsSizeLong() throws Exception {
         createIdx("type=long");
 
         indexData();
@@ -205,9 +194,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void withShardSize_long() throws Exception {
-
+    public void testWithShardSizeLong() throws Exception {
         createIdx("type=long");
 
         indexData();
@@ -230,8 +217,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void withShardSize_long_singleShard() throws Exception {
+    public void testWithShardSizeLongSingleShard() throws Exception {
 
         createIdx("type=long");
 
@@ -255,9 +241,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void noShardSizeTermOrder_long() throws Exception {
-
+    public void testNoShardSizeTermOrderLong() throws Exception {
         createIdx("type=long");
 
         indexData();
@@ -280,9 +264,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void noShardSize_double() throws Exception {
-
+    public void testNoShardSizeDouble() throws Exception {
         createIdx("type=double");
 
         indexData();
@@ -305,9 +287,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void shardSizeEqualsSize_double() throws Exception {
-
+    public void testShardSizeEqualsSizeDouble() throws Exception {
         createIdx("type=double");
 
         indexData();
@@ -330,9 +310,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void withShardSize_double() throws Exception {
-
+    public void testWithShardSizeDouble() throws Exception {
         createIdx("type=double");
 
         indexData();
@@ -355,9 +333,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void withShardSize_double_singleShard() throws Exception {
-
+    public void testWithShardSizeDoubleSingleShard() throws Exception {
         createIdx("type=double");
 
         indexData();
@@ -380,9 +356,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         }
     }
 
-    @Test
-    public void noShardSizeTermOrder_double() throws Exception {
-
+    public void testNoShardSizeTermOrderDouble() throws Exception {
         createIdx("type=double");
 
         indexData();

@@ -15,12 +15,14 @@ import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0)
 public class MarvelSettingsTests extends MarvelIntegTestCase {
 
     private final TimeValue interval = newRandomTimeValue();
     private final TimeValue indexStatsTimeout = newRandomTimeValue();
+    private final TimeValue indicesStatsTimeout = newRandomTimeValue();
     private final String[] indices = randomStringArray();
     private final TimeValue clusterStateTimeout = newRandomTimeValue();
     private final TimeValue clusterStatsTimeout = newRandomTimeValue();
@@ -33,7 +35,7 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(Node.HTTP_ENABLED, true)
+                .put(Node.HTTP_ENABLED, false)
                 .put(marvelSettings())
                 .build();
     }
@@ -42,6 +44,7 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
         return Settings.builder()
                 .put(MarvelSettings.INTERVAL, interval)
                 .put(MarvelSettings.INDEX_STATS_TIMEOUT, indexStatsTimeout)
+                .put(MarvelSettings.INDICES_STATS_TIMEOUT, indicesStatsTimeout)
                 .putArray(MarvelSettings.INDICES, indices)
                 .put(MarvelSettings.CLUSTER_STATE_TIMEOUT, clusterStateTimeout)
                 .put(MarvelSettings.CLUSTER_STATS_TIMEOUT, clusterStatsTimeout)
@@ -57,6 +60,7 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
         for (final MarvelSettings marvelSettings : internalCluster().getInstances(MarvelSettings.class)) {
             assertThat(marvelSettings.interval().millis(), equalTo(interval.millis()));
             assertThat(marvelSettings.indexStatsTimeout().millis(), equalTo(indexStatsTimeout.millis()));
+            assertThat(marvelSettings.indicesStatsTimeout().millis(), equalTo(indicesStatsTimeout.millis()));
             assertArrayEquals(marvelSettings.indices(), indices);
             assertThat(marvelSettings.clusterStateTimeout().millis(), equalTo(clusterStateTimeout.millis()));
             assertThat(marvelSettings.clusterStatsTimeout().millis(), equalTo(clusterStatsTimeout.millis()));
@@ -66,9 +70,10 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
         }
 
         logger.info("--> testing marvel dynamic settings update");
+        Settings.Builder transientSettings = Settings.builder();
+
         for (String setting : MarvelSettings.dynamicSettings().keySet()) {
             Object updated = null;
-            Settings.Builder transientSettings = Settings.builder();
 
             if (setting.endsWith(".*")) {
                 setting = setting.substring(0, setting.lastIndexOf('.'));
@@ -93,41 +98,56 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
                     transientSettings.putArray(setting, (String[]) updated);
                     break;
                 default:
-                    fail("unknown dynamic setting [" + setting +"]");
+                    fail("unknown dynamic setting [" + setting + "]");
             }
+        }
 
-            logger.info("--> updating {} to value [{}]", setting, updated);
-            assertAcked(prepareRandomUpdateSettings(transientSettings.build()).get());
+        logger.error("--> updating settings");
+        final Settings updatedSettings = transientSettings.build();
+        assertAcked(prepareRandomUpdateSettings(updatedSettings).get());
 
-            // checking that the value has been correctly updated on all marvel settings services
-            final Object expected = updated;
-            final String finalSetting = setting;
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
+        logger.error("--> checking that the value has been correctly updated on all marvel settings services");
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                for (String setting : MarvelSettings.dynamicSettings().keySet()) {
                     for (final MarvelSettings marvelSettings : internalCluster().getInstances(MarvelSettings.class)) {
-                        MarvelSetting current = marvelSettings.getSetting(finalSetting);
-                        Object value = current.getValue();
+                        MarvelSetting current = null;
+                        Object value = null;
 
-                        logger.info("--> {} in {}", current, marvelSettings);
-                        if (current instanceof MarvelSetting.TimeValueSetting) {
-                            assertThat(((TimeValue) value).millis(), equalTo(((TimeValue) expected).millis()));
+                        switch (setting) {
+                            case MarvelSettings.INTERVAL:
+                            case MarvelSettings.INDEX_STATS_TIMEOUT:
+                            case MarvelSettings.INDICES_STATS_TIMEOUT:
+                            case MarvelSettings.CLUSTER_STATE_TIMEOUT:
+                            case MarvelSettings.CLUSTER_STATS_TIMEOUT:
+                            case MarvelSettings.INDEX_RECOVERY_TIMEOUT:
+                                current = marvelSettings.getSetting(setting);
+                                value = current.getValue();
+                                assertThat(value, instanceOf(TimeValue.class));
+                                assertThat(((TimeValue) value).millis(), equalTo(updatedSettings.getAsTime(setting, null).millis()));
+                                break;
 
-                        } else if (current instanceof MarvelSetting.BooleanSetting) {
-                            assertThat((Boolean) value, equalTo((Boolean) expected));
+                            case MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY:
+                                current = marvelSettings.getSetting(setting);
+                                value = current.getValue();
+                                assertThat(value, instanceOf(Boolean.class));
+                                assertThat(((Boolean) value), equalTo(updatedSettings.getAsBoolean(setting, null)));
+                                break;
 
-                        } else if (current instanceof MarvelSetting.StringSetting) {
-                            assertThat((String) value, equalTo((String) expected));
-
-                        } else if (current instanceof MarvelSetting.StringArraySetting) {
-                            assertArrayEquals((String[]) value, (String[]) expected);
-                        } else {
-                            fail("unable to check value for unknown dynamic setting [" + finalSetting + "]");
+                            default:
+                                if (setting.startsWith(MarvelSettings.INDICES)) {
+                                    current = marvelSettings.getSetting(MarvelSettings.INDICES);
+                                    value = current.getValue();
+                                    assertArrayEquals((String[]) value, updatedSettings.getAsArray(MarvelSettings.INDICES));
+                                } else {
+                                    fail("unable to check value for unknown dynamic setting [" + setting + "]");
+                                }
                         }
                     }
                 }
-            });
-        }
+            }
+        });
     }
 
     private ClusterUpdateSettingsRequestBuilder prepareRandomUpdateSettings(Settings updateSettings) {

@@ -15,6 +15,8 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -161,5 +163,43 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
         directoryReader.close();
         dir.close();
+    }
+
+    /** Same test as in FieldSubsetReaderTests, test that core cache key (needed for NRT) is working */
+    public void testCoreCacheKey() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        iwc.setMaxBufferedDocs(100);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+
+        // add two docs, id:0 and id:1
+        Document doc = new Document();
+        Field idField = new StringField("id", "", Field.Store.NO);
+        doc.add(idField);
+        idField.setStringValue("0");
+        iw.addDocument(doc);
+        idField.setStringValue("1");
+        iw.addDocument(doc);
+
+        // open reader
+        DirectoryReader ir = DocumentSubsetReader.wrap(DirectoryReader.open(iw, true), bitsetFilterCache, new MatchAllDocsQuery());
+        assertEquals(2, ir.numDocs());
+        assertEquals(1, ir.leaves().size());
+
+        // delete id:0 and reopen
+        iw.deleteDocuments(new Term("id", "0"));
+        DirectoryReader ir2 = DirectoryReader.openIfChanged(ir);
+
+        // we should have the same cache key as before
+        assertEquals(1, ir2.numDocs());
+        assertEquals(1, ir2.leaves().size());
+        assertSame(ir.leaves().get(0).reader().getCoreCacheKey(), ir2.leaves().get(0).reader().getCoreCacheKey());
+
+        // this is kind of stupid, but for now its here
+        assertNotSame(ir.leaves().get(0).reader().getCombinedCoreAndDeletesKey(), ir2.leaves().get(0).reader().getCombinedCoreAndDeletesKey());
+
+        TestUtil.checkReader(ir);
+        IOUtils.close(ir, ir2, iw, dir);
     }
 }

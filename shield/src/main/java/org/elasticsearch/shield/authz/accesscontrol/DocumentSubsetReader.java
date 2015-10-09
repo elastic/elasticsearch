@@ -140,6 +140,13 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         return true;
     }
 
+    // Don't delegate getCombinedCoreAndDeletesKey(), because we change the live docs here.
+
+    @Override
+    public Object getCoreCacheKey() {
+        return in.getCoreCacheKey();
+    }
+
     BitSet getRoleQueryBits() {
         return roleQueryBits;
     }

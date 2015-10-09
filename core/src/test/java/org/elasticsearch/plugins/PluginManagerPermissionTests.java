@@ -31,9 +31,13 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.*;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -250,6 +254,34 @@ public class PluginManagerPermissionTests extends ESTestCase {
         }
     }
 
+    public void testConfigDirectoryOwnerGroupAndPermissions() throws IOException {
+        assumeTrue("File system does not support permissions, skipping", supportsPermissions);
+        URL pluginUrl = createPlugin(false, true);
+        PluginManager pluginManager = new PluginManager(environment, pluginUrl, PluginManager.OutputMode.VERBOSE, TimeValue.timeValueSeconds(10));
+        pluginManager.downloadAndExtract(pluginName, terminal);
+        PosixFileAttributes parentFileAttributes = Files.getFileAttributeView(environment.configFile(), PosixFileAttributeView.class).readAttributes();
+        Path configPath = environment.configFile().resolve(pluginName);
+        PosixFileAttributes pluginConfigDirAttributes = Files.getFileAttributeView(configPath, PosixFileAttributeView.class).readAttributes();
+        assertThat(pluginConfigDirAttributes.owner(), equalTo(parentFileAttributes.owner()));
+        assertThat(pluginConfigDirAttributes.group(), equalTo(parentFileAttributes.group()));
+        assertThat(pluginConfigDirAttributes.permissions(), equalTo(parentFileAttributes.permissions()));
+        Path configFile = configPath.resolve("my-custom-config.yaml");
+        PosixFileAttributes pluginConfigFileAttributes = Files.getFileAttributeView(configFile, PosixFileAttributeView.class).readAttributes();
+        assertThat(pluginConfigFileAttributes.owner(), equalTo(parentFileAttributes.owner()));
+        assertThat(pluginConfigFileAttributes.group(), equalTo(parentFileAttributes.group()));
+        Set<PosixFilePermission> expectedFilePermissions = new HashSet<>();
+        for (PosixFilePermission parentPermission : parentFileAttributes.permissions()) {
+            switch(parentPermission) {
+                case OWNER_EXECUTE:
+                case GROUP_EXECUTE:
+                case OTHERS_EXECUTE:
+                    break;
+                default:
+                    expectedFilePermissions.add(parentPermission);
+            }
+        }
+        assertThat(pluginConfigFileAttributes.permissions(), equalTo(expectedFilePermissions));
+    }
 
     private URL createPlugin(boolean withBinDir, boolean withConfigDir) throws IOException {
         final Path structure = createTempDir().resolve("fake-plugin");

@@ -53,8 +53,7 @@ class BuildPlugin implements Plugin<Project> {
     /** Returns a closure of common configuration shared by unit and integration tests. */
     static Closure commonTestConfig(Project project) {
         return {
-            // TODO: don't use JAVA_HOME env var, but instead sysprop set by java?
-            jvm System.getenv('JAVA_HOME') + File.separator + 'bin' + File.separator + 'java'
+            jvm System.getProperty("java.home") + File.separator + 'bin' + File.separator + 'java'
             parallelism System.getProperty('tests.jvms', 'auto')
 
             // TODO: why are we not passing maxmemory to junit4?

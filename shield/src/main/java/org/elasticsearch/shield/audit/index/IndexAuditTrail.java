@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.audit.index;
 
-import com.google.common.base.Splitter;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
@@ -66,11 +64,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
@@ -696,7 +690,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             List<Tuple<String, Integer>> hostPortPairs = new ArrayList<>();
 
             for (String host : hosts) {
-                List<String> hostPort = Splitter.on(":").splitToList(host.trim());
+                List<String> hostPort = Arrays.asList(host.trim().split(":"));
                 if (hostPort.size() != 1 && hostPort.size() != 2) {
                     logger.warn("invalid host:port specified: [{}] for setting [shield.audit.index.client.hosts]", host);
                 }

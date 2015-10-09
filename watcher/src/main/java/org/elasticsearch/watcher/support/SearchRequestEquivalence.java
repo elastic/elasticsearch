@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.watcher.support;
 
-import com.google.common.base.Equivalence;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
-import java.io.IOException;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 
 import static org.elasticsearch.watcher.support.Exceptions.illegalState;
@@ -21,14 +20,17 @@ import static org.elasticsearch.watcher.support.Exceptions.illegalState;
  * don't compare search requests in normal runtime... we only do it in the tests. The is here basically
  * due to the lack of equals/hashcode support in SearchRequest in core.
  */
-public final class SearchRequestEquivalence extends Equivalence<SearchRequest> {
+public final class SearchRequestEquivalence {
 
     public static final SearchRequestEquivalence INSTANCE = new SearchRequestEquivalence();
 
     private SearchRequestEquivalence() {
     }
 
-    @Override
+    public final boolean equivalent(@Nullable SearchRequest a, @Nullable SearchRequest b) {
+        return a == b ? true : (a != null && b != null ? this.doEquivalent(a, b) : false);
+    }
+
     protected boolean doEquivalent(SearchRequest r1, SearchRequest r2) {
         try {
             BytesStreamOutput output1 = new BytesStreamOutput();
@@ -40,17 +42,6 @@ public final class SearchRequestEquivalence extends Equivalence<SearchRequest> {
             return Arrays.equals(bytes1, bytes2);
         } catch (Throwable t) {
             throw illegalState("could not compare search requests", t);
-        }
-    }
-
-    @Override
-    protected int doHash(SearchRequest request) {
-        try {
-            BytesStreamOutput output = new BytesStreamOutput();
-            request.writeTo(output);
-            return Arrays.hashCode(output.bytes().toBytes());
-        } catch (IOException ioe) {
-            throw illegalState("could not compute hashcode for search request", ioe);
         }
     }
 }

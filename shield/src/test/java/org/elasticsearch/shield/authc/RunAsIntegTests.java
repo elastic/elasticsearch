@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;

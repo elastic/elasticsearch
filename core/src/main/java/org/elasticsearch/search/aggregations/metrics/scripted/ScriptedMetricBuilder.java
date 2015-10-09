@@ -30,7 +30,7 @@ import java.util.Map;
 /**
  * Builder for the {@link ScriptedMetric} aggregation.
  */
-public class ScriptedMetricBuilder extends MetricsAggregationBuilder {
+public class ScriptedMetricBuilder extends MetricsAggregationBuilder<ScriptedMetricBuilder> {
 
     private Script initScript = null;
     private Script mapScript = null;

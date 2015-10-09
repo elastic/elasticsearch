@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.string;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -44,6 +43,7 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper.Builder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
@@ -52,8 +52,11 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.core.StringFieldMapper.Builder;
-import static org.hamcrest.Matchers.*;
+import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
@@ -121,7 +124,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
     }
 
     private void assertParseIdemPotent(IndexableFieldType expected, DocumentMapper mapper) throws Exception {
-        String mapping = mapper.toXContent(XContentFactory.jsonBuilder().startObject(), new ToXContent.MapParams(ImmutableMap.<String, String>of())).endObject().string();
+        String mapping = mapper.toXContent(XContentFactory.jsonBuilder().startObject(), new ToXContent.MapParams(emptyMap())).endObject().string();
         mapper = parser.parse(mapping);
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -214,7 +217,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         assertThat(fieldType.omitNorms(), equalTo(false));
         assertParseIdemPotent(fieldType, defaultMapper);
     }
-    
+
     @Test
     public void testSearchQuoteAnalyzerSerialization() throws Exception {
         // Cases where search_quote_analyzer should not be added to the mapping.
@@ -250,7 +253,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
             Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
             assertFalse(fieldName, serializedMap.containsKey("search_quote_analyzer"));
         }
-        
+
         // Cases where search_quote_analyzer should be present.
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -268,20 +271,20 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .endObject().endObject().string();
-        
+
         mapper = parser.parse(mapping);
         for (String fieldName : Arrays.asList("field1", "field2")) {
             Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
             assertEquals(serializedMap.get("search_quote_analyzer"), "simple");
         }
     }
-    
+
     private Map<String, Object> getSerializedMap(String fieldName, DocumentMapper mapper) throws Exception {
         FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper(fieldName);
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
-        
+
         Map<String, Object> fieldMap;
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
             fieldMap = parser.map();
@@ -464,7 +467,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         assertEquals(DocValuesType.NONE, docValuesType(doc, "str3"));
         assertEquals(DocValuesType.NONE, docValuesType(doc, "str4"));
         assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "str5"));
-        
+
     }
 
     // TODO: this function shouldn't be necessary.  parsing should just add a single field that is indexed and dv

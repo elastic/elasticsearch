@@ -20,7 +20,6 @@
 package org.elasticsearch.common.path;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;

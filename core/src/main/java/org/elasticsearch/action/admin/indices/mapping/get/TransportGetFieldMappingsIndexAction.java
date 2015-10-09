@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.ActionFilters;
@@ -56,6 +54,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.util.CollectionUtils.newLinkedList;
 
 /**
@@ -110,13 +109,13 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         MapBuilder<String, Map<String, FieldMappingMetaData>> typeMappings = new MapBuilder<>();
         for (String type : typeIntersection) {
             DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-            ImmutableMap<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(documentMapper, request);
+            Map<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(documentMapper, request);
             if (!fieldMapping.isEmpty()) {
                 typeMappings.put(type, fieldMapping);
             }
         }
 
-        return new GetFieldMappingsResponse(ImmutableMap.of(shardId.getIndex(), typeMappings.immutableMap()));
+        return new GetFieldMappingsResponse(singletonMap(shardId.getIndex(), typeMappings.immutableMap()));
     }
 
     @Override
@@ -166,7 +165,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         }
     };
 
-    private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) {
+    private Map<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) {
         MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<>();
         final DocumentFieldMappers allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {

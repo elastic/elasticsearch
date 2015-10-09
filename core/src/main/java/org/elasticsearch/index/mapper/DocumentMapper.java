@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -70,6 +69,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import static java.util.Collections.emptyMap;
+
 /**
  *
  */
@@ -85,7 +86,7 @@ public class DocumentMapper implements ToXContent {
 
         private final RootObjectMapper rootObjectMapper;
 
-        private ImmutableMap<String, Object> meta = ImmutableMap.of();
+        private Map<String, Object> meta = emptyMap();
 
         private final Mapper.BuilderContext builderContext;
 
@@ -115,7 +116,7 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(FieldNamesFieldMapper.class, new FieldNamesFieldMapper(indexSettings, mapperService.fullName(FieldNamesFieldMapper.NAME)));
         }
 
-        public Builder meta(ImmutableMap<String, Object> meta) {
+        public Builder meta(Map<String, Object> meta) {
             this.meta = meta;
             return this;
         }
@@ -169,7 +170,7 @@ public class DocumentMapper implements ToXContent {
 
     public DocumentMapper(MapperService mapperService, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
-                          ImmutableMap<String, Object> meta,
+                          Map<String, Object> meta,
                           Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappers,
                           List<SourceTransform> sourceTransforms,
                           ReentrantReadWriteLock mappingLock) {
@@ -234,7 +235,7 @@ public class DocumentMapper implements ToXContent {
         return this.typeText;
     }
 
-    public ImmutableMap<String, Object> meta() {
+    public Map<String, Object> meta() {
         return mapping.meta;
     }
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -42,7 +41,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShadowIndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
@@ -59,6 +62,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
@@ -76,7 +81,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final IndicesService indicesServices;
     private final IndexServicesProvider indexServicesProvider;
     private final IndexStore indexStore;
-    private volatile ImmutableMap<Integer, IndexShard> shards = ImmutableMap.of();
+    private volatile Map<Integer, IndexShard> shards = emptyMap();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
 
@@ -313,9 +318,9 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
-        HashMap<Integer, IndexShard> tmpShardsMap = new HashMap<>(shards);
-        indexShard = tmpShardsMap.remove(shardId);
-        shards = ImmutableMap.copyOf(tmpShardsMap);
+        HashMap<Integer, IndexShard> newShards = new HashMap<>(shards);
+        indexShard = newShards.remove(shardId);
+        shards = unmodifiableMap(newShards);
         closeShard(reason, sId, indexShard, indexShard.store());
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }

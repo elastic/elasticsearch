@@ -22,8 +22,8 @@ Client client = TransportClient.builder().settings(settings).build();
 --------------------------------------------------
 
 The transport client also no longer supports loading settings from config files.
-If you have have a config file, you can load into settings yourself before
-consturcting the transport client:
+If you have a config file, you can load it into settings yourself before
+constructing the transport client:
 
 [source,java]
 --------------------------------------------------
@@ -31,6 +31,13 @@ Settings settings = Settings.settingsBuilder()
         .loadFromPath(pathToYourSettingsFile).build();
 Client client = TransportClient.builder().settings(settings).build();
 --------------------------------------------------
+
+==== Exception are only thrown on total failure
+
+Previously, many APIs would throw an exception if any shard failed to execute
+the request. Now the exception is only thrown if all shards fail the request.
+The responses for these APIs will always have a `getShardFailures` method that
+you can and should check for failures.
 
 ==== Automatically thread client listeners
 
@@ -109,7 +116,7 @@ new InetSocketTransportAddress(new InetSocketAddress("127.0.0.1", 0));
 Elasticsearch used to shade its dependencies and to relocate packages. We no longer use shading or relocation.
 You might need to change your imports to the original package names:
 
-* `com.google.common` was `org.elasticsearch.common` 
+* `com.google.common` was `org.elasticsearch.common`
 * `com.carrotsearch.hppc` was `org.elasticsearch.common.hppc`
 * `jsr166e` was `org.elasticsearch.common.util.concurrent.jsr166e`
 * `com.fasterxml.jackson` was `org.elasticsearch.common.jackson`
@@ -121,4 +128,3 @@ You might need to change your imports to the original package names:
 * `com.tdunning.math.stats` was `org.elasticsearch.common.stats`
 * `org.apache.commons.lang` was `org.elasticsearch.common.lang`
 * `org.apache.commons.cli` was `org.elasticsearch.common.cli.commons`
- 

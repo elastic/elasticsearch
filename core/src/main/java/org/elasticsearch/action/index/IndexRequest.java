@@ -49,14 +49,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
  * created using {@link org.elasticsearch.client.Requests#indexRequest(String)}.
- * <p>
+ *
  * The index requires the {@link #index()}, {@link #type(String)}, {@link #id(String)} and
  * {@link #source(byte[])} to be set.
- * <p>
+ *
  * The source (content to index) can be set in its bytes form using ({@link #source(byte[])}),
  * its string form ({@link #source(String)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
  * ({@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}).
- * <p>
+ *
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *
  * @see IndexResponse
@@ -114,7 +114,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
 
         public static OpType fromString(String sOpType) {
             String lowersOpType = sOpType.toLowerCase(Locale.ROOT);
-            switch(lowersOpType){
+            switch (lowersOpType) {
                 case "create":
                     return OpType.CREATE;
                 case "index":
@@ -216,6 +216,14 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         if (source == null) {
             validationException = addValidationError("source is missing", validationException);
         }
+
+        if (opType() == OpType.CREATE) {
+            if (versionType != VersionType.INTERNAL || version != Versions.MATCH_DELETED) {
+                validationException = addValidationError("create operations do not support versioning. use index instead", validationException);
+                return validationException;
+            }
+        }
+
         if (!versionType.validateVersionForWrites(version)) {
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
         }
@@ -370,7 +378,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
 
     /**
      * Sets the document source to index.
-     * <p>
+     *
      * Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[])}.
      */
@@ -480,6 +488,10 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
      */
     public IndexRequest opType(OpType opType) {
         this.opType = opType;
+        if (opType == OpType.CREATE) {
+            version(Versions.MATCH_DELETED);
+            versionType(VersionType.INTERNAL);
+        }
         return this;
     }
 

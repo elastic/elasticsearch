@@ -105,10 +105,6 @@
         <!-- Lucene spatial -->
 
         <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.carrotsearch</groupId>
             <artifactId>hppc</artifactId>
         </dependency>
@@ -333,12 +329,17 @@
                     <excludes>
                         <!-- Guice -->
                         <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
-                        <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
+                        <!-- Forks of Lucene classes -->
                         <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
-                        <!-- t-digest -->
-                        <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java</exclude>
                         <!-- netty pipelining -->
                         <exclude>src/main/java/org/elasticsearch/http/netty/pipelining/**</exclude>
+                        <!-- Guava -->
+                        <exclude>src/main/java/org/elasticsearch/common/network/InetAddresses.java</exclude>
+                        <exclude>src/test/java/org/elasticsearch/common/network/InetAddressesTests.java</exclude>
+                        <exclude>src/test/java/org/elasticsearch/common/collect/EvictingQueueTests.java</exclude>
+                        <!-- Joda -->
+                        <exclude>src/main/java/org/joda/time/base/BaseDateTime.java</exclude>
+                        <exclude>src/main/java/org/joda/time/format/StrictISODateTimeFormat.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>

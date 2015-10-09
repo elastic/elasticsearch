@@ -1852,7 +1852,7 @@ public final class InternalTestCluster extends TestCluster {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 final IndicesFieldDataCache fdCache = getInstanceFromNode(IndicesFieldDataCache.class, nodeAndClient.node);
                 // Clean up the cache, ensuring that entries' listeners have been called
-                fdCache.getCache().cleanUp();
+                fdCache.getCache().refresh();
 
                 final String name = nodeAndClient.name;
                 final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);

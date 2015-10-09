@@ -26,7 +26,7 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 
 public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecayFunctionBuilder> {
 
-    private static final DecayFunction LINEAR_DECAY_FUNCTION = new LinearDecayScoreFunction();
+    public static final DecayFunction LINEAR_DECAY_FUNCTION = new LinearDecayScoreFunction();
 
     public LinearDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset) {
         super(fieldName, origin, scale, offset);

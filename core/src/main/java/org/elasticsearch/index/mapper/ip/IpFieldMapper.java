@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.ip;
 
-import com.google.common.net.InetAddresses;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
@@ -29,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;

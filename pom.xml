@@ -302,7 +302,7 @@
             <dependency>
                 <groupId>com.github.spullara.mustache.java</groupId>
                 <artifactId>compiler</artifactId>
-                <version>0.8.13</version>
+                <version>0.9.1</version>
             </dependency>
 
             <!-- Used in plugins -->
@@ -330,12 +330,6 @@
                 <groupId>org.apache.lucene</groupId>
                 <artifactId>lucene-analyzers-smartcn</artifactId>
                 <version>${lucene.maven.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.google.guava</groupId>
-                <artifactId>guava</artifactId>
-                <version>18.0</version>
             </dependency>
 
             <dependency>
@@ -986,8 +980,7 @@
                             <headerDefinition>${elasticsearch.license.headerDefinition}</headerDefinition>
                         </headerDefinitions>
                         <includes>
-                            <include>src/main/java/org/elasticsearch/**/*.java</include>
-                            <include>src/test/java/org/elasticsearch/**/*.java</include>
+                            <include>src/**/*.java</include>
                         </includes>
                     </configuration>
                     <executions>

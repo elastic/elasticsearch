@@ -38,7 +38,6 @@ import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -243,25 +242,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 return true;
             }
         };
-    }
-
-    @Override
-    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-        try {
-            Map<String, Object> allVars = new HashMap<>();
-            if (vars != null) {
-                allVars.putAll(vars);
-            }
-            Script scriptObject = createScript(compiledScript.compiled(), allVars);
-            return scriptObject.run();
-        } catch (Exception e) {
-            throw new ScriptException("failed to execute " + compiledScript, e);
-        }
-    }
-
-    @Override
-    public Object unwrap(Object value) {
-        return value;
     }
 
     public static final class GroovyScript implements ExecutableScript, LeafSearchScript {

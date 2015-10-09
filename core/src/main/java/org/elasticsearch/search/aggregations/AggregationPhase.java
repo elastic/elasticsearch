@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -35,34 +34,33 @@ import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
  */
 public class AggregationPhase implements SearchPhase {
-
-    private final AggregationParseElement parseElement;
-
-    private final AggregationBinaryParseElement binaryParseElement;
+    private final Map<String, SearchParseElement> parseElements;
 
     @Inject
     public AggregationPhase(AggregationParseElement parseElement, AggregationBinaryParseElement binaryParseElement) {
-        this.parseElement = parseElement;
-        this.binaryParseElement = binaryParseElement;
+        Map<String, SearchParseElement> parseElements = new HashMap<>();
+        parseElements.put("aggregations", parseElement);
+        parseElements.put("aggs", parseElement);
+        parseElements.put("aggregations_binary", binaryParseElement);
+        parseElements.put("aggregationsBinary", binaryParseElement);
+        parseElements.put("aggs_binary", binaryParseElement);
+        parseElements.put("aggsBinary", binaryParseElement);
+        this.parseElements = unmodifiableMap(parseElements);
     }
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.<String, SearchParseElement>builder()
-                .put("aggregations", parseElement)
-                .put("aggs", parseElement)
-                .put("aggregations_binary", binaryParseElement)
-                .put("aggregationsBinary", binaryParseElement)
-                .put("aggs_binary", binaryParseElement)
-                .put("aggsBinary", binaryParseElement)
-                .build();
+        return parseElements;
     }
 
     @Override

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent.support;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +37,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
@@ -561,7 +564,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
             }
             assertEquals(
-                    Arrays.asList(ImmutableMap.of("foo", "bar"), Collections.<String, Object>emptyMap()),
+                    Arrays.asList(singletonMap("foo", "bar"), emptyMap()),
                     parser.list());
         }
     }

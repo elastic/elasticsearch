@@ -18,7 +18,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
-        field: text
+        fields: text
 
   - match: {test_index.mappings.test_type.text.mapping.text.type:     string}
 
@@ -27,7 +27,7 @@ setup:
   - do:
       indices.get_field_mapping:
         index: test_index
-        field: text
+        fields: text
 
   - match: {test_index.mappings.test_type.text.mapping.text.type:     string}
 
@@ -38,7 +38,7 @@ setup:
       indices.get_field_mapping:
         index: test_index
         type: test_type
-        field: text
+        fields: text
 
   - match: {test_index.mappings.test_type.text.mapping.text.type:     string}
 
@@ -49,7 +49,7 @@ setup:
       indices.get_field_mapping:
         index: test_index
         type: test_type
-        field: [ text , text1 ]
+        fields: [ text , text1 ]
 
   - match: {test_index.mappings.test_type.text.mapping.text.type:     string}
   - is_false: test_index.mappings.test_type.text1
@@ -61,19 +61,19 @@ setup:
       indices.get_field_mapping:
         index: test_index
         type: test_type
-        field: text
+        fields: text
         include_defaults: true
 
   - match: {test_index.mappings.test_type.text.mapping.text.type:     string}
   - match: {test_index.mappings.test_type.text.mapping.text.analyzer: default}
 
 ---
-"Get field mapping should work without index specifying type and field": 
+"Get field mapping should work without index specifying type and fields":
 
   - do:
       indices.get_field_mapping:
         type: test_type
-        field: text
+        fields: text
 
   - match: {test_index.mappings.test_type.text.mapping.text.type:     string}
 

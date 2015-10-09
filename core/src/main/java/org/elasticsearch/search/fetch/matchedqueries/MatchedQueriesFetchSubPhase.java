@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.fetch.matchedqueries;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -35,6 +34,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+
 /**
  *
  */
@@ -42,7 +43,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of();
+        return emptyMap();
     }
 
     @Override

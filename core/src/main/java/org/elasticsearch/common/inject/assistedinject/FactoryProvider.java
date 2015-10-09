@@ -16,8 +16,6 @@
 
 package org.elasticsearch.common.inject.assistedinject;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
@@ -42,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableSet;
 
@@ -223,7 +222,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
         }
 
         if (constructors.isEmpty()) {
-            return ImmutableMap.of();
+            return emptyMap();
         }
 
         Method[] factoryMethods = factoryType.getRawType().getMethods();

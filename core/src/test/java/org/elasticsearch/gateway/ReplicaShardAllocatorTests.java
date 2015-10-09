@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,7 +28,15 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -49,6 +58,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -358,7 +368,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             if (syncId != null) {
                 commitData.put(Engine.SYNC_COMMIT_ID, syncId);
             }
-            data.put(node, new TransportNodesListShardStoreMetaData.StoreFilesMetaData(allocated, shardId, new Store.MetadataSnapshot(filesAsMap, commitData, randomInt())));
+            data.put(node, new TransportNodesListShardStoreMetaData.StoreFilesMetaData(allocated, shardId,
+                    new Store.MetadataSnapshot(unmodifiableMap(filesAsMap), unmodifiableMap(commitData), randomInt())));
             return this;
         }
 

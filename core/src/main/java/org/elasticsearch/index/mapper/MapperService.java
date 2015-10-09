@@ -20,8 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterators;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -52,7 +50,7 @@ import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.percolator.PercolatorService;
@@ -64,16 +62,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
@@ -98,7 +99,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile String defaultMappingSource;
     private volatile String defaultPercolatorMappingSource;
 
-    private volatile Map<String, DocumentMapper> mappers = ImmutableMap.of();
+    private volatile Map<String, DocumentMapper> mappers = emptyMap();
 
     // A lock for mappings: modifications (put mapping) need to be performed
     // under the write lock and read operations (document parsing) need to be
@@ -118,18 +119,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private final List<DocumentTypeListener> typeListeners = new CopyOnWriteArrayList<>();
 
-    private volatile ImmutableMap<String, MappedFieldType> unmappedFieldTypes = ImmutableMap.of();
+    private volatile Map<String, MappedFieldType> unmappedFieldTypes = emptyMap();
 
     private volatile Set<String> parentTypes = emptySet();
 
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
-                         SimilarityLookupService similarityLookupService,
+                         SimilarityService similarityService,
                          ScriptService scriptService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
         this.fieldTypes = new FieldTypeLookup();
-        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityLookupService, scriptService);
+        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityService, scriptService);
         this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), p -> p.indexAnalyzer());
         this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), p -> p.searchAnalyzer());
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
@@ -184,13 +185,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public Iterable<DocumentMapper> docMappers(final boolean includingDefaultMapping) {
         return () -> {
-            final Iterator<DocumentMapper> iterator;
+            final Collection<DocumentMapper> documentMappers;
             if (includingDefaultMapping) {
-                iterator = mappers.values().iterator();
+                documentMappers = mappers.values();
             } else {
-                iterator = mappers.values().stream().filter(mapper -> !DEFAULT_MAPPING.equals(mapper.type())).iterator();
+                documentMappers = mappers.values().stream().filter(mapper -> !DEFAULT_MAPPING.equals(mapper.type())).collect(Collectors.toList());
             }
-            return Iterators.unmodifiableIterator(iterator);
+            return Collections.unmodifiableCollection(documentMappers).iterator();
         };
     }
 
@@ -538,24 +539,23 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given a type (eg. long, string, ...), return an anonymous field mapper that can be used for search operations.
      */
     public MappedFieldType unmappedFieldType(String type) {
-        final ImmutableMap<String, MappedFieldType> unmappedFieldMappers = this.unmappedFieldTypes;
-        MappedFieldType fieldType = unmappedFieldMappers.get(type);
+        MappedFieldType fieldType = unmappedFieldTypes.get(type);
         if (fieldType == null) {
             final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext(type);
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
             if (typeParser == null) {
                 throw new IllegalArgumentException("No mapper found for type [" + type + "]");
             }
-            final Mapper.Builder<?, ?> builder = typeParser.parse("__anonymous_" + type, ImmutableMap.<String, Object>of(), parserContext);
+            final Mapper.Builder<?, ?> builder = typeParser.parse("__anonymous_" + type, emptyMap(), parserContext);
             final BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
             fieldType = ((FieldMapper)builder.build(builderContext)).fieldType();
 
             // There is no need to synchronize writes here. In the case of concurrent access, we could just
             // compute some mappers several times, which is not a big deal
-            this.unmappedFieldTypes = ImmutableMap.<String, MappedFieldType>builder()
-                    .putAll(unmappedFieldMappers)
-                    .put(type, fieldType)
-                    .build();
+            Map<String, MappedFieldType> newUnmappedFieldTypes = new HashMap<>();
+            newUnmappedFieldTypes.putAll(unmappedFieldTypes);
+            newUnmappedFieldTypes.put(type, fieldType);
+            unmappedFieldTypes = unmodifiableMap(newUnmappedFieldTypes);
         }
         return fieldType;
     }

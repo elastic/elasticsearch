@@ -19,10 +19,8 @@
 
 package org.elasticsearch.action.get;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -31,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Iterator;
 
 public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContent {
@@ -126,7 +124,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
     @Override
     public Iterator<MultiGetItemResponse> iterator() {
-        return Iterators.forArray(responses);
+        return Arrays.stream(responses).iterator();
     }
 
     @Override

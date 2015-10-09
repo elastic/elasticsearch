@@ -173,7 +173,7 @@ public class TypeParsers {
                 builder.omitNorms(nodeBooleanValue(propNode));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
-                builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
+                builder.similarity(parserContext.getSimilarity(propNode.toString()));
                 iterator.remove();
             } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                 iterator.remove();
@@ -277,7 +277,7 @@ public class TypeParsers {
                 // ignore for old indexes
                 iterator.remove();
             } else if (propName.equals("similarity")) {
-                builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
+                builder.similarity(parserContext.getSimilarity(propNode.toString()));
                 iterator.remove();
             } else if (propName.equals("fielddata")) {
                 final Settings settings = Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(propNode, "fielddata"))).build();

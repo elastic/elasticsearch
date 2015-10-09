@@ -54,7 +54,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
-            BytesReference o = (BytesReference) qe.execute(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(template)), vars);
+            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(template)), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
                     new String(o.toBytes(), Charset.forName("UTF-8")));
@@ -65,7 +65,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
-            BytesReference o = (BytesReference) qe.execute(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(template)), vars);
+            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(template)), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
                     new String(o.toBytes(), Charset.forName("UTF-8")));

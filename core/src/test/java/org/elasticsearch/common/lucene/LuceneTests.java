@@ -20,10 +20,14 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.test.ESTestCase;
@@ -320,6 +324,39 @@ public class LuceneTests extends ESTestCase {
         segmentCommitInfos = Lucene.readSegmentInfos(dir);
         assertEquals(2 + deleteTerms.size(), Lucene.getNumDocs(segmentCommitInfos));
         writer.close();
+        dir.close();
+    }
+
+    public void testCount() throws Exception {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(getRandom(), dir);
+
+        try (DirectoryReader reader = w.getReader()) {
+            // match_all does not match anything on an empty index
+            IndexSearcher searcher = newSearcher(reader);
+            assertFalse(Lucene.exists(searcher, new MatchAllDocsQuery()));
+        }
+
+        Document doc = new Document();
+        w.addDocument(doc);
+
+        doc.add(new StringField("foo", "bar", Store.NO));
+        w.addDocument(doc);
+
+        try (DirectoryReader reader = w.getReader()) {
+            IndexSearcher searcher = newSearcher(reader);
+            assertTrue(Lucene.exists(searcher, new MatchAllDocsQuery()));
+            assertFalse(Lucene.exists(searcher, new TermQuery(new Term("baz", "bar"))));
+            assertTrue(Lucene.exists(searcher, new TermQuery(new Term("foo", "bar"))));
+        }
+
+        w.deleteDocuments(new Term("foo", "bar"));
+        try (DirectoryReader reader = w.getReader()) {
+            IndexSearcher searcher = newSearcher(reader);
+            assertFalse(Lucene.exists(searcher, new TermQuery(new Term("foo", "bar"))));
+        }
+
+        w.close();
         dir.close();
     }
 }

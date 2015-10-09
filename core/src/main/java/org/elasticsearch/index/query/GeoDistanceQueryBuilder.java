@@ -261,7 +261,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         GeoDistanceQueryBuilder result = new GeoDistanceQueryBuilder(fieldName);
         result.distance = in.readDouble();
         result.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
-        result.center = GeoPoint.readGeoPointFrom(in);
+        result.center = in.readGeoPoint();
         result.optimizeBbox = in.readString();
         result.geoDistance = GeoDistance.readGeoDistanceFrom(in);
         return result;
@@ -272,7 +272,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         out.writeString(fieldName);
         out.writeDouble(distance);
         validationMethod.writeTo(out);
-        center.writeTo(out);
+        out.writeGeoPoint(center);
         out.writeString(optimizeBbox);
         geoDistance.writeTo(out);
     }

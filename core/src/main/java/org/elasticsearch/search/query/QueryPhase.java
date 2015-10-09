@@ -19,12 +19,28 @@
 
 package org.elasticsearch.search.query;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.MinDocQuery;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MultiCollector;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TimeLimitingCollector;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
@@ -43,9 +59,12 @@ import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -65,29 +84,30 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
-        parseElements.put("from", new FromParseElement()).put("size", new SizeParseElement())
-                .put("indices_boost", new IndicesBoostParseElement())
-                .put("indicesBoost", new IndicesBoostParseElement())
-                .put("query", new QueryParseElement())
-                .put("queryBinary", new QueryBinaryParseElement())
-                .put("query_binary", new QueryBinaryParseElement())
-                .put("filter", new PostFilterParseElement()) // For bw comp reason, should be removed in version 1.1
-                .put("post_filter", new PostFilterParseElement())
-                .put("postFilter", new PostFilterParseElement())
-                .put("filterBinary", new FilterBinaryParseElement())
-                .put("filter_binary", new FilterBinaryParseElement())
-                .put("sort", new SortParseElement())
-                .put("trackScores", new TrackScoresParseElement())
-                .put("track_scores", new TrackScoresParseElement())
-                .put("min_score", new MinScoreParseElement())
-                .put("minScore", new MinScoreParseElement())
-                .put("timeout", new TimeoutParseElement())
-                .put("terminate_after", new TerminateAfterParseElement())
-                .putAll(aggregationPhase.parseElements())
-                .putAll(suggestPhase.parseElements())
-                .putAll(rescorePhase.parseElements());
-        return parseElements.build();
+        Map<String, SearchParseElement> parseElements = new HashMap<>();
+        parseElements.put("from", new FromParseElement());
+        parseElements.put("size", new SizeParseElement());
+        parseElements.put("indices_boost", new IndicesBoostParseElement());
+        parseElements.put("indicesBoost", new IndicesBoostParseElement());
+        parseElements.put("query", new QueryParseElement());
+        parseElements.put("queryBinary", new QueryBinaryParseElement());
+        parseElements.put("query_binary", new QueryBinaryParseElement());
+        parseElements.put("filter", new PostFilterParseElement()); // For bw comp reason, should be removed in version 1.1
+        parseElements.put("post_filter", new PostFilterParseElement());
+        parseElements.put("postFilter", new PostFilterParseElement());
+        parseElements.put("filterBinary", new FilterBinaryParseElement());
+        parseElements.put("filter_binary", new FilterBinaryParseElement());
+        parseElements.put("sort", new SortParseElement());
+        parseElements.put("trackScores", new TrackScoresParseElement());
+        parseElements.put("track_scores", new TrackScoresParseElement());
+        parseElements.put("min_score", new MinScoreParseElement());
+        parseElements.put("minScore", new MinScoreParseElement());
+        parseElements.put("timeout", new TimeoutParseElement());
+        parseElements.put("terminate_after", new TerminateAfterParseElement());
+        parseElements.putAll(aggregationPhase.parseElements());
+        parseElements.putAll(suggestPhase.parseElements());
+        parseElements.putAll(rescorePhase.parseElements());
+        return unmodifiableMap(parseElements);
     }
 
     @Override

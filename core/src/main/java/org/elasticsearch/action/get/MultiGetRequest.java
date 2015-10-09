@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.get;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -37,10 +37,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest, RealtimeRequest {
 
@@ -498,7 +495,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
 
     @Override
     public Iterator<Item> iterator() {
-        return Iterators.unmodifiableIterator(items.iterator());
+        return Collections.unmodifiableCollection(items).iterator();
     }
 
     @Override

@@ -19,14 +19,8 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.collect.Iterators;
-
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.Build;
-import org.elasticsearch.ElasticsearchCorruptionException;
-import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.*;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
@@ -41,21 +35,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.DirectoryStream;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
+import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.StreamSupport;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -90,10 +75,10 @@ public class PluginManager {
             "analysis-phonetic",
             "analysis-smartcn",
             "analysis-stempel",
-            "cloud-gce",
             "delete-by-query",
             "discovery-azure",
             "discovery-ec2",
+            "discovery-gce",
             "discovery-multicast",
             "lang-expression",
             "lang-groovy",
@@ -225,7 +210,6 @@ public class PluginManager {
     }
 
     private void extract(PluginHandle pluginHandle, Terminal terminal, Path pluginFile) throws IOException {
-
         // unzip plugin to a staging temp dir, named for the plugin
         Path tmp = Files.createTempDirectory(environment.tmpFile(), null);
         Path root = tmp.resolve(pluginHandle.name);
@@ -255,22 +239,74 @@ public class PluginManager {
         terminal.println("Installed %s into %s", pluginHandle.name, extractLocation.toAbsolutePath());
 
         // cleanup
-        IOUtils.rm(tmp, pluginFile);
+        tryToDeletePath(terminal, tmp, pluginFile);
 
         // take care of bin/ by moving and applying permissions if needed
-        Path binFile = extractLocation.resolve("bin");
-        if (Files.isDirectory(binFile)) {
-            Path toLocation = pluginHandle.binDir(environment);
-            terminal.println(VERBOSE, "Found bin, moving to %s", toLocation.toAbsolutePath());
-            if (Files.exists(toLocation)) {
-                IOUtils.rm(toLocation);
+        Path sourcePluginBinDirectory = extractLocation.resolve("bin");
+        Path destPluginBinDirectory = pluginHandle.binDir(environment);
+        boolean needToCopyBinDirectory = Files.exists(sourcePluginBinDirectory);
+        if (needToCopyBinDirectory) {
+            if (Files.exists(destPluginBinDirectory) && !Files.isDirectory(destPluginBinDirectory)) {
+                tryToDeletePath(terminal, extractLocation);
+                throw new IOException("plugin bin directory " + destPluginBinDirectory + " is not a directory");
+            }
+
+            try {
+                copyBinDirectory(sourcePluginBinDirectory, destPluginBinDirectory, pluginHandle.name, terminal);
+            } catch (IOException e) {
+                // rollback and remove potentially before installed leftovers
+                terminal.printError("Error copying bin directory [%s] to [%s], cleaning up, reason: %s", sourcePluginBinDirectory, destPluginBinDirectory, e.getMessage());
+                tryToDeletePath(terminal, extractLocation, pluginHandle.binDir(environment));
+                throw e;
+            }
+
+        }
+
+        Path sourceConfigDirectory = extractLocation.resolve("config");
+        Path destConfigDirectory = pluginHandle.configDir(environment);
+        boolean needToCopyConfigDirectory = Files.exists(sourceConfigDirectory);
+        if (needToCopyConfigDirectory) {
+            if (Files.exists(destConfigDirectory) && !Files.isDirectory(destConfigDirectory)) {
+                tryToDeletePath(terminal, extractLocation, destPluginBinDirectory);
+                throw new IOException("plugin config directory " + destConfigDirectory + " is not a directory");
+            }
+
+            try {
+                terminal.println(VERBOSE, "Found config, moving to %s", destConfigDirectory.toAbsolutePath());
+                moveFilesWithoutOverwriting(sourceConfigDirectory, destConfigDirectory, ".new");
+                terminal.println(VERBOSE, "Installed %s into %s", pluginHandle.name, destConfigDirectory.toAbsolutePath());
+            } catch (IOException e) {
+                terminal.printError("Error copying config directory [%s] to [%s], cleaning up, reason: %s", sourceConfigDirectory, destConfigDirectory, e.getMessage());
+                tryToDeletePath(terminal, extractLocation, destPluginBinDirectory, destConfigDirectory);
+                throw e;
+            }
+        }
+    }
+
+    private void tryToDeletePath(Terminal terminal, Path ... paths) {
+        for (Path path : paths) {
+            try {
+                IOUtils.rm(path);
+            } catch (IOException e) {
+                terminal.printError(e);
+            }
+        }
+    }
+
+    private void copyBinDirectory(Path sourcePluginBinDirectory, Path destPluginBinDirectory, String pluginName, Terminal terminal) throws IOException {
+        boolean canCopyFromSource = Files.exists(sourcePluginBinDirectory) && Files.isReadable(sourcePluginBinDirectory) && Files.isDirectory(sourcePluginBinDirectory);
+        if (canCopyFromSource) {
+            terminal.println(VERBOSE, "Found bin, moving to %s", destPluginBinDirectory.toAbsolutePath());
+            if (Files.exists(destPluginBinDirectory)) {
+                IOUtils.rm(destPluginBinDirectory);
             }
             try {
-                FileSystemUtils.move(binFile, toLocation);
+                Files.createDirectories(destPluginBinDirectory.getParent());
+                FileSystemUtils.move(sourcePluginBinDirectory, destPluginBinDirectory);
             } catch (IOException e) {
-                throw new IOException("Could not move [" + binFile + "] to [" + toLocation + "]", e);
+                throw new IOException("Could not move [" + sourcePluginBinDirectory + "] to [" + destPluginBinDirectory + "]", e);
             }
-            if (Environment.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
+            if (Environment.getFileStore(destPluginBinDirectory).supportsFileAttributeView(PosixFileAttributeView.class)) {
                 // add read and execute permissions to existing perms, so execution will work.
                 // read should generally be set already, but set it anyway: don't rely on umask...
                 final Set<PosixFilePermission> executePerms = new HashSet<>();
@@ -280,7 +316,7 @@ public class PluginManager {
                 executePerms.add(PosixFilePermission.OWNER_EXECUTE);
                 executePerms.add(PosixFilePermission.GROUP_EXECUTE);
                 executePerms.add(PosixFilePermission.OTHERS_EXECUTE);
-                Files.walkFileTree(toLocation, new SimpleFileVisitor<Path>() {
+                Files.walkFileTree(destPluginBinDirectory, new SimpleFileVisitor<Path>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                         if (attrs.isRegularFile()) {
@@ -294,15 +330,7 @@ public class PluginManager {
             } else {
                 terminal.println(VERBOSE, "Skipping posix permissions - filestore doesn't support posix permission");
             }
-            terminal.println(VERBOSE, "Installed %s into %s", pluginHandle.name, toLocation.toAbsolutePath());
-        }
-
-        Path configFile = extractLocation.resolve("config");
-        if (Files.isDirectory(configFile)) {
-            Path configDestLocation = pluginHandle.configDir(environment);
-            terminal.println(VERBOSE, "Found config, moving to %s", configDestLocation.toAbsolutePath());
-            moveFilesWithoutOverwriting(configFile, configDestLocation, ".new");
-            terminal.println(VERBOSE, "Installed %s into %s", pluginHandle.name, configDestLocation.toAbsolutePath());
+            terminal.println(VERBOSE, "Installed %s into %s", pluginName, destPluginBinDirectory.toAbsolutePath());
         }
     }
 
@@ -437,7 +465,7 @@ public class PluginManager {
         }
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
-            return Iterators.toArray(stream.iterator(), Path.class);
+            return StreamSupport.stream(stream.spliterator(), false).toArray(length -> new Path[length]);
         }
     }
 

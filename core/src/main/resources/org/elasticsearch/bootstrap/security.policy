@@ -52,8 +52,8 @@ grant codeBase "${es.security.plugin.discovery-ec2}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${es.security.plugin.cloud-gce}" {
-  // needed because of problems in cloud-gce
+grant codeBase "${es.security.plugin.discovery-gce}" {
+  // needed because of problems in discovery-gce
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 

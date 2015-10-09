@@ -43,8 +43,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.SimilarityLookupService;
-import org.elasticsearch.indices.InternalIndicesLifecycle;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
@@ -80,9 +79,9 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         Index index = new Index("_index");
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
             AnalysisService analysisService = new AnalysisService(index, settings);
-        SimilarityLookupService similarityLookupService = new SimilarityLookupService(index, settings);
+        SimilarityService similarityService = new SimilarityService(index, settings);
         ScriptService scriptService = mock(ScriptService.class);
-        mapperService = new MapperService(index, settings, analysisService, similarityLookupService, scriptService);
+        mapperService = new MapperService(index, settings, analysisService, similarityService, scriptService);
 
         shardId = new ShardId(index, 0);
         shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(settings, null, mapperService, null);

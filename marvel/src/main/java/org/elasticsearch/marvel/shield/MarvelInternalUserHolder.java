@@ -33,7 +33,7 @@ public class MarvelInternalUserHolder {
             // and full access to .marvel-* and .marvel-data indices
             .add(Privilege.Index.ALL, MarvelSettings.MARVEL_INDICES_PREFIX + "*")
 
-            // note, we don't need _licenses permission as we're taking the licenses
+            // note, we don't need _license permission as we're taking the licenses
             // directly form the license service.
 
             .build();

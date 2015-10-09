@@ -93,7 +93,6 @@ public class ClusterInfoIT extends MarvelIntegTestCase {
         String recalculated = ClusterInfoRenderer.hash(status, uid, type, String.valueOf(expiryDate), clusterUUID);
         assertThat(hkey, equalTo(recalculated));
 
-        assertThat((String) license.get(ClusterInfoRenderer.Fields.FEATURE.underscore().toString()), not(isEmptyOrNullString()));
         assertThat((String) license.get(ClusterInfoRenderer.Fields.ISSUER.underscore().toString()), not(isEmptyOrNullString()));
         assertThat((String) license.get(ClusterInfoRenderer.Fields.ISSUED_TO.underscore().toString()), not(isEmptyOrNullString()));
         assertThat((Long) license.get(ClusterInfoRenderer.Fields.ISSUE_DATE_IN_MILLIS.underscore().toString()), greaterThan(0L));

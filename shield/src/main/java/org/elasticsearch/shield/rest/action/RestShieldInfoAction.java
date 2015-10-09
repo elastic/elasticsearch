@@ -12,6 +12,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.shield.ShieldBuild;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -71,7 +72,7 @@ public class RestShieldInfoAction extends BaseRestHandler {
 
     private Status resolveStatus() {
         if (shieldEnabled) {
-            if (licenseService.enabled()) {
+            if (licenseService.state() != LicenseState.DISABLED) {
                 return Status.ENABLED;
             }
             return Status.UNLICENSED;

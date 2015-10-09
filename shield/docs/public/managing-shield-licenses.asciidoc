@@ -22,7 +22,7 @@ To install or update the license use the following REST API:
 
 [source,shell]
 -----------------------------------------------------------------------
-curl -XPUT -u admin 'http://<host>:<port>/_licenses' -d @license.json
+curl -XPUT -u admin 'http://<host>:<port>/_license' -d @license.json
 -----------------------------------------------------------------------
 
 Where:
@@ -42,7 +42,7 @@ You can list all currently installed licenses by executing the following REST AP
 
 [source,shell]
 -----------------------------------------------------
-curl -XGET -u admin:password 'http://<host>:<port>/_licenses'
+curl -XGET -u admin:password 'http://<host>:<port>/_license'
 -----------------------------------------------------
 
 The response of this command will be a JSON listing all available licenses. In the case of Shield, the following

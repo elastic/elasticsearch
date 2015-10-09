@@ -33,14 +33,8 @@ NOTE: If you are using a <<deb-rpm-install, DEB/RPM distribution>> of Elasticsea
 bin/elasticsearch
 ----------------------------------------------------------
 
-. To verify that Shield is up and running, use the `_shield` API to get the Shield version:
-+
-[source,shell]
-----------------------------------------------------------
-curl -u es_admin -XGET 'http://localhost:9200/_shield'
-----------------------------------------------------------
-+
-You can also check the startup log entries. When Shield is operating normally, the log indicates that the network transports are using Shield: 
+. To verify that Shield is up and running, check the startup log entries. When Shield is operating 
+normally, the log indicates that the network transports are using Shield: 
 +
 [source,shell]
 ----------------
@@ -48,7 +42,6 @@ You can also check the startup log entries. When Shield is operating normally, t
 [2014-10-09 13:47:38,841][INFO ][transport ] [Ezekiel Stane] Using [org.elasticsearch.shield.transport.netty.ShieldNettyTransport] as transport, overridden by [shield]
 [2014-10-09 13:47:38,842][INFO ][http      ] [Ezekiel Stane] Using [org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport] as http transport, overridden by [shield]
 ----------------
-
 
 Now you're ready to secure your cluster! Here are a few things
 you might want to do to start with:

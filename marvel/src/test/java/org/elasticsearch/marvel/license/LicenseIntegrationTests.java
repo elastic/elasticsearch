@@ -13,8 +13,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicensesClientService;
-import org.elasticsearch.license.plugin.core.LicensesService;
+import org.elasticsearch.license.plugin.core.LicenseState;
+import org.elasticsearch.license.plugin.core.Licensee;
+import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.mode.Mode;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
@@ -106,26 +107,24 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
         @Override
         protected void configure() {
             bind(MockLicenseService.class).asEagerSingleton();
-            bind(LicensesClientService.class).to(MockLicenseService.class);
+            bind(LicenseeRegistry.class).to(MockLicenseService.class);
         }
     }
 
-    public static class MockLicenseService extends AbstractComponent implements LicensesClientService {
+    public static class MockLicenseService extends AbstractComponent implements LicenseeRegistry {
 
         static final License DUMMY_LICENSE = License.builder()
-                .feature(LicenseService.FEATURE_NAME)
                 .expiryDate(System.currentTimeMillis())
                 .issueDate(System.currentTimeMillis())
                 .issuedTo("LicensingTests")
                 .issuer("test")
                 .maxNodes(Integer.MAX_VALUE)
                 .signature("_signature")
-                .type("standard")
-                .subscriptionType("all_is_good")
+                .type("basic")
                 .uid(String.valueOf(RandomizedTest.systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0)) + System.identityHashCode(LicenseIntegrationTests.class))
                 .build();
 
-        private final List<Listener> listeners = new ArrayList<>();
+        private final List<Licensee> licensees = new ArrayList<>();
 
         @Inject
         public MockLicenseService(Settings settings) {
@@ -134,22 +133,20 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
         }
 
         @Override
-        public void register(String s, LicensesService.TrialLicenseOptions trialLicenseOptions, Collection<LicensesService.ExpirationCallback> collection, AcknowledgementCallback acknowledgementCallback, Listener listener) {
-            listeners.add(listener);
+        public void register(Licensee licensee) {
+            licensees.add(licensee);
             enable();
         }
 
         public void enable() {
-            // enabled all listeners (incl. shield)
-            for (Listener listener : listeners) {
-                listener.onEnabled(DUMMY_LICENSE);
+            for (Licensee licensee : licensees) {
+                licensee.onChange(DUMMY_LICENSE, randomBoolean() ? LicenseState.GRACE_PERIOD : LicenseState.ENABLED);
             }
         }
 
         public void disable() {
-            // only disable watcher listener (we need shield to work)
-            for (Listener listener : listeners) {
-                listener.onDisabled(DUMMY_LICENSE);
+            for (Licensee licensee : licensees) {
+                licensee.onChange(DUMMY_LICENSE, LicenseState.DISABLED);
             }
         }
     }

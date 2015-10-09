@@ -67,6 +67,7 @@ Elasticsearch. This only applies to publicly available indices and cluster actio
 [float]
 ===== Cluster actions privileges
 
+* `cluster:admin/render/template/search`
 * `cluster:admin/repository/delete`
 * `cluster:admin/repository/get`
 * `cluster:admin/repository/put`
@@ -118,7 +119,6 @@ NOTE: While indices template actions typically relate to indices, they are categ
 * `indices:admin/open`
 * `indices:admin/optimize`
 * `indices:admin/refresh`
-* `indices:admin/render/template/search`
 * `indices:admin/settings/update`
 * `indices:admin/shards/search_shards`
 * `indices:admin/template/delete`

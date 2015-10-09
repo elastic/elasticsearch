@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.shield.transport.filter;
 
-import com.google.common.net.InetAddresses;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;

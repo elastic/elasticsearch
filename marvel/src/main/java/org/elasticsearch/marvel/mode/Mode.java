@@ -16,6 +16,8 @@ public enum Mode {
 
     /**
      * Marvel runs in downgraded mode
+     *
+     * TODO: do we really need mode?
      */
     TRIAL(0),
 
@@ -55,9 +57,13 @@ public enum Mode {
 
     public static Mode fromName(String name) {
         switch (name.toLowerCase(Locale.ROOT)) {
-            case "trial": return TRIAL;
-            case "lite": return LITE;
-            case "standard" : return STANDARD;
+            case "trial":
+                return LITE;
+            case "basic":
+            case "gold" :
+            case "silver":
+            case "platinum":
+                return STANDARD;
             default:
                 throw new ElasticsearchException("unknown marvel mode name [" + name + "]");
         }

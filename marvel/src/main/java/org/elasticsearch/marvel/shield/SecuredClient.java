@@ -82,6 +82,10 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateAction;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequest;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequestBuilder;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -194,10 +198,6 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateAction;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateRequest;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateRequestBuilder;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequest;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequestBuilder;
@@ -1047,18 +1047,6 @@ public class SecuredClient implements Client {
             return new ValidateQueryRequestBuilder(this, ValidateQueryAction.INSTANCE).setIndices(indices);
         }
 
-        public ActionFuture<RenderSearchTemplateResponse> renderSearchTemplate(RenderSearchTemplateRequest request) {
-            return this.execute(RenderSearchTemplateAction.INSTANCE, request);
-        }
-
-        public void renderSearchTemplate(RenderSearchTemplateRequest request, ActionListener<RenderSearchTemplateResponse> listener) {
-            this.execute(RenderSearchTemplateAction.INSTANCE, request, listener);
-        }
-
-        public RenderSearchTemplateRequestBuilder prepareRenderSearchTemplate() {
-            return new RenderSearchTemplateRequestBuilder(this, RenderSearchTemplateAction.INSTANCE);
-        }
-
         public ActionFuture<PutWarmerResponse> putWarmer(PutWarmerRequest request) {
             return this.execute(PutWarmerAction.INSTANCE, request);
         }
@@ -1369,6 +1357,18 @@ public class SecuredClient implements Client {
 
         public SnapshotsStatusRequestBuilder prepareSnapshotStatus() {
             return new SnapshotsStatusRequestBuilder(this, SnapshotsStatusAction.INSTANCE);
+        }
+
+        public ActionFuture<RenderSearchTemplateResponse> renderSearchTemplate(RenderSearchTemplateRequest request) {
+            return this.execute(RenderSearchTemplateAction.INSTANCE, request);
+        }
+
+        public void renderSearchTemplate(RenderSearchTemplateRequest request, ActionListener<RenderSearchTemplateResponse> listener) {
+            this.execute(RenderSearchTemplateAction.INSTANCE, request, listener);
+        }
+
+        public RenderSearchTemplateRequestBuilder prepareRenderSearchTemplate() {
+            return new RenderSearchTemplateRequestBuilder(this, RenderSearchTemplateAction.INSTANCE);
         }
     }
 

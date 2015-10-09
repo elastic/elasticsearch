@@ -43,6 +43,18 @@ version of Shield. We recommend copying the changes listed below to your `roles.
 === Change List
 
 [float]
+==== 2.0.0-rc1
+
+.enhancements
+* Added a caching interface that can be used by <<custom-realms, custom authentication realms>> to integrate with the <<cache-eviction-api, cache eviction api>>.
+
+.bug fixes
+* <<configuring-auditing, Auditing>> now captures requests from nodes using a different system key as tampered requests.
+* The <<audit-index, index output for auditing>> stores the type of request when available.
+* <<ip-filtering, IP filtering>> could have allowed a user to block all access to their node if the system was incorrectly configured, but now explicitly
+allows connections from all addresses that the node is bound to so that connections coming from the node's host will not be blocked.
+
+[float]
 ==== 2.0.0-beta2
 
 .new features

@@ -19,7 +19,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicensesClientService;
+import org.elasticsearch.license.plugin.core.LicenseState;
+import org.elasticsearch.license.plugin.core.Licensee;
+import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.license.LicenseService;
@@ -169,13 +171,13 @@ public class LicensingTests extends ShieldIntegTestCase {
     }
 
     public static void disableLicensing() {
-        for (InternalLicensesClientService service : internalCluster().getInstances(InternalLicensesClientService.class)) {
+        for (InternalLicenseeRegistry service : internalCluster().getInstances(InternalLicenseeRegistry.class)) {
             service.disable();
         }
     }
 
     public static void enableLicensing() {
-        for (InternalLicensesClientService service : internalCluster().getInstances(InternalLicensesClientService.class)) {
+        for (InternalLicenseeRegistry service : internalCluster().getInstances(InternalLicenseeRegistry.class)) {
             service.enable();
         }
     }
@@ -203,49 +205,47 @@ public class LicensingTests extends ShieldIntegTestCase {
     public static class InternalLicenseModule extends AbstractModule {
         @Override
         protected void configure() {
-            bind(InternalLicensesClientService.class).asEagerSingleton();
-            bind(LicensesClientService.class).to(InternalLicensesClientService.class);
+            bind(InternalLicenseeRegistry.class).asEagerSingleton();
+            bind(LicenseeRegistry.class).to(InternalLicenseeRegistry.class);
         }
     }
 
-    public static class InternalLicensesClientService extends AbstractComponent implements LicensesClientService {
+    public static class InternalLicenseeRegistry extends AbstractComponent implements LicenseeRegistry {
 
-        private final List<Listener> listeners = new ArrayList<>();
+        private final List<Licensee> licensees = new ArrayList<>();
 
         static final License DUMMY_LICENSE = License.builder()
-                .feature(LicenseService.FEATURE_NAME)
                 .expiryDate(System.currentTimeMillis())
                 .issueDate(System.currentTimeMillis())
                 .issuedTo("LicensingTests")
                 .issuer("test")
                 .maxNodes(Integer.MAX_VALUE)
                 .signature("_signature")
-                .type("test_license_for_shield")
-                .subscriptionType("all_is_good")
+                .type("basic")
                 .uid(String.valueOf(randomLong()) + System.identityHashCode(LicensingTests.class))
                 .build();
 
         @Inject
-        public InternalLicensesClientService(Settings settings) {
+        public InternalLicenseeRegistry(Settings settings) {
             super(settings);
             enable();
         }
 
         @Override
-        public void register(String s, LicensesClientService.TrialLicenseOptions trialLicenseOptions, Collection<LicensesClientService.ExpirationCallback> collection, AcknowledgementCallback acknowledgementCallback, Listener listener) {
-            listeners.add(listener);
+        public void register(Licensee licensee) {
+            licensees.add(licensee);
             enable();
         }
 
         void enable() {
-            for (Listener listener : listeners) {
-                listener.onEnabled(DUMMY_LICENSE);
+            for (Licensee licensee : licensees) {
+                licensee.onChange(DUMMY_LICENSE, LicenseState.ENABLED);
             }
         }
 
         void disable() {
-            for (Listener listener : listeners) {
-                listener.onDisabled(DUMMY_LICENSE);
+            for (Licensee licensee : licensees) {
+                licensee.onChange(DUMMY_LICENSE, LicenseState.DISABLED);
             }
         }
     }

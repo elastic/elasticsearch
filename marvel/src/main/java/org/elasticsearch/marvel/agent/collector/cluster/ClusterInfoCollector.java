@@ -60,7 +60,8 @@ public class ClusterInfoCollector extends AbstractCollector<ClusterInfoMarvelDoc
         List<MarvelDoc> results = new ArrayList<>(1);
 
         // Retrieves all licenses
-        List<License> licenses = licenseService.licenses();
+        // TODO: we should only work with one license
+        List<License> licenses = Collections.singletonList(licenseService.license());
 
         // Retrieves additional cluster stats
         ClusterStatsResponse clusterStats = client.admin().cluster().prepareClusterStats().get(marvelSettings.clusterStatsTimeout());

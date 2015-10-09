@@ -136,10 +136,6 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
         @Override
         public void run() {
-
-            // calibrate with round clock
-            while (clock.millis() % 1000 > 15) {
-            }
             while (active) {
                 logger.trace("checking jobs [{}]", clock.nowUTC());
                 checkJobs();

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.ElasticsearchProperties
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
@@ -76,7 +77,12 @@ class ClusterFormationTasks {
         for (Map.Entry<String, String> command : config.setupCommands.entrySet()) {
             Task nextSetup = project.tasks.create(name: "${task.name}#${command.getKey()}", type: Exec, dependsOn: setup) {
                 workingDir home
-                executable 'sh'
+                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                    executable 'cmd'
+                    args '/C', 'call'
+                } else {
+                    executable 'sh'
+                }
                 args command.getValue()
                 // only show output on failure, when not in info or debug mode
                 if (logger.isInfoEnabled() == false) {
@@ -95,42 +101,56 @@ class ClusterFormationTasks {
         }
 
         File pidFile = pidFile(baseDir)
-        Task start = project.tasks.create(name: "${task.name}#start", type: Exec, dependsOn: setup) {
-            workingDir home
-            executable 'sh'
-            List esArgs = [
-                'bin/elasticsearch',
-                '-d', // daemonize!
-                "-Des.http.port=${config.httpPort}",
-                "-Des.transport.tcp.port=${config.transportPort}",
-                "-Des.pidfile=${pidFile}",
-                "-Des.path.repo=${home}/repo",
-                "-Des.path.shared_data=${home}/../",
-            ]
-            esArgs.addAll(config.systemProperties.collect {key, value -> "-D${key}=${value}"})
-            args esArgs
-            errorOutput = new ByteArrayOutputStream()
-            doLast {
-                if (errorOutput.toString().isEmpty() == false) {
-                    logger.error(errorOutput.toString())
-                    new File(home, 'logs' + File.separator + clusterName + '.log').eachLine {
-                        line -> logger.error(line)
+        List esArgs = [
+            "-Des.http.port=${config.httpPort}",
+            "-Des.transport.tcp.port=${config.transportPort}",
+            "-Des.pidfile=${pidFile}",
+            "-Des.path.repo=${home}/repo",
+            "-Des.path.shared_data=${home}/../",
+        ]
+        esArgs.addAll(config.systemProperties.collect {key, value -> "-D${key}=${value}"})
+        Closure esPostStartActions = { ant, logger ->
+            ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${task.name}#start") {
+                and {
+                    resourceexists {
+                        file file: pidFile.toString()
                     }
-                    throw new GradleException('Failed to start elasticsearch')
+                    http(url: "http://localhost:${config.httpPort}")
                 }
-                ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${task.name}#start") {
-                    and {
-                        resourceexists {
-                            file file: pidFile.toString()
+            }
+            if (ant.properties.containsKey("failed${task.name}#start".toString())) {
+                new File(home, 'logs' + File.separator + clusterName + '.log').eachLine {
+                    line -> logger.error(line)
+                }
+                throw new GradleException('Failed to start elasticsearch')
+            }
+        }
+        Task start;
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            // elasticsearch.bat is spawned as it has no daemon mode
+            start = project.tasks.create(name: "${task.name}#start", type: DefaultTask, dependsOn: setup) << {
+                // Fall back to Ant exec task as Gradle Exec task does not support spawning yet
+                ant.exec(executable: 'cmd', spawn: true, dir: home) {
+                    (['/C', 'call', 'bin/elasticsearch'] + esArgs).each { arg(value: it) }
+                }
+                esPostStartActions(ant, logger)
+            }
+        } else {
+            start = project.tasks.create(name: "${task.name}#start", type: Exec, dependsOn: setup) {
+                workingDir home
+                executable 'sh'
+                args 'bin/elasticsearch', '-d' // daemonize!
+                args esArgs
+                errorOutput = new ByteArrayOutputStream()
+                doLast {
+                    if (errorOutput.toString().isEmpty() == false) {
+                        logger.error(errorOutput.toString())
+                        new File(home, 'logs' + File.separator + clusterName + '.log').eachLine {
+                            line -> logger.error(line)
                         }
-                        http(url: "http://localhost:${config.httpPort}")
+                        throw new GradleException('Failed to start elasticsearch')
                     }
-                }
-                if (ant.properties.containsKey("failed${task.name}#start")) {
-                    new File(home, 'logs' + File.separator + clusterName + '.log').eachLine {
-                        line -> logger.error(line)
-                    }
-                    throw new GradleException('Failed to start elasticsearch')
+                    esPostStartActions(ant, logger)
                 }
             }
         }
@@ -140,8 +160,13 @@ class ClusterFormationTasks {
     static void addNodeStopTask(Project project, Task task, File baseDir) {
         LazyPidReader pidFile = new LazyPidReader(pidFile: pidFile(baseDir))
         Task stop = project.tasks.create(name: task.name + '#stop', type: Exec) {
-            executable 'kill'
-            args '-9', pidFile
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                executable 'Taskkill'
+                args '/PID', pidFile, '/F'
+            } else {
+                executable 'kill'
+                args '-9', pidFile
+            }
             doLast {
                 // TODO: wait for pid to close, or kill -9 and fail
             }

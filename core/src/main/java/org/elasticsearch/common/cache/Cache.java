@@ -393,7 +393,7 @@ public class Cache<K, V> {
                 weight = 0;
             }
         } finally {
-            for (int i = 0; i < NUMBER_OF_SEGMENTS; i++) {
+            for (int i = NUMBER_OF_SEGMENTS - 1; i >= 0; i--) {
                 if (haveSegmentLock[i]) {
                     segments[i].segmentLock.writeLock().unlock();
                 }

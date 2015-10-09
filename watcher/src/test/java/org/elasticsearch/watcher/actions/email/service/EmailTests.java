@@ -5,19 +5,19 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
-import com.google.common.collect.ImmutableMap;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -43,8 +43,8 @@ public class EmailTests extends ESTestCase {
         String subject = randomFrom("Random Subject", "", null);
         String textBody = randomFrom("Random Body", "", null);
         String htmlBody = randomFrom("<hr /><b>BODY</b><hr />", "", null);
-        ImmutableMap<String, Attachment> attachments = null;
-        ImmutableMap<String, Inline> inlines = null;
+        Map<String, Attachment> attachments = null;
+        Map<String, Inline> inlines = null;
 
         Email email = new Email(id, from, replyTo, priority, sentDate, to, cc, bcc, subject, textBody, htmlBody, attachments, inlines);
 

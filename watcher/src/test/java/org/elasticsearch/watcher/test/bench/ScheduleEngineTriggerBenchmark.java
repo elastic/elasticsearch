@@ -12,14 +12,23 @@ import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
-import org.elasticsearch.watcher.trigger.schedule.*;
+import org.elasticsearch.watcher.trigger.schedule.Schedule;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleRegistry;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEngine;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.engine.SchedulerScheduleTriggerEngine;
 import org.elasticsearch.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 
 /**
@@ -54,7 +63,7 @@ public class ScheduleEngineTriggerBenchmark {
         for (int i = 0; i < numWatches; i++) {
             jobs.add(new SimpleJob("job_" + i, interval(interval + "s")));
         }
-        ScheduleRegistry scheduleRegistry = new ScheduleRegistry(Collections.<String, Schedule.Parser>emptyMap());
+        ScheduleRegistry scheduleRegistry = new ScheduleRegistry(emptyMap());
         List<String> impls = new ArrayList<>(Arrays.asList(new String[]{"schedule", "ticker"}));
         Collections.shuffle(impls);
 

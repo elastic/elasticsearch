@@ -5,8 +5,13 @@
  */
 package org.elasticsearch.watcher.support.xcontent;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.ToXContent;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -31,7 +36,7 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
         return wrap(params).debug();
     }
 
-    private WatcherParams(ImmutableMap<String, String> params, ToXContent.Params delegate) {
+    private WatcherParams(Map<String, String> params, ToXContent.Params delegate) {
         super(params, delegate);
     }
 
@@ -50,7 +55,7 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
     public static WatcherParams wrap(ToXContent.Params params) {
         return params instanceof WatcherParams ?
                 (WatcherParams) params :
-                new WatcherParams(ImmutableMap.<String, String>of(), params);
+                new WatcherParams(emptyMap(), params);
     }
 
     public static Builder builder() {
@@ -64,7 +69,7 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
     public static class Builder {
 
         private final ToXContent.Params delegate;
-        private final ImmutableMap.Builder<String, String> params = ImmutableMap.builder();
+        private final Map<String, String> params = new HashMap<>();
 
         private Builder(ToXContent.Params delegate) {
             this.delegate = delegate;
@@ -91,7 +96,7 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
         }
 
         public WatcherParams build() {
-            return new WatcherParams(params.build(), delegate);
+            return new WatcherParams(unmodifiableMap(new HashMap<>(params)), delegate);
         }
     }
 }

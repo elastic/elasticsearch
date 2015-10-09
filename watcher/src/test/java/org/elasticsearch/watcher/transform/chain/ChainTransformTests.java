@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.transform.chain;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,8 +25,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -110,10 +116,7 @@ public class ChainTransformTests extends ESTestCase {
 
     @Test
     public void testParser() throws Exception {
-        Map<String, TransformFactory> factories = ImmutableMap.<String, TransformFactory>builder()
-                .put("named", new NamedExecutableTransform.Factory(logger))
-                .build();
-        TransformRegistry registry = new TransformRegistry(factories);
+        TransformRegistry registry = new TransformRegistry(singletonMap("named", new NamedExecutableTransform.Factory(logger)));
 
         ChainTransformFactory transformParser = new ChainTransformFactory(registry);
 

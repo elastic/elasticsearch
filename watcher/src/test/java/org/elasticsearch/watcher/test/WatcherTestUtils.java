@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.test;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -15,7 +14,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineService;
@@ -29,7 +33,11 @@ import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.email.ExecutableEmailAction;
-import org.elasticsearch.watcher.actions.email.service.*;
+import org.elasticsearch.watcher.actions.email.service.Authentication;
+import org.elasticsearch.watcher.actions.email.service.EmailService;
+import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
+import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
+import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
@@ -65,12 +73,21 @@ import org.elasticsearch.watcher.watch.WatchStatus;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 
-import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.mail.internet.AddressException;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
+import static java.util.Collections.emptyMap;
 import static org.apache.lucene.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -85,7 +102,7 @@ import static org.mockito.Mockito.when;
  */
 public final class WatcherTestUtils {
 
-    public static final Payload EMPTY_PAYLOAD = new Payload.Simple(ImmutableMap.<String, Object>of());
+    public static final Payload EMPTY_PAYLOAD = new Payload.Simple(emptyMap());
 
     private WatcherTestUtils() {
     }
@@ -214,6 +231,9 @@ public final class WatcherTestUtils {
         when(licenseService.enabled()).thenReturn(true);
 
         DateTime now = DateTime.now(UTC);
+        Map<String, ActionStatus> statuses = new HashMap<>();
+        statuses.put("_webhook", new ActionStatus(now));
+        statuses.put("_email", new ActionStatus(now));
         return new Watch(
                 watchName,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
@@ -223,10 +243,7 @@ public final class WatcherTestUtils {
                 new TimeValue(0),
                 new ExecutableActions(actions),
                 metadata,
-                new WatchStatus(now, ImmutableMap.<String, ActionStatus>builder()
-                        .put("_webhook", new ActionStatus(now))
-                        .put("_email", new ActionStatus(now))
-                        .build()));
+                new WatchStatus(now, statuses));
     }
 
     public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws Exception {

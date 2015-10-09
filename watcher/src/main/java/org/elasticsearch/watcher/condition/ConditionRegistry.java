@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.condition;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -21,11 +20,11 @@ import java.util.Set;
  */
 public class ConditionRegistry {
 
-    private final ImmutableMap<String, ConditionFactory> factories;
+    private final Map<String, ConditionFactory> factories;
 
     @Inject
     public ConditionRegistry(Map<String, ConditionFactory> factories) {
-        this.factories = ImmutableMap.copyOf(factories);
+        this.factories = factories;
     }
 
     public Set<String> types() {

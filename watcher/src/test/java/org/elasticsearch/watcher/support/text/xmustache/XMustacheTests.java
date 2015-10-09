@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.support.text.xmustache;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -23,10 +22,12 @@ import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,7 +62,10 @@ public class XMustacheTests extends ESTestCase {
         assertThat(bytes.toUtf8(), equalTo("foo bar"));
 
         // Sets can come out in any order
-        vars.put("data", newHashSet("foo", "bar"));
+        Set<String> setData = new HashSet<>();
+        setData.add("foo");
+        setData.add("bar");
+        vars.put("data", setData);
         output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
@@ -93,8 +97,8 @@ public class XMustacheTests extends ESTestCase {
         CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
-                new Map[] { ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar") },
-                Arrays.asList(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")));
+                new Map[] { singletonMap("key", "foo"), singletonMap("key", "bar") },
+                Arrays.asList(singletonMap("key", "foo"), singletonMap("key", "bar")));
         vars.put("data", data);
         Object output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
@@ -103,7 +107,10 @@ public class XMustacheTests extends ESTestCase {
         assertThat(bytes.toUtf8(), equalTo("foo bar"));
 
         // HashSet iteration order isn't fixed
-        vars.put("data", newHashSet(ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar")));
+        Set<Object> setData = new HashSet<>();
+        setData.add(singletonMap("key", "foo"));
+        setData.add(singletonMap("key", "bar"));
+        vars.put("data", setData);
         output = engine.executable(mustache, vars).run();
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));

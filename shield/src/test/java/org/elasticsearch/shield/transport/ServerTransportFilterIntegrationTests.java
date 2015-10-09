@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.transport;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.createFolder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
@@ -151,7 +151,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 // wait for a timeout, because as long as the node is not connected to the cluster
                 // the license is disabled and therefore blocking health & stats calls.
                 node.client().admin().cluster().prepareUpdateSettings()
-                        .setTransientSettings(ImmutableMap.of("key", "value"))
+                        .setTransientSettings(singletonMap("key", "value"))
                         .setMasterNodeTimeout(TimeValue.timeValueSeconds(2))
                         .get();
                 fail("Expected to fail update settings as the node should not be able to connect to the cluster, and therefore there should be no master");

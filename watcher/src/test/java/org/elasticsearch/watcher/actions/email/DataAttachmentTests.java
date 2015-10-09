@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email;
 
-import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
@@ -16,9 +16,8 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.is;
-
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 
 /**
  *
@@ -28,7 +27,7 @@ public class DataAttachmentTests extends ESTestCase {
 
     @Test
     public void testCreate_Json() throws Exception {
-        Map<String, Object> data = ImmutableMap.<String, Object>of("key", "value");
+        Map<String, Object> data = singletonMap("key", "value");
         Attachment attachment = DataAttachment.JSON.create(data);
         InputStream input = attachment.bodyPart().getDataHandler().getInputStream();
         String content = Streams.copyToString(new InputStreamReader(input, StandardCharsets.UTF_8));
@@ -37,7 +36,7 @@ public class DataAttachmentTests extends ESTestCase {
 
     @Test
     public void testCreate_Yaml() throws Exception {
-        Map<String, Object> data = ImmutableMap.<String, Object>of("key", "value");
+        Map<String, Object> data = singletonMap("key", "value");
         Attachment attachment = DataAttachment.YAML.create(data);
         InputStream input = attachment.bodyPart().getDataHandler().getInputStream();
         String content = Streams.copyToString(new InputStreamReader(input, StandardCharsets.UTF_8));

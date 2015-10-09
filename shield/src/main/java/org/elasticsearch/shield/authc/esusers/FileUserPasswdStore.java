@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.esusers;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -27,11 +26,14 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.shield.support.ShieldFiles.openAtomicMoveWriter;
 
 /**
@@ -44,7 +46,7 @@ public class FileUserPasswdStore {
     private final Path file;
     final Hasher hasher = Hasher.BCRYPT;
 
-    private volatile ImmutableMap<String, char[]> users;
+    private volatile Map<String, char[]> users;
 
     private CopyOnWriteArrayList<RefreshListener> listeners;
 
@@ -105,12 +107,12 @@ public class FileUserPasswdStore {
      * Internally in this class, we try to load the file, but if for some reason we can't, we're being more lenient by
      * logging the error and skipping all users. This is aligned with how we handle other auto-loaded files in shield.
      */
-    static ImmutableMap<String, char[]> parseFileLenient(Path path, ESLogger logger) {
+    static Map<String, char[]> parseFileLenient(Path path, ESLogger logger) {
         try {
             return parseFile(path, logger);
         } catch (Throwable t) {
             logger.error("failed to parse users file [{}]. skipping/removing all users...", t, path.toAbsolutePath());
-            return ImmutableMap.of();
+            return emptyMap();
         }
     }
 
@@ -118,14 +120,14 @@ public class FileUserPasswdStore {
      * parses the esusers file. Should never return {@code null}, if the file doesn't exist an
      * empty map is returned
      */
-    public static ImmutableMap<String, char[]> parseFile(Path path, @Nullable ESLogger logger) {
+    public static Map<String, char[]> parseFile(Path path, @Nullable ESLogger logger) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
         logger.trace("reading users file [{}]...", path.toAbsolutePath());
 
         if (!Files.exists(path)) {
-            return ImmutableMap.of();
+            return emptyMap();
         }
 
         List<String> lines;
@@ -135,7 +137,7 @@ public class FileUserPasswdStore {
             throw new IllegalStateException("could not read users file [" + path.toAbsolutePath() + "]", ioe);
         }
 
-        ImmutableMap.Builder<String, char[]> users = ImmutableMap.builder();
+        Map<String, char[]> users = new HashMap<>();
 
         int lineNr = 0;
         for (String line : lines) {
@@ -162,11 +164,10 @@ public class FileUserPasswdStore {
             users.put(username, hash.toCharArray());
         }
 
-        ImmutableMap<String, char[]> usersMap = users.build();
-        if (usersMap.isEmpty()){
+        if (users.isEmpty()){
             logger.warn("no users found in users file [{}]. use bin/shield/esusers to add users and role mappings", path.toAbsolutePath());
         }
-        return usersMap;
+        return unmodifiableMap(users);
     }
 
     public static void writeFile(Map<String, char[]> esUsers, Path path) {

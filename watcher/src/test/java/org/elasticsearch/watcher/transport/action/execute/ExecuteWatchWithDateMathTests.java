@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.watcher.transport.action.execute;
 
-import com.google.common.collect.ImmutableMap;
-import org.joda.time.DateTime;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
@@ -14,7 +12,11 @@ import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
+import org.joda.time.DateTime;
 import org.junit.Test;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -53,12 +55,11 @@ public class ExecuteWatchWithDateMathTests extends AbstractWatcherIntegrationTes
         DateTime triggeredTime = timeWarp().clock().nowUTC();
         DateTime scheduledTime = triggeredTime.plusMinutes(1);
 
-        ExecuteWatchResponse response = watcherClient.prepareExecuteWatch("_id")
-                .setTriggerData(ImmutableMap.<String, Object>builder()
-                        .put("triggered_time", "now")
-                        .put("scheduled_time", "now+1m")
-                        .build())
-                .get();
+        Map<String, Object> triggerData = new HashMap<>();
+        triggerData.put("triggered_time", "now");
+        triggerData.put("scheduled_time", "now+1m");
+
+        ExecuteWatchResponse response = watcherClient.prepareExecuteWatch("_id").setTriggerData(triggerData).get();
 
         assertThat(response, notNullValue());
         assertThat(response.getRecordId(), notNullValue());

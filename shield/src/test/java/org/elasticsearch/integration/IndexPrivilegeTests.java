@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.integration;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.is;
 
 public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
@@ -138,14 +138,13 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     @Before
     public void insertBaseDocumentsAsAdmin() throws Exception {
         // indices: a,b,c,abc
-        ImmutableMap<String, String> params = ImmutableMap.of("refresh", "true");
+        Map<String, String> params = singletonMap("refresh", "true");
         assertAccessIsAllowed("admin", "PUT", "/a/foo/1", jsonDoc, params);
         assertAccessIsAllowed("admin", "PUT", "/b/foo/1", jsonDoc, params);
         assertAccessIsAllowed("admin", "PUT", "/c/foo/1", jsonDoc, params);
         assertAccessIsAllowed("admin", "PUT", "/abc/foo/1", jsonDoc, params);
     }
 
-    @Test
     public void testUserU1() throws Exception {
         // u1 has all_a_role and read_a_role
         assertUserIsAllowed("u1", "all", "a");
@@ -153,7 +152,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u1", "all", "c");
     }
 
-    @Test
     public void testUserU2() throws Exception {
         // u2 has all_all and read a/b role
         assertUserIsAllowed("u2", "all", "a");
@@ -164,7 +162,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u2", "all", "c");
     }
 
-    @Test
     public void testUserU3() throws Exception {
         // u3 has get b role, but all access to a* and b* via regex
         assertUserIsAllowed("u3", "all", "a");
@@ -172,7 +169,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u3", "all", "c");
     }
 
-    @Test
     public void testUserU4() throws Exception {
         // u4 has read access to a/b and manage access to a*
         assertUserIsAllowed("u4", "read", "a");
@@ -189,7 +185,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsAllowed("u4", "manage", "an_index");
     }
 
-    @Test
     public void testUserU5() throws Exception {
         // u5 may read a and get b
         assertUserIsAllowed("u5", "read", "a");
@@ -202,7 +197,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("u5", "GET", "/b/_search");
     }
 
-    @Test
     public void testUserU6() throws Exception {
         // u6 has all access on a and search access on b
         assertUserIsAllowed("u6", "all", "a");
@@ -212,7 +206,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u6", "all", "c");
     }
 
-    @Test
     public void testUserU7() throws Exception {
         // no access at all
         assertUserIsDenied("u7", "all", "a");
@@ -220,7 +213,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u7", "all", "c");
     }
 
-    @Test
     public void testUserU8() throws Exception {
         // u8 has admin access and get access on b
         assertUserIsAllowed("u8", "all", "a");
@@ -228,7 +220,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsAllowed("u8", "all", "c");
     }
 
-    @Test
     public void testUserU9() throws Exception {
         // u9 has write access to a and read access to a/b
         assertUserIsAllowed("u9", "crud", "a");
@@ -239,7 +230,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u9", "all", "c");
     }
 
-    @Test
     public void testUserU10() throws Exception {
         // u10 has access on get/search on b
         assertUserIsDenied("u10", "all", "a");
@@ -249,7 +239,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u10", "all", "c");
     }
 
-    @Test
     public void testUserU11() throws Exception {
         // u11 has access to create c and delete b
         assertUserIsDenied("u11", "all", "a");
@@ -265,7 +254,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u11", "monitor", "c");
     }
 
-    @Test
     public void testUserU12() throws Exception {
         // u12 has data_access to all indices+ crud access to a
         assertUserIsDenied("u12", "manage", "a");
@@ -276,7 +264,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsAllowed("u12", "data_access", "c");
     }
 
-    @Test
     public void testUserU13() throws Exception {
         // u13 has search access on b and index access on a
         assertUserIsDenied("u13", "manage", "a");
@@ -291,7 +278,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u13", "all", "c");
     }
 
-    @Test
     public void testUserU14() throws Exception {
         // u14 has access to read a and monitor b
         assertUserIsDenied("u14", "manage", "a");
@@ -306,7 +292,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u14", "all", "c");
     }
 
-    @Test
     public void testUserU15() throws Exception {
         //u15 has access to manage and search a, so that adding warmer templates work
         assertUserIsAllowed("u15", "manage", "a");
@@ -318,14 +303,13 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u15", "all", "c");
     }
 
-    @Test
     public void testThatUnknownUserIsRejectedProperly() throws Exception {
         HttpResponse response = executeRequest("idonotexist", "GET", "/", null, new HashMap<>());
         assertThat(response.getStatusCode(), is(401));
     }
 
     private void assertUserExecutes(String user, String action, String index, boolean userIsAllowed) throws Exception {
-        ImmutableMap<String, String> refreshParams = ImmutableMap.of("refresh", "true");
+        Map<String, String> refreshParams = singletonMap("refresh", "true");
 
         switch (action) {
             case "all" :
@@ -353,7 +337,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     // wait until index ready, but as admin
                     client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get();
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_refresh");
-                    ImmutableMap<String, String> analyzeParams = ImmutableMap.of("text", "test");
+                    Map<String, String> analyzeParams = singletonMap("text", "test");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_analyze", null, analyzeParams);
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_flush");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_optimize");
@@ -374,7 +358,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsDenied(user, "DELETE", "/" + index);
                     assertUserIsDenied(user, "create_index", index);
                     assertAccessIsDenied(user, "POST", "/" + index + "/_refresh");
-                    ImmutableMap<String, String> analyzeParams = ImmutableMap.of("text", "test");
+                    Map<String, String> analyzeParams = singletonMap("text", "test");
                     assertAccessIsDenied(user, "GET", "/" + index + "/_analyze", null, analyzeParams);
                     assertAccessIsDenied(user, "POST", "/" + index + "/_flush");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_optimize");

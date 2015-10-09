@@ -5,25 +5,32 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
-import org.elasticsearch.watcher.trigger.schedule.*;
+import org.elasticsearch.watcher.trigger.schedule.Schedule;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleRegistry;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEngine;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -131,20 +138,20 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
     static class Schedules {
 
         private final ActiveSchedule[] schedules;
-        private final ImmutableMap<String, ActiveSchedule> scheduleByName;
+        private final Map<String, ActiveSchedule> scheduleByName;
 
         Schedules(Collection<ActiveSchedule> schedules) {
-            ImmutableMap.Builder<String, ActiveSchedule> builder = ImmutableMap.builder();
+            Map<String, ActiveSchedule> builder = new HashMap<>();
             this.schedules = new ActiveSchedule[schedules.size()];
             int i = 0;
             for (ActiveSchedule schedule : schedules) {
                 builder.put(schedule.name, schedule);
                 this.schedules[i++] = schedule;
             }
-            this.scheduleByName = builder.build();
+            this.scheduleByName = unmodifiableMap(builder);
         }
 
-        public Schedules(ActiveSchedule[] schedules, ImmutableMap<String, ActiveSchedule> scheduleByName) {
+        public Schedules(ActiveSchedule[] schedules, Map<String, ActiveSchedule> scheduleByName) {
             this.schedules = schedules;
             this.scheduleByName = scheduleByName;
         }
@@ -155,14 +162,12 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
                 ActiveSchedule[] newSchedules = new ActiveSchedule[schedules.length + 1];
                 System.arraycopy(schedules, 0, newSchedules, 0, schedules.length);
                 newSchedules[schedules.length] = schedule;
-                ImmutableMap<String, ActiveSchedule> newScheduleByName = ImmutableMap.<String, ActiveSchedule>builder()
-                        .putAll(scheduleByName)
-                        .put(schedule.name, schedule)
-                        .build();
-                return new Schedules(newSchedules, newScheduleByName);
+                Map<String, ActiveSchedule> newScheduleByName = new HashMap<>(scheduleByName);
+                newScheduleByName.put(schedule.name, schedule);
+                return new Schedules(newSchedules, unmodifiableMap(newScheduleByName));
             }
             ActiveSchedule[] newSchedules = new ActiveSchedule[schedules.length];
-            ImmutableMap.Builder<String, ActiveSchedule> builder = ImmutableMap.builder();
+            Map<String, ActiveSchedule> builder = new HashMap<>();
             for (int i = 0; i < schedules.length; i++) {
                 final ActiveSchedule sched;
                 if (schedules[i].name.equals(schedule.name)) {
@@ -174,14 +179,14 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
                 newSchedules[i] = sched;
                 builder.put(sched.name, sched);
             }
-            return new Schedules(newSchedules, builder.build());
+            return new Schedules(newSchedules, unmodifiableMap(builder));
         }
 
         public Schedules remove(String name) {
             if (!scheduleByName.containsKey(name)) {
                 return null;
             }
-            ImmutableMap.Builder<String, ActiveSchedule> builder = ImmutableMap.builder();
+            Map<String, ActiveSchedule> builder = new HashMap<>();
             ActiveSchedule[] newSchedules = new ActiveSchedule[schedules.length - 1];
             int i = 0;
             for (ActiveSchedule schedule : schedules) {
@@ -192,7 +197,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
                     schedule.cancel();
                 }
             }
-            return new Schedules(newSchedules, builder.build());
+            return new Schedules(newSchedules, unmodifiableMap(builder));
         }
     }
 

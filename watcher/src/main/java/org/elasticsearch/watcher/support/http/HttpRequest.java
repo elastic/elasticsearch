@@ -5,14 +5,17 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
@@ -22,9 +25,11 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 public class HttpRequest implements ToXContent {
 
@@ -41,7 +46,7 @@ public class HttpRequest implements ToXContent {
     final @Nullable TimeValue readTimeout;
 
     public HttpRequest(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable String path,
-                       @Nullable ImmutableMap<String, String> params, @Nullable ImmutableMap<String, String> headers,
+                       @Nullable Map<String, String> params, @Nullable Map<String, String> headers,
                        @Nullable HttpAuth auth, @Nullable String body, @Nullable TimeValue connectionTimeout, @Nullable TimeValue readTimeout) {
         this.host = host;
         this.port = port;
@@ -302,8 +307,8 @@ public class HttpRequest implements ToXContent {
         private Scheme scheme;
         private HttpMethod method;
         private String path;
-        private ImmutableMap.Builder<String, String> params = ImmutableMap.builder();
-        private ImmutableMap.Builder<String, String> headers = ImmutableMap.builder();
+        private Map<String, String> params = new HashMap<>();
+        private Map<String, String> headers = new HashMap<>();
         private HttpAuth auth;
         private String body;
         private TimeValue connectionTimeout;
@@ -333,21 +338,33 @@ public class HttpRequest implements ToXContent {
         }
 
         public Builder setParams(Map<String, String> params) {
+            if (this.params == null) {
+                throw new IllegalStateException("Request has already been built!");
+            }
             this.params.putAll(params);
             return this;
         }
 
         public Builder setParam(String key, String value) {
+            if (params == null) {
+                throw new IllegalStateException("Request has already been built!");
+            }
             this.params.put(key, value);
             return this;
         }
 
         public Builder setHeaders(Map<String, String> headers) {
+            if (this.headers == null) {
+                throw new IllegalStateException("Request has already been built!");
+            }
             this.headers.putAll(headers);
             return this;
         }
 
         public Builder setHeader(String key, String value) {
+            if (headers == null) {
+                throw new IllegalStateException("Request has already been built!");
+            }
             this.headers.put(key, value);
             return this;
         }
@@ -378,7 +395,10 @@ public class HttpRequest implements ToXContent {
         }
 
         public HttpRequest build() {
-            return new HttpRequest(host, port, scheme, method, path, params.build(), headers.build(), auth, body, connectionTimeout, readTimeout);
+            HttpRequest request = new HttpRequest(host, port, scheme, method, path, unmodifiableMap(params), unmodifiableMap(headers), auth, body, connectionTimeout, readTimeout);
+            params = null;
+            headers = null;
+            return request;
         }
     }
 

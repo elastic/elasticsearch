@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -23,14 +22,14 @@ import java.util.Map;
  */
 public class ActionRegistry  {
 
-    private final ImmutableMap<String, ActionFactory> parsers;
+    private final Map<String, ActionFactory> parsers;
     private final TransformRegistry transformRegistry;
     private final Clock clock;
     private final LicenseService licenseService;
 
     @Inject
     public ActionRegistry(Map<String, ActionFactory> parsers, TransformRegistry transformRegistry, Clock clock, LicenseService licenseService) {
-        this.parsers = ImmutableMap.copyOf(parsers);
+        this.parsers = parsers;
         this.transformRegistry = transformRegistry;
         this.clock = clock;
         this.licenseService = licenseService;

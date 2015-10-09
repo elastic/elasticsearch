@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.esusers;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.internal.Nullable;
@@ -26,10 +25,16 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.shield.support.ShieldFiles.openAtomicMoveWriter;
 
 /**
@@ -43,7 +48,7 @@ public class FileUserRolesStore {
 
     private final Path file;
     private CopyOnWriteArrayList<RefreshListener> listeners;
-    private volatile ImmutableMap<String, String[]> userRoles;
+    private volatile Map<String, String[]> userRoles;
 
     public FileUserRolesStore(RealmConfig config, ResourceWatcherService watcherService) {
         this(config, watcherService, null);
@@ -95,12 +100,12 @@ public class FileUserRolesStore {
      * Internally in this class, we try to load the file, but if for some reason we can't, we're being more lenient by
      * logging the error and skipping all enries. This is aligned with how we handle other auto-loaded files in shield.
      */
-    static ImmutableMap<String, String[]> parseFileLenient(Path path, ESLogger logger) {
+    static Map<String, String[]> parseFileLenient(Path path, ESLogger logger) {
         try {
             return parseFile(path, logger);
         } catch (Throwable t) {
             logger.error("failed to parse users_roles file [{}]. skipping/removing all entries...", t, path.toAbsolutePath());
-            return ImmutableMap.of();
+            return emptyMap();
         }
     }
 
@@ -109,7 +114,7 @@ public class FileUserRolesStore {
      * an empty map is returned. The read file holds a mapping per line of the form "role -&gt; users" while the returned
      * map holds entries of the form  "user -&gt; roles".
      */
-    public static ImmutableMap<String, String[]> parseFile(Path path, @Nullable ESLogger logger) {
+    public static Map<String, String[]> parseFile(Path path, @Nullable ESLogger logger) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
@@ -117,7 +122,7 @@ public class FileUserRolesStore {
 
 
         if (!Files.exists(path)) {
-            return ImmutableMap.of();
+            return emptyMap();
         }
 
         List<String> lines;
@@ -167,17 +172,16 @@ public class FileUserRolesStore {
             }
         }
 
-        ImmutableMap.Builder<String, String[]> builder = ImmutableMap.builder();
+        Map<String, String[]> usersRoles = new HashMap<>();
         for (Map.Entry<String, List<String>> entry : userToRoles.entrySet()) {
-            builder.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
+            usersRoles.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
         }
 
-        ImmutableMap<String, String[]> usersRoles = builder.build();
         if (usersRoles.isEmpty()){
             logger.warn("no entries found in users_roles file [{}]. use bin/shield/esusers to add users and role mappings", path.toAbsolutePath());
         }
 
-        return usersRoles;
+        return unmodifiableMap(usersRoles);
     }
 
     /**

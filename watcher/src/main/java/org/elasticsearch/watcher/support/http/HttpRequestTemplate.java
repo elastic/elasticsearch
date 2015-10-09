@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -24,11 +23,12 @@ import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  */
@@ -54,8 +54,8 @@ public class HttpRequestTemplate implements ToXContent {
         this.scheme = scheme != null ? scheme :Scheme.HTTP;
         this.method = method != null ? method : HttpMethod.GET;
         this.path = path;
-        this.params = params != null ? ImmutableMap.copyOf(params) : emptyMap();
-        this.headers = headers != null ? ImmutableMap.copyOf(headers) : emptyMap();
+        this.params = params != null ? params : emptyMap();
+        this.headers = headers != null ? headers : emptyMap();
         this.auth = auth;
         this.body = body;
         this.connectionTimeout = connectionTimeout;
@@ -121,7 +121,7 @@ public class HttpRequestTemplate implements ToXContent {
             request.setParams(mapBuilder.map());
         }
         if ((headers == null || headers.isEmpty()) && body != null && body.getContentType() != null) {
-            request.setHeaders(ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, body.getContentType().restContentType()));
+            request.setHeaders(singletonMap(HttpHeaders.Names.CONTENT_TYPE, body.getContentType().restContentType()));
         } else if (headers != null && !headers.isEmpty()) {
             MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
             if (body != null && body.getContentType() != null) {
@@ -148,6 +148,7 @@ public class HttpRequestTemplate implements ToXContent {
         return request.build();
     }
 
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field(Field.SCHEME.getPreferredName(), scheme, params);
@@ -334,8 +335,8 @@ public class HttpRequestTemplate implements ToXContent {
         private Scheme scheme;
         private HttpMethod method;
         private TextTemplate path;
-        private final ImmutableMap.Builder<String, TextTemplate> params = ImmutableMap.builder();
-        private final ImmutableMap.Builder<String, TextTemplate> headers = ImmutableMap.builder();
+        private final Map<String, TextTemplate> params = new HashMap<>();
+        private final Map<String, TextTemplate> headers = new HashMap<>();
         private HttpAuth auth;
         private TextTemplate body;
         private TimeValue connectionTimeout;
@@ -433,7 +434,8 @@ public class HttpRequestTemplate implements ToXContent {
         }
 
         public HttpRequestTemplate build() {
-            return new HttpRequestTemplate(host, port, scheme, method, path, params.build(), headers.build(), auth, body, connectionTimeout, readTimeout);
+            return new HttpRequestTemplate(host, port, scheme, method, path, unmodifiableMap(new HashMap<>(params)),
+                    unmodifiableMap(new HashMap<>(headers)), auth, body, connectionTimeout, readTimeout);
         }
     }
 

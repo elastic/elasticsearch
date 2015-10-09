@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -18,12 +17,11 @@ import java.util.Set;
  *
  */
 public class ScheduleRegistry {
-
-    private final ImmutableMap<String, Schedule.Parser> parsers;
+    private final Map<String, Schedule.Parser> parsers;
 
     @Inject
     public ScheduleRegistry(Map<String, Schedule.Parser> parsers) {
-        this.parsers = ImmutableMap.copyOf(parsers);
+        this.parsers = parsers;
     }
 
     public Set<String> types() {

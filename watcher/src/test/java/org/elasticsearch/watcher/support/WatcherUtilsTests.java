@@ -6,14 +6,17 @@
 package org.elasticsearch.watcher.support;
 
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -21,7 +24,6 @@ import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.joda.time.DateTime;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,30 +31,30 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.formatDate;
 import static org.elasticsearch.watcher.support.WatcherUtils.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.watcher.support.WatcherUtils.flattenModel;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
 public class WatcherUtilsTests extends ESTestCase {
-
-    @Test
     public void testFlattenModel() throws Exception {
         DateTime now = SystemClock.INSTANCE.nowUTC();
-        Map<String, Object> map = ImmutableMap.<String, Object>builder()
-                .put("a", ImmutableMap.builder().put("a1", new int[] { 0, 1, 2 }).build())
-                .put("b", new String[] { "b0", "b1", "b2" })
-                .put("c", Arrays.asList(TimeValue.timeValueSeconds(0), TimeValue.timeValueSeconds(1)))
-                .put("d", now)
-                .build();
+        Map<String, Object> map = new HashMap<>();
+        map.put("a", singletonMap("a1", new int[] { 0, 1, 2 }));
+        map.put("b", new String[] { "b0", "b1", "b2" });
+        map.put("c", Arrays.asList(TimeValue.timeValueSeconds(0), TimeValue.timeValueSeconds(1)));
+        map.put("d", now);
 
-        @SuppressWarnings("unchecked")
-        Map<String, String> result = (Map) flattenModel(map);
+        Map<String, Object> result = flattenModel(map);
         assertThat(result.size(), is(9));
         assertThat(result, hasEntry("a.a1.0", "0"));
         assertThat(result, hasEntry("a.a1.1", "1"));
@@ -65,7 +67,6 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(result, hasEntry("d", formatDate(now)));
     }
 
-    @Test
     public void testResponseToData() throws Exception {
         final Map<String, Object> expected = new HashMap<>();
         expected.put("key1", "val");
@@ -89,7 +90,6 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(result, equalTo(expected));
     }
 
-    @Test
     public void testSerializeSearchRequest() throws Exception {
         String[] randomIndices = generateRandomStringArray(5, 5, false);
         SearchRequest expectedRequest = new SearchRequest(randomIndices);
@@ -139,7 +139,6 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(result.templateSource(), equalTo(expectedRequest.templateSource()));
     }
 
-    @Test
     public void testDeserializeSearchRequest() throws Exception {
 
         XContentBuilder builder = jsonBuilder().startObject();

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.index;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +30,7 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -79,7 +78,7 @@ public class IndexActionTests extends ESIntegTestCase {
         IndexAction action = new IndexAction("test-index", "test-type", timestampField, null, null);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()), null);
         DateTime executionTime = DateTime.now(UTC);
-        Payload payload = randomBoolean() ? new Payload.Simple("foo", "bar") : new Payload.Simple("_doc", ImmutableMap.of("foo", "bar"));
+        Payload payload = randomBoolean() ? new Payload.Simple("foo", "bar") : new Payload.Simple("_doc", singletonMap("foo", "bar"));
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, payload);
 
         Action.Result result = executable.execute("_id", ctx, ctx.payload());
@@ -134,9 +133,9 @@ public class IndexActionTests extends ESIntegTestCase {
         }
 
         Object list = randomFrom(
-                new Map[] { ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1") },
-                Arrays.asList(ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1")),
-                unmodifiableSet(newHashSet(ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1")))
+                new Map[] { singletonMap("foo", "bar"), singletonMap("foo", "bar1") },
+                Arrays.asList(singletonMap("foo", "bar"), singletonMap("foo", "bar1")),
+                unmodifiableSet(newHashSet(singletonMap("foo", "bar"), singletonMap("foo", "bar1")))
         );
 
         IndexAction action = new IndexAction("test-index", "test-type", timestampField, null, null);

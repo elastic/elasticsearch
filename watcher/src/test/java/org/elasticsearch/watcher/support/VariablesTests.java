@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.watcher.support;
 
-import com.google.common.collect.ImmutableMap;
-import org.joda.time.DateTime;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
@@ -14,13 +12,17 @@ import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
+import org.joda.time.DateTime;
 import org.junit.Test;
 
 import java.util.Map;
 
-import static org.joda.time.DateTimeZone.UTC;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.assertValue;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.joda.time.DateTimeZone.UTC;
 
 /**
  *
@@ -32,8 +34,8 @@ public class VariablesTests extends ESTestCase {
         DateTime scheduledTime = DateTime.now(UTC);
         DateTime triggeredTime = scheduledTime.plusMillis(50);
         DateTime executionTime = triggeredTime.plusMillis(50);
-        Payload payload = new Payload.Simple(ImmutableMap.<String, Object>builder().put("payload_key", "payload_value").build());
-        Map<String, Object> metatdata = ImmutableMap.<String, Object>builder().put("metadata_key", "metadata_value").build();
+        Payload payload = new Payload.Simple(singletonMap("payload_key", "payload_value"));
+        Map<String, Object> metatdata = singletonMap("metadata_key", "metadata_value");
         TriggerEvent event = new ScheduleTriggerEvent("_watch_id", triggeredTime, scheduledTime);
         Wid wid = new Wid("_watch_id", 0, executionTime);
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")

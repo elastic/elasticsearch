@@ -6,8 +6,6 @@
 package org.elasticsearch.watcher.condition.script;
 
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -35,11 +33,14 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.getScriptServiceProxy;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
@@ -71,7 +72,7 @@ public class ScriptConditionTests extends ESTestCase {
     @Test
     public void testExecute_MergedParams() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
-        Script script = Script.inline("ctx.payload.hits.total > threshold").lang(ScriptService.DEFAULT_LANG).params(ImmutableMap.<String, Object>of("threshold", 1)).build();
+        Script script = Script.inline("ctx.payload.hits.total > threshold").lang(ScriptService.DEFAULT_LANG).params(singletonMap("threshold", 1)).build();
         ExecutableScriptCondition executable = new ExecutableScriptCondition(new ScriptCondition(script), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));

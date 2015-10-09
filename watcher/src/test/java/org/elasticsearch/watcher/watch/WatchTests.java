@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.watcher.watch;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
@@ -72,7 +70,6 @@ import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -121,10 +118,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
@@ -160,7 +160,7 @@ public class WatchTests extends ESTestCase {
         htmlSanitizer = mock(HtmlSanitizer.class);
         secretService = mock(SecretService.class);
         licenseService = mock(LicenseService.class);
-        authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuthFactory) new BasicAuthFactory(secretService)));
+        authRegistry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(secretService)));
         logger = Loggers.getLogger(WatchTests.class);
     }
 
@@ -189,13 +189,13 @@ public class WatchTests extends ESTestCase {
         ExecutableActions actions = randomActions();
         ActionRegistry actionRegistry = registry(actions, transformRegistry);
 
-        Map<String, Object> metadata = ImmutableMap.<String, Object>of("_key", "_val");
+        Map<String, Object> metadata = singletonMap("_key", "_val");
 
-        ImmutableMap.Builder<String, ActionStatus> actionsStatuses = ImmutableMap.builder();
+        Map<String, ActionStatus> actionsStatuses = new HashMap<>();
         for (ActionWrapper action : actions) {
             actionsStatuses.put(action.id(), new ActionStatus(now));
         }
-        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), actionsStatuses.build());
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), unmodifiableMap(actionsStatuses));
 
         TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10));
 
@@ -303,29 +303,29 @@ public class WatchTests extends ESTestCase {
     }
 
     private static ScheduleRegistry registry(Schedule schedule) {
-        ImmutableMap.Builder<String, Schedule.Parser> parsers = ImmutableMap.builder();
+        Map<String, Schedule.Parser> parsers = new HashMap<>();
         switch (schedule.type()) {
             case CronSchedule.TYPE:
                 parsers.put(CronSchedule.TYPE, new CronSchedule.Parser());
-                return new ScheduleRegistry(parsers.build());
+                return new ScheduleRegistry(parsers);
             case HourlySchedule.TYPE:
                 parsers.put(HourlySchedule.TYPE, new HourlySchedule.Parser());
-                return new ScheduleRegistry(parsers.build());
+                return new ScheduleRegistry(parsers);
             case DailySchedule.TYPE:
                 parsers.put(DailySchedule.TYPE, new DailySchedule.Parser());
-                return new ScheduleRegistry(parsers.build());
+                return new ScheduleRegistry(parsers);
             case WeeklySchedule.TYPE:
                 parsers.put(WeeklySchedule.TYPE, new WeeklySchedule.Parser());
-                return new ScheduleRegistry(parsers.build());
+                return new ScheduleRegistry(parsers);
             case MonthlySchedule.TYPE:
                 parsers.put(MonthlySchedule.TYPE, new MonthlySchedule.Parser());
-                return new ScheduleRegistry(parsers.build());
+                return new ScheduleRegistry(parsers);
             case YearlySchedule.TYPE:
                 parsers.put(YearlySchedule.TYPE, new YearlySchedule.Parser());
-                return new ScheduleRegistry(parsers.build());
+                return new ScheduleRegistry(parsers);
             case IntervalSchedule.TYPE:
                 parsers.put(IntervalSchedule.TYPE, new IntervalSchedule.Parser());
-                return new ScheduleRegistry(parsers.build());
+                return new ScheduleRegistry(parsers);
             default:
                 throw new IllegalArgumentException("unknown schedule [" + schedule + "]");
         }
@@ -338,20 +338,20 @@ public class WatchTests extends ESTestCase {
                 SearchInput searchInput = searchInput(WatcherTestUtils.newInputSearchRequest("idx")).build();
                 return new ExecutableSearchInput(searchInput, logger, client, null);
             default:
-                SimpleInput simpleInput = InputBuilders.simpleInput(ImmutableMap.<String, Object>builder().put("_key", "_val")).build();
+                SimpleInput simpleInput = InputBuilders.simpleInput(singletonMap("_key", "_val")).build();
                 return new ExecutableSimpleInput(simpleInput, logger);
         }
     }
 
     private InputRegistry registry(ExecutableInput input) {
-        ImmutableMap.Builder<String, InputFactory> parsers = ImmutableMap.builder();
+        Map<String, InputFactory> parsers = new HashMap<>();
         switch (input.type()) {
             case SearchInput.TYPE:
                 parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client));
-                return new InputRegistry(parsers.build());
+                return new InputRegistry(parsers);
             default:
                 parsers.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
-                return new InputRegistry(parsers.build());
+                return new InputRegistry(parsers);
         }
     }
 
@@ -370,20 +370,20 @@ public class WatchTests extends ESTestCase {
     }
 
     private ConditionRegistry registry(ExecutableCondition condition) {
-        ImmutableMap.Builder<String, ConditionFactory> parsers = ImmutableMap.builder();
+        Map<String, ConditionFactory> parsers = new HashMap<>();
         switch (condition.type()) {
             case ScriptCondition.TYPE:
                 parsers.put(ScriptCondition.TYPE, new ScriptConditionFactory(settings, scriptService));
-                return new ConditionRegistry(parsers.build());
+                return new ConditionRegistry(parsers);
             case CompareCondition.TYPE:
                 parsers.put(CompareCondition.TYPE, new CompareConditionFactory(settings, SystemClock.INSTANCE));
-                return new ConditionRegistry(parsers.build());
+                return new ConditionRegistry(parsers);
             case ArrayCompareCondition.TYPE:
                 parsers.put(ArrayCompareCondition.TYPE, new ArrayCompareConditionFactory(settings, SystemClock.INSTANCE));
-                return new ConditionRegistry(parsers.build());
+                return new ConditionRegistry(parsers);
             default:
                 parsers.put(AlwaysCondition.TYPE, new AlwaysConditionFactory(settings));
-                return new ConditionRegistry(parsers.build());
+                return new ConditionRegistry(parsers);
         }
     }
 
@@ -406,12 +406,12 @@ public class WatchTests extends ESTestCase {
     }
 
     private TransformRegistry transformRegistry() {
-        ImmutableMap.Builder<String, TransformFactory> factories = ImmutableMap.builder();
+        Map<String, TransformFactory> factories = new HashMap<>();
         ChainTransformFactory parser = new ChainTransformFactory();
         factories.put(ChainTransform.TYPE, parser);
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
         factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client));
-        TransformRegistry registry = new TransformRegistry(factories.build());
+        TransformRegistry registry = new TransformRegistry(unmodifiableMap(factories));
         parser.init(registry);
         return registry;
     }
@@ -441,7 +441,7 @@ public class WatchTests extends ESTestCase {
     }
 
     private ActionRegistry registry(ExecutableActions actions, TransformRegistry transformRegistry) {
-        ImmutableMap.Builder<String, ActionFactory> parsers = ImmutableMap.builder();
+        Map<String, ActionFactory> parsers = new HashMap<>();
         for (ActionWrapper action : actions) {
             switch (action.action().type()) {
                 case EmailAction.TYPE:
@@ -455,7 +455,7 @@ public class WatchTests extends ESTestCase {
                     break;
             }
         }
-        return new ActionRegistry(parsers.build(), transformRegistry, SystemClock.INSTANCE, licenseService);
+        return new ActionRegistry(unmodifiableMap(parsers), transformRegistry, SystemClock.INSTANCE, licenseService);
     }
 
     private ActionThrottler randomThrottler() {

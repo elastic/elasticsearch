@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -17,16 +16,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
-import javax.annotation.Nullable;
-
-import static java.util.Collections.emptyMap;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.annotation.Nullable;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 public class HttpResponse implements ToXContent {
 
@@ -51,7 +51,7 @@ public class HttpResponse implements ToXContent {
     }
 
     public HttpResponse(int status, @Nullable byte[] body) {
-        this(status, body != null ? new BytesArray(body) : null, ImmutableMap.<String, String[]>of());
+        this(status, body != null ? new BytesArray(body) : null, emptyMap());
     }
 
     public HttpResponse(int status, @Nullable byte[] body, Map<String, String[]> headers) {
@@ -160,7 +160,7 @@ public class HttpResponse implements ToXContent {
 
         int status = -1;
         String body = null;
-        ImmutableMap.Builder<String, String[]> headers = ImmutableMap.builder();
+        Map<String, String[]> headers = new HashMap<>();
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -210,7 +210,7 @@ public class HttpResponse implements ToXContent {
         if (status < 0) {
             throw new ElasticsearchParseException("could not parse http response. missing required numeric [{}] field holding the response's http status code", Field.STATUS.getPreferredName());
         }
-        return new HttpResponse(status, body, headers.build());
+        return new HttpResponse(status, body, unmodifiableMap(headers));
     }
 
     interface Field {

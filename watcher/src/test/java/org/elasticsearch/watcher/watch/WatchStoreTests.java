@@ -5,6 +5,19 @@
  */
 package org.elasticsearch.watcher.watch;
 
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.core.IsEqual.equalTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
+
+import java.util.Collections;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -15,7 +28,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -29,13 +47,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.Collections;
-
-import static org.hamcrest.core.Is.is;
-import static org.hamcrest.core.IsEqual.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.*;
 
 /**
  */
@@ -86,7 +97,7 @@ public class WatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metaData(metaDateBuilder);
-        csBuilder.routingTable(routingTableBuilder);
+        csBuilder.routingTable(routingTableBuilder.build());
 
         ClusterState cs = csBuilder.build();
         assertThat(watchStore.validate(cs), is(false));
@@ -110,7 +121,7 @@ public class WatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metaData(metaDateBuilder);
-        csBuilder.routingTable(routingTableBuilder);
+        csBuilder.routingTable(routingTableBuilder.build());
 
         RefreshResponse refreshResponse = mockRefreshResponse(1, 0);
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
@@ -145,7 +156,7 @@ public class WatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metaData(metaDateBuilder);
-        csBuilder.routingTable(routingTableBuilder);
+        csBuilder.routingTable(routingTableBuilder.build());
 
         RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
@@ -184,7 +195,7 @@ public class WatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metaData(metaDateBuilder);
-        csBuilder.routingTable(routingTableBuilder);
+        csBuilder.routingTable(routingTableBuilder.build());
 
         RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
@@ -221,7 +232,7 @@ public class WatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metaData(metaDateBuilder);
-        csBuilder.routingTable(routingTableBuilder);
+        csBuilder.routingTable(routingTableBuilder.build());
 
         RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);

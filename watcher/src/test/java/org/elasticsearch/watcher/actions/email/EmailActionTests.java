@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.email;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -16,7 +15,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.email.service.*;
+import org.elasticsearch.watcher.actions.email.service.Authentication;
+import org.elasticsearch.watcher.actions.email.service.Email;
+import org.elasticsearch.watcher.actions.email.service.EmailService;
+import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
+import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
+import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.secret.Secret;
@@ -28,13 +32,20 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -101,20 +112,18 @@ public class EmailActionTests extends ESTestCase {
                 .metadata(metadata)
                 .buildMock();
 
-        Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
-                .put("ctx", ImmutableMap.<String, Object>builder()
-                        .put("id", ctx.id().value())
-                        .put("watch_id", "watch1")
-                        .put("payload", data)
-                        .put("metadata", metadata)
-                        .put("execution_time", now)
-                        .put("trigger", ImmutableMap.<String, Object>builder()
-                                .put("triggered_time", now)
-                                .put("scheduled_time", now)
-                                .build())
-                        .put("vars", Collections.emptyMap())
-                        .build())
-                .build();
+        Map<String, Object> triggerModel = new HashMap<>();
+        triggerModel.put("triggered_time", now);
+        triggerModel.put("scheduled_time", now);
+        Map<String, Object> ctxModel = new HashMap<>();
+        ctxModel.put("id", ctx.id().value());
+        ctxModel.put("watch_id", "watch1");
+        ctxModel.put("payload", data);
+        ctxModel.put("metadata", metadata);
+        ctxModel.put("execution_time", now);
+        ctxModel.put("trigger", triggerModel);
+        ctxModel.put("vars", emptyMap());
+        Map<String, Object> expectedModel = singletonMap("ctx", ctxModel);
 
         if (subject != null) {
             when(engine.render(subject, expectedModel)).thenReturn(subject.getTemplate());

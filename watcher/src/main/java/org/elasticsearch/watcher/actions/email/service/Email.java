@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -16,14 +15,23 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
 import javax.mail.MessagingException;
 import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -41,12 +49,12 @@ public class Email implements ToXContent {
     final String subject;
     final String textBody;
     final String htmlBody;
-    final ImmutableMap<String, Attachment> attachments;
-    final ImmutableMap<String, Inline> inlines;
+    final Map<String, Attachment> attachments;
+    final Map<String, Inline> inlines;
 
     public Email(String id, Address from, AddressList replyTo, Priority priority, DateTime sentDate,
                  AddressList to, AddressList cc, AddressList bcc, String subject, String textBody, String htmlBody,
-                 ImmutableMap<String, Attachment> attachments, ImmutableMap<String, Inline> inlines) {
+                 Map<String, Attachment> attachments, Map<String, Inline> inlines) {
 
         this.id = id;
         this.from = from;
@@ -107,11 +115,11 @@ public class Email implements ToXContent {
         return htmlBody;
     }
 
-    public ImmutableMap<String, Attachment> attachments() {
+    public Map<String, Attachment> attachments() {
         return attachments;
     }
 
-    public ImmutableMap<String, Inline> inlines() {
+    public Map<String, Inline> inlines() {
         return inlines;
     }
 
@@ -239,8 +247,8 @@ public class Email implements ToXContent {
         private String subject;
         private String textBody;
         private String htmlBody;
-        private ImmutableMap.Builder<String, Attachment> attachments = ImmutableMap.builder();
-        private ImmutableMap.Builder<String, Inline> inlines = ImmutableMap.builder();
+        private Map<String, Attachment> attachments = new HashMap<>();
+        private Map<String, Inline> inlines = new HashMap<>();
 
         private Builder() {
         }
@@ -342,19 +350,32 @@ public class Email implements ToXContent {
         }
 
         public Builder attach(Attachment attachment) {
+            if (attachments == null) {
+                throw new IllegalStateException("Email has already been built!");
+            }
             attachments.put(attachment.id(), attachment);
             return this;
         }
 
         public Builder inline(Inline inline) {
+            if (inlines == null) {
+                throw new IllegalStateException("Email has already been built!");
+            }
             inlines.put(inline.id(), inline);
             return this;
         }
 
+        /**
+         * Build the email. Note that adding items to attachments or inlines
+         * after this is called is incorrect.
+         */
         public Email build() {
             assert id != null : "email id should not be null (should be set to the watch id";
-            ImmutableMap<String, Attachment> attachmentsMap = attachments.build();
-            return new Email(id, from, replyTo, priority, sentDate, to, cc, bcc, subject, textBody, htmlBody, attachmentsMap, inlines.build());
+            Email email = new Email(id, from, replyTo, priority, sentDate, to, cc, bcc, subject, textBody, htmlBody,
+                    unmodifiableMap(attachments), unmodifiableMap(inlines));
+            attachments = null;
+            inlines = null;
+            return email;
         }
 
     }

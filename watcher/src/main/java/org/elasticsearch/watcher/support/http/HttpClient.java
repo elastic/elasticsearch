@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -13,23 +12,37 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.support.http.auth.ApplicableHttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 
-import javax.net.ssl.*;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.*;
+import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.SecureRandom;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Client class to wrap http connections
@@ -160,7 +173,7 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         urlConnection.connect();
 
         final int statusCode = urlConnection.getResponseCode();
-        ImmutableMap.Builder<String, String[]> responseHeaders = ImmutableMap.builder();
+        Map<String, String[]> responseHeaders = new HashMap<>();
         for (Map.Entry<String, List<String>> header : urlConnection.getHeaderFields().entrySet()) {
             // HttpURLConnection#getHeaderFields returns the first status line as a header
             // with a `null` key (facepalm)... so we have to skip that one.
@@ -168,6 +181,7 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
                 responseHeaders.put(header.getKey(), header.getValue().toArray(new String[header.getValue().size()]));
             }
         }
+        responseHeaders = unmodifiableMap(responseHeaders);
         logger.debug("http status code [{}]", statusCode);
         if (statusCode < 400) {
             final byte[] body;
@@ -175,9 +189,9 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
                 Streams.copy(inputStream, outputStream);
                 body = outputStream.toByteArray();
             }
-            return new HttpResponse(statusCode, body, responseHeaders.build());
+            return new HttpResponse(statusCode, body, responseHeaders);
         }
-        return new HttpResponse(statusCode, responseHeaders.build());
+        return new HttpResponse(statusCode, responseHeaders);
     }
 
     /** SSL Initialization **/

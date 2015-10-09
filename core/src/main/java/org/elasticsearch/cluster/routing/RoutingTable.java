@@ -350,7 +350,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     public static class Builder {
 
         private long version;
-        private final ImmutableOpenMap.Builder<String, IndexRoutingTable> indicesRouting = ImmutableOpenMap.builder();
+        private ImmutableOpenMap.Builder<String, IndexRoutingTable> indicesRouting = ImmutableOpenMap.builder();
 
         public Builder() {
 
@@ -406,6 +406,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         public Builder updateNumberOfReplicas(int numberOfReplicas, String... indices) {
+            if (indicesRouting == null) {
+                throw new IllegalStateException("once build is called the builder cannot be reused");
+            }
             if (indices == null || indices.length == 0) {
                 indices = indicesRouting.keys().toArray(String.class);
             }
@@ -492,6 +495,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         public Builder add(IndexRoutingTable indexRoutingTable) {
+            if (indicesRouting == null) {
+                throw new IllegalStateException("once build is called the builder cannot be reused");
+            }
             indexRoutingTable.validate();
             indicesRouting.put(indexRoutingTable.index(), indexRoutingTable);
             return this;
@@ -503,11 +509,17 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         public Builder indicesRouting(Map<String, IndexRoutingTable> indicesRouting) {
+            if (indicesRouting == null) {
+                throw new IllegalStateException("once build is called the builder cannot be reused");
+            }
             this.indicesRouting.putAll(indicesRouting);
             return this;
         }
 
         public Builder remove(String index) {
+            if (indicesRouting == null) {
+                throw new IllegalStateException("once build is called the builder cannot be reused");
+            }
             indicesRouting.remove(index);
             return this;
         }
@@ -518,16 +530,21 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         /**
-         * Builds the routing table. Note that this can only be called one time.
-         * If you need to build a new RoutingTable as a copy of this one you'll
-         * need to build a new RoutingTable.Builder.
+         * Builds the routing table. Note that once this is called the builder
+         * must be thrown away. If you need to build a new RoutingTable as a
+         * copy of this one you'll need to build a new RoutingTable.Builder.
          */
         public RoutingTable build() {
+            if (indicesRouting == null) {
+                throw new IllegalStateException("once build is called the builder cannot be reused");
+            }
             // normalize the versions right before we build it...
             for (ObjectCursor<IndexRoutingTable> indexRoutingTable : indicesRouting.values()) {
                 indicesRouting.put(indexRoutingTable.value.index(), indexRoutingTable.value.normalizeVersions());
             }
-            return new RoutingTable(version, indicesRouting.build());
+            RoutingTable table = new RoutingTable(version, indicesRouting.build());
+            indicesRouting = null;
+            return table;
         }
 
         public static RoutingTable readFrom(StreamInput in) throws IOException {

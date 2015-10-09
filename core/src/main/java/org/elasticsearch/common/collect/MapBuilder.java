@@ -84,14 +84,11 @@ public class MapBuilder<K, V> {
     }
 
     /**
-     * Build an immutable copy of the map under construction.
-     *
-     * @deprecated always copies the map under construction. prefer building a
-     *             HashMap by hand and wrapping it in an unmodifiableMap
+     * Build an immutable copy of the map under construction. Always copies the map under construction. Prefer building
+     * a HashMap by hand and wrapping it in an unmodifiableMap
      */
-    @Deprecated
     public Map<K, V> immutableMap() {
-        // Note that this whole method is going to have to go next but we're changing it like this here just to keep the commit smaller.
+        // TODO: follow the directions in the Javadoc for this method
         return unmodifiableMap(new HashMap<>(map));
     }
 }

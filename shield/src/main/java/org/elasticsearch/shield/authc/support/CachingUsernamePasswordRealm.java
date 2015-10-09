@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.util.concurrent.UncheckedExecutionException;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.support.Exceptions;
 
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -34,9 +33,9 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         hasher = Hasher.resolve(config.settings().get(CACHE_HASH_ALGO_SETTING, null), Hasher.SSHA256);
         TimeValue ttl = config.settings().getAsTime(CACHE_TTL_SETTING, DEFAULT_TTL);
         if (ttl.millis() > 0) {
-            cache = CacheBuilder.newBuilder()
-                    .expireAfterWrite(ttl.getMillis(), TimeUnit.MILLISECONDS)
-                    .maximumSize(config.settings().getAsInt(CACHE_MAX_USERS_SETTING, DEFAULT_MAX_USERS))
+            cache = CacheBuilder.<String, UserWithHash>builder()
+                    .setExpireAfterAccess(TimeUnit.MILLISECONDS.toNanos(ttl.getMillis()))
+                    .setMaximumWeight(config.settings().getAsInt(CACHE_MAX_USERS_SETTING, DEFAULT_MAX_USERS))
                     .build();
         } else {
             cache = null;
@@ -69,22 +68,19 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             return doAuthenticate(token);
         }
 
-        Callable<UserWithHash> callback = new Callable<UserWithHash>() {
-            @Override
-            public UserWithHash call() throws Exception {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("user not found in cache, proceeding with normal authentication");
-                }
-                User user = doAuthenticate(token);
-                if (user == null) {
-                    throw Exceptions.authenticationError("could not authenticate [{}]", token.principal());
-                }
-                return new UserWithHash(user, token.credentials(), hasher);
+        CacheLoader<String, UserWithHash> callback = key -> {
+            if (logger.isDebugEnabled()) {
+                logger.debug("user not found in cache, proceeding with normal authentication");
             }
+            User user = doAuthenticate(token);
+            if (user == null) {
+                throw Exceptions.authenticationError("could not authenticate [{}]", token.principal());
+            }
+            return new UserWithHash(user, token.credentials(), hasher);
         };
 
         try {
-            UserWithHash userWithHash = cache.get(token.principal(), callback);
+            UserWithHash userWithHash = cache.computeIfAbsent(token.principal(), callback);
             final boolean hadHash = userWithHash.hasHash();
             if (hadHash) {
                 if (userWithHash.verify(token.credentials())) {
@@ -96,7 +92,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             }
             //this handles when a user's password has changed or the user was looked up for run as and not authenticated
             expire(token.principal());
-            userWithHash = cache.get(token.principal(), callback);
+            userWithHash = cache.computeIfAbsent(token.principal(), callback);
 
             if (logger.isDebugEnabled()) {
                 if (hadHash) {
@@ -107,7 +103,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             }
             return userWithHash.user;
             
-        } catch (ExecutionException | UncheckedExecutionException ee) {
+        } catch (ExecutionException ee) {
             if (logger.isTraceEnabled()) {
                 logger.trace("realm [" + type() + "] could not authenticate [" + token.principal() + "]", ee);
             } else if (logger.isDebugEnabled()) {
@@ -123,24 +119,21 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             return null;
         }
 
-        Callable<UserWithHash> callback = new Callable<UserWithHash>() {
-            @Override
-            public UserWithHash call() throws Exception {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("user not found in cache, proceeding with normal lookup");
-                }
-                User user = doLookupUser(username);
-                if (user == null) {
-                    throw Exceptions.authenticationError("could not lookup [{}]", username);
-                }
-                return new UserWithHash(user, null, null);
+        CacheLoader<String, UserWithHash> callback = key -> {
+            if (logger.isDebugEnabled()) {
+                logger.debug("user not found in cache, proceeding with normal lookup");
             }
+            User user = doLookupUser(username);
+            if (user == null) {
+                throw Exceptions.authenticationError("could not lookup [{}]", username);
+            }
+            return new UserWithHash(user, null, null);
         };
 
         try {
-            UserWithHash userWithHash = cache.get(username, callback);
+            UserWithHash userWithHash = cache.computeIfAbsent(username, callback);
             return userWithHash.user;
-        } catch (ExecutionException | UncheckedExecutionException ee) {
+        } catch (ExecutionException ee) {
             if (logger.isTraceEnabled()) {
                 logger.trace("realm [" + name() + "] could not lookup [" + username + "]", ee);
             } else if (logger.isDebugEnabled()) {

@@ -38,13 +38,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.ShardsIterator;
-import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -63,12 +57,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -209,7 +198,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             int numberOfShards = randomIntBetween(1, 10);
             for (int j = 0; j < numberOfShards; j++) {
                 final ShardId shardId = new ShardId(index, ++shardIndex);
-                ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.id(), true, ShardRoutingState.STARTED, 1);
+                final int primaryTerm = randomInt(200);
+                ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.id(), primaryTerm, true, ShardRoutingState.STARTED, 1);
                 IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(shardId);
                 indexShard.addShard(shard);
                 indexRoutingTable.addIndexShard(indexShard.build());

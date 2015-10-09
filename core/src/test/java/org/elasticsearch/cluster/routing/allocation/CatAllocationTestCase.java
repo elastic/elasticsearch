@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -32,13 +31,14 @@ import org.junit.Test;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
@@ -75,7 +75,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
                     ShardRoutingState state = ShardRoutingState.valueOf(matcher.group(4));
                     String ip = matcher.group(5);
                     nodes.add(ip);
-                    ShardRouting routing = TestShardRouting.newShardRouting(index, shard, ip, null, null, primary, state, 1);
+                    ShardRouting routing = TestShardRouting.newShardRouting(index, shard, ip, null, null, 1, primary, state, 1);
                     idx.add(routing);
                     logger.debug("Add routing {}", routing);
                 } else {

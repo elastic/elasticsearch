@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
@@ -46,10 +47,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
@@ -58,7 +56,7 @@ import static org.elasticsearch.common.settings.Settings.*;
 /**
  *
  */
-public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuilder<IndexMetaData>, ToXContent  {
+public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuilder<IndexMetaData>, ToXContent {
 
     public static final IndexMetaData PROTO = IndexMetaData.builder("")
             .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
@@ -145,6 +143,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             throw new IllegalStateException("No state match for [" + state + "]");
         }
     }
+
     public static final String INDEX_SETTING_PREFIX = "index.";
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
@@ -173,6 +172,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     private final String index;
     private final long version;
+    private final int[] primaryTerms;
 
     private final State state;
 
@@ -194,7 +194,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private final Version indexUpgradedVersion;
     private final org.apache.lucene.util.Version minimumCompatibleLuceneVersion;
 
-    private IndexMetaData(String index, long version, State state, Settings settings, ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, Custom> customs) {
+    private IndexMetaData(String index, long version, int[] primaryTerms, State state, Settings settings, ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, Custom> customs) {
         Integer maybeNumberOfShards = settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null);
         if (maybeNumberOfShards == null) {
             throw new IllegalArgumentException("must specify numberOfShards for index [" + index + "]");
@@ -212,10 +212,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         if (numberOfReplicas < 0) {
             throw new IllegalArgumentException("must specify non-negative number of shards for index [" + index + "]");
         }
+        this.settings = settings;
         this.index = index;
         this.version = version;
+        this.primaryTerms = primaryTerms;
+        assert primaryTerms.length == numberOfShards;
         this.state = state;
-        this.settings = settings;
         this.mappings = mappings;
         this.customs = customs;
         this.numberOfShards = numberOfShards;
@@ -248,7 +250,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             try {
                 this.minimumCompatibleLuceneVersion = org.apache.lucene.util.Version.parse(stringLuceneVersion);
             } catch (ParseException ex) {
-                throw new IllegalStateException("Cannot parse lucene version [" + stringLuceneVersion + "] in the [" + SETTING_VERSION_MINIMUM_COMPATIBLE +"] setting", ex);
+                throw new IllegalStateException("Cannot parse lucene version [" + stringLuceneVersion + "] in the [" + SETTING_VERSION_MINIMUM_COMPATIBLE + "] setting", ex);
             }
         } else {
             this.minimumCompatibleLuceneVersion = null;
@@ -277,6 +279,15 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     public long getVersion() {
         return this.version;
+    }
+
+
+    /**
+     * this number is incremented when a replica shard is promoted to a primary (see {@link ShardRouting#moveToPrimary()}) or
+     * a first primary is created after a full cluster restart.
+     */
+    public int primaryTerm(int shardId) {
+        return this.primaryTerms[shardId];
     }
 
     /**
@@ -390,6 +401,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
         IndexMetaData that = (IndexMetaData) o;
 
+        if (version != that.version) {
+            return false;
+        }
+
         if (!aliases.equals(that.aliases)) {
             return false;
         }
@@ -406,6 +421,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return false;
         }
         if (!customs.equals(that.customs)) {
+            return false;
+        }
+
+        if (Arrays.equals(primaryTerms, that.primaryTerms)) {
             return false;
         }
         return true;
@@ -446,6 +465,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
         private final String index;
         private final long version;
+        private final int[] primaryTerms;
         private final State state;
         private final Settings settings;
         private final Diff<ImmutableOpenMap<String, MappingMetaData>> mappings;
@@ -457,6 +477,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             version = after.version;
             state = after.state;
             settings = after.settings;
+            primaryTerms = after.primaryTerms;
             mappings = DiffableUtils.diff(before.mappings, after.mappings);
             aliases = DiffableUtils.diff(before.aliases, after.aliases);
             customs = DiffableUtils.diff(before.customs, after.customs);
@@ -467,6 +488,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             version = in.readLong();
             state = State.fromId(in.readByte());
             settings = Settings.readSettingsFromStream(in);
+            // must be done after settings so shard number will be set
+            primaryTerms = in.readIntArray();
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, MappingMetaData.PROTO);
             aliases = DiffableUtils.readImmutableOpenMapDiff(in, AliasMetaData.PROTO);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, new DiffableUtils.KeyedReader<Custom>() {
@@ -488,6 +511,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             out.writeLong(version);
             out.writeByte(state.id);
             Settings.writeSettingsToStream(settings, out);
+            // must be done after settings so shard number will be set
+            out.writeIntArray(primaryTerms);
             mappings.writeTo(out);
             aliases.writeTo(out);
             customs.writeTo(out);
@@ -499,6 +524,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             builder.version(version);
             builder.state(state);
             builder.settings(settings);
+            builder.primaryTerms(primaryTerms);
             builder.mappings.putAll(mappings.apply(part.mappings));
             builder.aliases.putAll(aliases.apply(part.aliases));
             builder.customs.putAll(customs.apply(part.customs));
@@ -512,6 +538,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         builder.version(in.readLong());
         builder.state(State.fromId(in.readByte()));
         builder.settings(readSettingsFromStream(in));
+        // must be done after settings so the array will not be overwritten
+        builder.primaryTerms(in.readIntArray());
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
             MappingMetaData mappingMd = MappingMetaData.PROTO.readFrom(in);
@@ -537,6 +565,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         out.writeLong(version);
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
+        out.writeIntArray(primaryTerms);
         out.writeVInt(mappings.size());
         for (ObjectCursor<MappingMetaData> cursor : mappings.values()) {
             cursor.value.writeTo(out);
@@ -565,6 +594,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         private String index;
         private State state = State.OPEN;
         private long version = 1;
+        private int[] primaryTerms;
         private Settings settings = Settings.Builder.EMPTY_SETTINGS;
         private final ImmutableOpenMap.Builder<String, MappingMetaData> mappings;
         private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
@@ -575,6 +605,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             this.mappings = ImmutableOpenMap.builder();
             this.aliases = ImmutableOpenMap.builder();
             this.customs = ImmutableOpenMap.builder();
+            this.primaryTerms = new int[0];
         }
 
         public Builder(IndexMetaData indexMetaData) {
@@ -582,6 +613,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             this.state = indexMetaData.state;
             this.version = indexMetaData.version;
             this.settings = indexMetaData.getSettings();
+            this.primaryTerms = indexMetaData.primaryTerms;
             this.mappings = ImmutableOpenMap.builder(indexMetaData.mappings);
             this.aliases = ImmutableOpenMap.builder(indexMetaData.aliases);
             this.customs = ImmutableOpenMap.builder(indexMetaData.customs);
@@ -598,6 +630,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
         public Builder numberOfShards(int numberOfShards) {
             settings = settingsBuilder().put(settings).put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            primaryTerms = new int[numberOfShards];
             return this;
         }
 
@@ -613,7 +646,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         public int numberOfReplicas() {
             return settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1);
         }
-        
+
         public Builder creationDate(long creationDate) {
             settings = settingsBuilder().put(settings).put(SETTING_CREATION_DATE, creationDate).build();
             return this;
@@ -624,12 +657,17 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
 
         public Builder settings(Settings.Builder settings) {
-            this.settings = settings.build();
-            return this;
+            return settings(settings.build());
         }
 
         public Builder settings(Settings settings) {
             this.settings = settings;
+            if (numberOfShards() >= 0) {
+                primaryTerms = new int[numberOfShards()];
+            } else {
+                // meh - what can you do...
+                primaryTerms = new int[0];
+            }
             return this;
         }
 
@@ -702,6 +740,21 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this;
         }
 
+        public int primaryTerm(int shardId) {
+            assert numberOfShards() >= 0 : "primaryTerm(shardId) is called without settings numberOfShards() first";
+            return this.primaryTerms[shardId];
+        }
+
+        public Builder primaryTerm(int shardId, int primaryTerm) {
+            assert numberOfShards() >= 0 : "primaryTerm(shardId, primaryTerm) is called without settings numberOfShards() first";
+            this.primaryTerms[shardId] = primaryTerm;
+            return this;
+        }
+
+        private void primaryTerms(int[] primaryTerms) {
+            this.primaryTerms = primaryTerms;
+        }
+
         public IndexMetaData build() {
             ImmutableOpenMap.Builder<String, AliasMetaData> tmpAliases = aliases;
             Settings tmpSettings = settings;
@@ -714,7 +767,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 }
             }
 
-            return new IndexMetaData(index, version, state, tmpSettings, mappings.build(), tmpAliases.build(), customs.build());
+            return new IndexMetaData(index, version, primaryTerms, state, tmpSettings, mappings.build(), tmpAliases.build(), customs.build());
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -757,6 +810,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             }
             builder.endObject();
 
+            builder.startArray("primary_terms");
+            for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
+                builder.value(indexMetaData.primaryTerm(i));
+            }
+            builder.endArray();
 
             builder.endObject();
         }
@@ -815,6 +873,21 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                                     builder.putMapping(new MappingMetaData(mappingType, mapping));
                                 }
                             }
+                        }
+                    } else if ("primary_terms".equals(currentFieldName)) {
+                        IntArrayList list = new IntArrayList();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token == XContentParser.Token.VALUE_NUMBER) {
+                                list.add(parser.intValue());
+                            } else {
+                                throw new IllegalStateException("found a non-numeric value under [primary_terms]");
+                            }
+                        }
+                        if (builder.numberOfShards() < 0) {
+                            builder.numberOfShards(list.size()); // alocation terms array
+                        }
+                        for (int i = 0; i < list.size(); i++) {
+                            builder.primaryTerm(i, list.get(i));
                         }
                     }
                 } else if (token.isValue()) {

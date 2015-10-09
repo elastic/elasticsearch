@@ -66,13 +66,13 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     @Test
     public void testNoProcessReplica() {
-        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
+        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, 1, false, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
         assertThat(testAllocator.needToFindPrimaryCopy(shard), equalTo(false));
     }
 
     @Test
     public void testNoProcessPrimayNotAllcoatedBefore() {
-        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, true, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, 1, true, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         assertThat(testAllocator.needToFindPrimaryCopy(shard), equalTo(false));
     }
 
@@ -281,7 +281,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     @Test
     public void testAllocationOnAnyNodeWithSharedFs() {
-        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false,
+        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, 1, false,
                 ShardRoutingState.UNASSIGNED, 0,
                 new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
 
@@ -307,7 +307,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     @Test
     public void testAllocationOnAnyNodeShouldPutNodesWithExceptionsLast() {
-        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false,
+        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, 1, false,
                 ShardRoutingState.UNASSIGNED, 0,
                 new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
 

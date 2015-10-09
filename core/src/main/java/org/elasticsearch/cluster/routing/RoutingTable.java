@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -35,12 +34,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexNotFoundException;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Predicate;
 
 /**
@@ -540,7 +534,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             }
             // normalize the versions right before we build it...
             for (ObjectCursor<IndexRoutingTable> indexRoutingTable : indicesRouting.values()) {
-                indicesRouting.put(indexRoutingTable.value.index(), indexRoutingTable.value.normalizeVersions());
+                indicesRouting.put(indexRoutingTable.value.index(), indexRoutingTable.value.normalizeVersionsAndPrimaryTerms());
             }
             RoutingTable table = new RoutingTable(version, indicesRouting.build());
             indicesRouting = null;

@@ -21,7 +21,6 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -31,12 +30,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.Nullable;
@@ -57,11 +51,7 @@ import org.elasticsearch.discovery.local.LocalDiscovery;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 
 import java.io.IOException;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Represents the current state of the cluster.
@@ -137,7 +127,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
     public static <T extends Custom> T lookupPrototypeSafe(String type) {
         @SuppressWarnings("unchecked")
-        T proto = (T)customPrototypes.get(type);
+        T proto = (T) customPrototypes.get(type);
         if (proto == null) {
             throw new IllegalArgumentException("No custom state prototype registered for type [" + type + "]");
         }
@@ -663,6 +653,34 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             if (UNKNOWN_UUID.equals(uuid)) {
                 uuid = Strings.randomBase64UUID();
             }
+            // make sure index meta data and routing tables are in sync w.r.t primaryTerm
+            MetaData.Builder metaDataBuilder = null;
+            for (IndexRoutingTable indexRoutingTable : routingTable) {
+                final IndexMetaData indexMetaData = metaData.index(indexRoutingTable.getIndex());
+                IndexMetaData.Builder indexMetaDataBuilder = null;
+                for (IndexShardRoutingTable shardRoutings : indexRoutingTable) {
+                    final ShardRouting primary = shardRoutings.primaryShard();
+                    final int shardId = primary.shardId().id();
+                    if (primary.primaryTerm() != indexMetaData.primaryTerm(shardId)) {
+                        assert primary.primaryTerm() > indexMetaData.primaryTerm(shardId) :
+                                "primary term should only increase. Index primary term ["
+                                        + indexMetaData.primaryTerm(shardId) + "] but primary routing is " + primary;
+                        if (indexMetaDataBuilder == null) {
+                            indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
+                        }
+                        indexMetaDataBuilder.primaryTerm(shardId, primary.primaryTerm());
+                    }
+                }
+                if (indexMetaDataBuilder != null) {
+                    if (metaDataBuilder == null) {
+                        metaDataBuilder = MetaData.builder(metaData);
+                    }
+                    metaDataBuilder.put(indexMetaDataBuilder);
+                }
+            }
+            if (metaDataBuilder != null) {
+                metaData = metaDataBuilder.build();
+            }
             return new ClusterState(clusterName, version, uuid, metaData, routingTable, nodes, blocks, customs.build(), fromDiff);
         }
 
@@ -673,16 +691,16 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         }
 
         /**
-         * @param data               input bytes
-         * @param localNode          used to set the local node in the cluster state.
+         * @param data      input bytes
+         * @param localNode used to set the local node in the cluster state.
          */
         public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
             return readFrom(StreamInput.wrap(data), localNode);
         }
 
         /**
-         * @param in                 input stream
-         * @param localNode          used to set the local node in the cluster state. can be null.
+         * @param in        input stream
+         * @param localNode used to set the local node in the cluster state. can be null.
          */
         public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
             return PROTO.readFrom(in, localNode);

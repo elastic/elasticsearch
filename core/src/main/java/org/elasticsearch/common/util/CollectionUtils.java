@@ -23,26 +23,11 @@ import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.ObjectArrayList;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Iterators;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefArray;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.InPlaceMergeSorter;
-import org.apache.lucene.util.IntroSorter;
+import org.apache.lucene.util.*;
 
-import java.util.AbstractList;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
-import java.util.RandomAccess;
+import java.util.*;
 
 /** Collections-related utility methods. */
 public enum CollectionUtils {
@@ -472,11 +457,5 @@ public enum CollectionUtils {
         }
 
         return result;
-    }
-
-    public static <E> void addAll(Collection<E> collection, Iterable<ObjectCursor<E>> iterable) {
-        for (ObjectCursor<E> c: iterable) {
-            collection.add(c.value);
-        }
     }
 }

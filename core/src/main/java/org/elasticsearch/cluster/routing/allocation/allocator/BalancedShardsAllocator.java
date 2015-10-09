@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -52,7 +54,6 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
-import static org.elasticsearch.common.util.CollectionUtils.addAll;
 
 /**
  * The {@link BalancedShardsAllocator} re-balances the nodes allocations
@@ -293,7 +294,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (logger.isTraceEnabled()) {
                 logger.trace("Start distributing Shards");
             }
-            addAll(indices, allocation.routingTable().indicesRouting().keys());
+            for (ObjectCursor<String> index : allocation.routingTable().indicesRouting().keys()) {
+                indices.add(index.value);
+            }
             buildModelFromAssigned(routing.shards(assignedFilter));
             return allocateUnassigned(unassigned);
         }

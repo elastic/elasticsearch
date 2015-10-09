@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.node;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.support.AbstractClient;

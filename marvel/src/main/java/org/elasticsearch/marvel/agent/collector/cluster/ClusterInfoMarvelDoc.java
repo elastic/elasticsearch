@@ -9,21 +9,19 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
-import java.util.List;
-
 public class ClusterInfoMarvelDoc extends MarvelDoc {
 
     private final String clusterName;
     private final String version;
-    private final List<License> licenses;
+    private final License license;
     private final ClusterStatsResponse clusterStats;
 
     ClusterInfoMarvelDoc(String index, String type, String id, String clusterUUID, long timestamp,
-                         String clusterName, String version, List<License> licenses, ClusterStatsResponse clusterStats) {
+                         String clusterName, String version, License license, ClusterStatsResponse clusterStats) {
         super(index, type, id, clusterUUID, timestamp);
         this.clusterName = clusterName;
         this.version = version;
-        this.licenses = licenses;
+        this.license = license;
         this.clusterStats = clusterStats;
     }
 
@@ -35,8 +33,8 @@ public class ClusterInfoMarvelDoc extends MarvelDoc {
         return version;
     }
 
-    public List<License> getLicenses() {
-        return licenses;
+    public License getLicense() {
+        return license;
     }
 
     public ClusterStatsResponse getClusterStats() {

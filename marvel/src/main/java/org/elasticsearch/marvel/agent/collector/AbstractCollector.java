@@ -13,7 +13,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.marvel.license.LicenseService;
+import org.elasticsearch.marvel.license.MarvelLicensee;
 
 import java.util.Collection;
 
@@ -23,15 +23,15 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
 
     protected final ClusterService clusterService;
     protected final MarvelSettings marvelSettings;
-    protected final LicenseService licenseService;
+    protected final MarvelLicensee licensee;
 
     @Inject
-    public AbstractCollector(Settings settings, String name, ClusterService clusterService, MarvelSettings marvelSettings, LicenseService licenseService) {
+    public AbstractCollector(Settings settings, String name, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee licensee) {
         super(settings);
         this.name = name;
         this.clusterService = clusterService;
         this.marvelSettings = marvelSettings;
-        this.licenseService = licenseService;
+        this.licensee = licensee;
     }
 
     @Override
@@ -58,11 +58,11 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
      * Indicates if the current collector is allowed to collect data
      */
     protected boolean shouldCollect() {
-        boolean validLicense = licenseService.enabled() || licenseService.inExpirationGracePeriod();
-        if (!validLicense) {
+        if (licensee.collectionEnabled()) {
             logger.trace("collector [{}] can not collect data due to invalid license", name());
+            return false;
         }
-        return validLicense;
+        return true;
     }
 
     protected boolean isLocalNodeMaster() {

@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.marvel.license.LicenseService;
+import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.junit.Test;
 
 import java.util.Collection;
@@ -163,7 +163,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
         return new ClusterStateCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
-                internalCluster().getInstance(LicenseService.class, nodeId),
+                internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 securedClient(nodeId));
     }
 }

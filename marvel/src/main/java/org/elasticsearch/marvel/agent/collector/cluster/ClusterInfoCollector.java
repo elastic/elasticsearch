@@ -16,7 +16,7 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.marvel.license.LicenseService;
+import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.marvel.shield.SecuredClient;
 
 import java.util.ArrayList;
@@ -37,15 +37,15 @@ public class ClusterInfoCollector extends AbstractCollector<ClusterInfoMarvelDoc
     public static final String TYPE = "cluster_info";
 
     private final ClusterName clusterName;
-    private final LicenseService licenseService;
+    private final MarvelLicensee marvelLicensee;
     private final Client client;
 
     @Inject
-    public ClusterInfoCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, LicenseService licenseService,
+    public ClusterInfoCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee marvelLicensee,
                                 ClusterName clusterName, SecuredClient client) {
-        super(settings, NAME, clusterService, marvelSettings, licenseService);
+        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
         this.clusterName = clusterName;
-        this.licenseService = licenseService;
+        this.marvelLicensee = marvelLicensee;
         this.client = client;
     }
 
@@ -59,16 +59,14 @@ public class ClusterInfoCollector extends AbstractCollector<ClusterInfoMarvelDoc
     protected Collection<MarvelDoc> doCollect() throws Exception {
         List<MarvelDoc> results = new ArrayList<>(1);
 
-        // Retrieves all licenses
-        // TODO: we should only work with one license
-        List<License> licenses = Collections.singletonList(licenseService.license());
+        License license = marvelLicensee.getLicense();
 
         // Retrieves additional cluster stats
         ClusterStatsResponse clusterStats = client.admin().cluster().prepareClusterStats().get(marvelSettings.clusterStatsTimeout());
 
         String clusterUUID = clusterUUID();
         results.add(new ClusterInfoMarvelDoc(MarvelSettings.MARVEL_DATA_INDEX_NAME, TYPE, clusterUUID, clusterUUID, System.currentTimeMillis(),
-                clusterName.value(), Version.CURRENT.toString(), licenses, clusterStats));
+                clusterName.value(), Version.CURRENT.toString(), license, clusterStats));
         return Collections.unmodifiableCollection(results);
     }
 }

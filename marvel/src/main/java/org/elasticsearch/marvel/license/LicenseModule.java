@@ -15,7 +15,7 @@ public class LicenseModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(LicenseService.class).asEagerSingleton();
+        bind(MarvelLicensee.class).asEagerSingleton();
     }
 
     private void verifyLicensePlugin() {

@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.marvel.license.LicenseService;
+import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.junit.Test;
 
 import java.util.Collection;
@@ -40,8 +40,7 @@ public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
         assertThat(clusterInfoMarvelDoc.getClusterName(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getClusterName().value()));
         assertThat(clusterInfoMarvelDoc.getVersion(), equalTo(client().admin().cluster().prepareNodesInfo().get().getNodes()[0].getVersion().toString()));
 
-        assertNotNull(clusterInfoMarvelDoc.getLicenses());
-        assertThat(clusterInfoMarvelDoc.getLicenses(), hasSize(isInternalCluster() && shieldEnabled ? 2 : 1));
+        assertThat(clusterInfoMarvelDoc.getLicense(), notNullValue());
 
         assertNotNull(clusterInfoMarvelDoc.getClusterStats());
         assertThat(clusterInfoMarvelDoc.getClusterStats().getNodesStats().getCounts().getTotal(), equalTo(internalCluster().getNodeNames().length));
@@ -99,7 +98,7 @@ public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
         return new ClusterInfoCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
-                internalCluster().getInstance(LicenseService.class, nodeId),
+                internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 internalCluster().getInstance(ClusterName.class, nodeId),
                 securedClient(nodeId));
     }

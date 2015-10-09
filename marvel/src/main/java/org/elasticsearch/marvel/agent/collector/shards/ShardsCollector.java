@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.marvel.license.LicenseService;
+import org.elasticsearch.marvel.license.MarvelLicensee;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,8 +35,8 @@ public class ShardsCollector extends AbstractCollector<ShardsCollector> {
     public static final String TYPE = "shards";
 
     @Inject
-    public ShardsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, LicenseService licenseService) {
-        super(settings, NAME, clusterService, marvelSettings, licenseService);
+    public ShardsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee marvelLicensee) {
+        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
     }
 
     @Override

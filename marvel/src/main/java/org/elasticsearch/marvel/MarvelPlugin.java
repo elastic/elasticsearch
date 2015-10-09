@@ -21,7 +21,7 @@ import org.elasticsearch.marvel.agent.renderer.RendererModule;
 import org.elasticsearch.marvel.agent.settings.MarvelModule;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseModule;
-import org.elasticsearch.marvel.license.LicenseService;
+import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.marvel.shield.MarvelInternalUserHolder;
 import org.elasticsearch.marvel.shield.MarvelShieldIntegration;
 import org.elasticsearch.marvel.shield.MarvelShieldModule;
@@ -82,7 +82,7 @@ public class MarvelPlugin extends Plugin {
         if (!enabled) {
             return Collections.emptyList();
         }
-        return Arrays.<Class<? extends LifecycleComponent>>asList(LicenseService.class, AgentService.class);
+        return Arrays.<Class<? extends LifecycleComponent>>asList(MarvelLicensee.class, AgentService.class);
     }
 
     public static boolean marvelEnabled(Settings settings) {

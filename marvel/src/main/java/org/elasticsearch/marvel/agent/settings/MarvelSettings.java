@@ -39,9 +39,8 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
     public static final String INDEX_RECOVERY_TIMEOUT       = PREFIX + "index.recovery.timeout";
     public static final String INDEX_RECOVERY_ACTIVE_ONLY   = PREFIX + "index.recovery.active_only";
     public static final String COLLECTORS                   = PREFIX + "collectors";
-    public static final String LICENSE_GRACE_PERIOD         = PREFIX + "license.grace.period";
 
-    private Map<String, ? extends MarvelSetting> settings = Collections.EMPTY_MAP;
+    private Map<String, ? extends MarvelSetting> settings = Collections.emptyMap();
 
     @Inject
     public MarvelSettings(Settings clusterSettings, NodeSettingsService nodeSettingsService) {
@@ -79,8 +78,6 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
                 "Flag to indicate if only active recoveries should be collected (default to false: all recoveries are collected)"));
         map.put(COLLECTORS, arraySetting(COLLECTORS, Strings.EMPTY_ARRAY,
                 "List of collectors allowed to collect data (default to all)"));
-        map.put(LICENSE_GRACE_PERIOD, timeSetting(LICENSE_GRACE_PERIOD, MAX_LICENSE_GRACE_PERIOD,
-                "Period during which the agent continues to collect data even if the license is expired (default to 7 days, cannot be greater than 7 days)"));
         return Collections.unmodifiableMap(map);
     }
 
@@ -185,11 +182,4 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
         return getSettingValue(COLLECTORS);
     }
 
-    public TimeValue licenseExpirationGracePeriod() {
-        TimeValue delay = getSettingValue(LICENSE_GRACE_PERIOD);
-        if ((delay.millis() >= 0) && (delay.millis() < MAX_LICENSE_GRACE_PERIOD.millis())) {
-            return delay;
-        }
-        return MAX_LICENSE_GRACE_PERIOD;
-    }
 }

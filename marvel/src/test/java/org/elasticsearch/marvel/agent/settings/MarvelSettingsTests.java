@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class MarvelSettingsTests extends MarvelIntegTestCase {
@@ -50,7 +50,6 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
                 .put(MarvelSettings.INDEX_RECOVERY_TIMEOUT, recoveryTimeout)
                 .put(MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY, recoveryActiveOnly)
                 .putArray(MarvelSettings.COLLECTORS, collectors)
-                .put(MarvelSettings.LICENSE_GRACE_PERIOD, licenseGracePeriod)
                 .build();
     }
 
@@ -67,7 +66,6 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
             assertThat(marvelSettings.recoveryTimeout().millis(), equalTo(recoveryTimeout.millis()));
             assertThat(marvelSettings.recoveryActiveOnly(), equalTo(recoveryActiveOnly));
             assertArrayEquals(marvelSettings.collectors(), collectors);
-            assertThat(marvelSettings.licenseExpirationGracePeriod().millis(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(MarvelSettings.MAX_LICENSE_GRACE_PERIOD.millis())));
         }
 
         logger.info("--> testing marvel dynamic settings update");

@@ -17,18 +17,18 @@ import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.marvel.MarvelPlugin;
-import org.elasticsearch.marvel.mode.Mode;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.*;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0, numClientNodes = 0)
 public class LicenseIntegrationTests extends MarvelIntegTestCase {
@@ -50,25 +50,22 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
 
     @Test
     public void testEnableDisableLicense() {
-        assertThat(getLicenseService().mode(), equalTo(Mode.STANDARD));
-        assertThat(getLicenseService().enabled(), is(true));
-        assertThat(getLicenseService().expiryDate(), greaterThan(0L));
+        assertThat(getLicensee().getStatus().getLicenseState(), isOneOf(LicenseState.ENABLED, LicenseState.GRACE_PERIOD));
+        assertThat(getLicensee().collectionEnabled(), is(true));
         disableLicensing();
 
-        assertThat(getLicenseService().mode(), equalTo(Mode.LITE));
-        assertThat(getLicenseService().enabled(), is(false));
-        assertThat(getLicenseService().expiryDate(), greaterThan(0L));
+        assertThat(getLicensee().getStatus().getLicenseState(), equalTo(LicenseState.DISABLED));
+        assertThat(getLicensee().collectionEnabled(), is(false));
         enableLicensing();
 
-        assertThat(getLicenseService().mode(), equalTo(Mode.STANDARD));
-        assertThat(getLicenseService().enabled(), is(true));
-        assertThat(getLicenseService().expiryDate(), greaterThan(0L));
+        assertThat(getLicensee().getStatus().getLicenseState(), isOneOf(LicenseState.ENABLED, LicenseState.GRACE_PERIOD));
+        assertThat(getLicensee().collectionEnabled(), is(true));
     }
 
-    private LicenseService getLicenseService() {
-        LicenseService licenseService = internalCluster().getInstance(LicenseService.class);
-        assertNotNull(licenseService);
-        return licenseService;
+    private MarvelLicensee getLicensee() {
+        MarvelLicensee marvelLicensee = internalCluster().getInstance(MarvelLicensee.class);
+        assertNotNull(marvelLicensee);
+        return marvelLicensee;
     }
 
     public static void disableLicensing() {

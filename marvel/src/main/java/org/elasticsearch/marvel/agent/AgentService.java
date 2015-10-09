@@ -20,7 +20,6 @@ import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.marvel.license.LicenseService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.*;
@@ -39,8 +38,7 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
 
     @Inject
     public AgentService(Settings settings, NodeSettingsService nodeSettingsService,
-                        LicenseService licenseService, MarvelSettings marvelSettings,
-                        Set<Collector> collectors, Exporters exporters) {
+                        MarvelSettings marvelSettings, Set<Collector> collectors, Exporters exporters) {
         super(settings);
         this.marvelSettings = marvelSettings;
         this.samplingInterval = marvelSettings.interval().millis();
@@ -49,7 +47,6 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
         this.exporters = exporters;
 
         nodeSettingsService.addListener(this);
-        logger.trace("marvel is running in [{}] mode", licenseService.mode());
     }
 
     protected Set<Collector> filterCollectors(Set<Collector> collectors, String[] filters) {

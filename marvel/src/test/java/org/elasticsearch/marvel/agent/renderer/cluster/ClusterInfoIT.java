@@ -16,7 +16,6 @@ import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.junit.Test;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -66,14 +65,10 @@ public class ClusterInfoIT extends MarvelIntegTestCase {
         assertThat((String) source.get(ClusterInfoRenderer.Fields.CLUSTER_NAME.underscore().toString()), equalTo(cluster().getClusterName()));
         assertThat((String) source.get(ClusterInfoRenderer.Fields.VERSION.underscore().toString()), equalTo(Version.CURRENT.toString()));
 
-        Object licensesList = source.get(ClusterInfoRenderer.Fields.LICENSES.underscore().toString());
-        assertThat(licensesList, instanceOf(List.class));
+        Object licenseObj = source.get(ClusterInfoRenderer.Fields.LICENSE.underscore().toString());
+        assertThat(licenseObj, instanceOf(Map.class));
+        Map license = (Map) licenseObj;
 
-        logger.warn("--> checking number of licenses [internal cluster:{}, shield enabled:{}]", isInternalCluster(), shieldEnabled);
-        List licenses = (List) licensesList;
-        assertThat(licenses.size(), equalTo(isInternalCluster() && shieldEnabled ? 2 : 1));
-
-        Map license = (Map) licenses.iterator().next();
         assertThat(license, instanceOf(Map.class));
 
         String uid = (String) license.get(ClusterInfoRenderer.Fields.UID.underscore().toString());
@@ -82,10 +77,10 @@ public class ClusterInfoIT extends MarvelIntegTestCase {
         String type = (String) license.get(ClusterInfoRenderer.Fields.TYPE.underscore().toString());
         assertThat(type, not(isEmptyOrNullString()));
 
-        String status = (String) license.get(ClusterInfoRenderer.Fields.STATUS.underscore().toString());
+        String status = (String) license.get(License.XFields.STATUS.underscore().toString());
         assertThat(status, not(isEmptyOrNullString()));
 
-        Long expiryDate = (Long) license.get(ClusterInfoRenderer.Fields.EXPIRY_DATE_IN_MILLIS.underscore().toString());
+        Long expiryDate = (Long) license.get(License.XFields.EXPIRY_DATE_IN_MILLIS.underscore().toString());
         assertThat(expiryDate, greaterThan(0L));
 
         // We basically recompute the hash here
@@ -93,10 +88,10 @@ public class ClusterInfoIT extends MarvelIntegTestCase {
         String recalculated = ClusterInfoRenderer.hash(status, uid, type, String.valueOf(expiryDate), clusterUUID);
         assertThat(hkey, equalTo(recalculated));
 
-        assertThat((String) license.get(ClusterInfoRenderer.Fields.ISSUER.underscore().toString()), not(isEmptyOrNullString()));
-        assertThat((String) license.get(ClusterInfoRenderer.Fields.ISSUED_TO.underscore().toString()), not(isEmptyOrNullString()));
-        assertThat((Long) license.get(ClusterInfoRenderer.Fields.ISSUE_DATE_IN_MILLIS.underscore().toString()), greaterThan(0L));
-        assertThat((Integer) license.get(ClusterInfoRenderer.Fields.MAX_NODES.underscore().toString()), greaterThan(0));
+        assertThat((String) license.get(License.XFields.ISSUER.underscore().toString()), not(isEmptyOrNullString()));
+        assertThat((String) license.get(License.XFields.ISSUED_TO.underscore().toString()), not(isEmptyOrNullString()));
+        assertThat((Long) license.get(License.XFields.ISSUE_DATE_IN_MILLIS.underscore().toString()), greaterThan(0L));
+        assertThat((Integer) license.get(License.XFields.MAX_NODES.underscore().toString()), greaterThan(0));
 
         Object clusterStats = source.get(ClusterStatsRenderer.Fields.CLUSTER_STATS.underscore().toString());
         assertNotNull(clusterStats);
@@ -109,9 +104,9 @@ public class ClusterInfoIT extends MarvelIntegTestCase {
                 .setIndices(MarvelSettings.MARVEL_DATA_INDEX_NAME)
                 .setTypes(ClusterInfoCollector.TYPE)
                 .setQuery(QueryBuilders.boolQuery()
-                                .should(QueryBuilders.matchQuery(ClusterInfoRenderer.Fields.STATUS.underscore().toString(), License.Status.ACTIVE.label()))
-                                .should(QueryBuilders.matchQuery(ClusterInfoRenderer.Fields.STATUS.underscore().toString(), License.Status.INVALID.label()))
-                                .should(QueryBuilders.matchQuery(ClusterInfoRenderer.Fields.STATUS.underscore().toString(), License.Status.EXPIRED.label()))
+                                .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.ACTIVE.label()))
+                                .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.INVALID.label()))
+                                .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.EXPIRED.label()))
                                 .minimumNumberShouldMatch(1)
                 ).get(), 0L);
 

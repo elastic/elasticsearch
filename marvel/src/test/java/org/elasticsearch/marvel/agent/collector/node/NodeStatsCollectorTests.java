@@ -15,7 +15,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.marvel.license.LicenseService;
+import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.node.service.NodeService;
 import org.junit.Test;
 
@@ -82,7 +82,7 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
         return new NodeStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
-                internalCluster().getInstance(LicenseService.class, nodeId),
+                internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 internalCluster().getInstance(NodeService.class, nodeId),
                 internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(NodeEnvironment.class, nodeId),

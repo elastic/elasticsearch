@@ -82,7 +82,7 @@ public class IngestActionFilterTests extends ESTestCase {
     public void testApplyIngestIdViaContext() throws Exception {
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putInContext(IngestPlugin.INGEST_PAREM_CONTEXT_KEY, "_id");
+        indexRequest.putInContext(IngestPlugin.INGEST_PARAM_CONTEXT_KEY, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 

@@ -48,7 +48,7 @@ public class IngestActionFilter extends AbstractComponent implements ActionFilte
 
     @Override
     public void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
-        String pipelineId = request.getFromContext(IngestPlugin.INGEST_PAREM_CONTEXT_KEY);
+        String pipelineId = request.getFromContext(IngestPlugin.INGEST_PARAM_CONTEXT_KEY);
         if (pipelineId == null) {
             pipelineId = request.getHeader(IngestPlugin.INGEST_PARAM);
             if (pipelineId == null) {
@@ -101,11 +101,6 @@ public class IngestActionFilter extends AbstractComponent implements ActionFilte
         });
     }
 
-    // TODO: rethink how to deal with bulk requests:
-    // This doesn't scale very well for a single bulk requests, so it would be great if a bulk requests could be broken up into several chunks so that the ingesting can be paralized
-    // on the other hand if there are many index/bulk requests then breaking up bulk requests isn't going to help much.
-    // I think the execution service should be smart enough about when it should break things up in chunks based on the ingest threadpool usage,
-    // this means that the contract of the execution service should change in order to accept multiple data instances.
     void processBulkIndexRequest(String action, ActionListener listener, ActionFilterChain chain, BulkRequest bulkRequest, String pipelineId, Iterator<ActionRequest> requests) {
         if (!requests.hasNext()) {
             chain.proceed(action, bulkRequest, listener);

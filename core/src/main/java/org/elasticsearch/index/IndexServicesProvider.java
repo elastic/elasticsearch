@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index;
 
 import org.elasticsearch.common.Nullable;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -58,9 +60,10 @@ public final class IndexServicesProvider {
     private final EngineFactory factory;
     private final BigArrays bigArrays;
     private final IndexSearcherWrapper indexSearcherWrapper;
+    private final IndexingMemoryController indexingMemoryController;
 
     @Inject
-    public IndexServicesProvider(IndicesLifecycle indicesLifecycle, ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, IndicesQueryCache indicesQueryCache, CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory, BigArrays bigArrays, @Nullable IndexSearcherWrapper indexSearcherWrapper) {
+    public IndexServicesProvider(IndicesLifecycle indicesLifecycle, ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, IndicesQueryCache indicesQueryCache, CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory, BigArrays bigArrays, @Nullable IndexSearcherWrapper indexSearcherWrapper, IndexingMemoryController indexingMemoryController) {
         this.indicesLifecycle = indicesLifecycle;
         this.threadPool = threadPool;
         this.mapperService = mapperService;
@@ -76,6 +79,7 @@ public final class IndexServicesProvider {
         this.factory = factory;
         this.bigArrays = bigArrays;
         this.indexSearcherWrapper = indexSearcherWrapper;
+        this.indexingMemoryController = indexingMemoryController;
     }
 
     public IndicesLifecycle getIndicesLifecycle() {
@@ -134,5 +138,11 @@ public final class IndexServicesProvider {
         return bigArrays;
     }
 
-    public IndexSearcherWrapper getIndexSearcherWrapper() { return indexSearcherWrapper; }
+    public IndexSearcherWrapper getIndexSearcherWrapper() {
+        return indexSearcherWrapper;
+    }
+
+    public IndexingMemoryController getIndexingMemoryController() {
+        return indexingMemoryController;
+    }
 }

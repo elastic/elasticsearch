@@ -153,7 +153,7 @@ public class QueryShardContext {
     }
 
     public Similarity searchSimilarity() {
-        return indexQueryParser.similarityService != null ? indexQueryParser.similarityService.similarity() : null;
+        return indexQueryParser.similarityService != null ? indexQueryParser.similarityService.similarity(indexQueryParser.mapperService) : null;
     }
 
     public String defaultField() {

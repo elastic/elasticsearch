@@ -133,6 +133,8 @@ com.google.common.io.Resources
 com.google.common.hash.HashCode
 com.google.common.hash.HashFunction
 com.google.common.hash.Hashing
+com.google.common.collect.Iterators
+com.google.common.net.InetAddresses
 com.google.common.collect.ImmutableMap
 com.google.common.collect.ImmutableMap$Builder
 

@@ -23,11 +23,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TwoPhaseCommit;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,7 +36,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -54,7 +51,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.EOFException;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.*;
@@ -186,99 +182,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             // close the opened translog files if we fail to create a new translog...
             IOUtils.closeWhileHandlingException(currentCommittingTranslog, current);
             throw t;
-        }
-    }
-
-    /**
-     * This method is used to upgarde a pre 2.0 translog structure to the new checkpoint based structure.
-     * The {@link org.elasticsearch.index.translog.Translog.TranslogGeneration} in the given config is
-     * used to determine the smallest file generation to upgrade. The procedure will travers the translog
-     * directory to find all files that have a generation greater or equal to the translog generation and
-     * renames the files to the new <tt>.tlog</tt> file format.
-     * <p>
-     * For each of the files a <tt>${filename}.ckp</tt>
-     * file is written containing the size of the translog in bytes, it's ID and the number of operations. Since
-     * these files are all relying on the pre 2.0 truncation feature where we read operations until hitting an {@link EOFException}
-     * the number of operations are recoreded as <tt>-1</tt>. Later once these files are opened for reading legacy readers will
-     * allow for unknown number of operations and mimic the old behavior.
-     * </p>
-     */
-    public static void upgradeLegacyTranslog(ESLogger logger, TranslogConfig config) throws IOException {
-        Path translogPath = config.getTranslogPath();
-        TranslogGeneration translogGeneration = config.getTranslogGeneration();
-        if (translogGeneration == null) {
-            throw new IllegalArgumentException("TranslogGeneration must be set in order to upgrade");
-        }
-        if (translogGeneration.translogUUID != null) {
-            throw new IllegalArgumentException("TranslogGeneration has a non-null UUID - index must have already been upgraded");
-        }
-        try {
-            if (Checkpoint.read(translogPath.resolve(CHECKPOINT_FILE_NAME)) != null) {
-                throw new IllegalStateException(CHECKPOINT_FILE_NAME + " file already present, translog is already upgraded");
-            }
-        } catch (NoSuchFileException | FileNotFoundException ex) {
-            logger.debug("upgrading translog - no checkpoint found");
-        }
-        final Pattern parseLegacyIdPattern = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)((\\.recovering))?$"); // here we have to be lenient - nowhere else!
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogPath, new DirectoryStream.Filter<Path>() {
-            @Override
-            public boolean accept(Path entry) throws IOException {
-                Matcher matcher = parseLegacyIdPattern.matcher(entry.getFileName().toString());
-                if (matcher.matches() == false) {
-                    Matcher newIdMatcher = PARSE_STRICT_ID_PATTERN.matcher(entry.getFileName().toString());
-                    return newIdMatcher.matches();
-                } else {
-                    return true;
-                }
-            }
-        })) {
-            long latestGeneration = -1;
-            List<PathWithGeneration> filesToUpgrade = new ArrayList<>();
-            for (Path path : stream) {
-                Matcher matcher = parseLegacyIdPattern.matcher(path.getFileName().toString());
-                if (matcher.matches()) {
-                    long generation = Long.parseLong(matcher.group(1));
-                    if (generation >= translogGeneration.translogFileGeneration) {
-                        latestGeneration = Math.max(translogGeneration.translogFileGeneration, generation);
-                    }
-                    filesToUpgrade.add(new PathWithGeneration(path, generation));
-                } else {
-                    Matcher strict_matcher = PARSE_STRICT_ID_PATTERN.matcher(path.getFileName().toString());
-                    if (strict_matcher.matches()) {
-                        throw new IllegalStateException("non-legacy translog file [" + path.getFileName().toString() + "] found on a translog that wasn't upgraded yet");
-                    }
-                }
-            }
-            if (latestGeneration < translogGeneration.translogFileGeneration) {
-                throw new IllegalStateException("latest found translog has a lower generation that the excepcted uncommitted " + translogGeneration.translogFileGeneration + " > " + latestGeneration);
-            }
-            CollectionUtil.timSort(filesToUpgrade, new Comparator<PathWithGeneration>() {
-                @Override
-                public int compare(PathWithGeneration o1, PathWithGeneration o2) {
-                    long gen1 = o1.getGeneration();
-                    long gen2 = o2.getGeneration();
-                    return Long.compare(gen1, gen2);
-                }
-            });
-            for (PathWithGeneration pathAndGeneration : filesToUpgrade) {
-                final Path path = pathAndGeneration.getPath();
-                final long generation = pathAndGeneration.getGeneration();
-                final Path target = path.resolveSibling(getFilename(generation));
-                logger.debug("upgrading translog copy file from {} to {}", path, target);
-                Files.move(path, target, StandardCopyOption.ATOMIC_MOVE);
-                logger.debug("write commit point for {}", target);
-                if (generation == latestGeneration) {
-                    // for the last one we only write a checkpoint not a real commit
-                    Checkpoint checkpoint = new Checkpoint(Files.size(translogPath.resolve(getFilename(latestGeneration))), -1, latestGeneration);
-                    Checkpoint.write(translogPath.resolve(CHECKPOINT_FILE_NAME), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
-                } else {
-                    Checkpoint checkpoint = new Checkpoint(Files.size(target), -1, generation);
-                    Checkpoint.write(translogPath.resolve(getCommitCheckpointFileName(generation)), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
-                }
-            }
-
-            IOUtils.fsync(translogPath, true);
-
         }
     }
 
@@ -465,11 +368,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Adds a created / delete / index operations to the transaction log.
+     * Adds a delete / index operations to the transaction log.
      *
      * @see org.elasticsearch.index.translog.Translog.Operation
-     * @see org.elasticsearch.index.translog.Translog.Create
-     * @see org.elasticsearch.index.translog.Translog.Index
+     * @see Index
      * @see org.elasticsearch.index.translog.Translog.Delete
      */
     public Location add(Operation operation) throws TranslogException {
@@ -874,10 +776,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public interface Operation extends Streamable {
         enum Type {
+            @Deprecated
             CREATE((byte) 1),
-            SAVE((byte) 2),
-            DELETE((byte) 3),
-            DELETE_BY_QUERY((byte) 4);
+            INDEX((byte) 2),
+            DELETE((byte) 3);
 
             private final byte id;
 
@@ -894,11 +796,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     case 1:
                         return CREATE;
                     case 2:
-                        return SAVE;
+                        return INDEX;
                     case 3:
                         return DELETE;
-                    case 4:
-                        return DELETE_BY_QUERY;
                     default:
                         throw new IllegalArgumentException("No type mapped for [" + id + "]");
                 }
@@ -926,199 +826,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.parent = parent;
             this.timestamp = timestamp;
             this.ttl = ttl;
-        }
-    }
-
-    public static class Create implements Operation {
-        public static final int SERIALIZATION_FORMAT = 6;
-
-        private String id;
-        private String type;
-        private BytesReference source;
-        private String routing;
-        private String parent;
-        private long timestamp;
-        private long ttl;
-        private long version = Versions.MATCH_ANY;
-        private VersionType versionType = VersionType.INTERNAL;
-
-        public Create() {
-        }
-
-        public Create(Engine.Create create) {
-            this.id = create.id();
-            this.type = create.type();
-            this.source = create.source();
-            this.routing = create.routing();
-            this.parent = create.parent();
-            this.timestamp = create.timestamp();
-            this.ttl = create.ttl();
-            this.version = create.version();
-            this.versionType = create.versionType();
-        }
-
-        public Create(String type, String id, byte[] source) {
-            this.id = id;
-            this.type = type;
-            this.source = new BytesArray(source);
-        }
-
-        @Override
-        public Type opType() {
-            return Type.CREATE;
-        }
-
-        @Override
-        public long estimateSize() {
-            return ((id.length() + type.length()) * 2) + source.length() + 12;
-        }
-
-        public String id() {
-            return this.id;
-        }
-
-        public BytesReference source() {
-            return this.source;
-        }
-
-        public String type() {
-            return this.type;
-        }
-
-        public String routing() {
-            return this.routing;
-        }
-
-        public String parent() {
-            return this.parent;
-        }
-
-        public long timestamp() {
-            return this.timestamp;
-        }
-
-        public long ttl() {
-            return this.ttl;
-        }
-
-        public long version() {
-            return this.version;
-        }
-
-        public VersionType versionType() {
-            return versionType;
-        }
-
-        @Override
-        public Source getSource() {
-            return new Source(source, routing, parent, timestamp, ttl);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            int version = in.readVInt(); // version
-            id = in.readString();
-            type = in.readString();
-            source = in.readBytesReference();
-            if (version >= 1) {
-                if (in.readBoolean()) {
-                    routing = in.readString();
-                }
-            }
-            if (version >= 2) {
-                if (in.readBoolean()) {
-                    parent = in.readString();
-                }
-            }
-            if (version >= 3) {
-                this.version = in.readLong();
-            }
-            if (version >= 4) {
-                this.timestamp = in.readLong();
-            }
-            if (version >= 5) {
-                this.ttl = in.readLong();
-            }
-            if (version >= 6) {
-                this.versionType = VersionType.fromValue(in.readByte());
-            }
-
-            assert versionType.validateVersionForWrites(version);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(SERIALIZATION_FORMAT);
-            out.writeString(id);
-            out.writeString(type);
-            out.writeBytesReference(source);
-            if (routing == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeString(routing);
-            }
-            if (parent == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeString(parent);
-            }
-            out.writeLong(version);
-            out.writeLong(timestamp);
-            out.writeLong(ttl);
-            out.writeByte(versionType.getValue());
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            Create create = (Create) o;
-
-            if (timestamp != create.timestamp ||
-                    ttl != create.ttl ||
-                    version != create.version ||
-                    id.equals(create.id) == false ||
-                    type.equals(create.type) == false ||
-                    source.equals(create.source) == false) {
-                return false;
-            }
-            if (routing != null ? !routing.equals(create.routing) : create.routing != null) {
-                return false;
-            }
-            if (parent != null ? !parent.equals(create.parent) : create.parent != null) {
-                return false;
-            }
-            return versionType == create.versionType;
-
-        }
-
-        @Override
-        public int hashCode() {
-            int result = id.hashCode();
-            result = 31 * result + type.hashCode();
-            result = 31 * result + source.hashCode();
-            result = 31 * result + (routing != null ? routing.hashCode() : 0);
-            result = 31 * result + (parent != null ? parent.hashCode() : 0);
-            result = 31 * result + (int) (timestamp ^ (timestamp >>> 32));
-            result = 31 * result + (int) (ttl ^ (ttl >>> 32));
-            result = 31 * result + (int) (version ^ (version >>> 32));
-            result = 31 * result + versionType.hashCode();
-            return result;
-        }
-
-        @Override
-        public String toString() {
-            return "Create{" +
-                    "id='" + id + '\'' +
-                    ", type='" + type + '\'' +
-                    '}';
         }
     }
 
@@ -1158,7 +865,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public Type opType() {
-            return Type.SAVE;
+            return Type.INDEX;
         }
 
         @Override
@@ -1425,137 +1132,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    /** @deprecated Delete-by-query is removed in 2.0, but we keep this so translog can replay on upgrade. */
-    @Deprecated
-    public static class DeleteByQuery implements Operation {
-
-        public static final int SERIALIZATION_FORMAT = 2;
-        private BytesReference source;
-        @Nullable
-        private String[] filteringAliases;
-        private String[] types = Strings.EMPTY_ARRAY;
-
-        public DeleteByQuery() {
-        }
-
-        public DeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
-            this(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types());
-        }
-
-        public DeleteByQuery(BytesReference source, String[] filteringAliases, String... types) {
-            this.source = source;
-            this.types = types == null ? Strings.EMPTY_ARRAY : types;
-            this.filteringAliases = filteringAliases;
-        }
-
-        @Override
-        public Type opType() {
-            return Type.DELETE_BY_QUERY;
-        }
-
-        @Override
-        public long estimateSize() {
-            return source.length() + 8;
-        }
-
-        public BytesReference source() {
-            return this.source;
-        }
-
-        public String[] filteringAliases() {
-            return filteringAliases;
-        }
-
-        public String[] types() {
-            return this.types;
-        }
-
-        @Override
-        public Source getSource() {
-            throw new IllegalStateException("trying to read doc source from delete_by_query operation");
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            int version = in.readVInt(); // version
-            source = in.readBytesReference();
-            if (version < 2) {
-                // for query_parser_name, which was removed
-                if (in.readBoolean()) {
-                    in.readString();
-                }
-            }
-            int typesSize = in.readVInt();
-            if (typesSize > 0) {
-                types = new String[typesSize];
-                for (int i = 0; i < typesSize; i++) {
-                    types[i] = in.readString();
-                }
-            }
-            if (version >= 1) {
-                int aliasesSize = in.readVInt();
-                if (aliasesSize > 0) {
-                    filteringAliases = new String[aliasesSize];
-                    for (int i = 0; i < aliasesSize; i++) {
-                        filteringAliases[i] = in.readString();
-                    }
-                }
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(SERIALIZATION_FORMAT);
-            out.writeBytesReference(source);
-            out.writeVInt(types.length);
-            for (String type : types) {
-                out.writeString(type);
-            }
-            if (filteringAliases != null) {
-                out.writeVInt(filteringAliases.length);
-                for (String alias : filteringAliases) {
-                    out.writeString(alias);
-                }
-            } else {
-                out.writeVInt(0);
-            }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            DeleteByQuery that = (DeleteByQuery) o;
-
-            if (!Arrays.equals(filteringAliases, that.filteringAliases)) {
-                return false;
-            }
-            if (!Arrays.equals(types, that.types)) {
-                return false;
-            }
-            return source.equals(that.source);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = source.hashCode();
-            result = 31 * result + (filteringAliases != null ? Arrays.hashCode(filteringAliases) : 0);
-            result = 31 * result + Arrays.hashCode(types);
-            return result;
-        }
-
-        @Override
-        public String toString() {
-            return "DeleteByQuery{" +
-                    "types=" + Arrays.toString(types) +
-                    '}';
-        }
-    }
 
     public enum Durabilty {
         /**
@@ -1667,13 +1243,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     static Translog.Operation newOperationFromType(Translog.Operation.Type type) throws IOException {
         switch (type) {
             case CREATE:
-                return new Translog.Create();
+                // the deserialization logic in Index was identical to that of Create when create was deprecated
+                return new Index();
             case DELETE:
                 return new Translog.Delete();
-            case DELETE_BY_QUERY:
-                return new Translog.DeleteByQuery();
-            case SAVE:
-                return new Translog.Index();
+            case INDEX:
+                return new Index();
             default:
                 throw new IOException("No type for [" + type + "]");
         }
@@ -1781,10 +1356,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return current.getFirstOperationOffset();
     }
 
-    List<ImmutableTranslogReader> getRecoveredReaders() { // for testing
-        return this.recoveredTranslogs;
-    }
-
     private void ensureOpen() {
         if (closed.get()) {
             throw new AlreadyClosedException("translog is already closed");
@@ -1798,21 +1369,4 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return outstandingViews.size();
     }
 
-    private static class PathWithGeneration {
-        private final Path path;
-        private final long generation;
-
-        public PathWithGeneration(Path path, long generation) {
-            this.path = path;
-            this.generation = generation;
-        }
-
-        public Path getPath() {
-            return path;
-        }
-
-        public long getGeneration() {
-            return generation;
-        }
-    }
 }

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.bulk;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 
 /**
@@ -95,7 +95,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     @Override
     public Iterator<BulkItemResponse> iterator() {
-        return Iterators.forArray(responses);
+        return Arrays.stream(responses).iterator();
     }
 
     @Override

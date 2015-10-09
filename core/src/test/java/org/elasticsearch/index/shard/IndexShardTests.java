@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -69,7 +70,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -95,10 +95,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.EMPTY_PARAMS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -342,7 +339,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test").setSource("{}").get();
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        indicesService.indexService("test").getShardOrNull(0).markAsInactive();
+        Boolean result = indicesService.indexService("test").getShardOrNull(0).checkIdle(0);
+        assertEquals(Boolean.TRUE, result);
         assertBusy(new Runnable() { // should be very very quick
             @Override
             public void run() {
@@ -399,35 +397,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     private void setDurability(IndexShard shard, Translog.Durabilty durabilty) {
         client().admin().indices().prepareUpdateSettings(shard.shardId.getIndex()).setSettings(settingsBuilder().put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, durabilty.name()).build()).get();
         assertEquals(durabilty, shard.getTranslogDurability());
-    }
-
-    public void testDeleteByQueryBWC() {
-        Version version = VersionUtils.randomVersion(random());
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0, IndexMetaData.SETTING_VERSION_CREATED, version.id));
-        ensureGreen("test");
-        client().prepareIndex("test", "person").setSource("{ \"user\" : \"kimchy\" }").get();
-
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
-        IndexShard shard = test.getShardOrNull(0);
-        int numDocs = 1;
-        shard.state = IndexShardState.RECOVERING;
-        try {
-            shard.recoveryState().getTranslog().totalOperations(1);
-            shard.getEngine().config().getTranslogRecoveryPerformer().performRecoveryOperation(shard.getEngine(), new Translog.DeleteByQuery(new Engine.DeleteByQuery(null, new BytesArray("{\"term\" : { \"user\" : \"kimchy\" }}"), null, null, null, Engine.Operation.Origin.RECOVERY, 0, "person")), false);
-            assertTrue(version.onOrBefore(Version.V_1_0_0_Beta2));
-            numDocs = 0;
-        } catch (ParsingException ex) {
-            assertTrue(version.after(Version.V_1_0_0_Beta2));
-        } finally {
-            shard.state = IndexShardState.STARTED;
-        }
-        shard.getEngine().refresh("foo");
-
-        try (Engine.Searcher searcher = shard.getEngine().acquireSearcher("foo")) {
-            assertEquals(numDocs, searcher.reader().numDocs());
-        }
     }
 
     public void testMinimumCompatVersion() {
@@ -628,9 +597,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
         shardIndexingService.addListener(new IndexingOperationListener() {
             @Override
-            public Engine.Index preIndex(Engine.Index index) {
+            public Engine.Index preIndex(Engine.Index operation) {
                 preIndexCalled.set(true);
-                return super.preIndex(index);
+                return super.preIndex(operation);
             }
         });
 
@@ -957,7 +926,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             }
         };
 
-        IndexServicesProvider newProvider = new IndexServicesProvider(indexServices.getIndicesLifecycle(), indexServices.getThreadPool(), indexServices.getMapperService(), indexServices.getQueryParserService(), indexServices.getIndexCache(), indexServices.getIndexAliasesService(), indexServices.getIndicesQueryCache(), indexServices.getCodecService(), indexServices.getTermVectorsService(), indexServices.getIndexFieldDataService(), indexServices.getWarmer(), indexServices.getSimilarityService(), indexServices.getFactory(), indexServices.getBigArrays(), wrapper);
+        IndexServicesProvider newProvider = new IndexServicesProvider(indexServices.getIndicesLifecycle(), indexServices.getThreadPool(), indexServices.getMapperService(), indexServices.getQueryParserService(), indexServices.getIndexCache(), indexServices.getIndexAliasesService(), indexServices.getIndicesQueryCache(), indexServices.getCodecService(), indexServices.getTermVectorsService(), indexServices.getIndexFieldDataService(), indexServices.getWarmer(), indexServices.getSimilarityService(), indexServices.getFactory(), indexServices.getBigArrays(), wrapper, indexServices.getIndexingMemoryController());
         IndexShard newShard = new IndexShard(shard.shardId(), shard.indexSettings, shard.shardPath(), shard.store(), newProvider);
 
         ShardRoutingHelper.reinit(routing);

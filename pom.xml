@@ -986,8 +986,7 @@
                             <headerDefinition>${elasticsearch.license.headerDefinition}</headerDefinition>
                         </headerDefinitions>
                         <includes>
-                            <include>src/main/java/org/elasticsearch/**/*.java</include>
-                            <include>src/test/java/org/elasticsearch/**/*.java</include>
+                            <include>src/**/*.java</include>
                         </includes>
                     </configuration>
                     <executions>

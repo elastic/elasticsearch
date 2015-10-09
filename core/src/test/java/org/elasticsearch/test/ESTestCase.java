@@ -41,7 +41,6 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.logging.ESLogger;
@@ -549,9 +548,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(Version version) {
         Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
-        if (version.before(Version.V_2_0_0_beta1)) {
-            builder.put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, DjbHashFunction.class);
-        }
         return builder;
     }
 

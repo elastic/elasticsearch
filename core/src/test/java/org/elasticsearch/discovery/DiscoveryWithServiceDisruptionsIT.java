@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.DjbHashFunction;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -441,7 +441,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                                 logger.info("[{}] Acquired semaphore and it has {} permits left", name, semaphore.availablePermits());
                                 try {
                                     id = Integer.toString(idGenerator.incrementAndGet());
-                                    int shard = ((InternalTestCluster) cluster()).getInstance(DjbHashFunction.class).hash(id) % numPrimaries;
+                                    int shard = Murmur3HashFunction.hash(id) % numPrimaries;
                                     logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
                                     IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}").setTimeout("1s").get();
                                     assertThat(response.getVersion(), equalTo(1l));

@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -183,14 +184,14 @@ public class TranslogTests extends ESTestCase {
 
     @Test
     public void testRead() throws IOException {
-        Translog.Location loc1 = translog.add(new Translog.Create("test", "1", new byte[]{1}));
-        Translog.Location loc2 = translog.add(new Translog.Create("test", "2", new byte[]{2}));
+        Translog.Location loc1 = translog.add(new Translog.Index("test", "1", new byte[]{1}));
+        Translog.Location loc2 = translog.add(new Translog.Index("test", "2", new byte[]{2}));
         assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
         assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
         translog.sync();
         assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
         assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
-        Translog.Location loc3 = translog.add(new Translog.Create("test", "2", new byte[]{3}));
+        Translog.Location loc3 = translog.add(new Translog.Index("test", "2", new byte[]{3}));
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.sync();
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
@@ -215,37 +216,27 @@ public class TranslogTests extends ESTestCase {
         assertThat(snapshot, SnapshotMatchers.size(0));
         snapshot.close();
 
-        addToTranslogAndList(translog, ops, new Translog.Create("test", "1", new byte[]{1}));
-        snapshot = translog.newSnapshot();
-        assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
-        snapshot.close();
-
-        addToTranslogAndList(translog, ops, new Translog.Index("test", "2", new byte[]{2}));
+        addToTranslogAndList(translog, ops, new Translog.Index("test", "1", new byte[]{1}));
         snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(ops.size()));
         snapshot.close();
 
-        addToTranslogAndList(translog, ops, new Translog.Delete(newUid("3")));
+        addToTranslogAndList(translog, ops, new Translog.Delete(newUid("2")));
         snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(ops.size()));
         snapshot.close();
 
         snapshot = translog.newSnapshot();
-
-        Translog.Create create = (Translog.Create) snapshot.next();
-        assertThat(create != null, equalTo(true));
-        assertThat(create.source().toBytes(), equalTo(new byte[]{1}));
 
         Translog.Index index = (Translog.Index) snapshot.next();
         assertThat(index != null, equalTo(true));
-        assertThat(index.source().toBytes(), equalTo(new byte[]{2}));
+        assertThat(index.source().toBytes(), equalTo(new byte[]{1}));
 
         Translog.Delete delete = (Translog.Delete) snapshot.next();
         assertThat(delete != null, equalTo(true));
-        assertThat(delete.uid(), equalTo(newUid("3")));
+        assertThat(delete.uid(), equalTo(newUid("2")));
 
         assertThat(snapshot.next(), equalTo(null));
 
@@ -286,38 +277,63 @@ public class TranslogTests extends ESTestCase {
         final long firstOperationPosition = translog.getFirstOperationPosition();
         TranslogStats stats = stats();
         assertThat(stats.estimatedNumberOfOperations(), equalTo(0l));
-        long lastSize = stats.translogSizeInBytes().bytes();
+        long lastSize = stats.getTranslogSizeInBytes();
         assertThat((int) firstOperationPosition, greaterThan(CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC)));
         assertThat(lastSize, equalTo(firstOperationPosition));
-
-        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+        TranslogStats total = new TranslogStats();
+        translog.add(new Translog.Index("test", "1", new byte[]{1}));
         stats = stats();
+        total.add(stats);
         assertThat(stats.estimatedNumberOfOperations(), equalTo(1l));
-        assertThat(stats.translogSizeInBytes().bytes(), greaterThan(lastSize));
-        lastSize = stats.translogSizeInBytes().bytes();
+        assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
+        lastSize = stats.getTranslogSizeInBytes();
 
-        translog.add(new Translog.Index("test", "2", new byte[]{2}));
+        translog.add(new Translog.Delete(newUid("2")));
         stats = stats();
+        total.add(stats);
         assertThat(stats.estimatedNumberOfOperations(), equalTo(2l));
-        assertThat(stats.translogSizeInBytes().bytes(), greaterThan(lastSize));
-        lastSize = stats.translogSizeInBytes().bytes();
+        assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
+        lastSize = stats.getTranslogSizeInBytes();
 
         translog.add(new Translog.Delete(newUid("3")));
-        stats = stats();
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(3l));
-        assertThat(stats.translogSizeInBytes().bytes(), greaterThan(lastSize));
-        lastSize = stats.translogSizeInBytes().bytes();
-
-        translog.add(new Translog.Delete(newUid("4")));
         translog.prepareCommit();
         stats = stats();
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(4l));
-        assertThat(stats.translogSizeInBytes().bytes(), greaterThan(lastSize));
+        total.add(stats);
+        assertThat(stats.estimatedNumberOfOperations(), equalTo(3l));
+        assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
 
         translog.commit();
         stats = stats();
+        total.add(stats);
         assertThat(stats.estimatedNumberOfOperations(), equalTo(0l));
-        assertThat(stats.translogSizeInBytes().bytes(), equalTo(firstOperationPosition));
+        assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
+        assertEquals(6, total.estimatedNumberOfOperations());
+        assertEquals(431, total.getTranslogSizeInBytes());
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        total.writeTo(out);
+        TranslogStats copy = new TranslogStats();
+        copy.readFrom(StreamInput.wrap(out.bytes()));
+
+        assertEquals(6, copy.estimatedNumberOfOperations());
+        assertEquals(431, copy.getTranslogSizeInBytes());
+        assertEquals("\"translog\"{\n" +
+                "  \"operations\" : 6,\n" +
+                "  \"size_in_bytes\" : 431\n" +
+                "}", copy.toString().trim());
+
+        try {
+            new TranslogStats(1, -1);
+            fail("must be positive");
+        } catch (IllegalArgumentException ex) {
+            //all well
+        }
+        try {
+            new TranslogStats(-1, 1);
+            fail("must be positive");
+        } catch (IllegalArgumentException ex) {
+            //all well
+        }
     }
 
     @Test
@@ -327,7 +343,7 @@ public class TranslogTests extends ESTestCase {
         assertThat(snapshot, SnapshotMatchers.size(0));
         snapshot.close();
 
-        addToTranslogAndList(translog, ops, new Translog.Create("test", "1", new byte[]{1}));
+        addToTranslogAndList(translog, ops, new Translog.Index("test", "1", new byte[]{1}));
 
         snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
@@ -354,7 +370,7 @@ public class TranslogTests extends ESTestCase {
         assertThat(snapshot, SnapshotMatchers.size(0));
         snapshot.close();
 
-        addToTranslogAndList(translog, ops, new Translog.Create("test", "1", new byte[]{1}));
+        addToTranslogAndList(translog, ops, new Translog.Index("test", "1", new byte[]{1}));
         Translog.Snapshot snapshot1 = translog.newSnapshot();
 
         addToTranslogAndList(translog, ops, new Translog.Index("test", "2", new byte[]{2}));
@@ -375,7 +391,7 @@ public class TranslogTests extends ESTestCase {
 
     public void testSnapshotOnClosedTranslog() throws IOException {
         assertTrue(Files.exists(translogDir.resolve(Translog.getFilename(1))));
-        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+        translog.add(new Translog.Index("test", "1", new byte[]{1}));
         translog.close();
         try {
             Translog.Snapshot snapshot = translog.newSnapshot();
@@ -388,7 +404,7 @@ public class TranslogTests extends ESTestCase {
     @Test
     public void deleteOnSnapshotRelease() throws Exception {
         ArrayList<Translog.Operation> firstOps = new ArrayList<>();
-        addToTranslogAndList(translog, firstOps, new Translog.Create("test", "1", new byte[]{1}));
+        addToTranslogAndList(translog, firstOps, new Translog.Index("test", "1", new byte[]{1}));
 
         Translog.Snapshot firstSnapshot = translog.newSnapshot();
         assertThat(firstSnapshot.estimatedTotalOperations(), equalTo(1));
@@ -463,10 +479,7 @@ public class TranslogTests extends ESTestCase {
                             Translog.Operation op;
                             switch (randomFrom(Translog.Operation.Type.values())) {
                                 case CREATE:
-                                    op = new Translog.Create("test", threadId + "_" + opCount,
-                                            randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
-                                    break;
-                                case SAVE:
+                                case INDEX:
                                     op = new Translog.Index("test", threadId + "_" + opCount,
                                             randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
                                     break;
@@ -475,9 +488,6 @@ public class TranslogTests extends ESTestCase {
                                             1 + randomInt(100000),
                                             randomFrom(VersionType.values()));
                                     break;
-                                case DELETE_BY_QUERY:
-                                    // deprecated
-                                    continue;
                                 default:
                                     throw new ElasticsearchException("not supported op type");
                             }
@@ -508,7 +518,7 @@ public class TranslogTests extends ESTestCase {
             Translog.Operation expectedOp = locationOperation.operation;
             assertEquals(expectedOp.opType(), op.opType());
             switch (op.opType()) {
-                case SAVE:
+                case INDEX:
                     Translog.Index indexOp = (Translog.Index) op;
                     Translog.Index expIndexOp = (Translog.Index) expectedOp;
                     assertEquals(expIndexOp.id(), indexOp.id());
@@ -517,16 +527,6 @@ public class TranslogTests extends ESTestCase {
                     assertEquals(expIndexOp.source(), indexOp.source());
                     assertEquals(expIndexOp.version(), indexOp.version());
                     assertEquals(expIndexOp.versionType(), indexOp.versionType());
-                    break;
-                case CREATE:
-                    Translog.Create createOp = (Translog.Create) op;
-                    Translog.Create expCreateOp = (Translog.Create) expectedOp;
-                    assertEquals(expCreateOp.id(), createOp.id());
-                    assertEquals(expCreateOp.routing(), createOp.routing());
-                    assertEquals(expCreateOp.type(), createOp.type());
-                    assertEquals(expCreateOp.source(), createOp.source());
-                    assertEquals(expCreateOp.version(), createOp.version());
-                    assertEquals(expCreateOp.versionType(), createOp.versionType());
                     break;
                 case DELETE:
                     Translog.Delete delOp = (Translog.Delete) op;
@@ -550,7 +550,7 @@ public class TranslogTests extends ESTestCase {
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
             String ascii = randomAsciiOfLengthBetween(1, 50);
-            locations.add(translog.add(new Translog.Create("test", "" + op, ascii.getBytes("UTF-8"))));
+            locations.add(translog.add(new Translog.Index("test", "" + op, ascii.getBytes("UTF-8"))));
         }
         translog.sync();
 
@@ -574,7 +574,7 @@ public class TranslogTests extends ESTestCase {
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
             String ascii = randomAsciiOfLengthBetween(1, 50);
-            locations.add(translog.add(new Translog.Create("test", "" + op, ascii.getBytes("UTF-8"))));
+            locations.add(translog.add(new Translog.Index("test", "" + op, ascii.getBytes("UTF-8"))));
         }
         translog.sync();
 
@@ -638,7 +638,7 @@ public class TranslogTests extends ESTestCase {
     @Test
     public void testVerifyTranslogIsNotDeleted() throws IOException {
         assertFileIsPresent(translog, 1);
-        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+        translog.add(new Translog.Index("test", "1", new byte[]{1}));
         Translog.Snapshot snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.size(1));
         assertFileIsPresent(translog, 1);
@@ -686,17 +686,12 @@ public class TranslogTests extends ESTestCase {
                         final Translog.Operation op;
                         switch (Translog.Operation.Type.values()[((int) (id % Translog.Operation.Type.values().length))]) {
                             case CREATE:
-                                op = new Translog.Create("type", "" + id, new byte[]{(byte) id});
-                                break;
-                            case SAVE:
+                            case INDEX:
                                 op = new Translog.Index("type", "" + id, new byte[]{(byte) id});
                                 break;
                             case DELETE:
                                 op = new Translog.Delete(newUid("" + id));
                                 break;
-                            case DELETE_BY_QUERY:
-                                // deprecated
-                                continue;
                             default:
                                 throw new ElasticsearchException("unknown type");
                         }
@@ -830,12 +825,12 @@ public class TranslogTests extends ESTestCase {
         int translogOperations = randomIntBetween(10, 100);
         int count = 0;
         for (int op = 0; op < translogOperations; op++) {
-            final Translog.Location location = translog.add(new Translog.Create("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8"))));
+            final Translog.Location location = translog.add(new Translog.Index("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8"))));
             if (randomBoolean()) {
                 assertTrue("at least one operation pending", translog.syncNeeded());
                 assertTrue("this operation has not been synced", translog.ensureSynced(location));
                 assertFalse("the last call to ensureSycned synced all previous ops", translog.syncNeeded()); // we are the last location so everything should be synced
-                translog.add(new Translog.Create("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8"))));
+                translog.add(new Translog.Index("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8"))));
                 assertTrue("one pending operation", translog.syncNeeded());
                 assertFalse("this op has been synced before", translog.ensureSynced(location)); // not syncing now
                 assertTrue("we only synced a previous operation yet", translog.syncNeeded());
@@ -858,7 +853,7 @@ public class TranslogTests extends ESTestCase {
         int translogOperations = randomIntBetween(10, 100);
         int count = 0;
         for (int op = 0; op < translogOperations; op++) {
-            locations.add(translog.add(new Translog.Create("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8")))));
+            locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8")))));
             if (rarely() && translogOperations > op+1) {
                 translog.commit();
             }
@@ -887,14 +882,14 @@ public class TranslogTests extends ESTestCase {
         int translogOperations = randomIntBetween(10, 100);
         int lastSynced = -1;
         for (int op = 0; op < translogOperations; op++) {
-            locations.add(translog.add(new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
+            locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
             if (frequently()) {
                 translog.sync();
                 lastSynced = op;
             }
         }
         assertEquals(translogOperations, translog.totalOperations());
-        final Translog.Location lastLocation = translog.add(new Translog.Create("test", "" + translogOperations, Integer.toString(translogOperations).getBytes(Charset.forName("UTF-8"))));
+        final Translog.Location lastLocation = translog.add(new Translog.Index("test", "" + translogOperations, Integer.toString(translogOperations).getBytes(Charset.forName("UTF-8"))));
 
         final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME));
         try (final ImmutableTranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(translog.currentFileGeneration())), checkpoint)) {
@@ -975,7 +970,7 @@ public class TranslogTests extends ESTestCase {
         int minUncommittedOp = -1;
         final boolean commitOften = randomBoolean();
         for (int op = 0; op < translogOperations; op++) {
-            locations.add(translog.add(new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
+            locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
             final boolean commit = commitOften ? frequently() : rarely();
             if (commit && op < translogOperations-1) {
                 translog.commit();
@@ -1017,7 +1012,7 @@ public class TranslogTests extends ESTestCase {
         Translog.TranslogGeneration translogGeneration = null;
         final boolean sync = randomBoolean();
         for (int op = 0; op < translogOperations; op++) {
-            locations.add(translog.add(new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
+            locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
             if (op == prepareOp) {
                 translogGeneration = translog.getGeneration();
                 translog.prepareCommit();
@@ -1068,7 +1063,7 @@ public class TranslogTests extends ESTestCase {
         List<Translog.Operation> ops = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
-            Translog.Create test = new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")));
+            Translog.Index test = new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")));
             ops.add(test);
         }
         Translog.writeOperations(out, ops);
@@ -1083,8 +1078,8 @@ public class TranslogTests extends ESTestCase {
         int translogOperations = randomIntBetween(10, 100);
         try(Translog translog2 = create(createTempDir())) {
             for (int op = 0; op < translogOperations; op++) {
-                locations.add(translog.add(new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
-                locations2.add(translog2.add(new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
+                locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
+                locations2.add(translog2.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
             }
             int iters = randomIntBetween(10, 100);
             for (int i = 0; i < iters; i++) {
@@ -1110,7 +1105,7 @@ public class TranslogTests extends ESTestCase {
         int translogOperations = randomIntBetween(1, 10);
         int firstUncommitted = 0;
         for (int op = 0; op < translogOperations; op++) {
-            locations.add(translog.add(new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
+            locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
             if (randomBoolean()) {
                 translog.commit();
                 firstUncommitted = op + 1;
@@ -1137,148 +1132,5 @@ public class TranslogTests extends ESTestCase {
             }
             assertNull(snapshot.next());
         }
-    }
-
-    public void testUpgradeOldTranslogFiles() throws IOException {
-        List<Path> indexes = new ArrayList<>();
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), "index-*.zip")) {
-            for (Path path : stream) {
-                indexes.add(path);
-            }
-        }
-        TranslogConfig config = this.translog.getConfig();
-        Translog.TranslogGeneration gen = translog.getGeneration();
-        this.translog.close();
-        try {
-            Translog.upgradeLegacyTranslog(logger, translog.getConfig());
-            fail("no generation set");
-        } catch (IllegalArgumentException ex) {
-
-        }
-        translog.getConfig().setTranslogGeneration(gen);
-        try {
-            Translog.upgradeLegacyTranslog(logger, translog.getConfig());
-            fail("already upgraded generation set");
-        } catch (IllegalArgumentException ex) {
-
-        }
-
-        for (Path indexFile : indexes) {
-            final String indexName = indexFile.getFileName().toString().replace(".zip", "").toLowerCase(Locale.ROOT);
-            Version version = Version.fromString(indexName.replace("index-", ""));
-            if (version.onOrAfter(Version.V_2_0_0_beta1)) {
-                continue;
-            }
-            Path unzipDir = createTempDir();
-            Path unzipDataDir = unzipDir.resolve("data");
-            // decompress the index
-            try (InputStream stream = Files.newInputStream(indexFile)) {
-                TestUtil.unzip(stream, unzipDir);
-            }
-            // check it is unique
-            assertTrue(Files.exists(unzipDataDir));
-            Path[] list = FileSystemUtils.files(unzipDataDir);
-            if (list.length != 1) {
-                throw new IllegalStateException("Backwards index must contain exactly one cluster but was " + list.length);
-            }
-            // the bwc scripts packs the indices under this path
-            Path src = list[0].resolve("nodes/0/indices/" + indexName);
-            Path translog = list[0].resolve("nodes/0/indices/" + indexName).resolve("0").resolve("translog");
-
-            assertTrue("[" + indexFile + "] missing index dir: " + src.toString(), Files.exists(src));
-            assertTrue("[" + indexFile + "] missing translog dir: " + translog.toString(), Files.exists(translog));
-            Path[] tlogFiles =  FileSystemUtils.files(translog);
-            assertEquals(tlogFiles.length, 1);
-            final long size = Files.size(tlogFiles[0]);
-
-            final long generation = parseLegacyTranslogFile(tlogFiles[0]);
-            assertTrue(generation >= 1);
-            logger.info("upgrading index {} file: {} size: {}", indexName, tlogFiles[0].getFileName(), size);
-            TranslogConfig upgradeConfig = new TranslogConfig(config.getShardId(), translog, config.getIndexSettings(), config.getDurabilty(), config.getBigArrays(), config.getThreadPool());
-            upgradeConfig.setTranslogGeneration(new Translog.TranslogGeneration(null, generation));
-            Translog.upgradeLegacyTranslog(logger, upgradeConfig);
-            try (Translog upgraded = new Translog(upgradeConfig)) {
-                assertEquals(generation + 1, upgraded.getGeneration().translogFileGeneration);
-                assertEquals(upgraded.getRecoveredReaders().size(), 1);
-                final long headerSize;
-                if (version.before(Version.V_1_4_0_Beta1)) {
-                    assertTrue(upgraded.getRecoveredReaders().get(0).getClass().toString(), upgraded.getRecoveredReaders().get(0).getClass() == LegacyTranslogReader.class);
-                   headerSize = 0;
-                } else {
-                    assertTrue(upgraded.getRecoveredReaders().get(0).getClass().toString(), upgraded.getRecoveredReaders().get(0).getClass() == LegacyTranslogReaderBase.class);
-                    headerSize = CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC);
-                }
-                List<Translog.Operation> operations = new ArrayList<>();
-                try (Translog.Snapshot snapshot = upgraded.newSnapshot()) {
-                    Translog.Operation op = null;
-                    while ((op = snapshot.next()) != null) {
-                        operations.add(op);
-                    }
-                }
-                if (size > headerSize) {
-                    assertFalse(operations.toString(), operations.isEmpty());
-                } else {
-                    assertTrue(operations.toString(), operations.isEmpty());
-                }
-            }
-        }
-    }
-
-    /**
-     * this tests a set of files that has some of the operations flushed with a buffered translog such that tlogs are truncated.
-     * 3 of the 6 files are created with ES 1.3 and the rest is created wiht ES 1.4 such that both the checksummed as well as the
-     * super old version of the translog without a header is tested.
-     */
-    public void testOpenAndReadTruncatedLegacyTranslogs() throws IOException {
-        Path zip = getDataPath("/org/elasticsearch/index/translog/legacy_translogs.zip");
-        Path unzipDir = createTempDir();
-        try (InputStream stream = Files.newInputStream(zip)) {
-            TestUtil.unzip(stream, unzipDir);
-        }
-        TranslogConfig config = this.translog.getConfig();
-        int count = 0;
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(unzipDir)) {
-
-            for (Path legacyTranslog : stream) {
-                logger.debug("upgrading {} ", legacyTranslog.getFileName());
-                Path directory = legacyTranslog.resolveSibling("translog_" + count++);
-                Files.createDirectories(directory);
-                Files.copy(legacyTranslog, directory.resolve(legacyTranslog.getFileName()));
-                TranslogConfig upgradeConfig = new TranslogConfig(config.getShardId(), directory, config.getIndexSettings(), config.getDurabilty(), config.getBigArrays(), config.getThreadPool());
-                try {
-                    Translog.upgradeLegacyTranslog(logger, upgradeConfig);
-                    fail("no generation set");
-                } catch (IllegalArgumentException ex) {
-                    // expected
-                }
-                long generation = parseLegacyTranslogFile(legacyTranslog);
-                upgradeConfig.setTranslogGeneration(new Translog.TranslogGeneration(null, generation));
-                Translog.upgradeLegacyTranslog(logger, upgradeConfig);
-                try (Translog tlog = new Translog(upgradeConfig)) {
-                    List<Translog.Operation> operations = new ArrayList<>();
-                    try (Translog.Snapshot snapshot = tlog.newSnapshot()) {
-                        Translog.Operation op = null;
-                        while ((op = snapshot.next()) != null) {
-                            operations.add(op);
-                        }
-                    }
-                    logger.debug("num ops recovered: {} for file {} ", operations.size(), legacyTranslog.getFileName());
-                    assertFalse(operations.isEmpty());
-                }
-            }
-        }
-    }
-
-    public static long parseLegacyTranslogFile(Path translogFile) {
-        final String fileName = translogFile.getFileName().toString();
-        final Matcher matcher = PARSE_LEGACY_ID_PATTERN.matcher(fileName);
-        if (matcher.matches()) {
-            try {
-                return Long.parseLong(matcher.group(1));
-            } catch (NumberFormatException e) {
-                throw new IllegalStateException("number formatting issue in a file that passed PARSE_STRICT_ID_PATTERN: " + fileName + "]", e);
-            }
-        }
-        throw new IllegalArgumentException("can't parse id from file: " + fileName);
     }
 }

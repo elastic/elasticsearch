@@ -63,8 +63,6 @@ curl -XGET <1> 'localhost:9200/_search/scroll' <2> -d'
 '
 --------------------------------------------------
 
-coming[2.0.0-beta1, body based parameters were added in 2.0.0]
-
 <1> `GET` or `POST` can be used.
 <2> The URL should not include the `index` or `type` name -- these
     are specified in the original `search` request instead.
@@ -151,8 +149,6 @@ curl -XDELETE localhost:9200/_search/scroll -d '
 }'
 ---------------------------------------
 
-coming[2.0.0-beta1, Body based parameters were added in 2.0.0]
-
 Multiple scroll IDs can be passed as array:
 
 [source,js]
@@ -162,8 +158,6 @@ curl -XDELETE localhost:9200/_search/scroll -d '
     "scroll_id" : ["c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1", "aGVuRmV0Y2g7NTsxOnkxaDZ"]
 }'
 ---------------------------------------
-
-coming[2.0.0-beta1, Body based parameters were added in 2.0.0]
 
 All search contexts can be cleared with the `_all` parameter:
 

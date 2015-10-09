@@ -201,7 +201,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         ctx.reset(XContentHelper.createParser(source.source()), new ParseContext.Document(), source);
         assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
         ctx.parser().nextToken();
-        return DocumentParser.parseObject(ctx, mapper.root());
+        return DocumentParser.parseObject(ctx, mapper.root(), true);
     }
 
     public void testDynamicMappingsNotNeeded() throws Exception {

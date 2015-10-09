@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import com.carrotsearch.hppc.DoubleArrayList;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
@@ -36,8 +34,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -286,17 +282,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            if (useSortedNumericDocValues) {
-                addDocValue(context, fields, doubleToSortableLong(value));
-            } else {
-                CustomDoubleNumericDocValuesField field = (CustomDoubleNumericDocValuesField) context.doc().getByKey(fieldType().names().indexName());
-                if (field != null) {
-                    field.add(value);
-                } else {
-                    field = new CustomDoubleNumericDocValuesField(fieldType().names().indexName(), value);
-                    context.doc().addWithKey(fieldType().names().indexName(), field);
-                }
-            }
+            addDocValue(context, fields, doubleToSortableLong(value));
         }
     }
 
@@ -346,30 +332,4 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         }
     }
 
-    public static class CustomDoubleNumericDocValuesField extends CustomNumericDocValuesField {
-
-        private final DoubleArrayList values;
-
-        public CustomDoubleNumericDocValuesField(String  name, double value) {
-            super(name);
-            values = new DoubleArrayList();
-            add(value);
-        }
-
-        public void add(double value) {
-            values.add(value);
-        }
-
-        @Override
-        public BytesRef binaryValue() {
-            CollectionUtils.sortAndDedup(values);
-
-            final byte[] bytes = new byte[values.size() * 8];
-            for (int i = 0; i < values.size(); ++i) {
-                ByteUtils.writeDoubleLE(values.get(i), bytes, i * 8);
-            }
-            return new BytesRef(bytes);
-        }
-
-    }
 }

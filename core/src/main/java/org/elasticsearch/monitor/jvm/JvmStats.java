@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import java.io.IOException;
 import java.lang.management.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -378,7 +378,7 @@ public class JvmStats implements Streamable, ToXContent {
 
         @Override
         public Iterator<GarbageCollector> iterator() {
-            return Iterators.forArray(collectors);
+            return Arrays.stream(collectors).iterator();
         }
     }
 
@@ -546,7 +546,7 @@ public class JvmStats implements Streamable, ToXContent {
 
         @Override
         public Iterator<MemoryPool> iterator() {
-            return Iterators.forArray(pools);
+            return Arrays.stream(pools).iterator();
         }
 
         @Override

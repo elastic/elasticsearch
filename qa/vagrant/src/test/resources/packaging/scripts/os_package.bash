@@ -72,38 +72,39 @@ verify_package_installation() {
 
     getent group elasticsearch
 
-    assert_file "$ESHOME" d root 755
-    assert_file "$ESHOME/bin" d root 755
-    assert_file "$ESHOME/lib" d root 755
-    assert_file "$ESCONFIG" d root 755
-    assert_file "$ESCONFIG/elasticsearch.yml" f root 644
-    assert_file "$ESCONFIG/logging.yml" f root 644
-    assert_file "$ESDATA" d elasticsearch 755
-    assert_file "$ESLOG" d elasticsearch 755
-    assert_file "$ESPLUGINS" d elasticsearch 755
-    assert_file "$ESPIDDIR" d elasticsearch 755
-    assert_file "$ESHOME/NOTICE.txt" f root 644
-    assert_file "$ESHOME/README.textile" f root 644
+    assert_file "$ESHOME" d root root 755
+    assert_file "$ESHOME/bin" d root root 755
+    assert_file "$ESHOME/lib" d root root 755
+    assert_file "$ESCONFIG" d root elasticsearch 750
+    assert_file "$ESCONFIG/elasticsearch.yml" f root elasticsearch 750
+    assert_file "$ESCONFIG/logging.yml" f root elasticsearch 750
+    assert_file "$ESSCRIPTS" d root elasticsearch 750
+    assert_file "$ESDATA" d elasticsearch elasticsearch 755
+    assert_file "$ESLOG" d elasticsearch elasticsearch 755
+    assert_file "$ESPLUGINS" d elasticsearch elasticsearch 755
+    assert_file "$ESPIDDIR" d elasticsearch elasticsearch 755
+    assert_file "$ESHOME/NOTICE.txt" f root root 644
+    assert_file "$ESHOME/README.textile" f root root 644
 
     if is_dpkg; then
         # Env file
-        assert_file "/etc/default/elasticsearch" f root 644
+        assert_file "/etc/default/elasticsearch" f root root 644
 
         # Doc files
-        assert_file "/usr/share/doc/elasticsearch" d root 755
-        assert_file "/usr/share/doc/elasticsearch/copyright" f root 644
+        assert_file "/usr/share/doc/elasticsearch" d root root 755
+        assert_file "/usr/share/doc/elasticsearch/copyright" f root root 644
     fi
 
     if is_rpm; then
         # Env file
-        assert_file "/etc/sysconfig/elasticsearch" f root 644
+        assert_file "/etc/sysconfig/elasticsearch" f root root 644
         # License file
-        assert_file "/usr/share/elasticsearch/LICENSE.txt" f root 644
+        assert_file "/usr/share/elasticsearch/LICENSE.txt" f root root 644
     fi
 
     if is_systemd; then
-        assert_file "/usr/lib/systemd/system/elasticsearch.service" f root 644
-        assert_file "/usr/lib/tmpfiles.d/elasticsearch.conf" f root 644
-        assert_file "/usr/lib/sysctl.d/elasticsearch.conf" f root 644
+        assert_file "/usr/lib/systemd/system/elasticsearch.service" f root root 644
+        assert_file "/usr/lib/tmpfiles.d/elasticsearch.conf" f root root 644
+        assert_file "/usr/lib/sysctl.d/elasticsearch.conf" f root root 644
     fi
 }

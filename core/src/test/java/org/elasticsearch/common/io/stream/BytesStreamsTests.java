@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
@@ -477,5 +478,24 @@ public class BytesStreamsTests extends ESTestCase {
         byte[] data = new byte[size];
         getRandom().nextBytes(data);
         return data;
+    }
+
+    public void testReadWriteGeoPoint() throws IOException {
+        {
+            BytesStreamOutput out = new BytesStreamOutput();
+            GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
+            out.writeGenericValue(geoPoint);
+            StreamInput wrap = StreamInput.wrap(out.bytes());
+            GeoPoint point = (GeoPoint) wrap.readGenericValue();
+            assertEquals(point, geoPoint);
+        }
+        {
+            BytesStreamOutput out = new BytesStreamOutput();
+            GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
+            out.writeGeoPoint(geoPoint);
+            StreamInput wrap = StreamInput.wrap(out.bytes());
+            GeoPoint point = wrap.readGeoPoint();
+            assertEquals(point, geoPoint);
+        }
     }
 }

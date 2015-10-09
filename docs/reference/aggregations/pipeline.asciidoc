@@ -2,8 +2,6 @@
 
 == Pipeline Aggregations
 
-coming[2.0.0-beta1]
-
 experimental[]
 
 Pipeline aggregations work on the outputs produced from other aggregations rather than from document sets, adding

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +29,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.StreamSupport;
 
 public class FieldTypeLookupTests extends ESTestCase {
 
@@ -61,7 +59,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup2.getByIndexName("bar"));
         assertNull(lookup.getByIndexName("foo"));
-        assertEquals(1, Iterators.size(lookup2.iterator()));
+        assertEquals(1, size(lookup2.iterator()));
     }
 
     public void testAddExistingField() {
@@ -76,7 +74,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertSame(f.fieldType(), f2.fieldType());
         assertSame(f.fieldType(), lookup2.get("foo"));
         assertSame(f.fieldType(), lookup2.getByIndexName("foo"));
-        assertEquals(1, Iterators.size(lookup2.iterator()));
+        assertEquals(1, size(lookup2.iterator()));
     }
 
     public void testAddExistingIndexName() {
@@ -92,7 +90,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertSame(f.fieldType(), lookup2.get("foo"));
         assertSame(f.fieldType(), lookup2.get("bar"));
         assertSame(f.fieldType(), lookup2.getByIndexName("foo"));
-        assertEquals(2, Iterators.size(lookup2.iterator()));
+        assertEquals(2, size(lookup2.iterator()));
     }
 
     public void testAddExistingFullName() {
@@ -108,7 +106,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertSame(f.fieldType(), lookup2.get("foo"));
         assertSame(f.fieldType(), lookup2.getByIndexName("foo"));
         assertSame(f.fieldType(), lookup2.getByIndexName("bar"));
-        assertEquals(1, Iterators.size(lookup2.iterator()));
+        assertEquals(1, size(lookup2.iterator()));
     }
 
     public void testAddExistingBridgeName() {
@@ -285,5 +283,17 @@ public class FieldTypeLookupTests extends ESTestCase {
         protected String contentType() { return null; }
         @Override
         protected void parseCreateField(ParseContext context, List list) throws IOException {}
+    }
+
+    private int size(Iterator<MappedFieldType> iterator) {
+        if (iterator == null) {
+            throw new NullPointerException("iterator");
+        }
+        int count = 0;
+        while (iterator.hasNext()) {
+            count++;
+            iterator.next();
+        }
+        return count;
     }
 }

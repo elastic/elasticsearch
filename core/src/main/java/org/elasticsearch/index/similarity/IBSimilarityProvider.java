@@ -28,8 +28,6 @@ import org.apache.lucene.search.similarities.LambdaDF;
 import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.Normalization;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashMap;
@@ -67,8 +65,7 @@ public class IBSimilarityProvider extends AbstractSimilarityProvider {
 
     private final IBSimilarity similarity;
 
-    @Inject
-    public IBSimilarityProvider(@Assisted String name, @Assisted Settings settings) {
+    public IBSimilarityProvider(String name, Settings settings) {
         super(name);
         Distribution distribution = parseDistribution(settings);
         Lambda lambda = parseLambda(settings);

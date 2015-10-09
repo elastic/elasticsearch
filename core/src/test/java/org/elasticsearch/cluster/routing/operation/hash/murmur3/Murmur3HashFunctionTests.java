@@ -24,8 +24,6 @@ import org.elasticsearch.test.ESTestCase;
 
 public class Murmur3HashFunctionTests extends ESTestCase {
 
-    private static Murmur3HashFunction HASH = new Murmur3HashFunction();
-
     public void testKnownValues() {
         assertHash(0x5a0cb7c3, "hell");
         assertHash(0xd7c31989, "hello");
@@ -37,6 +35,6 @@ public class Murmur3HashFunctionTests extends ESTestCase {
     }
 
     private static void assertHash(int expected, String stringInput) {
-        assertEquals(expected, HASH.hash(stringInput));
+        assertEquals(expected, Murmur3HashFunction.hash(stringInput));
     }
 }

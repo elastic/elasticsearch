@@ -84,7 +84,7 @@ import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.shard.*;
-import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
@@ -118,7 +118,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -132,8 +131,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class InternalEngineTests extends ESTestCase {
-
-    private static final Pattern PARSE_LEGACY_ID_PATTERN = Pattern.compile("^" + Translog.TRANSLOG_FILE_PREFIX + "(\\d+)((\\.recovering))?$");
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
@@ -301,10 +298,10 @@ public class InternalEngineTests extends ESTestCase {
 
             // create a doc and refresh
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            engine.create(new Engine.Create(newUid("1"), doc));
+            engine.index(new Engine.Index(newUid("1"), doc));
 
             ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-            engine.create(new Engine.Create(newUid("2"), doc2));
+            engine.index(new Engine.Index(newUid("2"), doc2));
             engine.refresh("test");
 
             segments = engine.segments(false);
@@ -338,7 +335,7 @@ public class InternalEngineTests extends ESTestCase {
             engine.onSettingsChanged();
 
             ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-            engine.create(new Engine.Create(newUid("3"), doc3));
+            engine.index(new Engine.Index(newUid("3"), doc3));
             engine.refresh("test");
 
             segments = engine.segments(false);
@@ -386,7 +383,7 @@ public class InternalEngineTests extends ESTestCase {
             engine.config().setCompoundOnFlush(true);
             engine.onSettingsChanged();
             ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-            engine.create(new Engine.Create(newUid("4"), doc4));
+            engine.index(new Engine.Index(newUid("4"), doc4));
             engine.refresh("test");
 
             segments = engine.segments(false);
@@ -420,7 +417,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.isEmpty(), equalTo(true));
 
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            engine.create(new Engine.Create(newUid("1"), doc));
+            engine.index(new Engine.Index(newUid("1"), doc));
             engine.refresh("test");
 
             segments = engine.segments(true);
@@ -428,10 +425,10 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).ramTree, notNullValue());
 
             ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-            engine.create(new Engine.Create(newUid("2"), doc2));
+            engine.index(new Engine.Index(newUid("2"), doc2));
             engine.refresh("test");
             ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-            engine.create(new Engine.Create(newUid("3"), doc3));
+            engine.index(new Engine.Index(newUid("3"), doc3));
             engine.refresh("test");
 
             segments = engine.segments(true);
@@ -501,7 +498,7 @@ public class InternalEngineTests extends ESTestCase {
         Document document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
-        engine.create(new Engine.Create(newUid("1"), doc));
+        engine.index(new Engine.Index(newUid("1"), doc));
 
         CommitStats stats1 = engine.commitStats();
         assertThat(stats1.getGeneration(), greaterThan(0l));
@@ -552,7 +549,7 @@ public class InternalEngineTests extends ESTestCase {
     /* */
     public void testConcurrentGetAndFlush() throws Exception {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(newUid("1"), doc));
+        engine.index(new Engine.Index(newUid("1"), doc));
 
         final AtomicReference<Engine.GetResult> latestGetResult = new AtomicReference<>();
         latestGetResult.set(engine.get(new Engine.Get(true, newUid("1"))));
@@ -597,7 +594,7 @@ public class InternalEngineTests extends ESTestCase {
         Document document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
-        engine.create(new Engine.Create(newUid("1"), doc));
+        engine.index(new Engine.Index(newUid("1"), doc));
 
         // its not there...
         searchResult = engine.acquireSearcher("test");
@@ -689,7 +686,7 @@ public class InternalEngineTests extends ESTestCase {
         document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
-        engine.create(new Engine.Create(newUid("1"), doc));
+        engine.index(new Engine.Index(newUid("1"), doc, Versions.MATCH_DELETED));
 
         // its not there...
         searchResult = engine.acquireSearcher("test");
@@ -750,7 +747,7 @@ public class InternalEngineTests extends ESTestCase {
 
         // create a document
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(newUid("1"), doc));
+        engine.index(new Engine.Index(newUid("1"), doc));
 
         // its not there...
         searchResult = engine.acquireSearcher("test");
@@ -786,7 +783,7 @@ public class InternalEngineTests extends ESTestCase {
                      new LogByteSizeMergePolicy()), false)) {
             final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            engine.create(new Engine.Create(newUid("1"), doc));
+            engine.index(new Engine.Index(newUid("1"), doc));
             Engine.CommitId commitID = engine.flush();
             assertThat(commitID, equalTo(new Engine.CommitId(store.readLastCommittedSegmentsInfo().getId())));
             byte[] wrongBytes = Base64.decode(commitID.toString());
@@ -794,7 +791,7 @@ public class InternalEngineTests extends ESTestCase {
             Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
             assertEquals("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
                     Engine.SyncedFlushResult.COMMIT_MISMATCH);
-            engine.create(new Engine.Create(newUid("2"), doc));
+            engine.index(new Engine.Index(newUid("2"), doc));
             assertEquals("should fail to sync flush with right id but pending doc", engine.syncFlush(syncId + "2", commitID),
                     Engine.SyncedFlushResult.PENDING_OPERATIONS);
             commitID = engine.flush();
@@ -808,7 +805,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testSycnedFlushSurvivesEngineRestart() throws IOException {
         final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(newUid("1"), doc));
+        engine.index(new Engine.Index(newUid("1"), doc));
         final Engine.CommitId commitID = engine.flush();
         assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
                 Engine.SyncedFlushResult.SUCCESS);
@@ -827,14 +824,14 @@ public class InternalEngineTests extends ESTestCase {
     public void testSycnedFlushVanishesOnReplay() throws IOException {
         final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(newUid("1"), doc));
+        engine.index(new Engine.Index(newUid("1"), doc));
         final Engine.CommitId commitID = engine.flush();
         assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
                 Engine.SyncedFlushResult.SUCCESS);
         assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
         assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
         doc = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), new BytesArray("{}"), null);
-        engine.create(new Engine.Create(newUid("2"), doc));
+        engine.index(new Engine.Index(newUid("2"), doc));
         EngineConfig config = engine.config();
         engine.close();
         final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
@@ -851,25 +848,13 @@ public class InternalEngineTests extends ESTestCase {
     @Test
     public void testVersioningNewCreate() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Create create = new Engine.Create(newUid("1"), doc);
-        engine.create(create);
+        Engine.Index create = new Engine.Index(newUid("1"), doc, Versions.MATCH_DELETED);
+        engine.index(create);
         assertThat(create.version(), equalTo(1l));
 
-        create = new Engine.Create(newUid("1"), doc, create.version(), create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
-        replicaEngine.create(create);
+        create = new Engine.Index(newUid("1"), doc, create.version(), create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
+        replicaEngine.index(create);
         assertThat(create.version(), equalTo(1l));
-    }
-
-    @Test
-    public void testExternalVersioningNewCreate() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Create create = new Engine.Create(newUid("1"), doc, 12, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, 0);
-        engine.create(create);
-        assertThat(create.version(), equalTo(12l));
-
-        create = new Engine.Create(newUid("1"), doc, create.version(), create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
-        replicaEngine.create(create);
-        assertThat(create.version(), equalTo(12l));
     }
 
     @Test
@@ -1136,9 +1121,9 @@ public class InternalEngineTests extends ESTestCase {
         }
 
         // we shouldn't be able to create as well
-        Engine.Create create = new Engine.Create(newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
+        Engine.Index create = new Engine.Index(newUid("1"), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0);
         try {
-            engine.create(create);
+            engine.index(create);
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -1193,9 +1178,9 @@ public class InternalEngineTests extends ESTestCase {
         }
 
         // we shouldn't be able to create as well
-        Engine.Create create = new Engine.Create(newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
+        Engine.Index create = new Engine.Index(newUid("1"), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0);
         try {
-            engine.create(create);
+            engine.index(create);
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -1204,15 +1189,15 @@ public class InternalEngineTests extends ESTestCase {
     @Test
     public void testVersioningCreateExistsException() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Create create = new Engine.Create(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
-        engine.create(create);
+        Engine.Index create = new Engine.Index(newUid("1"), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0);
+        engine.index(create);
         assertThat(create.version(), equalTo(1l));
 
-        create = new Engine.Create(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
+        create = new Engine.Index(newUid("1"), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0);
         try {
-            engine.create(create);
+            engine.index(create);
             fail();
-        } catch (DocumentAlreadyExistsException e) {
+        } catch (VersionConflictEngineException e) {
             // all is well
         }
     }
@@ -1220,17 +1205,17 @@ public class InternalEngineTests extends ESTestCase {
     @Test
     public void testVersioningCreateExistsExceptionWithFlush() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Create create = new Engine.Create(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
-        engine.create(create);
+        Engine.Index create = new Engine.Index(newUid("1"), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0);
+        engine.index(create);
         assertThat(create.version(), equalTo(1l));
 
         engine.flush();
 
-        create = new Engine.Create(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
+        create = new Engine.Index(newUid("1"), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0);
         try {
-            engine.create(create);
+            engine.index(create);
             fail();
-        } catch (DocumentAlreadyExistsException e) {
+        } catch (VersionConflictEngineException e) {
             // all is well
         }
     }
@@ -1394,13 +1379,13 @@ public class InternalEngineTests extends ESTestCase {
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            engine.create(new Engine.Create(newUid("1"), doc));
+            engine.index(new Engine.Index(newUid("1"), doc));
             engine.flush();
             assertFalse(mockAppender.sawIndexWriterMessage);
 
             // Again, with TRACE, which should log IndexWriter output:
             rootLogger.setLevel(Level.TRACE);
-            engine.create(new Engine.Create(newUid("2"), doc));
+            engine.index(new Engine.Index(newUid("2"), doc));
             engine.flush();
             assertTrue(mockAppender.sawIndexWriterMessage);
 
@@ -1429,14 +1414,14 @@ public class InternalEngineTests extends ESTestCase {
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            engine.create(new Engine.Create(newUid("1"), doc));
+            engine.index(new Engine.Index(newUid("1"), doc));
             engine.flush();
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertFalse(mockAppender.sawIndexWriterIFDMessage);
 
             // Again, with TRACE, which should only log IndexWriter IFD output:
             iwIFDLogger.setLevel(Level.TRACE);
-            engine.create(new Engine.Create(newUid("2"), doc));
+            engine.index(new Engine.Index(newUid("2"), doc));
             engine.flush();
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertTrue(mockAppender.sawIndexWriterIFDMessage);
@@ -1636,8 +1621,8 @@ public class InternalEngineTests extends ESTestCase {
         final int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-            Engine.Create firstIndexRequest = new Engine.Create(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
-            engine.create(firstIndexRequest);
+            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+            engine.index(firstIndexRequest);
             assertThat(firstIndexRequest.version(), equalTo(1l));
         }
         engine.refresh("test");
@@ -1689,8 +1674,8 @@ public class InternalEngineTests extends ESTestCase {
         final int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-            Engine.Create firstIndexRequest = new Engine.Create(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
-            engine.create(firstIndexRequest);
+            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+            engine.index(firstIndexRequest);
             assertThat(firstIndexRequest.version(), equalTo(1l));
         }
         engine.refresh("test");
@@ -1730,10 +1715,6 @@ public class InternalEngineTests extends ESTestCase {
         Collections.shuffle(indexes, random());
         for (Path indexFile : indexes.subList(0, scaledRandomIntBetween(1, indexes.size() / 2))) {
             final String indexName = indexFile.getFileName().toString().replace(".zip", "").toLowerCase(Locale.ROOT);
-            Version version = Version.fromString(indexName.replace("index-", ""));
-            if (version.onOrAfter(Version.V_2_0_0_beta1)) {
-                continue;
-            }
             Path unzipDir = createTempDir();
             Path unzipDataDir = unzipDir.resolve("data");
             // decompress the index
@@ -1753,11 +1734,9 @@ public class InternalEngineTests extends ESTestCase {
             assertTrue("[" + indexFile + "] missing index dir: " + src.toString(), Files.exists(src));
             assertTrue("[" + indexFile + "] missing translog dir: " + translog.toString(), Files.exists(translog));
             Path[] tlogFiles = filterExtraFSFiles(FileSystemUtils.files(translog));
-            assertEquals(Arrays.toString(tlogFiles), tlogFiles.length, 1);
+            assertEquals(Arrays.toString(tlogFiles), tlogFiles.length, 2); // ckp & tlog
+            Path tlogFile = tlogFiles[0].getFileName().toString().endsWith("tlog") ? tlogFiles[0] : tlogFiles[1];
             final long size = Files.size(tlogFiles[0]);
-
-            final long generation = TranslogTests.parseLegacyTranslogFile(tlogFiles[0]);
-            assertTrue(generation >= 1);
             logger.debug("upgrading index {} file: {} size: {}", indexName, tlogFiles[0].getFileName(), size);
             Directory directory = newFSDirectory(src.resolve("0").resolve("index"));
             Store store = createStore(directory);
@@ -1790,8 +1769,8 @@ public class InternalEngineTests extends ESTestCase {
                 final int numExtraDocs = randomIntBetween(1, 10);
                 for (int i = 0; i < numExtraDocs; i++) {
                     ParsedDocument doc = testParsedDocument("extra" + Integer.toString(i), "extra" + Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-                    Engine.Create firstIndexRequest = new Engine.Create(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
-                    engine.create(firstIndexRequest);
+                    Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+                    engine.index(firstIndexRequest);
                     assertThat(firstIndexRequest.version(), equalTo(1l));
                 }
                 engine.refresh("test");
@@ -1819,8 +1798,8 @@ public class InternalEngineTests extends ESTestCase {
         final int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-            Engine.Create firstIndexRequest = new Engine.Create(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
-            engine.create(firstIndexRequest);
+            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+            engine.index(firstIndexRequest);
             assertThat(firstIndexRequest.version(), equalTo(1l));
         }
         engine.refresh("test");
@@ -1868,8 +1847,8 @@ public class InternalEngineTests extends ESTestCase {
         int randomId = randomIntBetween(numDocs + 1, numDocs + 10);
         String uuidValue = "test#" + Integer.toString(randomId);
         ParsedDocument doc = testParsedDocument(uuidValue, Integer.toString(randomId), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-        Engine.Create firstIndexRequest = new Engine.Create(newUid(uuidValue), doc, 1, VersionType.EXTERNAL, PRIMARY, System.nanoTime());
-        engine.create(firstIndexRequest);
+        Engine.Index firstIndexRequest = new Engine.Index(newUid(uuidValue), doc, 1, VersionType.EXTERNAL, PRIMARY, System.nanoTime());
+        engine.index(firstIndexRequest);
         assertThat(firstIndexRequest.version(), equalTo(1l));
         if (flush) {
             engine.flush();
@@ -1914,15 +1893,15 @@ public class InternalEngineTests extends ESTestCase {
         public final AtomicInteger recoveredOps = new AtomicInteger(0);
 
         public TranslogHandler(String indexName, ESLogger logger) {
-            super(new ShardId("test", 0), null, null, null, null, logger);
+            super(new ShardId("test", 0), null, logger);
             Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             Index index = new Index(indexName);
             AnalysisService analysisService = new AnalysisService(index, settings);
-            SimilarityLookupService similarityLookupService = new SimilarityLookupService(index, settings);
-            MapperService mapperService = new MapperService(index, settings, analysisService, similarityLookupService, null);
+            SimilarityService similarityService = new SimilarityService(index, settings);
+            MapperService mapperService = new MapperService(index, settings, analysisService, similarityService, null);
             DocumentMapper.Builder b = new DocumentMapper.Builder(settings, rootBuilder, mapperService);
-            DocumentMapperParser parser = new DocumentMapperParser(settings, mapperService, analysisService, similarityLookupService, null);
+            DocumentMapperParser parser = new DocumentMapperParser(settings, mapperService, analysisService, similarityService, null);
             this.docMapper = b.build(mapperService, parser);
 
         }
@@ -1936,21 +1915,14 @@ public class InternalEngineTests extends ESTestCase {
         protected void operationProcessed() {
             recoveredOps.incrementAndGet();
         }
-
-        @Override
-        public void performRecoveryOperation(Engine engine, Translog.Operation operation, boolean allowMappingUpdates) {
-            if (operation.opType() != Translog.Operation.Type.DELETE_BY_QUERY) { // we don't support del by query in this test
-                super.performRecoveryOperation(engine, operation, allowMappingUpdates);
-            }
-        }
     }
 
     public void testRecoverFromForeignTranslog() throws IOException {
         final int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-            Engine.Create firstIndexRequest = new Engine.Create(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
-            engine.create(firstIndexRequest);
+            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+            engine.index(firstIndexRequest);
             assertThat(firstIndexRequest.version(), equalTo(1l));
         }
         engine.refresh("test");
@@ -1968,7 +1940,7 @@ public class InternalEngineTests extends ESTestCase {
         engine.close();
 
         Translog translog = new Translog(new TranslogConfig(shardId, createTempDir(), Settings.EMPTY, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool));
-        translog.add(new Translog.Create("test", "SomeBogusId", "{}".getBytes(Charset.forName("UTF-8"))));
+        translog.add(new Translog.Index("test", "SomeBogusId", "{}".getBytes(Charset.forName("UTF-8"))));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
         translog.close();
 

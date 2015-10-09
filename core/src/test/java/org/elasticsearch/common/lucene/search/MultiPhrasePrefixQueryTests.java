@@ -44,23 +44,23 @@ public class MultiPhrasePrefixQueryTests extends ESTestCase {
 
         MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery();
         query.add(new Term("field", "aa"));
-        assertThat(Lucene.count(searcher, query), equalTo(1l));
+        assertThat(searcher.count(query), equalTo(1));
 
         query = new MultiPhrasePrefixQuery();
         query.add(new Term("field", "aaa"));
         query.add(new Term("field", "bb"));
-        assertThat(Lucene.count(searcher, query), equalTo(1l));
+        assertThat(searcher.count(query), equalTo(1));
 
         query = new MultiPhrasePrefixQuery();
         query.setSlop(1);
         query.add(new Term("field", "aaa"));
         query.add(new Term("field", "cc"));
-        assertThat(Lucene.count(searcher, query), equalTo(1l));
+        assertThat(searcher.count(query), equalTo(1));
 
         query = new MultiPhrasePrefixQuery();
         query.setSlop(1);
         query.add(new Term("field", "xxx"));
-        assertThat(Lucene.count(searcher, query), equalTo(0l));
+        assertThat(searcher.count(query), equalTo(0));
     }
 
     @Test

@@ -46,13 +46,10 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.*;
-
-import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 
 /**
  *
@@ -229,27 +226,6 @@ public class Lucene {
         }.run();
     }
 
-    public static long count(IndexSearcher searcher, Query query) throws IOException {
-        return searcher.count(query);
-    }
-
-    /**
-     * Performs a count on the <code>searcher</code> for <code>query</code>. Terminates
-     * early when the count has reached <code>terminateAfter</code>
-     */
-    public static long count(IndexSearcher searcher, Query query, int terminateAfterCount) throws IOException {
-        EarlyTerminatingCollector countCollector = createCountBasedEarlyTerminatingCollector(terminateAfterCount);
-        countWithEarlyTermination(searcher, query, countCollector);
-        return countCollector.count();
-    }
-
-    /**
-     * Creates count based early termination collector with a threshold of <code>maxCountHits</code>
-     */
-    public final static EarlyTerminatingCollector createCountBasedEarlyTerminatingCollector(int maxCountHits) {
-        return new EarlyTerminatingCollector(maxCountHits);
-    }
-
     /**
      * Wraps <code>delegate</code> with count based early termination collector with a threshold of <code>maxCountHits</code>
      */
@@ -265,97 +241,25 @@ public class Lucene {
     }
 
     /**
-     * Performs an exists (count &gt; 0) query on the <code>searcher</code> for <code>query</code>
-     * with <code>filter</code> using the given <code>collector</code>
-     *
-     * The <code>collector</code> can be instantiated using <code>Lucene.createExistsCollector()</code>
+     * Check whether there is one or more documents matching the provided query.
      */
-    public static boolean exists(IndexSearcher searcher, Query query, Filter filter,
-                                 EarlyTerminatingCollector collector) throws IOException {
-        collector.reset();
-        countWithEarlyTermination(searcher, filter, query, collector);
-        return collector.exists();
-    }
-
-
-    /**
-     * Performs an exists (count &gt; 0) query on the <code>searcher</code> for <code>query</code>
-     * using the given <code>collector</code>
-     *
-     * The <code>collector</code> can be instantiated using <code>Lucene.createExistsCollector()</code>
-     */
-    public static boolean exists(IndexSearcher searcher, Query query, EarlyTerminatingCollector collector) throws IOException {
-        collector.reset();
-        countWithEarlyTermination(searcher, query, collector);
-        return collector.exists();
-    }
-
-    /**
-     * Calls <code>countWithEarlyTermination(searcher, null, query, collector)</code>
-     */
-    public static boolean countWithEarlyTermination(IndexSearcher searcher, Query query,
-                                                  EarlyTerminatingCollector collector) throws IOException {
-        return countWithEarlyTermination(searcher, null, query, collector);
-    }
-
-    /**
-     * Performs a count on <code>query</code> and <code>filter</code> with early termination using <code>searcher</code>.
-     * The early termination threshold is specified by the provided <code>collector</code>
-     */
-    public static boolean countWithEarlyTermination(IndexSearcher searcher, Filter filter, Query query,
-                                                        EarlyTerminatingCollector collector) throws IOException {
-        try {
-            if (filter == null) {
-                searcher.search(query, collector);
-            } else {
-                searcher.search(query, filter, collector);
+    public static boolean exists(IndexSearcher searcher, Query query) throws IOException {
+        final Weight weight = searcher.createNormalizedWeight(query, false);
+        // the scorer API should be more efficient at stopping after the first
+        // match than the bulk scorer API
+        for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+            final Scorer scorer = weight.scorer(context);
+            if (scorer == null) {
+                continue;
             }
-        } catch (EarlyTerminationException e) {
-            // early termination
-            return true;
+            final Bits liveDocs = context.reader().getLiveDocs();
+            for (int doc = scorer.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = scorer.nextDoc()) {
+                if (liveDocs == null || liveDocs.get(doc)) {
+                    return true;
+                }
+            }
         }
         return false;
-    }
-
-    /**
-     * Performs an exists (count &gt; 0) query on the searcher from the <code>searchContext</code> for <code>query</code>
-     * using the given <code>collector</code>
-     *
-     * The <code>collector</code> can be instantiated using <code>Lucene.createExistsCollector()</code>
-     */
-    public static boolean exists(SearchContext searchContext, Query query, EarlyTerminatingCollector collector) throws IOException {
-        collector.reset();
-        try {
-            searchContext.searcher().search(query, collector);
-        } catch (EarlyTerminationException e) {
-            // ignore, just early termination...
-        } finally {
-            searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
-        }
-        return collector.exists();
-    }
-
-    /**
-     * Creates an {@link org.elasticsearch.common.lucene.Lucene.EarlyTerminatingCollector}
-     * with a threshold of <code>1</code>
-     */
-    public final static EarlyTerminatingCollector createExistsCollector() {
-        return createCountBasedEarlyTerminatingCollector(1);
-    }
-
-    /**
-     * Closes the index writer, returning <tt>false</tt> if it failed to close.
-     */
-    public static boolean safeClose(IndexWriter writer) {
-        if (writer == null) {
-            return true;
-        }
-        try {
-            writer.close();
-            return true;
-        } catch (Throwable e) {
-            return false;
-        }
     }
 
     public static TopDocs readTopDocs(StreamInput in) throws IOException {
@@ -612,19 +516,11 @@ public class Lucene {
         private int count = 0;
         private LeafCollector leafCollector;
 
-        EarlyTerminatingCollector(int maxCountHits) {
-            this.maxCountHits = maxCountHits;
-            this.delegate = NOOP_COLLECTOR;
-        }
-
         EarlyTerminatingCollector(final Collector delegate, int maxCountHits) {
             this.maxCountHits = maxCountHits;
-            this.delegate = (delegate == null) ? NOOP_COLLECTOR : delegate;
+            this.delegate = Objects.requireNonNull(delegate);
         }
 
-        public void reset() {
-            count = 0;
-        }
         public int count() {
             return count;
         }

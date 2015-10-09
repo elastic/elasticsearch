@@ -19,8 +19,10 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.FloatArrayList;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
@@ -54,7 +56,6 @@ abstract class QueryCollector extends SimpleCollector {
     final ESLogger logger;
     boolean isNestedDoc = false;
 
-    final Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();
     BytesRef current;
 
     SortedBinaryDocValues values;
@@ -166,6 +167,13 @@ abstract class QueryCollector extends SimpleCollector {
                 // log???
                 return;
             }
+            Query existsQuery = query;
+            if (isNestedDoc) {
+                existsQuery = new BooleanQuery.Builder()
+                    .add(existsQuery, Occur.MUST)
+                    .add(Queries.newNonNestedFilter(), Occur.FILTER)
+                    .build();
+            }
             // run the query
             try {
                 if (context.highlight() != null) {
@@ -173,12 +181,7 @@ abstract class QueryCollector extends SimpleCollector {
                     context.hitContext().cache().clear();
                 }
 
-                if (isNestedDoc) {
-                    Lucene.exists(searcher, query, Queries.newNonNestedFilter(), collector);
-                } else {
-                    Lucene.exists(searcher, query, collector);
-                }
-                if (collector.exists()) {
+                if (Lucene.exists(searcher, existsQuery)) {
                     if (!limit || counter < size) {
                         matches.add(BytesRef.deepCopyOf(current));
                         if (context.highlight() != null) {
@@ -230,14 +233,16 @@ abstract class QueryCollector extends SimpleCollector {
                 // log???
                 return;
             }
+            Query existsQuery = query;
+            if (isNestedDoc) {
+                existsQuery = new BooleanQuery.Builder()
+                    .add(existsQuery, Occur.MUST)
+                    .add(Queries.newNonNestedFilter(), Occur.FILTER)
+                    .build();
+            }
             // run the query
             try {
-                if (isNestedDoc) {
-                    Lucene.exists(searcher, query, Queries.newNonNestedFilter(), collector);
-                } else {
-                    Lucene.exists(searcher, query, collector);
-                }
-                if (collector.exists()) {
+                if (Lucene.exists(searcher, existsQuery)) {
                     topDocsLeafCollector.collect(doc);
                     postMatch(doc);
                 }
@@ -298,18 +303,20 @@ abstract class QueryCollector extends SimpleCollector {
                 // log???
                 return;
             }
+            Query existsQuery = query;
+            if (isNestedDoc) {
+                existsQuery = new BooleanQuery.Builder()
+                    .add(existsQuery, Occur.MUST)
+                    .add(Queries.newNonNestedFilter(), Occur.FILTER)
+                    .build();
+            }
             // run the query
             try {
                 if (context.highlight() != null) {
                     context.parsedQuery(new ParsedQuery(query));
                     context.hitContext().cache().clear();
                 }
-                if (isNestedDoc) {
-                    Lucene.exists(searcher, query, Queries.newNonNestedFilter(), collector);
-                } else {
-                    Lucene.exists(searcher, query, collector);
-                }
-                if (collector.exists()) {
+                if (Lucene.exists(searcher, existsQuery)) {
                     if (!limit || counter < size) {
                         matches.add(BytesRef.deepCopyOf(current));
                         scores.add(scorer.score());
@@ -363,14 +370,16 @@ abstract class QueryCollector extends SimpleCollector {
                 // log???
                 return;
             }
+            Query existsQuery = query;
+            if (isNestedDoc) {
+                existsQuery = new BooleanQuery.Builder()
+                    .add(existsQuery, Occur.MUST)
+                    .add(Queries.newNonNestedFilter(), Occur.FILTER)
+                    .build();
+            }
             // run the query
             try {
-                if (isNestedDoc) {
-                    Lucene.exists(searcher, query, Queries.newNonNestedFilter(), collector);
-                } else {
-                    Lucene.exists(searcher, query, collector);
-                }
-                if (collector.exists()) {
+                if (Lucene.exists(searcher, existsQuery)) {
                     counter++;
                     postMatch(doc);
                 }

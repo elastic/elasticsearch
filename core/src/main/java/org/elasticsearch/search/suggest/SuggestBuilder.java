@@ -196,6 +196,7 @@ public class SuggestBuilder extends ToXContentToBytes {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             builder.startObject(name);
             if (text != null) {
                 builder.field("text", text);

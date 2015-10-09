@@ -1,2 +1,0 @@
-@defaultMessage Prefer ImmutableOpenMap for cluster state
-java.util.Collections#unmodifiableMap(java.util.Map)

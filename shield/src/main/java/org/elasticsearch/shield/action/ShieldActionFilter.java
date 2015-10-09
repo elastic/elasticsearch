@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
@@ -62,13 +63,8 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
         this.actionMapper = actionMapper;
         licenseEventsNotifier.register(new LicenseEventsNotifier.Listener() {
             @Override
-            public void enabled() {
-                licenseEnabled = true;
-            }
-
-            @Override
-            public void disabled() {
-                licenseEnabled = false;
+            public void notify(LicenseState state) {
+                licenseEnabled = state != LicenseState.DISABLED;
             }
         });
         this.requestInterceptors = requestInterceptors;

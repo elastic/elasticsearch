@@ -6,99 +6,95 @@
 package org.elasticsearch.shield.license;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicensesClientService;
+import org.elasticsearch.license.plugin.core.LicenseState;
+import org.elasticsearch.license.plugin.core.Licensee;
+import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.shield.ShieldPlugin;
-
-import java.util.*;
 
 /**
  *
  */
-public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
+public class LicenseService extends AbstractLifecycleComponent<LicenseService> implements Licensee {
 
     public static final String FEATURE_NAME = ShieldPlugin.NAME;
 
-    private static final LicensesClientService.TrialLicenseOptions TRIAL_LICENSE_OPTIONS =
-            new LicensesClientService.TrialLicenseOptions(TimeValue.timeValueHours(30 * 24), 1000);
-
-    private static final FormatDateTimeFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
-
-    private final LicensesClientService licensesClientService;
+    private final LicenseeRegistry licenseeRegistry;
     private final LicenseEventsNotifier notifier;
-    private final Collection<LicensesClientService.ExpirationCallback> expirationLoggers;
-    private final LicensesClientService.AcknowledgementCallback acknowledgementCallback;
 
-    private boolean enabled = false;
+    private volatile LicenseState state = LicenseState.DISABLED;
 
     @Inject
-    public LicenseService(Settings settings, LicensesClientService licensesClientService, LicenseEventsNotifier notifier) {
+    public LicenseService(Settings settings, LicenseeRegistry licenseeRegistry, LicenseEventsNotifier notifier) {
         super(settings);
-        this.licensesClientService = licensesClientService;
+        this.licenseeRegistry = licenseeRegistry;
         this.notifier = notifier;
-        this.expirationLoggers = Arrays.asList(
-                new LicensesClientService.ExpirationCallback.Pre(days(7), days(30), days(1)) {
-                    @Override
-                    public void on(License license, LicensesClientService.ExpirationStatus status) {
-                        logger.error("\n" +
-                                "#\n" +
-                                "# Shield license will expire on [{}]. Cluster health, cluster stats and indices stats operations are\n" +
-                                "# blocked on Shield license expiration. All data operations (read and write) continue to work. If you\n" +
-                                "# have a new license, please update it. Otherwise, please reach out to your support contact.\n" +
-                                "#", DATE_FORMATTER.printer().print(license.expiryDate()));
-                    }
-                },
-                new LicensesClientService.ExpirationCallback.Pre(days(0), days(7), minutes(10)) {
-                    @Override
-                    public void on(License license, LicensesClientService.ExpirationStatus status) {
-                        logger.error("\n" +
-                                "#\n" +
-                                "# Shield license will expire on [{}]. Cluster health, cluster stats and indices stats operations are\n" +
-                                "# blocked on Shield license expiration. All data operations (read and write) continue to work. If you\n" +
-                                "# have a new license, please update it. Otherwise, please reach out to your support contact.\n" +
-                                "#", DATE_FORMATTER.printer().print(license.expiryDate()));
-                    }
-                },
-                new LicensesClientService.ExpirationCallback.Post(days(0), null, minutes(10)) {
-                    @Override
-                    public void on(License license, LicensesClientService.ExpirationStatus status) {
-                        logger.error("\n" +
-                                "#\n" +
-                                "# SHIELD LICENSE EXPIRED ON [{}]! CLUSTER HEALTH, CLUSTER STATS AND INDICES STATS OPERATIONS ARE\n" +
-                                "# NOW BLOCKED. ALL DATA OPERATIONS (READ AND WRITE) CONTINUE TO WORK. IF YOU HAVE A NEW LICENSE, PLEASE\n" +
-                                "# UPDATE IT. OTHERWISE, PLEASE REACH OUT TO YOUR SUPPORT CONTACT.\n" +
-                                "#", DATE_FORMATTER.printer().print(license.expiryDate()));
-                    }
-                }
-        );
-        this.acknowledgementCallback = new LicensesClientService.AcknowledgementCallback() {
-            @Override
-            public List<String> acknowledge(License currentLicense, License newLicense) {
-                // TODO: add messages to be acknowledged when installing newLicense from currentLicense
-                // NOTE: currentLicense can be null, as a license registration can happen before
-                // a trial license could be generated
-                return Collections.emptyList();
-            }
+    }
+
+    @Override
+    public String id() {
+        return FEATURE_NAME;
+    }
+
+    @Override
+    public String[] expirationMessages() {
+        return new String[] {
+                "Cluster health, cluster stats and indices stats operations are blocked",
+                "All data operations (read and write) continue to work"
         };
     }
 
-    public synchronized boolean enabled() {
-        return enabled;
+    @Override
+    public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
+        switch (newLicense.operationMode()) {
+            case BASIC:
+                if (currentLicense != null) {
+                    switch (currentLicense.operationMode()) {
+                        case TRIAL:
+                        case GOLD:
+                        case PLATINUM:
+                            return new String[] { "The following Shield functionality will be disabled: authentication, authorization, ip filtering, auditing, SSL will be disabled on node restart. Please restart your node after applying the license." };
+                    }
+                }
+                break;
+            case GOLD:
+                if (currentLicense != null) {
+                    switch (currentLicense.operationMode()) {
+                        case TRIAL:
+                        case BASIC:
+                        case PLATINUM:
+                            return new String[] {
+                                    "Field and document level access control will be disabled"
+                            };
+                    }
+                }
+                break;
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
+    @Override
+    public void onChange(License license, LicenseState state) {
+        synchronized (this) {
+            this.state = state;
+            notifier.notify(state);
+        }
+    }
+    public LicenseState state() {
+        return state;
     }
 
     @Override
     protected void doStart() throws ElasticsearchException {
         if (settings.getGroups("tribe", true).isEmpty()) {
-            licensesClientService.register(FEATURE_NAME, TRIAL_LICENSE_OPTIONS, expirationLoggers, acknowledgementCallback, new InternalListener());
+            licenseeRegistry.register(this);
         } else {
             //TODO currently we disable licensing on tribe node. remove this once es core supports merging cluster
-            new InternalListener().onEnabled(null);
+            onChange(null,  LicenseState.ENABLED);
         }
     }
 
@@ -109,34 +105,4 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
     @Override
     protected void doClose() throws ElasticsearchException {
     }
-
-    static TimeValue days(int days) {
-        return TimeValue.timeValueHours(days * 24);
-    }
-
-    static TimeValue minutes(int minutes) {
-        return TimeValue.timeValueMinutes(minutes);
-    }
-
-    class InternalListener implements LicensesClientService.Listener {
-
-        @Override
-        public void onEnabled(License license) {
-            synchronized (LicenseService.this) {
-                logger.info("enabling license for [{}]", FEATURE_NAME);
-                enabled = true;
-                notifier.notifyEnabled();
-            }
-        }
-
-        @Override
-        public void onDisabled(License license) {
-            synchronized (LicenseService.this) {
-                logger.info("DISABLING LICENSE FOR [{}]", FEATURE_NAME);
-                enabled = false;
-                notifier.notifyDisabled();
-            }
-        }
-    }
-
 }

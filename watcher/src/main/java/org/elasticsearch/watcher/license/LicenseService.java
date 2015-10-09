@@ -6,93 +6,70 @@
 package org.elasticsearch.watcher.license;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicensesClientService;
-import org.elasticsearch.license.plugin.core.LicensesService;
+import org.elasticsearch.license.plugin.core.LicenseState;
+import org.elasticsearch.license.plugin.core.Licensee;
+import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.watcher.WatcherPlugin;
-
-import java.util.*;
 
 /**
  *
  */
-public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
+public class LicenseService extends AbstractLifecycleComponent<LicenseService> implements Licensee {
 
     public static final String FEATURE_NAME = WatcherPlugin.NAME;
 
-    private static final LicensesClientService.TrialLicenseOptions TRIAL_LICENSE_OPTIONS =
-            new LicensesClientService.TrialLicenseOptions(TimeValue.timeValueHours(30 * 24), 1000);
-
-    private static final FormatDateTimeFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
-
-    private final LicensesClientService clientService;
-    private final Collection<LicensesService.ExpirationCallback> expirationLoggers;
-    private final LicensesClientService.AcknowledgementCallback acknowledgementCallback;
-
-    private volatile boolean enabled;
+    private final LicenseeRegistry clientService;
+    private volatile LicenseState state;
 
     @Inject
-    public LicenseService(Settings settings, LicensesClientService clientService) {
+    public LicenseService(Settings settings, LicenseeRegistry clientService) {
         super(settings);
         this.clientService = clientService;
-        this.expirationLoggers = Arrays.asList(
-                new LicensesService.ExpirationCallback.Pre(days(7), days(30), days(1)) {
-                    @Override
-                    public void on(License license, LicensesService.ExpirationStatus status) {
-                        logger.error("\n" +
-                                "#\n" +
-                                "# Watcher license will expire on [{}]. All configured actions on\n" +
-                                "# all registered watches are throttled (not executed) on Watcher license expiration. \n" +
-                                "# Watches will continue be evaluated and watch history will continue being recorded.\n" +
-                                "# Have a new license? please update it. Otherwise, please reach out to your support contact.\n" +
-                                "#", DATE_FORMATTER.printer().print(license.expiryDate()));
-                    }
-                },
-                new LicensesService.ExpirationCallback.Pre(days(0), days(7), minutes(10)) {
-                    @Override
-                    public void on(License license, LicensesService.ExpirationStatus status) {
-                        logger.error("\n" +
-                                "#\n" +
-                                "# Watcher license will expire on [{}]. All configured actions on\n" +
-                                "# all registered watches are throttled (not executed) on Watcher license expiration. \n" +
-                                "# Watches will continue be evaluated and watch history will continue being recorded.\n" +
-                                "# Have a new license? please update it. Otherwise, please reach out to your support contact.\n" +
-                                "#", DATE_FORMATTER.printer().print(license.expiryDate()));
-                    }
-                },
-                new LicensesService.ExpirationCallback.Post(days(0), null, minutes(10)) {
-                    @Override
-                    public void on(License license, LicensesService.ExpirationStatus status) {
-                        logger.error("\n" +
-                                "#\n" +
-                                "# WATCHER LICENSE WAS EXPIRED ON [{}]. ALL CONFIGURED ACTIONS ON\n" +
-                                "# ALL REGISTERED WATCHES ARE THROTTLED (NOT EXECUTED) ON WATCHER LICENSE EXPIRATION. \n" +
-                                "# WATCHES WILL CONTINUE BE EVALUATED AND WATCH HISTORY WILL CONTINUE BEING RECORDED.\n" +
-                                "# HAVE A NEW LICENSE? PLEASE UPDATE IT. OTHERWISE, PLEASE REACH OUT TO YOUR SUPPORT CONTACT.\n" +
-                                "#", DATE_FORMATTER.printer().print(license.expiryDate()));
+    }
+
+    @Override
+    public String id() {
+        return FEATURE_NAME;
+    }
+
+    @Override
+    public String[] expirationMessages() {
+        // TODO add messages to be logged around license expiry
+        return new String[0];
+    }
+
+    @Override
+    public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
+        switch (newLicense.operationMode()) {
+            case BASIC:
+                if (currentLicense != null) {
+                    switch (currentLicense.operationMode()) {
+                        case TRIAL:
+                        case GOLD:
+                        case PLATINUM:
+                            return new String[] { "Watcher will be disabled" };
                     }
                 }
-        );
-        this.acknowledgementCallback = new LicensesClientService.AcknowledgementCallback() {
-            @Override
-            public List<String> acknowledge(License currentLicense, License newLicense) {
-                // TODO: add messages to be acknowledged when installing newLicense from currentLicense
-                // NOTE: currentLicense can be null, as a license registration can happen before
-                // a trial license could be generated
-                return Collections.emptyList();
-            }
-        };
+                break;
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
+    @Override
+    public void onChange(License license, LicenseState state) {
+        synchronized (this) {
+            this.state = state;
+        }
     }
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        clientService.register(FEATURE_NAME, TRIAL_LICENSE_OPTIONS, expirationLoggers, acknowledgementCallback, new InternalListener(this));
+        clientService.register(this);
     }
 
     @Override
@@ -104,33 +81,6 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
     }
 
     public boolean enabled() {
-        return enabled;
-    }
-
-    static TimeValue days(int days) {
-        return TimeValue.timeValueHours(days * 24);
-    }
-
-    static TimeValue minutes(int minutes) {
-        return TimeValue.timeValueMinutes(minutes);
-    }
-
-    class InternalListener implements LicensesClientService.Listener {
-
-        private final LicenseService service;
-
-        public InternalListener(LicenseService service) {
-            this.service = service;
-        }
-
-        @Override
-        public void onEnabled(License license) {
-            service.enabled = true;
-        }
-
-        @Override
-        public void onDisabled(License license) {
-            service.enabled = false;
-        }
+        return state != LicenseState.DISABLED;
     }
 }

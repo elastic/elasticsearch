@@ -37,7 +37,6 @@ public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> 
                 builder.field(Fields.UID, license.uid());
                 builder.field(Fields.TYPE, license.type());
                 builder.dateValueField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, license.issueDate());
-                builder.field(Fields.FEATURE, license.feature());
                 builder.dateValueField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, license.expiryDate());
                 builder.field(Fields.MAX_NODES, license.maxNodes());
                 builder.field(Fields.ISSUED_TO, license.issuedTo());
@@ -77,7 +76,6 @@ public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> 
         static final XContentBuilderString STATUS = new XContentBuilderString("status");
         static final XContentBuilderString UID = new XContentBuilderString("uid");
         static final XContentBuilderString TYPE = new XContentBuilderString("type");
-        static final XContentBuilderString FEATURE = new XContentBuilderString("feature");
         static final XContentBuilderString ISSUE_DATE_IN_MILLIS = new XContentBuilderString("issue_date_in_millis");
         static final XContentBuilderString ISSUE_DATE = new XContentBuilderString("issue_date");
         static final XContentBuilderString EXPIRY_DATE_IN_MILLIS = new XContentBuilderString("expiry_date_in_millis");

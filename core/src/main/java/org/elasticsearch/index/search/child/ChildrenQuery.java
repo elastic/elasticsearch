@@ -32,6 +32,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.XFilteredDocIdSetIterator;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -40,7 +41,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.IndexCacheableQuery;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.IntArray;
@@ -300,7 +300,7 @@ public final class ChildrenQuery extends IndexCacheableQuery {
         }
     }
 
-    protected abstract static class ParentCollector extends NoopCollector implements Releasable {
+    protected abstract static class ParentCollector extends SimpleCollector implements Releasable {
 
         protected final IndexParentChildFieldData globalIfd;
         protected final LongHash parentIdxs;
@@ -353,6 +353,11 @@ public final class ChildrenQuery extends IndexCacheableQuery {
         @Override
         public void setScorer(Scorer scorer) throws IOException {
             this.scorer = scorer;
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
 
         @Override

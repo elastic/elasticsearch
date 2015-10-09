@@ -32,12 +32,12 @@ import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.IndexCacheableQuery;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
@@ -218,7 +218,7 @@ public class ParentConstantScoreQuery extends IndexCacheableQuery {
 
     }
 
-    private final static class ParentOrdsCollector extends NoopCollector {
+    private final static class ParentOrdsCollector extends SimpleCollector {
 
         private final LongBitSet parentOrds;
         private final IndexParentChildFieldData globalIfd;
@@ -250,6 +250,11 @@ public class ParentConstantScoreQuery extends IndexCacheableQuery {
 
         public long parentCount() {
             return parentOrds.cardinality();
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 

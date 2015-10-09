@@ -19,12 +19,12 @@
 package org.elasticsearch.index.search.child;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.lucene.search.NoopCollector;
 
 import java.io.IOException;
 
-class BitSetCollector extends NoopCollector {
+class BitSetCollector extends SimpleCollector {
 
     final FixedBitSet result;
     int docBase;
@@ -45,6 +45,11 @@ class BitSetCollector extends NoopCollector {
 
     FixedBitSet getResult() {
         return result;
+    }
+
+    @Override
+    public boolean needsScores() {
+        return false;
     }
 
 }

@@ -25,6 +25,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -35,13 +36,11 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.IndexCacheableQuery;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.LongHash;
@@ -171,7 +170,7 @@ public class ParentQuery extends IndexCacheableQuery {
         public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
             final SortedDocValues values = globalIfd.load(context).getOrdinalsValues(parentType);
             if (values == null) {
-                return NoopCollector.NOOP_COLLECTOR;
+                throw new CollectionTerminatedException();
             }
             return new LeafCollector() {
                 Scorer scorer;

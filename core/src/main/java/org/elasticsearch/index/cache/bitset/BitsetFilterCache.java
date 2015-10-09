@@ -19,11 +19,6 @@
 
 package org.elasticsearch.index.cache.bitset;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
-
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -38,6 +33,10 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.RemovalListener;
+import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -58,10 +57,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 
 /**
  * This is a cache for {@link BitDocIdSet} based filters and is unbounded by size or time.
@@ -94,9 +94,10 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
     public BitsetFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         this.loadRandomAccessFiltersEagerly = indexSettings.getAsBoolean(LOAD_RANDOM_ACCESS_FILTERS_EAGERLY, true);
-        this.loadedFilters = CacheBuilder.newBuilder().removalListener(this).build();
+        this.loadedFilters = CacheBuilder.<Object, Cache<Query, Value>>builder().removalListener(this).build();
         this.warmer = new BitSetProducerWarmer();
     }
+
 
     @Inject(optional = true)
     public void setIndicesWarmer(IndicesWarmer indicesWarmer) {
@@ -144,14 +145,12 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
     private BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context) throws IOException, ExecutionException {
         final Object coreCacheReader = context.reader().getCoreCacheKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
-        Cache<Query, Value> filterToFbs = loadedFilters.get(coreCacheReader, new Callable<Cache<Query, Value>>() {
-            @Override
-            public Cache<Query, Value> call() throws Exception {
-                context.reader().addCoreClosedListener(BitsetFilterCache.this);
-                return CacheBuilder.newBuilder().build();
-            }
+        Cache<Query, Value> filterToFbs = loadedFilters.computeIfAbsent(coreCacheReader, key -> {
+            context.reader().addCoreClosedListener(BitsetFilterCache.this);
+            return CacheBuilder.<Query, Value>builder().build();
         });
-        return filterToFbs.get(query, () -> {
+
+        return filterToFbs.computeIfAbsent(query, key -> {
             final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
             final IndexSearcher searcher = new IndexSearcher(topLevelContext);
             searcher.setQueryCache(null);
@@ -172,8 +171,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
 
     @Override
     public void onRemoval(RemovalNotification<Object, Cache<Query, Value>> notification) {
-        Object key = notification.getKey();
-        if (key == null) {
+        if (notification.getKey() == null) {
             return;
         }
 
@@ -182,7 +180,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             return;
         }
 
-        for (Value value : valueCache.asMap().values()) {
+        for (Value value : valueCache.values()) {
             listener.onRemoval(value.shardId, value.bitset);
             // if null then this means the shard has already been removed and the stats are 0 anyway for the shard this key belongs to
         }

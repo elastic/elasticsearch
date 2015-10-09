@@ -156,6 +156,16 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
         ShardRoutingHelper.moveToStarted(test_1);
         shardRoutingMap.put(test_1, "/node1/least");
 
+        ShardRouting test_2 = ShardRouting.newUnassigned("test", 2, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRoutingHelper.initialize(test_2, node_1.getId());
+        ShardRoutingHelper.moveToStarted(test_2);
+        shardRoutingMap.put(test_2, "/node1/most");
+
+        ShardRouting test_3 = ShardRouting.newUnassigned("test", 3, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRoutingHelper.initialize(test_3, node_1.getId());
+        ShardRoutingHelper.moveToStarted(test_3);
+        // Intentionally not in the shardRoutingMap. We want to test what happens when we don't know where it is.
+
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
@@ -203,14 +213,8 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
             // not allocated on that node
         }
 
-        ShardRouting test_2 = ShardRouting.newUnassigned("test", 2, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(test_2, node_1.getId());
-        ShardRoutingHelper.moveToStarted(test_2);
         assertEquals("can stay since allocated on a different path with enough space", Decision.YES, decider.canRemain(test_2, new RoutingNode("node_1", node_1), allocation));
 
-        ShardRouting test_3 = ShardRouting.newUnassigned("test", 3, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(test_3, node_1.getId());
-        ShardRoutingHelper.moveToStarted(test_3);
         assertEquals("can stay since we don't have information about this shard", Decision.YES, decider.canRemain(test_2, new RoutingNode("node_1", node_1), allocation));
     }
 

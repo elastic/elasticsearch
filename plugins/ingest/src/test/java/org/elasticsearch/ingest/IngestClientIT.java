@@ -21,6 +21,14 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineStore;
+import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineAction;
+import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineRequestBuilder;
+import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineResponse;
+import org.elasticsearch.plugin.ingest.transport.get.GetPipelineAction;
+import org.elasticsearch.plugin.ingest.transport.get.GetPipelineRequestBuilder;
+import org.elasticsearch.plugin.ingest.transport.get.GetPipelineResponse;
+import org.elasticsearch.plugin.ingest.transport.put.PutPipelineAction;
+import org.elasticsearch.plugin.ingest.transport.put.PutPipelineRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -29,20 +37,25 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.hamcrest.Matchers.*;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0)
-public class BasicTests extends ESIntegTestCase {
+public class IngestClientIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(IngestPlugin.class);
+        return pluginList(IngestPlugin.class);
     }
 
-    public void test() throws Exception {
-        client().prepareIndex(PipelineStore.INDEX, PipelineStore.TYPE, "_id")
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
+    }
+
+    public void testBasics() throws Exception {
+        new PutPipelineRequestBuilder(client(), PutPipelineAction.INSTANCE)
+                .setId("_id")
                 .setSource(jsonBuilder().startObject()
-                        .field("name", "my_pipeline")
                         .field("description", "my_pipeline")
                         .startArray("processors")
                             .startObject()
@@ -54,10 +67,18 @@ public class BasicTests extends ESIntegTestCase {
                                 .endObject()
                             .endObject()
                         .endArray()
-                        .endObject())
-                .setRefresh(true)
+                        .endObject().bytes())
                 .get();
-        Thread.sleep(5000);
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                GetPipelineResponse response = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
+                        .setIds("_id")
+                        .get();
+                assertThat(response.isFound(), is(true));
+                assertThat(response.pipelines().get("_id"), notNullValue());
+            }
+        });
 
         createIndex("test");
         client().prepareIndex("test", "type", "1").setSource("field2", "abc")
@@ -81,6 +102,23 @@ public class BasicTests extends ESIntegTestCase {
             public void run() {
                 Map<String, Object> doc = client().prepareGet("test", "type", "2").get().getSourceAsMap();
                 assertThat(doc.get("field3"), equalTo("xyz"));
+            }
+        });
+        
+        DeletePipelineResponse response = new DeletePipelineRequestBuilder(client(), DeletePipelineAction.INSTANCE)
+                .setId("_id")
+                .get();
+        assertThat(response.found(), is(true));
+        assertThat(response.id(), equalTo("_id"));
+
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                GetPipelineResponse response = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
+                        .setIds("_id")
+                        .get();
+                assertThat(response.isFound(), is(false));
+                assertThat(response.pipelines().get("_id"), nullValue());
             }
         });
     }

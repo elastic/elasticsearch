@@ -21,11 +21,9 @@ package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.SimpleProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
-import org.elasticsearch.plugin.ingest.transport.IngestActionFilter;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,7 +37,7 @@ public class IngestModule extends AbstractModule {
         binder().bind(IngestRestFilter.class).asEagerSingleton();
         binder().bind(PipelineExecutionService.class).asEagerSingleton();
         binder().bind(PipelineStore.class).asEagerSingleton();
-        binder().bind(PipelineConfigDocReader.class).asEagerSingleton();
+        binder().bind(PipelineStoreClient.class).asEagerSingleton();
 
         registerProcessor(SimpleProcessor.TYPE, SimpleProcessor.Builder.Factory.class);
 

@@ -1,0 +1,74 @@
+[[ingest]]
+== Ingest Plugin
+
+TODO
+
+=== Put pipeline API
+
+The put pipeline api adds pipelines and updates existing pipelines in the cluster.
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/my-pipeline-id
+{
+  "description" : "describe pipeline",
+  "processors" : [
+    {
+      "simple" : {
+        // settings
+      }
+    },
+    // other processors
+  ]
+}
+--------------------------------------------------
+// AUTOSENSE
+
+NOTE: Each ingest node updates its processors asynchronously in the background, so it may take a few seconds for all
+      nodes to have the latest version of the pipeline.
+
+=== Get pipeline API
+
+The get pipeline api returns pipelines based on id. This api always returns a local reference of the pipeline.
+
+[source,js]
+--------------------------------------------------
+GET _ingest/pipeline/my-pipeline-id
+--------------------------------------------------
+// AUTOSENSE
+
+Example response:
+
+[source,js]
+--------------------------------------------------
+{
+   "my-pipeline-id": {
+      "_source" : {
+        "description": "describe pipeline",
+        "processors": [
+          {
+            "simple" : {
+              // settings
+            }
+          },
+          // other processors
+        ]
+      },
+      "_version" : 0
+   }
+}
+--------------------------------------------------
+
+For each returned pipeline the source and the version is returned.
+The version is useful for knowing what version of the pipeline the node has.
+Multiple ids can be provided at the same time. Also wildcards are supported.
+
+=== Delete pipeline API
+
+The delete pipeline api deletes pipelines by id.
+
+[source,js]
+--------------------------------------------------
+DELETE _ingest/pipeline/my-pipeline-id
+--------------------------------------------------
+// AUTOSENSE

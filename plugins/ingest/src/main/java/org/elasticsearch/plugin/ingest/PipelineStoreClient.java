@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugin.ingest;
 
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -33,14 +34,14 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.Collections;
 import java.util.Iterator;
 
-public class PipelineConfigDocReader extends AbstractLifecycleComponent {
+public class PipelineStoreClient extends AbstractLifecycleComponent {
 
     private volatile Client client;
     private final Injector injector;
     private final TimeValue scrollTimeout;
 
     @Inject
-    public PipelineConfigDocReader(Settings settings, Injector injector) {
+    public PipelineStoreClient(Settings settings, Injector injector) {
         super(settings);
         this.injector = injector;
         this.scrollTimeout = settings.getAsTime("ingest.pipeline.store.scroll.timeout", TimeValue.timeValueSeconds(30));
@@ -60,7 +61,7 @@ public class PipelineConfigDocReader extends AbstractLifecycleComponent {
     protected void doClose() {
     }
 
-    public Iterable<SearchHit> readAll() {
+    public Iterable<SearchHit> readAllPipelines() {
         // TODO: the search should be replaced with an ingest API when it is available
         SearchResponse searchResponse = client.prepareSearch(PipelineStore.INDEX)
                 .setVersion(true)
@@ -79,6 +80,11 @@ public class PipelineConfigDocReader extends AbstractLifecycleComponent {
                 return new SearchScrollIterator(searchResponse);
             }
         };
+    }
+
+    public boolean existPipeline(String pipelineId) {
+        GetResponse response = client.prepareGet(PipelineStore.INDEX, PipelineStore.TYPE, pipelineId).get();
+        return response.isExists();
     }
 
     class SearchScrollIterator implements Iterator<SearchHit> {

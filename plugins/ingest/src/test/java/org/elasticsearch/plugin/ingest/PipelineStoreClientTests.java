@@ -25,10 +25,10 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PipelineConfigDocReaderTests extends ESSingleNodeTestCase {
+public class PipelineStoreClientTests extends ESSingleNodeTestCase {
 
     public void testReadAll() {
-        PipelineConfigDocReader reader = new PipelineConfigDocReader(Settings.EMPTY, node().injector());
+        PipelineStoreClient reader = new PipelineStoreClient(Settings.EMPTY, node().injector());
         reader.start();
 
         createIndex(PipelineStore.INDEX);
@@ -41,7 +41,7 @@ public class PipelineConfigDocReaderTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
 
         int i = 0;
-        for (SearchHit hit : reader.readAll()) {
+        for (SearchHit hit : reader.readAllPipelines()) {
             assertThat(hit.getId(), equalTo(Integer.toString(i)));
             assertThat(hit.getVersion(), equalTo(1l));
             assertThat(hit.getSource().get("field"), equalTo("value" + i));

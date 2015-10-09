@@ -1,0 +1,57 @@
+---
+"Test basic pipeline crud":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "simple" : {
+                  "path" : "field1",
+                  "value" : "_value",
+                  "add_field" : "field2",
+                  "add_field_value" : "_value"
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline" }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      ingest.get_pipeline:
+        ids: "my_pipeline"
+  - match: { my_pipeline._source.description: "_description" }
+  - match: { my_pipeline._version: 1 }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+  - match: { _id: "my_pipeline" }
+  - match: { _found: true }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      catch: missing
+      ingest.get_pipeline:
+        ids: "my_pipeline"

@@ -1,0 +1,23 @@
+{
+  "ingest.put_pipeline": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/ingest.html",
+    "methods": [ "PUT" ],
+    "url": {
+      "path": "/_ingest/pipeline/{id}",
+      "paths": [ "/_ingest/pipeline/{id}" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Pipeline ID",
+          "required" : true
+        }
+      },
+      "params": {
+      }
+    },
+    "body": {
+      "description" : "The ingest definition",
+      "required" : true
+    }    
+  }
+}

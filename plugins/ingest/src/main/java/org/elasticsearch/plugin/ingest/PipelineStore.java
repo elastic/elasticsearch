@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -34,10 +35,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class PipelineStore extends AbstractLifecycleComponent {
 
@@ -47,13 +45,13 @@ public class PipelineStore extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TimeValue pipelineUpdateInterval;
-    private final PipelineConfigDocReader configDocReader;
+    private final PipelineStoreClient configDocReader;
     private final Map<String, Processor.Builder.Factory> processorFactoryRegistry;
 
     private volatile Map<String, PipelineReference> pipelines = new HashMap<>();
 
     @Inject
-    public PipelineStore(Settings settings, ThreadPool threadPool, ClusterService clusterService, PipelineConfigDocReader configDocReader, Map<String, Processor.Builder.Factory> processors) {
+    public PipelineStore(Settings settings, ThreadPool threadPool, ClusterService clusterService, PipelineStoreClient configDocReader, Map<String, Processor.Builder.Factory> processors) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -84,10 +82,32 @@ public class PipelineStore extends AbstractLifecycleComponent {
         }
     }
 
+    public List<PipelineReference> getReference(String... ids) {
+        List<PipelineReference> result = new ArrayList<>(ids.length);
+        for (String id : ids) {
+            if (Regex.isSimpleMatchPattern(id)) {
+                for (Map.Entry<String, PipelineReference> entry : pipelines.entrySet()) {
+                    if (Regex.simpleMatch(id, entry.getKey())) {
+                        result.add(entry.getValue());
+                    }
+                }
+            } else {
+                PipelineReference reference = pipelines.get(id);
+                if (reference != null) {
+                    result.add(reference);
+                }
+            }
+        }
+        return result;
+    }
+
     void updatePipelines() {
+        // note: this process isn't fast or smart, but the idea is that there will not be many pipelines,
+        // so for that reason the goal is to keep the update logic simple.
+
         int changed = 0;
         Map<String, PipelineReference> newPipelines = new HashMap<>(pipelines);
-        for (SearchHit hit : configDocReader.readAll()) {
+        for (SearchHit hit : configDocReader.readAllPipelines()) {
             String pipelineId = hit.getId();
             BytesReference pipelineSource = hit.getSourceRef();
             PipelineReference previous = newPipelines.get(pipelineId);
@@ -98,15 +118,24 @@ public class PipelineStore extends AbstractLifecycleComponent {
             }
 
             changed++;
-            Pipeline.Builder builder = new Pipeline.Builder(hit.sourceAsMap(), processorFactoryRegistry);
+            Pipeline.Builder builder = new Pipeline.Builder(hit.getId());
+            builder.fromMap(hit.sourceAsMap(), processorFactoryRegistry);
             newPipelines.put(pipelineId, new PipelineReference(builder.build(), hit.getVersion(), pipelineSource));
         }
 
-        if (changed != 0) {
-            logger.debug("adding or updating [{}] pipelines", changed);
+        int removed = 0;
+        for (String existingPipelineId : pipelines.keySet()) {
+            if (!configDocReader.existPipeline(existingPipelineId)) {
+                newPipelines.remove(existingPipelineId);
+                removed++;
+            }
+        }
+
+        if (changed != 0 || removed != 0) {
+            logger.debug("adding or updating [{}] pipelines and [{}] pipelines removed", changed, removed);
             pipelines = newPipelines;
         } else {
-            logger.debug("adding no new pipelines");
+            logger.debug("no pipelines changes detected");
         }
     }
 
@@ -142,7 +171,7 @@ public class PipelineStore extends AbstractLifecycleComponent {
         }
     }
 
-    static class PipelineReference {
+    public static class PipelineReference {
 
         private final Pipeline pipeline;
         private final long version;

@@ -72,16 +72,15 @@ public final class Pipeline {
 
     public final static class Builder {
 
-        private final String name;
+        private final String id;
         private String description;
         private List<Processor> processors = new ArrayList<>();
 
-        public Builder(String name) {
-            this.name = name;
+        public Builder(String id) {
+            this.id = id;
         }
 
-        public Builder(Map<String, Object> config, Map<String, Processor.Builder.Factory> processorRegistry) {
-            name = (String) config.get("name");
+        public void fromMap(Map<String, Object> config, Map<String, Processor.Builder.Factory> processorRegistry) {
             description = (String) config.get("description");
             @SuppressWarnings("unchecked")
             List<Map<String, Map<String, Object>>> processors = (List<Map<String, Map<String, Object>>>) config.get("processors");
@@ -111,7 +110,7 @@ public final class Pipeline {
         }
 
         public Pipeline build() {
-            return new Pipeline(name, description, Collections.unmodifiableList(processors));
+            return new Pipeline(id, description, Collections.unmodifiableList(processors));
         }
     }
 }

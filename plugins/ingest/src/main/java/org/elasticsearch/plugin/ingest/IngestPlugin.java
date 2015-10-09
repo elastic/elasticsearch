@@ -21,12 +21,22 @@
 package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.ingest.rest.RestDeletePipelineAction;
+import org.elasticsearch.plugin.ingest.rest.RestGetPipelineAction;
+import org.elasticsearch.plugin.ingest.rest.RestPutPipelineAction;
 import org.elasticsearch.plugin.ingest.transport.IngestActionFilter;
+import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineAction;
+import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineTransportAction;
+import org.elasticsearch.plugin.ingest.transport.get.GetPipelineAction;
+import org.elasticsearch.plugin.ingest.transport.get.GetPipelineTransportAction;
+import org.elasticsearch.plugin.ingest.transport.put.PutPipelineAction;
+import org.elasticsearch.plugin.ingest.transport.put.PutPipelineTransportAction;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.action.RestActionModule;
+import org.elasticsearch.rest.RestModule;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -42,9 +52,11 @@ public class IngestPlugin extends Plugin {
     public static final String NAME = "ingest";
 
     private final Settings nodeSettings;
+    private final boolean transportClient;
 
     public IngestPlugin(Settings nodeSettings) {
         this.nodeSettings = nodeSettings;
+        transportClient = "transport".equals(nodeSettings.get(Client.CLIENT_TYPE_SETTING));
     }
 
     @Override
@@ -59,12 +71,20 @@ public class IngestPlugin extends Plugin {
 
     @Override
     public Collection<Module> nodeModules() {
-        return Collections.singletonList(new IngestModule());
+        if (transportClient) {
+            return Collections.emptyList();
+        } else {
+            return Collections.singletonList(new IngestModule());
+        }
     }
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        return Arrays.asList(PipelineStore.class, PipelineConfigDocReader.class);
+        if (transportClient) {
+            return Collections.emptyList();
+        } else {
+            return Arrays.asList(PipelineStore.class, PipelineStoreClient.class);
+        }
     }
 
     @Override
@@ -75,7 +95,18 @@ public class IngestPlugin extends Plugin {
     }
 
     public void onModule(ActionModule module) {
-        module.registerFilter(IngestActionFilter.class);
+        if (!transportClient) {
+            module.registerFilter(IngestActionFilter.class);
+        }
+        module.registerAction(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
+        module.registerAction(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
+        module.registerAction(DeletePipelineAction.INSTANCE, DeletePipelineTransportAction.class);
+    }
+
+    public void onModule(RestModule restModule) {
+        restModule.addRestAction(RestPutPipelineAction.class);
+        restModule.addRestAction(RestGetPipelineAction.class);
+        restModule.addRestAction(RestDeletePipelineAction.class);
     }
 
 }

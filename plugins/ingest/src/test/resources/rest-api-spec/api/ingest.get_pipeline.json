@@ -1,0 +1,20 @@
+{
+  "ingest.get_pipeline": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/ingest.html",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_ingest/pipeline/{ids}",
+      "paths": [ "/_ingest/pipeline/{ids}" ],
+      "parts": {
+        "ids": {
+          "type" : "string",
+          "description" : "Comma separated list of pipeline ids. Wildcards supported",
+          "required" : true
+        }
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

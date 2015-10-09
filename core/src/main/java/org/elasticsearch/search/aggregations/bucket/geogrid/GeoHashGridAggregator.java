@@ -51,7 +51,6 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     private final int shardSize;
     private final GeoHashGridParser.GeoGridFactory.CellIdSource valuesSource;
     private final LongHash bucketOrds;
-    private LongArray bucketCentroids;
 
     public GeoHashGridAggregator(String name, AggregatorFactories factories, GeoHashGridParser.GeoGridFactory.CellIdSource valuesSource,
             int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
@@ -61,34 +60,11 @@ public class GeoHashGridAggregator extends BucketsAggregator {
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
-        bucketCentroids = aggregationContext.bigArrays().newLongArray(1, true);
     }
 
     @Override
     public boolean needsScores() {
         return (valuesSource != null && valuesSource.needsScores()) || super.needsScores();
-    }
-
-    @Override
-    public void collectBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
-        bucketCentroids = bigArrays.grow(bucketCentroids, bucketOrd + 1);
-        super.collectBucket(subCollector, doc, bucketOrd);
-    }
-
-    protected final void adjustCentroid(long bucketOrd, long geohash) {
-        final int numDocs = getDocCounts().get(bucketOrd);
-        final GeoPoint oldCentroid = new GeoPoint();
-        final GeoPoint nextLoc = new GeoPoint();
-
-        if (numDocs > 1) {
-            final long curCentroid = bucketCentroids.get(bucketOrd);
-            oldCentroid.resetFromGeoHash(curCentroid);
-            nextLoc.resetFromGeoHash(geohash);
-            bucketCentroids.set(bucketOrd, XGeoHashUtils.longEncode(oldCentroid.lon() + (nextLoc.lon() - oldCentroid.lon()) / numDocs,
-                    oldCentroid.lat() + (nextLoc.lat() - oldCentroid.lat()) / numDocs, XGeoHashUtils.PRECISION));
-        } else {
-            bucketCentroids.set(bucketOrd, geohash);
-        }
     }
 
     @Override
@@ -104,8 +80,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
 
                 long previous = Long.MAX_VALUE;
                 for (int i = 0; i < valuesCount; ++i) {
-                    final long valFullRes = values.valueAt(i);
-                    final long val = XGeoHashUtils.longEncode(valFullRes, valuesSource.precision());
+                    final long val = values.valueAt(i);
                     if (previous != val || i == 0) {
                         long bucketOrdinal = bucketOrds.add(val);
                         if (bucketOrdinal < 0) { // already seen
@@ -114,7 +89,6 @@ public class GeoHashGridAggregator extends BucketsAggregator {
                         } else {
                             collectBucket(sub, doc, bucketOrdinal);
                         }
-                        adjustCentroid(bucketOrdinal, valFullRes);
                         previous = val;
                     }
                 }
@@ -128,7 +102,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
         long bucketOrd;
 
         public OrdinalBucket() {
-            super(0, 0, new GeoPoint(), (InternalAggregations) null);
+            super(0, 0, (InternalAggregations) null);
         }
 
     }
@@ -146,7 +120,6 @@ public class GeoHashGridAggregator extends BucketsAggregator {
             }
 
             spare.geohashAsLong = bucketOrds.get(i);
-            spare.centroid.resetFromGeoHash(bucketCentroids.get(i));
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
             spare = (OrdinalBucket) ordered.insertWithOverflow(spare);
@@ -170,7 +143,6 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     @Override
     public void doClose() {
         Releasables.close(bucketOrds);
-        Releasables.close(bucketCentroids);
     }
 
 }

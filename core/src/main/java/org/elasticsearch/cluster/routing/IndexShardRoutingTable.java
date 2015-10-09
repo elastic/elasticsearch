@@ -28,14 +28,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static java.util.Collections.emptyMap;
@@ -120,34 +113,37 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
-     * Normalizes all shard routings to the same version.
+     * Normalizes all shard routings to the same (highest found) version &amp; primary terms.
      */
-    public IndexShardRoutingTable normalizeVersions() {
+    public IndexShardRoutingTable normalizeVersionsAndPrimaryTerms() {
         if (shards.isEmpty()) {
             return this;
         }
+
         if (shards.size() == 1) {
             return this;
         }
         long highestVersion = shards.get(0).version();
+        long highestPrimaryTerm = shards.get(0).primaryTerm();
         boolean requiresNormalization = false;
         for (int i = 1; i < shards.size(); i++) {
-            if (shards.get(i).version() != highestVersion) {
+            final long version = shards.get(i).version();
+            final long primaryTerm = shards.get(i).primaryTerm();
+            if (highestVersion != version || highestPrimaryTerm != primaryTerm) {
                 requiresNormalization = true;
             }
-            if (shards.get(i).version() > highestVersion) {
-                highestVersion = shards.get(i).version();
-            }
+            highestVersion = Math.max(highestVersion, version);
+            highestPrimaryTerm = Math.max(highestPrimaryTerm, primaryTerm);
         }
         if (!requiresNormalization) {
             return this;
         }
         List<ShardRouting> shardRoutings = new ArrayList<>(shards.size());
         for (int i = 0; i < shards.size(); i++) {
-            if (shards.get(i).version() == highestVersion) {
+            if (shards.get(i).version() == highestVersion && shards.get(i).primaryTerm() == highestPrimaryTerm) {
                 shardRoutings.add(shards.get(i));
             } else {
-                shardRoutings.add(new ShardRouting(shards.get(i), highestVersion));
+                shardRoutings.add(new ShardRouting(shards.get(i), highestVersion, highestPrimaryTerm));
             }
         }
         return new IndexShardRoutingTable(shardId, Collections.unmodifiableList(shardRoutings));

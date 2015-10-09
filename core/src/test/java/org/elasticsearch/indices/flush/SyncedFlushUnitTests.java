@@ -108,7 +108,7 @@ public class SyncedFlushUnitTests extends ESTestCase {
                     Map<ShardRouting, SyncedFlushResponse> shardResponses = new HashMap<>();
                     for (int copy = 0; copy < replicas + 1; copy++) {
                         final ShardRouting shardRouting = TestShardRouting.newShardRouting(index, shard, "node_" + shardId + "_" + copy, null,
-                                copy == 0, ShardRoutingState.STARTED, 0);
+                                1, copy == 0, ShardRoutingState.STARTED, 0);
                         if (randomInt(5) < 2) {
                             // shard copy failure
                             failed++;

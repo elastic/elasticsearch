@@ -287,8 +287,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), true, ShardRoutingState.STARTED, 10))
-                                        .addShard(ShardRouting.newUnassigned(shardId.getIndex(), shardId.getId(), null, false, new UnassignedInfo(reason, null)))
+                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), 1, true, ShardRoutingState.STARTED, 10))
+                                        .addShard(ShardRouting.newUnassigned(shardId.getIndex(), shardId.getId(), null, 1, false, new UnassignedInfo(reason, null)))
                                         .build())
                 )
                 .build();
@@ -306,8 +306,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), true, ShardRoutingState.STARTED, 10))
-                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node2.id(), null, null, false, ShardRoutingState.INITIALIZING, 10, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)))
+                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), 1, true, ShardRoutingState.STARTED, 10))
+                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node2.id(), null, null, 1, false, ShardRoutingState.INITIALIZING, 10, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)))
                                         .build())
                 )
                 .build();

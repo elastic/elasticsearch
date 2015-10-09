@@ -131,11 +131,14 @@ public class ClusterHealthResponsesTests extends ESTestCase {
 
         switch (state) {
             case STARTED:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.STARTED, 1);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, 1, primary,
+                        ShardRoutingState.STARTED, 1);
             case INITIALIZING:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.INITIALIZING, 1);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, 1, primary,
+                        ShardRoutingState.INITIALIZING, 1);
             case RELOCATING:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), null, primary, ShardRoutingState.RELOCATING, 1);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
+                        "node_" + Integer.toString(node_id++), null, 1, primary, ShardRoutingState.RELOCATING, 1);
             default:
                 throw new ElasticsearchException("Unknown state: " + state.name());
         }

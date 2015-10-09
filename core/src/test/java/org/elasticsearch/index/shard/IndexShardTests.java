@@ -225,8 +225,10 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
         assertEquals(shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings.get(IndexMetaData.SETTING_INDEX_UUID)));
 
-        // test if we still write it even if the shard is not active
-        ShardRouting inactiveRouting = TestShardRouting.newShardRouting(shard.shardRouting.index(), shard.shardRouting.shardId().id(), shard.shardRouting.currentNodeId(), null, null, true, ShardRoutingState.INITIALIZING, shard.shardRouting.version() + 1);
+        // test if we don't write it if the shard is not active
+        ShardRouting inactiveRouting = TestShardRouting.newShardRouting(shard.shardRouting.index(), shard.shardRouting.shardId().id(),
+                shard.shardRouting.currentNodeId(), null, null, shard.shardRouting.primaryTerm(), true, ShardRoutingState.INITIALIZING,
+                shard.shardRouting.version() + 1);
         shard.persistMetadata(inactiveRouting, shard.shardRouting);
         shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals("inactive shard state shouldn't be persisted", shardStateMetaData, getShardStateMetadata(shard));
@@ -264,7 +266,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
 
-        routing = TestShardRouting.newShardRouting(shard.shardId.index().getName(), shard.shardId.id(), routing.currentNodeId(), null, routing.primary(), ShardRoutingState.INITIALIZING, shard.shardRouting.allocationId(), shard.shardRouting.version() + 1);
+        routing = TestShardRouting.newShardRouting(shard.shardId.index().getName(), shard.shardId.id(), routing.currentNodeId(), null,
+                shard.shardRouting.primaryTerm(), routing.primary(), ShardRoutingState.INITIALIZING, shard.shardRouting.allocationId(),
+                shard.shardRouting.version() + 1);
         shard.updateRoutingEntry(routing, true);
         shard.deleteShardState();
 

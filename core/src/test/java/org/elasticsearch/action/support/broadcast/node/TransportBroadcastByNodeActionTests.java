@@ -35,16 +35,12 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.ShardsIterator;
-import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -63,12 +59,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -203,13 +194,16 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
 
         int shardIndex = -1;
+        int totalIndexShards = 0;
         for (int i = 0; i < numberOfNodes; i++) {
             final DiscoveryNode node = newNode(i);
             discoBuilder = discoBuilder.put(node);
             int numberOfShards = randomIntBetween(1, 10);
+            totalIndexShards += numberOfShards;
             for (int j = 0; j < numberOfShards; j++) {
                 final ShardId shardId = new ShardId(index, ++shardIndex);
-                ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.id(), true, ShardRoutingState.STARTED, 1);
+                final int primaryTerm = randomInt(200);
+                ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.id(), primaryTerm, true, ShardRoutingState.STARTED, 1);
                 IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(shardId);
                 indexShard.addShard(shard);
                 indexRoutingTable.addIndexShard(indexShard.build());
@@ -219,6 +213,12 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         discoBuilder.masterNodeId(newNode(numberOfNodes - 1).id());
         ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName(TEST_CLUSTER));
         stateBuilder.nodes(discoBuilder);
+        final IndexMetaData.Builder indexMetaData = IndexMetaData.builder(index)
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfReplicas(0)
+                .numberOfShards(totalIndexShards);
+
+        stateBuilder.metaData(MetaData.builder().put(indexMetaData));
         stateBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable.build()).build());
         ClusterState clusterState = stateBuilder.build();
         clusterService.setState(clusterState);
@@ -310,7 +310,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         TransportResponse response = channel.getCapturedResponse();
         assertTrue(response instanceof TransportBroadcastByNodeAction.NodeResponse);
-        TransportBroadcastByNodeAction.NodeResponse nodeResponse = (TransportBroadcastByNodeAction.NodeResponse)response;
+        TransportBroadcastByNodeAction.NodeResponse nodeResponse = (TransportBroadcastByNodeAction.NodeResponse) response;
 
         // check the operation was executed on the correct node
         assertEquals("node id", nodeId, nodeResponse.getNodeId());

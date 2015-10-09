@@ -415,7 +415,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 for (int i = 0; i < numShards; i++) {
                     indexRoutingTableBuilder.addIndexShard(
                             new IndexShardRoutingTable.Builder(new ShardId("test", i))
-                                    .addShard(TestShardRouting.newShardRouting("test", i, masterId, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
+                                    .addShard(TestShardRouting.newShardRouting("test", i, masterId, 1, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
                                     .build()
                     );
                 }

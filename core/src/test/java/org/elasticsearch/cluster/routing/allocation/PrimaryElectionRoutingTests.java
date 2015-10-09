@@ -58,29 +58,31 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("Adding two nodes and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
+        RoutingAllocation.Result result = strategy.reroute(clusterState);
+        clusterState = ClusterState.builder(clusterState).routingResult(result).build();
+
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node2"))).build();
+        result = strategy.reroute(clusterState);
+        clusterState = ClusterState.builder(clusterState).routingResult(result).build();
 
         logger.info("Start the primary shard (on node1)");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        result = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(result).build();
 
         logger.info("Start the backup shard (on node2)");
         routingNodes = clusterState.getRoutingNodes();
-        prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node2").shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        result = strategy.applyStartedShards(clusterState, routingNodes.node("node2").shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(result).build();
 
         logger.info("Adding third node and reroute and kill first node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node3")).remove("node1")).build();
-        prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        RoutingTable prevRoutingTable = clusterState.routingTable();
+        result = strategy.reroute(clusterState);
+        clusterState = ClusterState.builder(clusterState).routingResult(result).build();
         routingNodes = clusterState.getRoutingNodes();
+        routingTable = clusterState.routingTable();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
@@ -89,6 +91,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(1));
         // verify where the primary is
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node2"));
+        assertThat(routingTable.index("test").shard(0).primaryShard().primaryTerm(), equalTo(2l));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node3"));
     }
 
@@ -115,7 +118,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         logger.info("Start the primary shards");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         rerouteResult = allocation.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
-        clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.shardsWithState(STARTED).size(), equalTo(2));
@@ -129,12 +132,13 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
                 .put(newNode(nodeIdRemaining))
         ).build();
         rerouteResult = allocation.reroute(clusterState);
-        clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.shardsWithState(STARTED).size(), equalTo(1));
         assertThat(routingNodes.shardsWithState(INITIALIZING).size(), equalTo(1));
         assertThat(routingNodes.node(nodeIdRemaining).shardsWithState(INITIALIZING).get(0).primary(), equalTo(true));
+        assertThat(routingNodes.node(nodeIdRemaining).shardsWithState(INITIALIZING).get(0).primaryTerm(), equalTo(2l));
 
     }
 }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher;
 
-import com.google.common.util.concurrent.MoreExecutors;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNodes;

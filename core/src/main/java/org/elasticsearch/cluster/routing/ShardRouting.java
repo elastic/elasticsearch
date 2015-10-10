@@ -435,7 +435,7 @@ public final class ShardRouting implements Streamable, ToXContent {
     }
 
     /**
-     * Initializes an unassigned shard on a node.
+     * Initializes an unassigned shard on a node. If the shard is primary, it's term is incremented.
      */
     void initialize(String nodeId, long expectedShardSize) {
         ensureNotFrozen();
@@ -445,6 +445,9 @@ public final class ShardRouting implements Streamable, ToXContent {
         state = ShardRoutingState.INITIALIZING;
         currentNodeId = nodeId;
         allocationId = AllocationId.newInitializing();
+        if (primary) {
+            primaryTerm++;
+        }
         this.expectedShardSize = expectedShardSize;
     }
 

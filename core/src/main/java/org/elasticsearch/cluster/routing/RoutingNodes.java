@@ -609,10 +609,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
             /**
              * Initializes the current unassigned shard and moves it from the unassigned list.
+             *
+             * If a primary is initalized, it's term is incremented.
              */
             public void initialize(String nodeId, long version, long expectedShardSize) {
                 innerRemove();
-                nodes.initialize(new ShardRouting(current, version), nodeId, expectedShardSize);
+                nodes.initialize(new ShardRouting(current, version, current.primary() ? current.primaryTerm() + 1 : current.primaryTerm()), nodeId, expectedShardSize);
             }
 
             /**

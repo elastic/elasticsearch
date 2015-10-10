@@ -101,6 +101,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
         assertThat(rerouteResult.changed(), is(true));
         this.clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
         versionsPerIndex.keySet().forEach(this::incrementVersion);
+        primaryTermsPerIndex.keySet().forEach(this::incrementPrimaryTerm);
     }
 
     private void incrementVersion(String index) {
@@ -112,6 +113,13 @@ public class RoutingTableTests extends ESAllocationTestCase {
 
     private void incrementVersion(String index, int shard) {
         versionsPerIndex.get(index)[shard]++;
+    }
+
+    private void incrementPrimaryTerm(String index) {
+        final int[] primaryTerms = primaryTermsPerIndex.get(index);
+        for (int i = 0; i < primaryTerms.length; i++) {
+            primaryTerms[i]++;
+        }
     }
 
     private void incrementPrimaryTerm(String index, int shard) {

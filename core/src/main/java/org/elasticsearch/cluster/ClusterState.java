@@ -583,6 +583,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         public Builder routingResult(RoutingAllocation.Result routingResult) {
             this.routingTable = routingResult.routingTable();
+            this.metaData = routingResult.metaData();
             return this;
         }
 
@@ -652,34 +653,6 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         public ClusterState build() {
             if (UNKNOWN_UUID.equals(uuid)) {
                 uuid = Strings.randomBase64UUID();
-            }
-            // make sure index meta data and routing tables are in sync w.r.t primaryTerm
-            MetaData.Builder metaDataBuilder = null;
-            for (IndexRoutingTable indexRoutingTable : routingTable) {
-                final IndexMetaData indexMetaData = metaData.index(indexRoutingTable.getIndex());
-                IndexMetaData.Builder indexMetaDataBuilder = null;
-                for (IndexShardRoutingTable shardRoutings : indexRoutingTable) {
-                    final ShardRouting primary = shardRoutings.primaryShard();
-                    final int shardId = primary.shardId().id();
-                    if (primary.primaryTerm() != indexMetaData.primaryTerm(shardId)) {
-                        assert primary.primaryTerm() > indexMetaData.primaryTerm(shardId) :
-                                "primary term should only increase. Index primary term ["
-                                        + indexMetaData.primaryTerm(shardId) + "] but primary routing is " + primary;
-                        if (indexMetaDataBuilder == null) {
-                            indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
-                        }
-                        indexMetaDataBuilder.primaryTerm(shardId, primary.primaryTerm());
-                    }
-                }
-                if (indexMetaDataBuilder != null) {
-                    if (metaDataBuilder == null) {
-                        metaDataBuilder = MetaData.builder(metaData);
-                    }
-                    metaDataBuilder.put(indexMetaDataBuilder);
-                }
-            }
-            if (metaDataBuilder != null) {
-                metaData = metaDataBuilder.build();
             }
             return new ClusterState(clusterName, version, uuid, metaData, routingTable, nodes, blocks, customs.build(), fromDiff);
         }

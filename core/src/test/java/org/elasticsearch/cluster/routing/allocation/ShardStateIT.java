@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.routing.allocation.decider;
+package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,8 +34,8 @@ public class ShardStateIT extends ESIntegTestCase {
         ensureGreen();
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexMetaData metaData = state.metaData().index("test");
-        assertThat(metaData.primaryTerm(0), equalTo(0));
-        assertThat(metaData.primaryTerm(1), equalTo(0));
+        assertThat(metaData.primaryTerm(0), equalTo(1));
+        assertThat(metaData.primaryTerm(1), equalTo(1));
 
         logger.info("--> disabling allocation to capture shard failure");
         disableAllocation("test");
@@ -52,15 +52,15 @@ public class ShardStateIT extends ESIntegTestCase {
 
         state = client().admin().cluster().prepareState().get().getState();
         metaData = state.metaData().index("test");
-        assertThat(metaData.primaryTerm(shard), equalTo(1));
-        assertThat(metaData.primaryTerm(shard ^ 1), equalTo(0));
+        assertThat(metaData.primaryTerm(shard), equalTo(2));
+        assertThat(metaData.primaryTerm(shard ^ 1), equalTo(1));
 
         logger.info("--> enabling allocation");
         enableAllocation("test");
         ensureGreen();
         state = client().admin().cluster().prepareState().get().getState();
         metaData = state.metaData().index("test");
-        assertThat(metaData.primaryTerm(shard), equalTo(1));
-        assertThat(metaData.primaryTerm(shard ^ 1), equalTo(0));
+        assertThat(metaData.primaryTerm(shard), equalTo(2));
+        assertThat(metaData.primaryTerm(shard ^ 1), equalTo(1));
     }
 }

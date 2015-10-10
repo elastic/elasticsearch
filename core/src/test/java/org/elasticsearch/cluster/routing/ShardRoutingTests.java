@@ -52,7 +52,7 @@ public class ShardRoutingTests extends ESTestCase {
         }
     }
 
-    public void testPrimaryTermIncrement() {
+    public void testPrimaryTermIncrementOnPromotion() {
         int term = randomInt(200);
         ShardRouting routing = TestShardRouting.newShardRouting("foo", 1, "node_1", null, null, term, false, ShardRoutingState.STARTED, 1);
         routing.moveToPrimary();

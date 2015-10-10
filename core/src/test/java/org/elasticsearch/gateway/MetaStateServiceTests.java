@@ -90,7 +90,7 @@ public class MetaStateServiceTests extends ESTestCase {
     }
 
     @Test
-    public void tesLoadGlobal() throws Exception {
+    public void testLoadGlobal() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
 

@@ -14,11 +14,11 @@
 
 package org.elasticsearch.examples.nativescript.script;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -36,9 +36,7 @@ import org.elasticsearch.script.ScriptException;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 /**
  */
@@ -71,12 +69,12 @@ public class LookupScript extends AbstractSearchScript {
             // Setup lookup cache
             ByteSizeValue size = settings.getAsBytesSize("examples.nativescript.lookup.size", null);
             TimeValue expire = settings.getAsTime("expire", null);
-            CacheBuilder<Object, Object> cacheBuilder = CacheBuilder.newBuilder();
+            CacheBuilder<Tuple<String, String>, Map<String, Object>> cacheBuilder = CacheBuilder.builder();
             if (size != null) {
-                cacheBuilder.maximumSize(size.bytes());
+                cacheBuilder.setMaximumWeight(size.bytes());
             }
             if (expire != null) {
-                cacheBuilder.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
+                cacheBuilder.setExpireAfterAccess(expire.nanos());
             }
             cache = cacheBuilder.build();
         }
@@ -149,20 +147,17 @@ public class LookupScript extends AbstractSearchScript {
             final String fieldValue = ((ScriptDocValues.Strings) docValue).getValue();
             if (fieldValue != null) {
                 try {
-                    return cache.get(new Tuple<String, String>(lookupIndex + "/" + lookupType, fieldValue), new Callable<Map<String, Object>>() {
-                        @Override
-                        public Map<String, Object> call() throws Exception {
-                            // This is not very efficient of doing this, but it demonstrates using injected client
-                            // for record lookup
-                            GetResponse response = client.prepareGet(lookupIndex, lookupType, fieldValue).setPreference("_local").execute().actionGet();
-                            if (logger.isTraceEnabled()) {
-                                logger.trace("lookup [{}]/[{}]/[{}], found: [{}]", lookupIndex, lookupType, fieldValue, response.isExists());
-                            }
-                            if (response.isExists()) {
-                                return response.getSource();
-                            }
-                            return EMPTY_MAP;
+                    return cache.computeIfAbsent(new Tuple<>(lookupIndex + "/" + lookupType, fieldValue), key -> {
+                        // This is not very efficient of doing this, but it demonstrates using injected client
+                        // for record lookup
+                        GetResponse response = client.prepareGet(lookupIndex, lookupType, fieldValue).setPreference("_local").execute().actionGet();
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("lookup [{}]/[{}]/[{}], found: [{}]", lookupIndex, lookupType, fieldValue, response.isExists());
                         }
+                        if (response.isExists()) {
+                            return response.getSource();
+                        }
+                        return EMPTY_MAP;
                     });
 
                 } catch (ExecutionException ex) {

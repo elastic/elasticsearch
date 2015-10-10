@@ -149,7 +149,7 @@ public class ClusterStateCreationUtils {
         discoBuilder.masterNodeId(newNode(1).id()); // we need a non-local master to test shard failures
         IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(Settings.builder()
                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(SETTING_CREATION_DATE, System.currentTimeMillis())).build();
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);

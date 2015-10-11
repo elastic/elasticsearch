@@ -133,7 +133,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
             final int[] terms = result.get(indexRoutingTable.index());
             for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-
                 for (ShardRouting routing : shardRoutingTable.shards()) {
                     assertThat("wrong primary term for " + routing, routing.primaryTerm(), equalTo(terms[routing.shardId().id()]));
                 }

@@ -32,14 +32,12 @@ public class ShardStateIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).get();
         ensureGreen();
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
-        IndexMetaData metaData = state.metaData().index("test");
-        assertThat(metaData.primaryTerm(0), equalTo(1));
-        assertThat(metaData.primaryTerm(1), equalTo(1));
+        assertPrimaryTerms(1, 1);
 
         logger.info("--> disabling allocation to capture shard failure");
         disableAllocation("test");
 
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
         final int shard = randomBoolean() ? 0 : 1;
         final String nodeId = state.routingTable().index("test").shard(shard).primaryShard().currentNodeId();
         final String node = state.nodes().get(nodeId).name();
@@ -50,17 +48,23 @@ public class ShardStateIT extends ESIntegTestCase {
         logger.info("--> waiting for a yellow index");
         assertBusy(() -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(), equalTo(ClusterHealthStatus.YELLOW)));
 
-        state = client().admin().cluster().prepareState().get().getState();
-        metaData = state.metaData().index("test");
-        assertThat(metaData.primaryTerm(shard), equalTo(2));
-        assertThat(metaData.primaryTerm(shard ^ 1), equalTo(1));
+        final int term0 = shard == 0 ? 2 : 1;
+        final int term1 = shard == 1 ? 2 : 1;
+        assertPrimaryTerms(term0, term1);
 
         logger.info("--> enabling allocation");
         enableAllocation("test");
         ensureGreen();
-        state = client().admin().cluster().prepareState().get().getState();
-        metaData = state.metaData().index("test");
-        assertThat(metaData.primaryTerm(shard), equalTo(2));
-        assertThat(metaData.primaryTerm(shard ^ 1), equalTo(1));
+        assertPrimaryTerms(term0, term1);
+    }
+
+    protected void assertPrimaryTerms(int term0, int term1) {
+        for (String node : internalCluster().getNodeNames()) {
+            logger.debug("--> asserting primary terms terms on [{}]", node);
+            ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
+            IndexMetaData metaData = state.metaData().index("test");
+            assertThat(metaData.primaryTerm(0), equalTo(term0));
+            assertThat(metaData.primaryTerm(1), equalTo(term1));
+        }
     }
 }

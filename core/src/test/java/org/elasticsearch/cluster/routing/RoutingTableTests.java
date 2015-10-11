@@ -151,6 +151,8 @@ public class RoutingTableTests extends ESAllocationTestCase {
             incrementVersion(index, shard); // and another time when the primary flag is set to false
         }
         RoutingAllocation.Result rerouteResult = ALLOCATION_SERVICE.applyFailedShards(this.clusterState, failedShards);
+        assertThat(rerouteResult.routingTable().version(), greaterThan(clusterState.routingTable().version()));
+        assertThat(rerouteResult.metaData().version(), greaterThan(clusterState.metaData().version()));
         this.clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
         this.testRoutingTable = rerouteResult.routingTable();
     }

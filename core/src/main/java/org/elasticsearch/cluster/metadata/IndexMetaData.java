@@ -536,7 +536,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         builder.version(in.readLong());
         builder.state(State.fromId(in.readByte()));
         builder.settings(readSettingsFromStream(in));
-        // must be done after settings so the array will not be overwritten
         builder.primaryTerms(in.readIntArray());
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {

@@ -99,7 +99,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
         RoutingAllocation.Result rerouteResult = ALLOCATION_SERVICE.reroute(clusterState);
         this.testRoutingTable = rerouteResult.routingTable();
         assertThat(rerouteResult.changed(), is(true));
-        this.clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
+        this.clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
         versionsPerIndex.keySet().forEach(this::incrementVersion);
         primaryTermsPerIndex.keySet().forEach(this::incrementPrimaryTerm);
     }
@@ -153,7 +153,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
         RoutingAllocation.Result rerouteResult = ALLOCATION_SERVICE.applyFailedShards(this.clusterState, failedShards);
         assertThat(rerouteResult.routingTable().version(), greaterThan(clusterState.routingTable().version()));
         assertThat(rerouteResult.metaData().version(), greaterThan(clusterState.metaData().version()));
-        this.clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
+        this.clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
         this.testRoutingTable = rerouteResult.routingTable();
     }
 
@@ -184,7 +184,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
                 assertThat("wrong version in " + routing, routing.version(), equalTo(versions[shard]));
                 assertThat("wrong primary term in " + routing, routing.primaryTerm(), equalTo(terms[shard]));
             }
-            assertThat(indexMetaData.primaryTerm(shard), equalTo(terms[shard]));
+            assertThat("primary term mismatch between indexMetaData of [" + index + "] and shard [" + shard + "]'s routing", indexMetaData.primaryTerm(shard), equalTo(terms[shard]));
         }
     }
 

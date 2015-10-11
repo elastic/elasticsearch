@@ -305,11 +305,12 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         return indexService;
     }
 
-    public synchronized IndexService createIndex(String sIndexName, @IndexSettings Settings settings, String localNodeId) {
+    public synchronized IndexService createIndex(IndexMetaData indexMetaData) {
         if (!lifecycle.started()) {
-            throw new IllegalStateException("Can't create an index [" + sIndexName + "], node is closed");
+            throw new IllegalStateException("Can't create an index [" + indexMetaData.getIndex() + "], node is closed");
         }
-        Index index = new Index(sIndexName);
+        final Settings settings = indexMetaData.getSettings();
+        Index index = new Index(indexMetaData.getIndex());
         if (indices.containsKey(index.name())) {
             throw new IndexAlreadyExistsException(index);
         }
@@ -317,14 +318,14 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         indicesLifecycle.beforeIndexCreated(index, settings);
 
         logger.debug("creating Index [{}], shards [{}]/[{}{}]",
-                sIndexName,
+                indexMetaData.getIndex(),
                 settings.get(SETTING_NUMBER_OF_SHARDS),
                 settings.get(SETTING_NUMBER_OF_REPLICAS),
                 IndexMetaData.isIndexUsingShadowReplicas(settings) ? "s" : "");
 
         Settings indexSettings = settingsBuilder()
                 .put(this.settings)
-                .put(settings)
+                .put(indexMetaData.getSettings())
                 .build();
 
         ModulesBuilder modules = new ModulesBuilder();
@@ -338,7 +339,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));
         modules.add(new SimilarityModule(index, indexSettings));
         modules.add(new IndexCacheModule(indexSettings));
-        modules.add(new IndexModule());
+        modules.add(new IndexModule(indexMetaData));
         pluginsService.processModules(modules);
 
         Injector indexInjector;
@@ -355,7 +356,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         indicesLifecycle.afterIndexCreated(indexService);
 
         indices = newMapBuilder(indices).put(index.name(), new IndexServiceInjectorPair(indexService, indexInjector)).immutableMap();
-
         return indexService;
     }
 

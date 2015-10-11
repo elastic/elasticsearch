@@ -22,7 +22,6 @@ package org.elasticsearch.index;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -50,7 +49,6 @@ public final class IndexServicesProvider {
     private final MapperService mapperService;
     private final IndexQueryParserService queryParserService;
     private final IndexCache indexCache;
-    private final IndexAliasesService indexAliasesService;
     private final IndicesQueryCache indicesQueryCache;
     private final CodecService codecService;
     private final TermVectorsService termVectorsService;
@@ -63,13 +61,12 @@ public final class IndexServicesProvider {
     private final IndexingMemoryController indexingMemoryController;
 
     @Inject
-    public IndexServicesProvider(IndicesLifecycle indicesLifecycle, ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, IndicesQueryCache indicesQueryCache, CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory, BigArrays bigArrays, @Nullable IndexSearcherWrapper indexSearcherWrapper, IndexingMemoryController indexingMemoryController) {
+    public IndexServicesProvider(IndicesLifecycle indicesLifecycle, ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndicesQueryCache indicesQueryCache, CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory, BigArrays bigArrays, @Nullable IndexSearcherWrapper indexSearcherWrapper, IndexingMemoryController indexingMemoryController) {
         this.indicesLifecycle = indicesLifecycle;
         this.threadPool = threadPool;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
         this.indexCache = indexCache;
-        this.indexAliasesService = indexAliasesService;
         this.indicesQueryCache = indicesQueryCache;
         this.codecService = codecService;
         this.termVectorsService = termVectorsService;
@@ -100,10 +97,6 @@ public final class IndexServicesProvider {
 
     public IndexCache getIndexCache() {
         return indexCache;
-    }
-
-    public IndexAliasesService getIndexAliasesService() {
-        return indexAliasesService;
     }
 
     public IndicesQueryCache getIndicesQueryCache() {

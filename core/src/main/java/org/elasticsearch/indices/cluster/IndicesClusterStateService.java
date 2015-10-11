@@ -44,7 +44,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
-import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -300,7 +299,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] creating index", indexMetaData.index());
                 }
                 try {
-                    indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), event.state().nodes().localNode().id());
+                    indicesService.createIndex(indexMetaData);
                 } catch (Throwable e) {
                     sendFailShard(shard, indexMetaData.getIndexUUID(), "failed to create index", e);
                 }
@@ -458,8 +457,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     // we only create / update here
                     continue;
                 }
-                IndexAliasesService indexAliasesService = indexService.aliasesService();
-                indexAliasesService.setAliases(indexMetaData.getAliases());
+                indexService.updateMetaData(indexMetaData);
             }
         }
     }

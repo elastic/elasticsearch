@@ -193,7 +193,7 @@ public class DefaultSearchContext extends SearchContext {
         }
 
         // initialize the filtering alias based on the provided filters
-        aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
+        aliasFilter = indexService.aliasFilter(request.filteringAliases());
 
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());

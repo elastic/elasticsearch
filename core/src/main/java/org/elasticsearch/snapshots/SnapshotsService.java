@@ -49,6 +49,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -61,7 +62,9 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -150,8 +153,14 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         Repository repository = repositoriesService.repository(repositoryName);
         List<SnapshotId> snapshotIds = repository.snapshots();
         for (SnapshotId snapshotId : snapshotIds) {
-            snapshotSet.add(repository.readSnapshot(snapshotId));
+            try {
+                snapshotSet.add(repository.readSnapshot(snapshotId));
+            } catch (Exception ex) {
+                logger.warn("failed to get snapshot : " + snapshotId, ex);
+                snapshotSet.add(new Snapshot(snapshotId.getSnapshot(), new ArrayList(), 0, ex.getMessage(), 0, 0, new ArrayList()));
+            }
         }
+
         ArrayList<Snapshot> snapshotList = new ArrayList<>(snapshotSet);
         CollectionUtil.timSort(snapshotList);
         return Collections.unmodifiableList(snapshotList);

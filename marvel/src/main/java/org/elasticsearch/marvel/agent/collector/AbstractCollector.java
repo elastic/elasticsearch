@@ -58,7 +58,7 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
      * Indicates if the current collector is allowed to collect data
      */
     protected boolean shouldCollect() {
-        if (licensee.collectionEnabled()) {
+        if (!licensee.collectionEnabled()) {
             logger.trace("collector [{}] can not collect data due to invalid license", name());
             return false;
         }

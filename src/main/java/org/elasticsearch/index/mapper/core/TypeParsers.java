@@ -160,6 +160,9 @@ public class TypeParsers {
     }
 
     public static void parseField(AbstractFieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
+        NamedAnalyzer theAnalyzer = null;
+        NamedAnalyzer searchAnalyzer = null;
+        NamedAnalyzer indexAnalyzer = null;
         for (Map.Entry<String, Object> entry : fieldNode.entrySet()) {
             final String propName = Strings.toUnderscoreCase(entry.getKey());
             final Object propNode = entry.getValue();
@@ -212,20 +215,19 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
-                builder.indexAnalyzer(analyzer);
-                builder.searchAnalyzer(analyzer);
+                theAnalyzer = analyzer;
             } else if (propName.equals("index_analyzer")) {
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
-                builder.indexAnalyzer(analyzer);
+                indexAnalyzer = analyzer;
             } else if (propName.equals("search_analyzer")) {
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
-                builder.searchAnalyzer(analyzer);
+                searchAnalyzer = analyzer;
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
             } else if (propName.equals("postings_format")) {
@@ -242,6 +244,16 @@ public class TypeParsers {
             } else if (propName.equals("copy_to")) {
                 parseCopyFields(propNode, builder);
             }
+        }
+        if (indexAnalyzer != null) {
+            builder.indexAnalyzer(indexAnalyzer);
+        } else if (theAnalyzer != null) {
+            builder.indexAnalyzer(theAnalyzer);
+        }
+        if (searchAnalyzer != null) {
+            builder.searchAnalyzer(searchAnalyzer);
+        } else if (theAnalyzer != null) {
+            builder.searchAnalyzer(theAnalyzer);
         }
     }
 

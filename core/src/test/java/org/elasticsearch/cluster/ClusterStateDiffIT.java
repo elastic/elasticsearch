@@ -20,15 +20,25 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.*;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -48,12 +58,13 @@ import org.junit.Test;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomReason;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -199,7 +210,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         RoutingTable.Builder builder = RoutingTable.builder(clusterState.routingTable());
         int numberOfIndices = clusterState.routingTable().indicesRouting().size();
         if (numberOfIndices > 0) {
-            List<String> randomIndices = randomSubsetOf(randomInt(numberOfIndices - 1), clusterState.routingTable().indicesRouting().keySet().toArray(new String[numberOfIndices]));
+            List<String> randomIndices = randomSubsetOf(randomInt(numberOfIndices - 1), clusterState.routingTable().indicesRouting().keys().toArray(String.class));
             for (String index : randomIndices) {
                 if (randomBoolean()) {
                     builder.remove(index);
@@ -663,13 +674,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 SnapshotsInProgress.State.fromValue((byte) randomIntBetween(0, 6)),
                                 Collections.<String>emptyList(),
                                 Math.abs(randomLong()),
-                                ImmutableMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>of()));
+                                ImmutableOpenMap.of()));
                     case 1:
                         return new RestoreInProgress(new RestoreInProgress.Entry(
                                 new SnapshotId(randomName("repo"), randomName("snap")),
                                 RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
-                                Collections.<String>emptyList(),
-                                ImmutableMap.<ShardId, RestoreInProgress.ShardRestoreStatus>of()));
+                                emptyList(),
+                                ImmutableOpenMap.of()));
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
                 }

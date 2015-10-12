@@ -172,7 +172,7 @@ public class MetaDataMappingService extends AbstractComponent {
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
                 // we need to create the index here, and add the current mapping to it, so we can merge
-                indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
+                indexService = indicesService.createIndex(indexMetaData);
                 removeIndex = true;
                 Set<String> typesToIntroduce = new HashSet<>();
                 for (MappingTask task : tasks) {
@@ -350,7 +350,7 @@ public class MetaDataMappingService extends AbstractComponent {
                             continue;
                         }
                         final IndexMetaData indexMetaData = currentState.metaData().index(index);
-                        IndexService indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), clusterService.localNode().id());
+                        IndexService indexService = indicesService.createIndex(indexMetaData);
                         indicesToClose.add(indexMetaData.index());
                         // make sure to add custom default mapping if exists
                         if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {

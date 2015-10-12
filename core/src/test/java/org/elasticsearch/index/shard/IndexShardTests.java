@@ -399,35 +399,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(durabilty, shard.getTranslogDurability());
     }
 
-    public void testDeleteByQueryBWC() {
-        Version version = VersionUtils.randomVersion(random());
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0, IndexMetaData.SETTING_VERSION_CREATED, version.id));
-        ensureGreen("test");
-        client().prepareIndex("test", "person").setSource("{ \"user\" : \"kimchy\" }").get();
-
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
-        IndexShard shard = test.getShardOrNull(0);
-        int numDocs = 1;
-        shard.state = IndexShardState.RECOVERING;
-        try {
-            shard.recoveryState().getTranslog().totalOperations(1);
-            shard.getEngine().config().getTranslogRecoveryPerformer().performRecoveryOperation(shard.getEngine(), new Translog.DeleteByQuery(new Engine.DeleteByQuery(null, new BytesArray("{\"term\" : { \"user\" : \"kimchy\" }}"), null, null, null, Engine.Operation.Origin.RECOVERY, 0, "person")), false);
-            assertTrue(version.onOrBefore(Version.V_1_0_0_Beta2));
-            numDocs = 0;
-        } catch (ParsingException ex) {
-            assertTrue(version.after(Version.V_1_0_0_Beta2));
-        } finally {
-            shard.state = IndexShardState.STARTED;
-        }
-        shard.getEngine().refresh("foo");
-
-        try (Engine.Searcher searcher = shard.getEngine().acquireSearcher("foo")) {
-            assertEquals(numDocs, searcher.reader().numDocs());
-        }
-    }
-
     public void testMinimumCompatVersion() {
         Version versionCreated = VersionUtils.randomVersion(random());
         assertAcked(client().admin().indices().prepareCreate("test")
@@ -955,7 +926,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             }
         };
 
-        IndexServicesProvider newProvider = new IndexServicesProvider(indexServices.getIndicesLifecycle(), indexServices.getThreadPool(), indexServices.getMapperService(), indexServices.getQueryParserService(), indexServices.getIndexCache(), indexServices.getIndexAliasesService(), indexServices.getIndicesQueryCache(), indexServices.getCodecService(), indexServices.getTermVectorsService(), indexServices.getIndexFieldDataService(), indexServices.getWarmer(), indexServices.getSimilarityService(), indexServices.getFactory(), indexServices.getBigArrays(), wrapper, indexServices.getIndexingMemoryController());
+        IndexServicesProvider newProvider = new IndexServicesProvider(indexServices.getIndicesLifecycle(), indexServices.getThreadPool(), indexServices.getMapperService(), indexServices.getQueryParserService(), indexServices.getIndexCache(), indexServices.getIndicesQueryCache(), indexServices.getCodecService(), indexServices.getTermVectorsService(), indexServices.getIndexFieldDataService(), indexServices.getWarmer(), indexServices.getSimilarityService(), indexServices.getFactory(), indexServices.getBigArrays(), wrapper, indexServices.getIndexingMemoryController());
         IndexShard newShard = new IndexShard(shard.shardId(), shard.indexSettings, shard.shardPath(), shard.store(), newProvider);
 
         ShardRoutingHelper.reinit(routing);

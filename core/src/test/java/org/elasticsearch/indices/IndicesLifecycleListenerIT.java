@@ -35,6 +35,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -55,8 +57,6 @@ import static org.elasticsearch.index.shard.IndexShardState.CREATED;
 import static org.elasticsearch.index.shard.IndexShardState.POST_RECOVERY;
 import static org.elasticsearch.index.shard.IndexShardState.RECOVERING;
 import static org.elasticsearch.index.shard.IndexShardState.STARTED;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -105,7 +105,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
             ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
+            assertFalse(resp.getState().routingTable().indicesRouting().keys().contains("failed"));
         }
     }
 
@@ -149,7 +149,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         } catch (ElasticsearchException e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
             ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
+            assertFalse(resp.getState().routingTable().indicesRouting().keys().contains("failed"));
         }
 
 
@@ -198,7 +198,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose("test"));
 
         assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
-        assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(0));
+        assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(1));
 
         assertShardStatesMatch(stateChangeListenerNode1, 6, CLOSED);
         assertShardStatesMatch(stateChangeListenerNode2, 6, CLOSED);

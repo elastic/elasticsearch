@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.fetch;
 
-import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
@@ -30,7 +29,6 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchModule;
@@ -50,6 +48,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -140,7 +139,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
         @Override
         public Map<String, ? extends SearchParseElement> parseElements() {
-            return ImmutableMap.of("term_vectors_fetch", new TermVectorsFetchParseElement());
+            return singletonMap("term_vectors_fetch", new TermVectorsFetchParseElement());
         }
 
         @Override

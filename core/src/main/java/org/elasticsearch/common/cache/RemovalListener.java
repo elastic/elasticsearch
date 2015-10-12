@@ -17,35 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.search;
+package org.elasticsearch.common.cache;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.SimpleCollector;
-
-import java.io.IOException;
-
-/**
- *
- */
-public class NoopCollector extends SimpleCollector {
-
-    public static final NoopCollector NOOP_COLLECTOR = new NoopCollector();
-
-    @Override
-    public void setScorer(Scorer scorer) throws IOException {
-    }
-
-    @Override
-    public void collect(int doc) throws IOException {
-    }
-
-    @Override
-    protected void doSetNextReader(LeafReaderContext context) throws IOException {
-    }
-
-    @Override
-    public boolean needsScores() {
-        return false;
-    }
+@FunctionalInterface
+public interface RemovalListener<K, V> {
+    void onRemoval(RemovalNotification<K, V> notification);
 }

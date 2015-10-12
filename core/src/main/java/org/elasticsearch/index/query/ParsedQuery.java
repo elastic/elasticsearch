@@ -19,22 +19,31 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+
 /**
  * The result of parsing a query.
- *
- *
  */
 public class ParsedQuery {
-
     private final Query query;
-    private final ImmutableMap<String, Query> namedFilters;
+    private final Map<String, Query> namedFilters;
 
-    public ParsedQuery(Query query, ImmutableMap<String, Query> namedFilters) {
+    /**
+     * Store the query and filters.
+     *
+     * @param query
+     *            the query
+     * @param namedFilters
+     *            an immutable Map containing the named filters. Good callers
+     *            use emptyMap or unmodifiableMap and copy the source to make
+     *            sure this is immutable.
+     */
+    public ParsedQuery(Query query, Map<String, Query> namedFilters) {
         this.query = query;
         this.namedFilters = namedFilters;
     }
@@ -46,7 +55,7 @@ public class ParsedQuery {
 
     public ParsedQuery(Query query) {
         this.query = query;
-        this.namedFilters = ImmutableMap.of();
+        this.namedFilters = emptyMap();
     }
 
     /**
@@ -56,11 +65,11 @@ public class ParsedQuery {
         return this.query;
     }
 
-    public ImmutableMap<String, Query> namedFilters() {
-        return this.namedFilters;
+    public Map<String, Query> namedFilters() {
+        return namedFilters;
     }
 
     public static ParsedQuery parsedMatchAllQuery() {
-        return new ParsedQuery(Queries.newMatchAllQuery(), ImmutableMap.<String, Query>of());
+        return new ParsedQuery(Queries.newMatchAllQuery(), emptyMap());
     }
 }

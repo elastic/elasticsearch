@@ -17,45 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.validate.template;
+package org.elasticsearch.action.admin.cluster.validate.template;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.Template;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class RenderSearchTemplateRequest extends ActionRequest<RenderSearchTemplateRequest> {
+public class RenderSearchTemplateResponse extends ActionResponse implements ToXContent {
 
-    private Template template;
-    
-    public void template(Template template) {
-        this.template = template;
+    private BytesReference source;
+
+    public BytesReference source() {
+        return source;
     }
     
-    public Template template() {
-        return template;
-    }
-    
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException exception = null;
-        if (template == null) {
-            exception = new ActionRequestValidationException();
-            exception.addValidationError("template must not be null");
-        }
-        return exception;
+    public void source(BytesReference source) {
+        this.source = source;
     }
     
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        boolean hasTemplate = template!= null;
-        out.writeBoolean(hasTemplate);
-        if (hasTemplate) {
-            template.writeTo(out);
+        boolean hasSource = source != null;
+        out.writeBoolean(hasSource);
+        if (hasSource) {
+            out.writeBytesReference(source);
         }
     }
     
@@ -63,7 +54,15 @@ public class RenderSearchTemplateRequest extends ActionRequest<RenderSearchTempl
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
-            template = Template.readTemplate(in);
+            source = in.readBytesReference();
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.rawField("template_output", source);
+        builder.endObject();
+        return builder;
     }
 }

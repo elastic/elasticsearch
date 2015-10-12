@@ -18,16 +18,25 @@
  */
 package org.elasticsearch.common.lucene.uid;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
-import org.apache.lucene.document.*;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.index.*;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SlowCompositeReaderWrapper;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
@@ -41,13 +50,17 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class VersionsTests extends ESTestCase {
-    
+
     public static DirectoryReader reopen(DirectoryReader reader) throws IOException {
         return reopen(reader, true);
     }
@@ -99,7 +112,7 @@ public class VersionsTests extends ESTestCase {
         doc.add(uid);
         doc.add(version);
         writer.updateDocument(new Term(UidFieldMapper.NAME, "1"), doc);
-        
+
         directoryReader = reopen(directoryReader);
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(3l));
         assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(3l));
@@ -261,8 +274,13 @@ public class VersionsTests extends ESTestCase {
         iw.addDocument(document);
         iw.commit();
 
-        final Map<String, Long> expectedVersions = ImmutableMap.<String, Long>builder()
-                .put("1", 0L).put("2", 0L).put("3", 0L).put("4", 4L).put("5", 5L).put("6", 6L).build();
+        Map<String, Long> expectedVersions = new HashMap<>();
+        expectedVersions.put("1", 0L);
+        expectedVersions.put("2", 0L);
+        expectedVersions.put("3", 0L);
+        expectedVersions.put("4", 4L);
+        expectedVersions.put("5", 5L);
+        expectedVersions.put("6", 6L);
 
         // Force merge and check versions
         iw.forceMerge(1, true);

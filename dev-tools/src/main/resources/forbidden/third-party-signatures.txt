@@ -14,9 +14,6 @@
 # either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
 
-@defaultMessage Use Long.compare instead we are on Java7
-com.google.common.primitives.Longs#compare(long,long)
-
 @defaultMessage unsafe encoders/decoders have problems in the lzf compress library.  Use variants of encode/decode functions which take Encoder/Decoder.
 com.ning.compress.lzf.impl.UnsafeChunkEncoders#createEncoder(int)
 com.ning.compress.lzf.impl.UnsafeChunkEncoders#createNonAllocatingEncoder(int)
@@ -67,5 +64,3 @@ org.joda.time.DateTime#<init>(int, int, int, int, int, int)
 org.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
 org.joda.time.DateTime#now()
 org.joda.time.DateTimeZone#getDefault()
-
-com.google.common.collect.Iterators#emptyIterator() @ Use Collections.emptyIterator instead

@@ -150,7 +150,8 @@ assert_file() {
     local file="$1"
     local type=$2
     local user=$3
-    local privileges=$4
+    local group=$4
+    local privileges=$5
 
     assert_file_exist "$file"
 
@@ -165,6 +166,11 @@ assert_file() {
     if [ "x$user" != "x" ]; then
         realuser=$(ls -ld "$file" | awk '{print $3}')
         [ "$realuser" = "$user" ]
+    fi
+
+    if [ "x$group" != "x" ]; then
+        realgroup=$(find "$file" -maxdepth 0 -printf "%g")
+        [ "$realgroup" = "$group" ]
     fi
 
     if [ "x$privileges" != "x" ]; then

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.indexing;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -35,6 +34,8 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyMap;
+
 /**
  */
 public class ShardIndexingService extends AbstractIndexShardComponent {
@@ -45,7 +46,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     private final CopyOnWriteArrayList<IndexingOperationListener> listeners = new CopyOnWriteArrayList<>();
 
-    private volatile Map<String, StatsHolder> typesStats = ImmutableMap.of();
+    private volatile Map<String, StatsHolder> typesStats = emptyMap();
 
     public ShardIndexingService(ShardId shardId, Settings indexSettings) {
         super(shardId, indexSettings);

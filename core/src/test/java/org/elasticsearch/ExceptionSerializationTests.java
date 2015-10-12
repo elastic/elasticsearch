@@ -705,7 +705,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(61, org.elasticsearch.cluster.routing.RoutingValidationException.class);
         ids.put(62, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class);
         ids.put(63, org.elasticsearch.indices.AliasFilterParsingException.class);
-        ids.put(64, org.elasticsearch.index.engine.DeleteByQueryFailedEngineException.class);
+        ids.put(64, null); // DeleteByQueryFailedEngineException was removed in 3.0
         ids.put(65, org.elasticsearch.gateway.GatewayException.class);
         ids.put(66, org.elasticsearch.index.shard.IndexShardNotRecoveringException.class);
         ids.put(67, org.elasticsearch.http.HttpException.class);

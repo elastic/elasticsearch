@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices.flush;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -30,6 +29,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
+
 /**
  * The result of performing a sync flush operation on all shards of multiple indices
  */
@@ -40,7 +41,10 @@ public class IndicesSyncedFlushResult implements ToXContent {
 
 
     public IndicesSyncedFlushResult(Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex) {
-        this.shardsResultPerIndex = ImmutableMap.copyOf(shardsResultPerIndex);
+        // shardsResultPerIndex is never modified after it is passed to this
+        // constructor so this is safe even though shardsResultPerIndex is a
+        // ConcurrentHashMap
+        this.shardsResultPerIndex = unmodifiableMap(shardsResultPerIndex);
         this.shardCounts = calculateShardCounts(Iterables.flatten(shardsResultPerIndex.values()));
     }
 

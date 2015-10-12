@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
@@ -25,7 +24,15 @@ import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.ElementVisitor;
 import org.elasticsearch.common.inject.spi.PrivateElements;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)
@@ -92,7 +99,7 @@ public final class PrivateElementsImpl implements PrivateElements {
             for (ExposureBuilder<?> exposureBuilder : exposureBuilders) {
                 exposedKeysToSourcesMutable.put(exposureBuilder.getKey(), exposureBuilder.getSource());
             }
-            exposedKeysToSources = ImmutableMap.copyOf(exposedKeysToSourcesMutable);
+            exposedKeysToSources = unmodifiableMap(exposedKeysToSourcesMutable);
             exposureBuilders = null;
         }
 

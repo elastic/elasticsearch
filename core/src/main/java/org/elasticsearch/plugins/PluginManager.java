@@ -255,7 +255,7 @@ public class PluginManager {
                 copyBinDirectory(sourcePluginBinDirectory, destPluginBinDirectory, pluginHandle.name, terminal);
             } catch (IOException e) {
                 // rollback and remove potentially before installed leftovers
-                terminal.printError("Error copying bin directory [%s] to [%s], cleaning up, reason: %s", sourcePluginBinDirectory, pluginHandle.binDir(environment), e.getMessage());
+                terminal.printError("Error copying bin directory [%s] to [%s], cleaning up, reason: %s", sourcePluginBinDirectory, destPluginBinDirectory, e.getMessage());
                 tryToDeletePath(terminal, extractLocation, pluginHandle.binDir(environment));
                 throw e;
             }
@@ -267,7 +267,7 @@ public class PluginManager {
         boolean needToCopyConfigDirectory = Files.exists(sourceConfigDirectory);
         if (needToCopyConfigDirectory) {
             if (Files.exists(destConfigDirectory) && !Files.isDirectory(destConfigDirectory)) {
-                tryToDeletePath(terminal, extractLocation, pluginHandle.binDir(environment));
+                tryToDeletePath(terminal, extractLocation, destPluginBinDirectory);
                 throw new IOException("plugin config directory " + destConfigDirectory + " is not a directory");
             }
 
@@ -276,8 +276,8 @@ public class PluginManager {
                 moveFilesWithoutOverwriting(sourceConfigDirectory, destConfigDirectory, ".new");
                 terminal.println(VERBOSE, "Installed %s into %s", pluginHandle.name, destConfigDirectory.toAbsolutePath());
             } catch (IOException e) {
-                terminal.printError("Error copying config directory [%s] to [%s], cleaning up, reason: %s", sourceConfigDirectory, pluginHandle.binDir(environment), e.getMessage());
-                tryToDeletePath(terminal, extractLocation, pluginHandle.binDir(environment), pluginHandle.configDir(environment));
+                terminal.printError("Error copying config directory [%s] to [%s], cleaning up, reason: %s", sourceConfigDirectory, destConfigDirectory, e.getMessage());
+                tryToDeletePath(terminal, extractLocation, destPluginBinDirectory, destConfigDirectory);
                 throw e;
             }
         }

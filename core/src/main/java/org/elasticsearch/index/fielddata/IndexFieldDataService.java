@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.fielddata;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -41,6 +39,7 @@ import org.elasticsearch.index.fielddata.plain.PackedArrayIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -56,7 +55,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MappedFieldType.Names;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  */
@@ -70,26 +69,28 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private static final String ARRAY_FORMAT = "array";
     private static final String PAGED_BYTES_FORMAT = "paged_bytes";
 
-    private final static ImmutableMap<String, IndexFieldData.Builder> buildersByType;
-    private final static ImmutableMap<String, IndexFieldData.Builder> docValuesBuildersByType;
-    private final static ImmutableMap<Tuple<String, String>, IndexFieldData.Builder> buildersByTypeAndFormat;
+    private final static Map<String, IndexFieldData.Builder> buildersByType;
+    private final static Map<String, IndexFieldData.Builder> docValuesBuildersByType;
+    private final static Map<Tuple<String, String>, IndexFieldData.Builder> buildersByTypeAndFormat;
     private final CircuitBreakerService circuitBreakerService;
 
     static {
-        buildersByType = MapBuilder.<String, IndexFieldData.Builder>newMapBuilder()
-                .put("string", new PagedBytesIndexFieldData.Builder())
-                .put("float", new FloatArrayIndexFieldData.Builder())
-                .put("double", new DoubleArrayIndexFieldData.Builder())
-                .put("byte", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.BYTE))
-                .put("short", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.SHORT))
-                .put("int", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.INT))
-                .put("long", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.LONG))
-                .put("geo_point", new GeoPointDoubleArrayIndexFieldData.Builder())
-                .put(ParentFieldMapper.NAME, new ParentChildIndexFieldData.Builder())
-                .put(IndexFieldMapper.NAME, new IndexIndexFieldData.Builder())
-                .put("binary", new DisabledIndexFieldData.Builder())
-                .put(BooleanFieldMapper.CONTENT_TYPE, new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.BOOLEAN))
-                .immutableMap();
+        Map<String, IndexFieldData.Builder> buildersByTypeBuilder = new HashMap<>();
+        buildersByTypeBuilder.put("string", new PagedBytesIndexFieldData.Builder());
+        buildersByTypeBuilder.put("float", new FloatArrayIndexFieldData.Builder());
+        buildersByTypeBuilder.put("double", new DoubleArrayIndexFieldData.Builder());
+        buildersByTypeBuilder.put("byte", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.BYTE));
+        buildersByTypeBuilder.put("short", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.SHORT));
+        buildersByTypeBuilder.put("int", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.INT));
+        buildersByTypeBuilder.put("long", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.LONG));
+        buildersByTypeBuilder.put("geo_point", new GeoPointDoubleArrayIndexFieldData.Builder());
+        buildersByTypeBuilder.put(ParentFieldMapper.NAME, new ParentChildIndexFieldData.Builder());
+        buildersByTypeBuilder.put(IndexFieldMapper.NAME, new IndexIndexFieldData.Builder());
+        buildersByTypeBuilder.put("binary", new DisabledIndexFieldData.Builder());
+        buildersByTypeBuilder.put(BooleanFieldMapper.CONTENT_TYPE,
+                new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.BOOLEAN));
+         buildersByType = unmodifiableMap(buildersByTypeBuilder);
+
 
         docValuesBuildersByType = MapBuilder.<String, IndexFieldData.Builder>newMapBuilder()
                 .put("string", new DocValuesIndexFieldData.Builder())

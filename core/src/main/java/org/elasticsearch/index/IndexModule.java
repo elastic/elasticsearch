@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.util.Providers;
-import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -33,10 +33,15 @@ import org.elasticsearch.index.shard.IndexSearcherWrapper;
  */
 public class IndexModule extends AbstractModule {
 
+    private final IndexMetaData indexMetaData;
     // pkg private so tests can mock
     Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
     Class<? extends IndexSearcherWrapper> indexSearcherWrapper = null;
-    
+
+    public IndexModule(IndexMetaData indexMetaData) {
+        this.indexMetaData = indexMetaData;
+    }
+
     @Override
     protected void configure() {
         bind(EngineFactory.class).to(engineFactoryImpl).asEagerSingleton();
@@ -45,10 +50,10 @@ public class IndexModule extends AbstractModule {
         } else {
             bind(IndexSearcherWrapper.class).to(indexSearcherWrapper).asEagerSingleton();
         }
+        bind(IndexMetaData.class).toInstance(indexMetaData);
         bind(IndexService.class).asEagerSingleton();
         bind(IndexServicesProvider.class).asEagerSingleton();
         bind(MapperService.class).asEagerSingleton();
-        bind(IndexAliasesService.class).asEagerSingleton();
         bind(IndexFieldDataService.class).asEagerSingleton();
     }
 

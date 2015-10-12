@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import com.google.common.collect.ImmutableMap;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -95,9 +97,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
         Set<String> nodesIds = new HashSet<>();
         for (SnapshotsInProgress.Entry entry : currentSnapshots) {
-            for (SnapshotsInProgress.ShardSnapshotStatus status : entry.shards().values()) {
-                if (status.nodeId() != null) {
-                    nodesIds.add(status.nodeId());
+            for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> status : entry.shards().values()) {
+                if (status.value.nodeId() != null) {
+                    nodesIds.add(status.value.nodeId());
                 }
             }
         }
@@ -151,15 +153,15 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             for (SnapshotsInProgress.Entry entry : currentSnapshots) {
                 currentSnapshotIds.add(entry.snapshotId());
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
-                for (ImmutableMap.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
-                    SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.getValue();
+                for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shards()) {
+                    SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.value;
                     if (status.nodeId() != null) {
                         // We should have information about this shard from the shard:
                         TransportNodesSnapshotsStatus.NodeSnapshotStatus nodeStatus = nodeSnapshotStatusMap.get(status.nodeId());
                         if (nodeStatus != null) {
                             Map<ShardId, SnapshotIndexShardStatus> shardStatues = nodeStatus.status().get(entry.snapshotId());
                             if (shardStatues != null) {
-                                SnapshotIndexShardStatus shardStatus = shardStatues.get(shardEntry.getKey());
+                                SnapshotIndexShardStatus shardStatus = shardStatues.get(shardEntry.key);
                                 if (shardStatus != null) {
                                     // We have full information about this shard
                                     shardStatusBuilder.add(shardStatus);
@@ -169,7 +171,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         }
                     }
                     final SnapshotIndexShardStage stage;
-                    switch (shardEntry.getValue().state()) {
+                    switch (shardEntry.value.state()) {
                         case FAILED:
                         case ABORTED:
                         case MISSING:
@@ -184,9 +186,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             stage = SnapshotIndexShardStage.DONE;
                             break;
                         default:
-                            throw new IllegalArgumentException("Unknown snapshot state " + shardEntry.getValue().state());
+                            throw new IllegalArgumentException("Unknown snapshot state " + shardEntry.value.state());
                     }
-                    SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey(), stage);
+                    SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.key, stage);
                     shardStatusBuilder.add(shardStatus);
                 }
                 builder.add(new SnapshotStatus(entry.snapshotId(), entry.state(), Collections.unmodifiableList(shardStatusBuilder)));
@@ -205,7 +207,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                     if (snapshot.state().completed()) {
                         Map<ShardId, IndexShardSnapshotStatus> shardStatues = snapshotsService.snapshotShards(snapshotId);
-                        for (ImmutableMap.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatues.entrySet()) {
+                        for (Map.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatues.entrySet()) {
                             shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), shardStatus.getValue()));
                         }
                         final SnapshotsInProgress.State state;

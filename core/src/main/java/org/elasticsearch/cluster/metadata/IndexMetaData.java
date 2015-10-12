@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -29,8 +28,6 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
-import org.elasticsearch.cluster.routing.HashFunction;
-import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -167,16 +164,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String SETTING_PRIORITY = "index.priority";
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
     public static final String SETTING_INDEX_UUID = "index.uuid";
-    public static final String SETTING_LEGACY_ROUTING_HASH_FUNCTION = "index.legacy.routing.hash.type";
-    public static final String SETTING_LEGACY_ROUTING_USE_TYPE = "index.legacy.routing.use_type";
     public static final String SETTING_DATA_PATH = "index.data_path";
     public static final String SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE = "index.shared_filesystem.recover_on_any_node";
     public static final String INDEX_UUID_NA_VALUE = "_na_";
 
 
-    // hard-coded hash function as of 2.0
-    // older indices will read which hash function to use in their index settings
-    private static final HashFunction MURMUR3_HASH_FUNCTION = new Murmur3HashFunction();
+
 
     private final String index;
     private final long version;
@@ -200,8 +193,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private final Version indexCreatedVersion;
     private final Version indexUpgradedVersion;
     private final org.apache.lucene.util.Version minimumCompatibleLuceneVersion;
-    private final HashFunction routingHashFunction;
-    private final boolean useTypeForRouting;
 
     private IndexMetaData(String index, long version, State state, Settings settings, ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, Custom> customs) {
         if (settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) == null) {
@@ -249,23 +240,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         } else {
             this.minimumCompatibleLuceneVersion = null;
         }
-        final String hashFunction = settings.get(SETTING_LEGACY_ROUTING_HASH_FUNCTION);
-        if (hashFunction == null) {
-            routingHashFunction = MURMUR3_HASH_FUNCTION;
-        } else {
-            final Class<? extends HashFunction> hashFunctionClass;
-            try {
-                hashFunctionClass = Class.forName(hashFunction).asSubclass(HashFunction.class);
-            } catch (ClassNotFoundException|NoClassDefFoundError e) {
-                throw new ElasticsearchException("failed to load custom hash function [" + hashFunction + "]", e);
-            }
-            try {
-                routingHashFunction = hashFunctionClass.newInstance();
-            } catch (InstantiationException | IllegalAccessException e) {
-                throw new IllegalStateException("Cannot instantiate hash function", e);
-            }
-        }
-        useTypeForRouting = settings.getAsBoolean(SETTING_LEGACY_ROUTING_USE_TYPE, false);
     }
 
     public String index() {
@@ -333,29 +307,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
      */
     public org.apache.lucene.util.Version getMinimumCompatibleVersion() {
         return minimumCompatibleLuceneVersion;
-    }
-
-    /**
-     * Return the {@link HashFunction} that should be used for routing.
-     */
-    public HashFunction routingHashFunction() {
-        return routingHashFunction;
-    }
-
-    public HashFunction getRoutingHashFunction() {
-        return routingHashFunction();
-    }
-
-    /**
-     * Return whether routing should use the _type in addition to the _id in
-     * order to decide which shard a document should go to.
-     */
-    public boolean routingUseType() {
-        return useTypeForRouting;
-    }
-
-    public boolean getRoutingUseType() {
-        return routingUseType();
     }
 
     public long creationDate() {

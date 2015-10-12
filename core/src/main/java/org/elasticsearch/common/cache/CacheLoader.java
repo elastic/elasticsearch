@@ -17,22 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.elasticsearch.common.cache;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
-
-import java.io.IOException;
-
-/** @deprecated Delete-by-query is removed in 2.0, but we keep this so translog can replay on upgrade. */
-@Deprecated
-public class DeleteByQueryFailedEngineException extends EngineException {
-
-    public DeleteByQueryFailedEngineException(ShardId shardId, Engine.DeleteByQuery deleteByQuery, Throwable cause) {
-        super(shardId, "Delete by query failed for [" + deleteByQuery.query() + "]", cause);
-    }
-
-    public DeleteByQueryFailedEngineException(StreamInput in) throws IOException{
-        super(in);
-    }
+@FunctionalInterface
+public interface CacheLoader<K, V> {
+    V load(K key) throws Exception;
 }

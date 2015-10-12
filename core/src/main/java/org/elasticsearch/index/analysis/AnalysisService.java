@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -37,15 +36,17 @@ import java.io.Closeable;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
+
 /**
  *
  */
 public class AnalysisService extends AbstractIndexComponent implements Closeable {
 
-    private final ImmutableMap<String, NamedAnalyzer> analyzers;
-    private final ImmutableMap<String, TokenizerFactory> tokenizers;
-    private final ImmutableMap<String, CharFilterFactory> charFilters;
-    private final ImmutableMap<String, TokenFilterFactory> tokenFilters;
+    private final Map<String, NamedAnalyzer> analyzers;
+    private final Map<String, TokenizerFactory> tokenizers;
+    private final Map<String, CharFilterFactory> charFilters;
+    private final Map<String, TokenFilterFactory> tokenFilters;
 
     private final NamedAnalyzer defaultAnalyzer;
     private final NamedAnalyzer defaultIndexAnalyzer;
@@ -98,7 +99,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             }
         }
 
-        this.tokenizers = ImmutableMap.copyOf(tokenizers);
+        this.tokenizers = unmodifiableMap(tokenizers);
 
         Map<String, CharFilterFactory> charFilters = new HashMap<>();
         if (charFilterFactoryFactories != null) {
@@ -133,7 +134,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             }
         }
 
-        this.charFilters = ImmutableMap.copyOf(charFilters);
+        this.charFilters = unmodifiableMap(charFilters);
 
         Map<String, TokenFilterFactory> tokenFilters = new HashMap<>();
         if (tokenFilterFactoryFactories != null) {
@@ -168,7 +169,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 }
             }
         }
-        this.tokenFilters = ImmutableMap.copyOf(tokenFilters);
+        this.tokenFilters = unmodifiableMap(tokenFilters);
 
         Map<String, AnalyzerProvider> analyzerProviders = new HashMap<>();
         if (analyzerFactoryFactories != null) {
@@ -275,7 +276,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        this.analyzers = ImmutableMap.copyOf(analyzers);
+        this.analyzers = unmodifiableMap(analyzers);
     }
 
     @Override

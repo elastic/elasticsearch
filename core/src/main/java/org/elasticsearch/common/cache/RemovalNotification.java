@@ -17,26 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.validate.template;
+package org.elasticsearch.common.cache;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.script.Template;
+public class RemovalNotification<K, V> {
+    public enum RemovalReason {REPLACED, INVALIDATED, EVICTED}
 
-public class RenderSearchTemplateRequestBuilder extends ActionRequestBuilder<RenderSearchTemplateRequest, RenderSearchTemplateResponse, RenderSearchTemplateRequestBuilder> {
+    private final K key;
+    private final V value;
+    private final RemovalReason removalReason;
 
-    public RenderSearchTemplateRequestBuilder(ElasticsearchClient client,
-            RenderSearchTemplateAction action) {
-        super(client, action, new RenderSearchTemplateRequest());
-    }
-    
-    public RenderSearchTemplateRequestBuilder template(Template template) {
-        request.template(template);
-        return this;
-    }
-    
-    public Template template() {
-        return request.template();
+    public RemovalNotification(K key, V value, RemovalReason removalReason) {
+        this.key = key;
+        this.value = value;
+        this.removalReason = removalReason;
     }
 
+    public K getKey() {
+        return key;
+    }
+
+    public V getValue() {
+        return value;
+    }
+
+    public RemovalReason getRemovalReason() {
+        return removalReason;
+    }
 }

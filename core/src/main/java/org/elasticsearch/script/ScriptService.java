@@ -19,13 +19,6 @@
 
 package org.elasticsearch.script;
 
-import java.nio.charset.StandardCharsets;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -43,6 +36,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.RemovalListener;
+import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -67,13 +64,16 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -93,8 +93,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private final String defaultLang;
 
     private final Set<ScriptEngineService> scriptEngines;
-    private final ImmutableMap<String, ScriptEngineService> scriptEnginesByLang;
-    private final ImmutableMap<String, ScriptEngineService> scriptEnginesByExt;
+    private final Map<String, ScriptEngineService> scriptEnginesByLang;
+    private final Map<String, ScriptEngineService> scriptEnginesByExt;
 
     private final ConcurrentMap<String, CompiledScript> staticCache = ConcurrentCollections.newConcurrentMap();
 
@@ -153,17 +153,17 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
         this.defaultLang = settings.get(DEFAULT_SCRIPTING_LANGUAGE_SETTING, DEFAULT_LANG);
 
-        CacheBuilder cacheBuilder = CacheBuilder.newBuilder();
+        CacheBuilder<String, CompiledScript> cacheBuilder = CacheBuilder.builder();
         if (cacheMaxSize >= 0) {
-            cacheBuilder.maximumSize(cacheMaxSize);
+            cacheBuilder.setMaximumWeight(cacheMaxSize);
         }
         if (cacheExpire != null) {
-            cacheBuilder.expireAfterAccess(cacheExpire.nanos(), TimeUnit.NANOSECONDS);
+            cacheBuilder.setExpireAfterAccess(cacheExpire.nanos());
         }
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
-        ImmutableMap.Builder<String, ScriptEngineService> enginesByLangBuilder = ImmutableMap.builder();
-        ImmutableMap.Builder<String, ScriptEngineService> enginesByExtBuilder = ImmutableMap.builder();
+        Map<String, ScriptEngineService> enginesByLangBuilder = new HashMap<>();
+        Map<String, ScriptEngineService> enginesByExtBuilder = new HashMap<>();
         for (ScriptEngineService scriptEngine : scriptEngines) {
             for (String type : scriptEngine.types()) {
                 enginesByLangBuilder.put(type, scriptEngine);
@@ -172,8 +172,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 enginesByExtBuilder.put(ext, scriptEngine);
             }
         }
-        this.scriptEnginesByLang = enginesByLangBuilder.build();
-        this.scriptEnginesByExt = enginesByExtBuilder.build();
+        this.scriptEnginesByLang = unmodifiableMap(enginesByLangBuilder);
+        this.scriptEnginesByExt = unmodifiableMap(enginesByExtBuilder);
 
         this.scriptModes = new ScriptModes(this.scriptEnginesByLang, scriptContextRegistry, settings);
 
@@ -301,7 +301,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         }
 
         String cacheKey = getCacheKey(scriptEngineService, type == ScriptType.INLINE ? null : name, code);
-        CompiledScript compiledScript = cache.getIfPresent(cacheKey);
+        CompiledScript compiledScript = cache.get(cacheKey);
 
         if (compiledScript == null) {
             //Either an un-cached inline script or indexed script
@@ -493,12 +493,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
      * script has been removed from the cache
      */
     private class ScriptCacheRemovalListener implements RemovalListener<String, CompiledScript> {
-
         @Override
         public void onRemoval(RemovalNotification<String, CompiledScript> notification) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("notifying script services of script removal due to: [{}]", notification.getCause());
-            }
             scriptMetrics.onCacheEviction();
             for (ScriptEngineService service : scriptEngines) {
                 try {

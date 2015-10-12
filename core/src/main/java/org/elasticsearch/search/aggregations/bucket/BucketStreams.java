@@ -19,16 +19,18 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 public class BucketStreams {
-
-    private static ImmutableMap<BytesReference, Stream> STREAMS = ImmutableMap.of();
+    private static Map<BytesReference, Stream> streams = emptyMap();
 
     /**
      * A stream that knows how to read a bucket from the input.
@@ -45,11 +47,11 @@ public class BucketStreams {
      * @param types     The types associated with the streams
      */
     public static synchronized void registerStream(Stream stream, BytesReference... types) {
-        MapBuilder<BytesReference, Stream> uStreams = MapBuilder.newMapBuilder(STREAMS);
+        Map<BytesReference, Stream> newStreams = new HashMap<>(streams);
         for (BytesReference type : types) {
-            uStreams.put(type, stream);
+            newStreams.put(type, stream);
         }
-        STREAMS = uStreams.immutableMap();
+        streams = unmodifiableMap(newStreams);
     }
 
     /**
@@ -59,7 +61,7 @@ public class BucketStreams {
      * @return  The associated stream
      */
     public static Stream stream(BytesReference type) {
-        return STREAMS.get(type);
+        return streams.get(type);
     }
 
 }

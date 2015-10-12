@@ -27,11 +27,6 @@ apply plugin: 'nebula.optional-base'
 
 archivesBaseName = 'elasticsearch'
 
-nexus {
-  repositoryUrl = "file://localhost/tmp/myRepo/"
-  snapshotRepositoryUrl = "file://localhost/tmp/myRepo/"
-}
-
 versions << [
   jackson:  '2.6.2',
   log4j:    '1.2.17',

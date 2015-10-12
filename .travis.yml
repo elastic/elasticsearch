@@ -8,3 +8,6 @@ env:
 
 notifications:
   email: false
+
+after_success:
+  - pip install --user codecov && codecov

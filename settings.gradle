@@ -3,7 +3,10 @@ rootProject.name = 'elasticsearch'
 String[] projects = [
   'rest-api-spec',
   'core',
-  'distribution',
+  'distribution:zip',
+  'distribution:tar',
+  'distribution:deb',
+  'distribution:rpm',
   'test-framework',
   'plugins:analysis-icu',
   'plugins:analysis-kuromoji',

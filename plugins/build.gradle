@@ -20,6 +20,8 @@
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 
 subprojects {
+  group = 'org.elasticsearch.plugin'
+
   apply plugin: 'elasticsearch.esplugin'
   apply plugin: 'com.bmuschko.nexus'
 

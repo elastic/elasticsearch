@@ -44,7 +44,7 @@ class DependencyLicensesTask extends DefaultTask {
         UpdateShasTask update = project.tasks.create(type: UpdateShasTask, name: 'updateShas')
         update.parentTask = task
         task.configure(closure)
-        project.tasks.getByName('check').dependsOn(task)
+        project.check.dependsOn(task)
         return task
     }
 

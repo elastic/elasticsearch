@@ -21,79 +21,90 @@ import org.apache.tools.ant.filters.FixCrLfFilter
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 
-plugins {
-  id "nebula.os-package" version "2.2.6"
-}
-apply plugin: 'distribution'
-
-assemble.dependsOn buildRpm
-assemble.dependsOn buildDeb
-// TODO: remove, once rpm and deb are depending ont he right stuff
-buildRpm.mustRunAfter distZip
-buildDeb.mustRunAfter distZip
-
-// this allows doing a project substitution on the zip module
-artifacts.add('default', distZip)
-
-artifacts {
-  archives buildDeb
-  archives buildRpm
+// for deb/rpm
+buildscript {
+  repositories {
+    maven {
+      url "https://plugins.gradle.org/m2/"
+    }
+  }
+  dependencies {
+    classpath 'com.netflix.nebula:gradle-ospackage-plugin:3.1.0'
+  }
 }
 
-// TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
-Map expansions = [
-  'project.version': version,
-  'project.parent.artifactId': 'distributions',
-  // Default values for min/max heap memory allocated to elasticsearch java process
-  'packaging.elasticsearch.heap.min': '256m',
-  'packaging.elasticsearch.heap.max': '1g',
-  'project.build.finalName': "elasticsearch-${version}",
-  // Default configuration directory and file to use in bin/plugin script
-  'packaging.plugin.default.config.dir': '$ES_HOME/config',
-  'packaging.plugin.default.config.file': '$ES_HOME/config/elasticsearch.yml',
-  'packaging.env.file': '',
-  // TODO: do we really need this marker? the tgz and zip are exactly the same,
-  // we should not need to specify twice just to change this
-  'packaging.type': 'tar.gz',
-]
-
-Configuration deps = project("${projectsPrefix}:core").configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
-
-CopySpec libFiles = copySpec {
-  into 'lib'
-  from project("${projectsPrefix}:core").jar
-  from deps
+allprojects {
+  project.ext {
+    // this is common configuration for distributions, but we also add it here for the license check to use
+    deps = project("${projectsPrefix}:core").configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
+  }
 }
 
+subprojects {
+  /*****************************************************************************
+   *                              Maven config                                 *
+   *****************************************************************************/
+  // note: the group must be correct before applying the nexus plugin, or it will capture the wrong value...
+  project.group = "org.elasticsearch.distribution.${project.name}"
+  apply plugin: 'com.bmuschko.nexus'
+  // we must create our own install task, because it is only added when the java plugin is added
+  task install(type: Upload, description: "Installs the 'archives' artifacts into the local Maven repository.", group: 'Upload') {
+    configuration = configurations.archives
+    MavenRepositoryHandlerConvention repositoriesHandler = (MavenRepositoryHandlerConvention)getRepositories().getConvention().getPlugin(MavenRepositoryHandlerConvention);
+    repositoriesHandler.mavenInstaller();
+  }
 
-// TODO: dependency checks should really be when building the jar itself, which would remove the need
-// for this hackery and instead we can do this inside the BuildPlugin
-//task check() {}
-DependencyLicensesTask.configure(project) {
-  dependsOn = [deps.buildDependencies]
-  dependencies = deps
-  mapping from: /lucene-.*/, to: 'lucene'
-  mapping from: /jackson-.*/, to: 'jackson'
+  // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
+  /*****************************************************************************
+   *             Properties to expand when copying packaging files             *
+   *****************************************************************************/
+  project.ext {
+    expansions = [
+      'project.version': version,
+      'project.parent.artifactId': 'distributions',
+      // Default values for min/max heap memory allocated to elasticsearch java process
+      'packaging.elasticsearch.heap.min': '256m',
+      'packaging.elasticsearch.heap.max': '1g',
+      'project.build.finalName': "elasticsearch-${version}",
+      // Default configuration directory and file to use in bin/plugin script
+      'packaging.plugin.default.config.dir': '$ES_HOME/config',
+      'packaging.plugin.default.config.file': '$ES_HOME/config/elasticsearch.yml',
+      'packaging.env.file': '',
+      // TODO: do we really need this marker? the tgz and zip are exactly the same,
+      // we should not need to specify twice just to change this
+      'packaging.type': 'tar.gz',
+    ]
+
+    /*****************************************************************************
+     *                   Common files in all distributions                       *
+     *****************************************************************************/
+    libFiles = copySpec {
+      into 'lib'
+      from project("${projectsPrefix}:core").jar
+      from deps
+    }
+
+    configFiles = copySpec {
+      from 'src/main/resources/config'
+    }
+
+    commonFiles = copySpec {
+      // everything except windows files, and config is separate
+      from 'src/main/resources'
+      exclude 'bin/*.bat'
+      exclude 'bin/*.exe'
+      exclude 'config/**'
+      filesMatching('bin/*') { it.setMode(0755) }
+    }
+  }
 }
 
-CopySpec configFiles = copySpec {
-  from 'src/main/resources/config'
-}
-
-CopySpec commonFiles = copySpec {
-  // everything except windows files, and config is separate
-  from 'src/main/resources'
-  exclude 'bin/*.bat'
-  exclude 'bin/*.exe'
-  exclude 'config/**'
-  filesMatching('bin/*') { it.setMode(0755) }
-}
-
-// this handles zip and tgz
-distributions {
-  main {
-    contents {
-      baseName 'elasticsearch'
+/*****************************************************************************
+ *                         Zip and tgz configuration                         *
+ *****************************************************************************/
+configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' }) {
+  project.ext.archivesFiles = copySpec {
+    into("elasticsearch-${version}") {
       with libFiles
       into('config') {
         with configFiles
@@ -113,16 +124,16 @@ distributions {
   }
 }
 
-// tell tar to use gzip
-distTar.compression = Compression.GZIP
-
+/*****************************************************************************
+ *                         Deb and rpm configuration                         *
+ *****************************************************************************/
 // ospackage supports adding empty dirs with directory() to rpm, but not deb...yet
 // https://github.com/nebula-plugins/gradle-ospackage-plugin/issues/115
 // however, even adding just for rpm doesn't seem to work...
 // gradle may also get native support https://issues.gradle.org/browse/GRADLE-1671
 // in the meantime, we hack this by copying an empty dir
 // TODO: HACK DOES NOT WORK
-ext.emptyDir = new File(project.buildDir, 'empty') 
+/*ext.emptyDir = new File(project.buildDir, 'empty') 
 Closure emptyDirSpec() {
   return {
     from emptyDir
@@ -135,34 +146,56 @@ task createEmptyDir << {
 }
 buildRpm.dependsOn createEmptyDir
 buildDeb.dependsOn createEmptyDir
+*/
 
-// common setup for rpm and deb
-ospackage {
-  packageName = 'elasticsearch'
-  // TODO: '-' is an illegal character in rpm version...redline croaks
-  version = '3.0.0'
-  into '/usr/share/elasticsearch'
-  user 'root'
-  permissionGroup 'root'
-  with libFiles
-  with copySpec {
-    with commonFiles
-    // TODO: omit LICENSE.txt file on deb??
+/*****************************************************************************
+ *                         Deb and rpm configuration                         *
+ *****************************************************************************/
+configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' }) {
+  apply plugin: 'nebula.ospackage-base'
+  ospackage {
+    packageName = 'elasticsearch'
+    // TODO: '-' is an illegal character in rpm version...redline croaks
+    version = '3.0.0'
+    into '/usr/share/elasticsearch'
+    user 'root'
+    permissionGroup 'root'
+    with libFiles
+    with copySpec {
+      with commonFiles
+      // TODO: omit LICENSE.txt file on deb??
+    }
+    into('/etc/elasticsearch') {
+      with configFiles
+      //into('scripts', emptyDirSpec())
+      createDirectoryEntry = true
+      includeEmptyDirs = true
+    }
+    directory('/etc/elasticsearch/scripts')
   }
-  into('/etc/elasticsearch') {
-    with configFiles
-    into('scripts', emptyDirSpec())
-    createDirectoryEntry = true
-    includeEmptyDirs = true
+  if (project.name == 'deb') {
+    task buildDeb(type: Deb) {
+      dependsOn deps
+    }
+    artifacts {
+      archives buildDeb
+    }
+  } else if (project.name == 'rpm') {
+    task buildRpm(type: Rpm) {
+      dependsOn deps
+    }
+    artifacts {
+      archives buildRpm
+    }
   }
-  directory('/etc/elasticsearch/scripts')
 }
 
-Map debExpansions = expansions + [
-
-]
-
-Map rpmExpansions = expansions + [
-
-]
-
+// TODO: dependency checks should really be when building the jar itself, which would remove the need
+// for this hackery and instead we can do this inside the BuildPlugin
+task check(group: 'Verification', description: 'Runs all checks.') {} // dummy task!
+DependencyLicensesTask.configure(project) {
+  dependsOn = [deps]
+  dependencies = deps
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /jackson-.*/, to: 'jackson'
+}

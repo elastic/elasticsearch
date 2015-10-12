@@ -58,7 +58,7 @@ subprojects {
     // we have our own username/password prompts so that they only happen once
     // TODO: add gpg signing prompts
     project.gradle.taskGraph.whenReady { taskGraph ->
-      if (taskGraph.allTasks.any { it instanceof Upload }) {
+      if (taskGraph.allTasks.any { it.name == 'uploadArchives' }) {
         Console console = System.console()
         if (project.hasProperty('nexusUsername') == false) {
           String nexusUsername = console.readLine('\nNexus username: ')

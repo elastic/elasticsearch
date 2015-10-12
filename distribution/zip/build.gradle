@@ -5,6 +5,7 @@ task buildZip(type: Zip, dependsOn: deps) {
 }
 
 artifacts {
+  'default' buildZip
   archives buildZip
 }
 

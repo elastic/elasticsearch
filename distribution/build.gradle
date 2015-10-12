@@ -85,12 +85,12 @@ subprojects {
     }
 
     configFiles = copySpec {
-      from 'src/main/resources/config'
+      from '../src/main/resources/config'
     }
 
     commonFiles = copySpec {
       // everything except windows files, and config is separate
-      from 'src/main/resources'
+      from '../src/main/resources'
       exclude 'bin/*.bat'
       exclude 'bin/*.exe'
       exclude 'config/**'
@@ -111,13 +111,13 @@ configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' }) {
       }
       with copySpec {
         with commonFiles
-        from('src/main/resources') {
+        from('../src/main/resources') {
           include 'bin/*.bat' 
           filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
         }
         MavenFilteringHack.filter(it, expansions)
       }
-      from('src/main/resources') {
+      from('../src/main/resources') {
         include 'bin/*.exe' 
       } 
     }

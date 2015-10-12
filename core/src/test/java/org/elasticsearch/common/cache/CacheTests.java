@@ -460,38 +460,6 @@ public class CacheTests extends ESTestCase {
         assertEquals(replacements, notifications);
     }
 
-    public void testComputeIfAbsentCallsOnce() throws InterruptedException {
-        int numberOfThreads = randomIntBetween(2, 200);
-        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
-        List<Thread> threads = new ArrayList<>();
-        AtomicReferenceArray flags = new AtomicReferenceArray(numberOfEntries);
-        for (int j = 0; j < numberOfEntries; j++) {
-            flags.set(j, false);
-        }
-        CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
-        for (int i = 0; i < numberOfThreads; i++) {
-            Thread thread = new Thread(() -> {
-                latch.countDown();
-                for (int j = 0; j < numberOfEntries; j++) {
-                    try {
-                        cache.computeIfAbsent(j, key -> {
-                            assertTrue(flags.compareAndSet(key, false, true));
-                            return Integer.toString(key);
-                        });
-                    } catch (ExecutionException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            });
-            threads.add(thread);
-            thread.start();
-        }
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
-    }
-
     public void testComputeIfAbsentThrowsExceptionIfLoaderReturnsANullValue() {
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
         try {

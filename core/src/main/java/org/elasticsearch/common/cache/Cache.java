@@ -199,16 +199,27 @@ public class Cache<K, V> {
         /**
          * put an entry into the segment
          *
-         * @param key   the key of the entry to add to the cache
-         * @param value the value of the entry to add to the cache
-         * @param now   the access time of this entry
-         * @return a tuple of the new entry and the existing entry, if there was one otherwise null
+         * @param key          the key of the entry to add to the cache
+         * @param value        the value of the entry to add to the cache
+         * @param now          the access time of this entry
+         * @param onlyIfAbsent whether or not to unconditionally put the association or only if one does not exist
+         * @return a tuple of the entry to be promoted and the entry to removed or null if no such entry
          */
-        Tuple<Entry<K, V>, Entry<K, V>> put(K key, V value, long now) {
+        Tuple<Entry<K, V>, Entry<K, V>> put(K key, V value, long now, boolean onlyIfAbsent) {
             Entry<K, V> entry = new Entry<>(key, value, now);
             Entry<K, V> existing;
             try (ReleasableLock ignored = writeLock.acquire()) {
-                existing = map.put(key, entry);
+                if (!onlyIfAbsent) {
+                    existing = map.put(key, entry);
+                } else {
+                    existing = map.get(key);
+                    if (existing == null) {
+                        map.put(key, entry);
+                    } else {
+                        entry = existing;
+                        existing = null;
+                    }
+                }
             }
             return Tuple.tuple(entry, existing);
         }
@@ -291,33 +302,22 @@ public class Cache<K, V> {
      *
      * @param key    the key whose associated value is to be returned or computed for if non-existant
      * @param loader the function to compute a value given a key
-     * @return the current (existing or computed) value associated with the specified key, or null if the computed
-     * value is null
+     * @return the current (existing or computed) value associated with the specified key
      * @throws ExecutionException thrown if loader throws an exception
      */
     public V computeIfAbsent(K key, CacheLoader<K, V> loader) throws ExecutionException {
         long now = now();
         V value = get(key, now);
         if (value == null) {
-            CacheSegment<K, V> segment = getCacheSegment(key);
-            // we synchronize against the segment lock; this is to avoid a scenario where another thread is inserting
-            // a value for the same key via put which would not be observed on this thread without a mechanism
-            // synchronizing the two threads; it is possible that the segment lock will be too expensive here (it blocks
-            // readers too!) so consider this as a possible place to optimize should contention be observed
-            try (ReleasableLock ignored = segment.writeLock.acquire()) {
-                value = get(key, now);
-                if (value == null) {
-                    try {
-                        value = loader.load(key);
-                    } catch (Exception e) {
-                        throw new ExecutionException(e);
-                    }
-                    if (value == null) {
-                        throw new ExecutionException(new NullPointerException("loader returned a null value"));
-                    }
-                    put(key, value, now);
-                }
+            try {
+                value = loader.load(key);
+            } catch (Exception e) {
+                throw new ExecutionException(e);
             }
+            if (value == null) {
+                throw new ExecutionException(new NullPointerException("loader returned a null value"));
+            }
+            put(key, value, now, true);
         }
         return value;
     }
@@ -331,12 +331,12 @@ public class Cache<K, V> {
      */
     public void put(K key, V value) {
         long now = now();
-        put(key, value, now);
+        put(key, value, now, false);
     }
 
-    private void put(K key, V value, long now) {
+    private void put(K key, V value, long now, boolean onlyIfAbsent) {
         CacheSegment<K, V> segment = getCacheSegment(key);
-        Tuple<Entry<K, V>, Entry<K, V>> tuple = segment.put(key, value, now);
+        Tuple<Entry<K, V>, Entry<K, V>> tuple = segment.put(key, value, now, onlyIfAbsent);
         boolean replaced = false;
         try (ReleasableLock ignored = lruLock.acquire()) {
             if (tuple.v2() != null && tuple.v2().state == State.EXISTING) {

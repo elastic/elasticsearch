@@ -493,15 +493,14 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
         ShapeBuilder shape = RandomShapeGenerator.createShape(random());
         try {
-            indexRandom(true, client().prepareIndex("geo_points_only", "type1", "1").setSource(jsonBuilder().startObject()
-                    .field("location", shape).endObject()));
+            index("geo_points_only", "type1", "1", jsonBuilder().startObject().field("location", shape).endObject());
         } catch (Throwable e) {
             // RandomShapeGenerator created something other than a POINT type, verify the correct exception is thrown
-            assertThat(e.getMessage(), containsString("MapperParsingException"));
-            assertThat(e.getMessage(), containsString("is configured for points only"));
+            assertThat(e.getCause().getMessage(), containsString("is configured for points only"));
             return;
         }
 
+        refresh();
         // test that point was inserted
         SearchResponse response = client().prepareSearch()
                 .setQuery(geoIntersectionQuery("location", shape))

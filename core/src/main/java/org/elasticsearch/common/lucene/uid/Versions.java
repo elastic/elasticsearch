@@ -43,7 +43,7 @@ public class Versions {
 
     /**
      * used when the document is old and doesn't contain any version information in the index
-     * see {@link PerThreadIDAndVersionLookup#lookup(org.apache.lucene.util.BytesRef)}
+     * see {@link PerThreadIDAndVersionLookup#lookup}
      */
     public static final long NOT_SET = -2L;
 

@@ -17,12 +17,17 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.*;
 
+// numClientNodes is set to 0 in this test because the NodeStatsCollector never collects data on client nodes:
+// the NodeStatsCollector.shouldCollect() method checks if the node has node files and client nodes don't have
+// such files.
+@ClusterScope(numClientNodes = 0)
 public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
 
     @Test
@@ -52,29 +57,34 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/683")
+    @Test
     public void testNodeStatsCollectorWithLicensing() {
-        String[] nodes = internalCluster().getNodeNames();
-        for (String node : nodes) {
-            logger.debug("--> creating a new instance of the collector");
-            NodeStatsCollector collector = newNodeStatsCollector(node);
-            assertNotNull(collector);
+        try {
+            String[] nodes = internalCluster().getNodeNames();
+            for (String node : nodes) {
+                logger.debug("--> creating a new instance of the collector");
+                NodeStatsCollector collector = newNodeStatsCollector(node);
+                assertNotNull(collector);
 
-            logger.debug("--> enabling license and checks that the collector can collect data");
+                logger.debug("--> enabling license and checks that the collector can collect data");
+                enableLicense();
+                assertCanCollect(collector);
+
+                logger.debug("--> starting graceful period and checks that the collector can still collect data");
+                beginGracefulPeriod();
+                assertCanCollect(collector);
+
+                logger.debug("--> ending graceful period and checks that the collector cannot collect data");
+                endGracefulPeriod();
+                assertCannotCollect(collector);
+
+                logger.debug("--> disabling license and checks that the collector cannot collect data");
+                disableLicense();
+                assertCannotCollect(collector);
+            }
+        } finally {
+            // Ensure license is enabled before finishing the test
             enableLicense();
-            assertCanCollect(collector);
-
-            logger.debug("--> starting graceful period and checks that the collector can still collect data");
-            beginGracefulPeriod();
-            assertCanCollect(collector);
-
-            logger.debug("--> ending graceful period and checks that the collector cannot collect data");
-            endGracefulPeriod();
-            assertCannotCollect(collector);
-
-            logger.debug("--> disabling license and checks that the collector cannot collect data");
-            disableLicense();
-            assertCannotCollect(collector);
         }
     }
 

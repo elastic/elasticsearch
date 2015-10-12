@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.collector.cluster;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.client.Client;
@@ -13,6 +14,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
@@ -62,7 +64,16 @@ public class ClusterInfoCollector extends AbstractCollector<ClusterInfoMarvelDoc
         License license = marvelLicensee.getLicense();
 
         // Retrieves additional cluster stats
-        ClusterStatsResponse clusterStats = client.admin().cluster().prepareClusterStats().get(marvelSettings.clusterStatsTimeout());
+        ClusterStatsResponse clusterStats = null;
+        try {
+            clusterStats = client.admin().cluster().prepareClusterStats().get(marvelSettings.clusterStatsTimeout());
+        } catch (ElasticsearchSecurityException e) {
+            if (LicenseUtils.isLicenseExpiredException(e)) {
+                logger.trace("collector [{}] - unable to collect data because of expired license", e, name());
+            } else {
+                throw e;
+            }
+        }
 
         String clusterUUID = clusterUUID();
         results.add(new ClusterInfoMarvelDoc(MarvelSettings.MARVEL_DATA_INDEX_NAME, TYPE, clusterUUID, clusterUUID, System.currentTimeMillis(),

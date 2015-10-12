@@ -20,10 +20,7 @@ import static org.hamcrest.Matchers.*;
 
 public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
 
-    // This test is muted for now until licensing stuff is updated.
-    // Right now AbstractCollectorTestCase only registers license for Marvel,
-    // so license count at line 56 will always be 1 even when Shield is enabled
-    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/683")
+    @Test
     public void testClusterInfoCollector() throws Exception {
         Collection<MarvelDoc> results = newClusterInfoCollector().doCollect();
         assertThat(results, hasSize(1));
@@ -46,45 +43,50 @@ public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
         assertThat(clusterInfoMarvelDoc.getClusterStats().getNodesStats().getCounts().getTotal(), equalTo(internalCluster().getNodeNames().length));
     }
 
-    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/683")
+    @Test
     public void testClusterInfoCollectorWithLicensing() {
-        String[] nodes = internalCluster().getNodeNames();
-        for (String node : nodes) {
-            logger.debug("--> creating a new instance of the collector");
-            ClusterInfoCollector collector = newClusterInfoCollector(node);
-            assertNotNull(collector);
+        try {
+            String[] nodes = internalCluster().getNodeNames();
+            for (String node : nodes) {
+                logger.debug("--> creating a new instance of the collector");
+                ClusterInfoCollector collector = newClusterInfoCollector(node);
+                assertNotNull(collector);
 
-            logger.debug("--> enabling license and checks that the collector can collect data (if node is master)");
+                logger.debug("--> enabling license and checks that the collector can collect data (if node is master)");
+                enableLicense();
+                if (node.equals(internalCluster().getMasterName())) {
+                    assertCanCollect(collector);
+                } else {
+                    assertCannotCollect(collector);
+                }
+
+                logger.debug("--> starting graceful period and checks that the collector can still collect data (if node is master)");
+                beginGracefulPeriod();
+                if (node.equals(internalCluster().getMasterName())) {
+                    assertCanCollect(collector);
+                } else {
+                    assertCannotCollect(collector);
+                }
+
+                logger.debug("--> ending graceful period and checks that the collector can still collect data (if node is master)");
+                endGracefulPeriod();
+                if (node.equals(internalCluster().getMasterName())) {
+                    assertCanCollect(collector);
+                } else {
+                    assertCannotCollect(collector);
+                }
+
+                logger.debug("--> disabling license and checks that the collector can still collect data (if node is master)");
+                disableLicense();
+                if (node.equals(internalCluster().getMasterName())) {
+                    assertCanCollect(collector);
+                } else {
+                    assertCannotCollect(collector);
+                }
+            }
+        } finally {
+            // Ensure license is enabled before finishing the test
             enableLicense();
-            if (node.equals(internalCluster().getMasterName())) {
-                assertCanCollect(collector);
-            } else {
-                assertCannotCollect(collector);
-            }
-
-            logger.debug("--> starting graceful period and checks that the collector can still collect data (if node is master)");
-            beginGracefulPeriod();
-            if (node.equals(internalCluster().getMasterName())) {
-                assertCanCollect(collector);
-            } else {
-                assertCannotCollect(collector);
-            }
-
-            logger.debug("--> ending graceful period and checks that the collector can still collect data (if node is master)");
-            endGracefulPeriod();
-            if (node.equals(internalCluster().getMasterName())) {
-                assertCanCollect(collector);
-            } else {
-                assertCannotCollect(collector);
-            }
-
-            logger.debug("--> disabling license and checks that the collector can still collect data (if node is master)");
-            disableLicense();
-            if (node.equals(internalCluster().getMasterName())) {
-                assertCanCollect(collector);
-            } else {
-                assertCannotCollect(collector);
-            }
         }
     }
 

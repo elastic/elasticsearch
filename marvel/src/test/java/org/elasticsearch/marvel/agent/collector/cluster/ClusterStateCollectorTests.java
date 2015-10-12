@@ -119,37 +119,42 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/683")
+    @Test
     public void testClusterStateCollectorWithLicensing() {
-        String[] nodes = internalCluster().getNodeNames();
-        for (String node : nodes) {
-            logger.debug("--> creating a new instance of the collector");
-            ClusterStateCollector collector = newClusterStateCollector(node);
-            assertNotNull(collector);
+        try {
+            String[] nodes = internalCluster().getNodeNames();
+            for (String node : nodes) {
+                logger.debug("--> creating a new instance of the collector");
+                ClusterStateCollector collector = newClusterStateCollector(node);
+                assertNotNull(collector);
 
-            logger.debug("--> enabling license and checks that the collector can collect data if node is master");
+                logger.debug("--> enabling license and checks that the collector can collect data if node is master");
+                enableLicense();
+                if (node.equals(internalCluster().getMasterName())) {
+                    assertCanCollect(collector);
+                } else {
+                    assertCannotCollect(collector);
+                }
+
+                logger.debug("--> starting graceful period and checks that the collector can still collect data if node is master");
+                beginGracefulPeriod();
+                if (node.equals(internalCluster().getMasterName())) {
+                    assertCanCollect(collector);
+                } else {
+                    assertCannotCollect(collector);
+                }
+
+                logger.debug("--> ending graceful period and checks that the collector cannot collect data");
+                endGracefulPeriod();
+                assertCannotCollect(collector);
+
+                logger.debug("--> disabling license and checks that the collector cannot collect data");
+                disableLicense();
+                assertCannotCollect(collector);
+            }
+        } finally {
+            // Ensure license is enabled before finishing the test
             enableLicense();
-            if (node.equals(internalCluster().getMasterName())) {
-                assertCanCollect(collector);
-            } else {
-                assertCannotCollect(collector);
-            }
-
-            logger.debug("--> starting graceful period and checks that the collector can still collect data if node is master");
-            beginGracefulPeriod();
-            if (node.equals(internalCluster().getMasterName())) {
-                assertCanCollect(collector);
-            } else {
-                assertCannotCollect(collector);
-            }
-
-            logger.debug("--> ending graceful period and checks that the collector cannot collect data");
-            endGracefulPeriod();
-            assertCannotCollect(collector);
-
-            logger.debug("--> disabling license and checks that the collector cannot collect data");
-            disableLicense();
-            assertCannotCollect(collector);
         }
     }
 

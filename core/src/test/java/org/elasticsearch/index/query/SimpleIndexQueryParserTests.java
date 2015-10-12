@@ -54,7 +54,7 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.search.spans.SpanWithinQuery;
-import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
+import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
@@ -2413,7 +2413,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(booleanClause.getOccur(), equalTo(Occur.FILTER));
         assertThat(booleanClause.getQuery(), instanceOf(ConstantScoreQuery.class));
         ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) booleanClause.getQuery();
-        assertThat(constantScoreQuery.getQuery(), instanceOf(IntersectsPrefixTreeFilter.class));
+        assertThat(constantScoreQuery.getQuery(), instanceOf(IntersectsPrefixTreeQuery.class));
     }
 
     @Test
@@ -2423,7 +2423,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
         ConstantScoreQuery csq = (ConstantScoreQuery) parsedQuery;
-        assertThat(csq.getQuery(), instanceOf(IntersectsPrefixTreeFilter.class));
+        assertThat(csq.getQuery(), instanceOf(IntersectsPrefixTreeQuery.class));
     }
 
     @Test

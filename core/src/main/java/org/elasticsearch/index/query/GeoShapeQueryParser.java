@@ -161,12 +161,12 @@ public class GeoShapeQueryParser implements QueryParser {
             // in this case, execute disjoint as exists && !intersects
             BooleanQuery.Builder bool = new BooleanQuery.Builder();
             Query exists = ExistsQueryParser.newFilter(parseContext, fieldName, null);
-            Filter intersects = strategy.makeFilter(getArgs(shape, ShapeRelation.INTERSECTS));
+            Query intersects = strategy.makeQuery(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);
             query = new ConstantScoreQuery(bool.build());
         } else {
-            query = strategy.makeQuery(getArgs(shape, shapeRelation));
+            query = new ConstantScoreQuery(strategy.makeQuery(getArgs(shape, shapeRelation)));
         }
         query.setBoost(boost);
         if (queryName != null) {

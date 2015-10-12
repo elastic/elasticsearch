@@ -453,7 +453,7 @@ public long ramBytesUsed() {
   @Override
   public void build(InputIterator iterator) throws IOException {
     String prefix = getClass().getSimpleName();
-    Path directory = OfflineSorter.defaultTempDir();
+    Path directory = OfflineSorter.getDefaultTempDir();
     Path tempInput = Files.createTempFile(directory, prefix, ".input");
     Path tempSorted = Files.createTempFile(directory, prefix, ".sorted");
 

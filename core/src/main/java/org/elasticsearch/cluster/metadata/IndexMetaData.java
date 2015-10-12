@@ -284,8 +284,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
 
     /**
-     * this number is incremented when a replica shard is promoted to a primary (see {@link ShardRouting#moveToPrimary()}) or
-     * a first primary is created after a full cluster restart.
+     * The term of the current selected primary. This is a non-negative number incremented when
+     * a primary shard is assigned after a full cluster restart or a replica shard is promoted
+     * to a primary (see {@link ShardRouting#moveToPrimary()})
+     *
      */
     public int primaryTerm(int shardId) {
         return this.primaryTerms[shardId];

@@ -70,11 +70,6 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
                 in.clear();
             }
 
-            @Override
-            public void clear(IndexReader reader) {
-                in.clear(reader);
-            }
-
         };
     }
 

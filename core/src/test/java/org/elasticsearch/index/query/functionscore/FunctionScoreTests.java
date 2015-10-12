@@ -129,11 +129,6 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public void clear(IndexReader reader) {
-            throw new UnsupportedOperationException(UNSUPPORTED);
-        }
-
-        @Override
         public Index index() {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
@@ -224,11 +219,6 @@ public class FunctionScoreTests extends ESTestCase {
 
         @Override
         public void clear() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
-        }
-
-        @Override
-        public void clear(IndexReader reader) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 

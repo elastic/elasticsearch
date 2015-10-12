@@ -107,12 +107,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
      */
     void clear();
 
-    void clear(IndexReader reader);
-
     // we need this extended source we we have custom comparators to reuse our field data
     // in this case, we need to reduce type that will be used when search results are reduced
     // on another node (we don't have the custom source them...)
-    public abstract class XFieldComparatorSource extends FieldComparatorSource {
+    abstract class XFieldComparatorSource extends FieldComparatorSource {
 
         /**
          * Simple wrapper class around a filter that matches parent documents

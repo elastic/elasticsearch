@@ -945,7 +945,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         getResult = newShard.get(new Engine.Get(false, new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
         assertTrue(getResult.exists());
         assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
-        assertTrue(getResult.searcher().reader() instanceof FieldMaskingReader);
+        assertTrue(getResult.searcher().reader() instanceof FilterDirectoryReader);
+        assertTrue(((FilterDirectoryReader)getResult.searcher().reader()).getDelegate() instanceof FieldMaskingReader);
         getResult.release();
         newShard.close("just do it", randomBoolean());
     }

@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.common.lucene.index;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.*;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -75,5 +73,39 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
             return new ElasticsearchLeafReader(reader, shardId);
         }
     }
+
+    @SuppressForbidden(reason = "This is the only sane way to add a ReaderClosedListener")
+    public static void addReaderCloseListener(IndexReader reader, IndexReader.ReaderClosedListener listener) {
+        ElasticsearchDirectoryReader elasticsearchDirectoryReader = getElasticsearchDirectoryReader(reader);
+        if (elasticsearchDirectoryReader == null && reader instanceof LeafReader) {
+            ElasticsearchLeafReader leafReader = ElasticsearchLeafReader.getElasticsearchLeafReader((LeafReader) reader);
+            if (leafReader != null) {
+                assert reader.getCoreCacheKey() == leafReader.getCoreCacheKey();
+                leafReader.addReaderClosedListener(listener);
+                return;
+            }
+        } else {
+            assert reader.getCoreCacheKey() == elasticsearchDirectoryReader.getCoreCacheKey();
+            elasticsearchDirectoryReader.addReaderClosedListener(listener);
+            return;
+        }
+        throw new IllegalStateException("Can't install close listener reader is not an ElasticsearchDirectoryReader/ElasticsearchLeafReader");
+    }
+
+    public static ElasticsearchDirectoryReader getElasticsearchDirectoryReader(IndexReader reader) {
+        if (reader instanceof FilterDirectoryReader) {
+            if (reader instanceof ElasticsearchDirectoryReader) {
+                return (ElasticsearchDirectoryReader) reader;
+            } else {
+                // We need to use FilterDirectoryReader#getDelegate and not FilterDirectoryReader#unwrap, because
+                // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
+                // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
+                // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
+                return getElasticsearchDirectoryReader(((FilterDirectoryReader) reader).getDelegate());
+            }
+        }
+        return null;
+    }
+
 
 }

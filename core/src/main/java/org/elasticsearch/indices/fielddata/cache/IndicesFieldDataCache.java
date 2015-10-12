@@ -31,6 +31,7 @@ import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -172,7 +173,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             final Key key = new Key(this, indexReader.getCoreCacheKey(), shardId);
             //noinspection unchecked
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
-                indexReader.addReaderClosedListener(IndexFieldCache.this);
+                ElasticsearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 for (Listener listener : this.listeners) {
                     k.listeners.add(listener);
                 }

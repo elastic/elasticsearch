@@ -54,7 +54,7 @@ public class IndexModuleTests extends ModuleTestCase {
         assertInstanceBinding(module, IndexMetaData.class, (x) -> x == meta);
     }
 
-    public static final class Wrapper implements IndexSearcherWrapper {
+    public static final class Wrapper extends IndexSearcherWrapper {
 
         @Override
         public DirectoryReader wrap(DirectoryReader reader) {

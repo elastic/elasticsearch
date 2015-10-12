@@ -31,10 +31,6 @@ buildscript {
 // common maven publishing configuration
 subprojects {
   plugins.withType(NexusPlugin).whenPluginAdded {
-  // nocommit: just for testing uploadArchives
-  project.nexus {
-    snapshotRepositoryUrl 'file://localhost/tmp/myRepo'
-  }
     modifyPom {
       project {
         url 'https://github.com/elastic/elasticsearch'

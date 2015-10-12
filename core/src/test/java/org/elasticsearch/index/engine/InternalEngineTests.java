@@ -530,6 +530,52 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     @Test
+    public void testInternalSearcherNotWrapped() throws Exception {
+        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
+
+            @Override
+            public DirectoryReader wrap(DirectoryReader reader) {
+                throw new IllegalStateException("don't wrap internal ops");
+            }
+
+            @Override
+            public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
+                throw new IllegalStateException("don't wrap internal ops");
+            }
+        };
+        Store store = createStore();
+        Path translog = createTempDir("wrapper-test");
+        InternalEngine engine = createEngine(store, translog, wrapper);
+        try {
+            Engine.Searcher searcher = engine.acquireSearcher("test");
+            fail("wait what?");
+        } catch (EngineException ex) {
+            // all well
+        }
+
+        // create a document
+        Document document = testDocumentWithTextField();
+        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+        engine.create(new Engine.Create(newUid("1"), doc));
+
+        engine.flush();
+        // now do an update
+        document = testDocument();
+        document.add(new TextField("value", "test1", Field.Store.YES));
+        document.add(new Field(SourceFieldMapper.NAME, B_2.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, null);
+        engine.index(new Engine.Index(newUid("1"), doc));
+
+        List<Segment> segments = engine.segments(randomBoolean());
+        assertTrue(segments.size() >= 1);
+        SegmentsStats segmentsStats = engine.segmentsStats();
+        assertTrue(segmentsStats.getCount() >= 1);
+
+        IOUtils.close(store, engine);
+    }
+
+    @Test
     /* */
     public void testConcurrentGetAndFlush() throws Exception {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);

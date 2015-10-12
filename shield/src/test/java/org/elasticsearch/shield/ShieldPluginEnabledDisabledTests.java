@@ -10,6 +10,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.integration.LicensingTests;
+import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -104,11 +105,31 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegTestCase {
     @Test
     public void testShieldInfoStatus() throws IOException {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
+        OperationMode mode;
+        if (enabled) {
+            mode = randomFrom(OperationMode.values());
+            LicensingTests.enableLicensing(LicensingTests.generateLicense(mode));
+        } else {
+            // this is the default right now
+            mode = OperationMode.BASIC;
+        }
+
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpResponse response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport).method("GET").path("/_shield").addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                     basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).execute();
             assertThat(response.getStatusCode(), is(OK.getStatus()));
-            assertThat(new JsonPath(response.getBody()).evaluate("status").toString(), equalTo(enabled ? "enabled" : "disabled"));
+
+            String expectedValue;
+            if (enabled) {
+                if (mode == OperationMode.BASIC) {
+                    expectedValue = "unlicensed";
+                } else {
+                    expectedValue = "enabled";
+                }
+            } else {
+                expectedValue = "disabled";
+            }
+            assertThat(new JsonPath(response.getBody()).evaluate("status").toString(), equalTo(expectedValue));
 
             if (enabled) {
                 LicensingTests.disableLicensing();

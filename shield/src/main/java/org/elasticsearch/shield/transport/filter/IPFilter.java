@@ -20,6 +20,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.shield.audit.AuditTrail;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.transport.Transport;
 
 import java.net.InetAddress;
@@ -73,16 +74,19 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
     private NodeSettingsService nodeSettingsService;
     private final AuditTrail auditTrail;
     private final Transport transport;
+    private final ShieldLicenseState licenseState;
     private final boolean alwaysAllowBoundAddresses;
     private Map<String, ShieldIpFilterRule[]> rules = Collections.EMPTY_MAP;
     private HttpServerTransport httpServerTransport = null;
 
     @Inject
-    public IPFilter(final Settings settings, AuditTrail auditTrail, NodeSettingsService nodeSettingsService, Transport transport) {
+    public IPFilter(final Settings settings, AuditTrail auditTrail, NodeSettingsService nodeSettingsService,
+                    Transport transport, ShieldLicenseState licenseState) {
         super(settings);
         this.nodeSettingsService = nodeSettingsService;
         this.auditTrail = auditTrail;
         this.transport = transport;
+        this.licenseState = licenseState;
         this.alwaysAllowBoundAddresses = settings.getAsBoolean("shield.filter.always_allow_bound_address", true);
     }
 
@@ -122,7 +126,12 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
     }
 
     public boolean accept(String profile, InetAddress peerAddress) {
+        if (licenseState.securityEnabled() == false) {
+            return true;
+        }
+
         if (!rules.containsKey(profile)) {
+            // FIXME we need to audit here
             return true;
         }
 

@@ -37,8 +37,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.mockito.Matchers;
@@ -78,7 +78,6 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, singletonMap("_index", indexAccessControl)));
         IndexQueryParserService parserService = mock(IndexQueryParserService.class);
 
-        IndicesLifecycle indicesLifecycle = mock(IndicesLifecycle.class);
         BitsetFilterCache bitsetFilterCache = mock(BitsetFilterCache.class);
         when(bitsetFilterCache.getBitSetProducer(Matchers.any(Query.class))).then(new Answer<BitSetProducer>() {
             @Override
@@ -100,8 +99,10 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
                 };
             }
         });
+        ShieldLicenseState licenseState = mock(ShieldLicenseState.class);
+        when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
         ShieldIndexSearcherWrapper wrapper = new ShieldIndexSearcherWrapper(
-                Settings.EMPTY, parserService, mapperService, bitsetFilterCache
+                Settings.EMPTY, parserService, mapperService, bitsetFilterCache, licenseState
         );
 
         Directory directory = newDirectory();

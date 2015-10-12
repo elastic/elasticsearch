@@ -32,12 +32,11 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.index.SearcherWrapperInstaller;
 import org.elasticsearch.shield.authz.accesscontrol.OptOutQueryCache;
-import org.elasticsearch.shield.authz.accesscontrol.ShieldIndexSearcherWrapper;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.crypto.CryptoModule;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.license.LicenseModule;
-import org.elasticsearch.shield.license.LicenseService;
+import org.elasticsearch.shield.license.ShieldLicensee;
 import org.elasticsearch.shield.rest.ShieldRestModule;
 import org.elasticsearch.shield.rest.action.RestShieldInfoAction;
 import org.elasticsearch.shield.rest.action.authc.cache.RestClearRealmCacheAction;
@@ -125,7 +124,7 @@ public class ShieldPlugin extends Plugin {
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         if (enabled && clientMode == false) {
-            return Arrays.<Class<? extends LifecycleComponent>>asList(LicenseService.class, InternalCryptoService.class, FileRolesStore.class, Realms.class, IPFilter.class);
+            return Arrays.<Class<? extends LifecycleComponent>>asList(ShieldLicensee.class, InternalCryptoService.class, FileRolesStore.class, Realms.class, IPFilter.class);
         }
         return Collections.emptyList();
     }

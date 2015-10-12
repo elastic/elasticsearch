@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
@@ -22,8 +21,6 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;

@@ -7,7 +7,7 @@ package org.elasticsearch.shield;
 
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.license.LicenseService;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
 public class ShieldDisabledModule extends AbstractShieldModule {
@@ -21,7 +21,7 @@ public class ShieldDisabledModule extends AbstractShieldModule {
         assert !shieldEnabled : "shield disabled module should only get loaded with shield disabled";
         if (!clientMode) {
             // required by the shield info rest action (when shield is disabled)
-            bind(LicenseService.class).toProvider(Providers.<LicenseService>of(null));
+            bind(ShieldLicenseState.class).toProvider(Providers.<ShieldLicenseState>of(null));
         }
     }
 }

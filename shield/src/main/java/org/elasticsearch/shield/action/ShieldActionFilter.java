@@ -16,8 +16,8 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -25,8 +25,7 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.Privilege;
 import org.elasticsearch.shield.crypto.CryptoService;
-import org.elasticsearch.shield.license.LicenseEventsNotifier;
-import org.elasticsearch.shield.license.LicenseService;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,24 +48,18 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
     private final AuditTrail auditTrail;
     private final ShieldActionMapper actionMapper;
     private final Set<RequestInterceptor> requestInterceptors;
-
-    private volatile boolean licenseEnabled = true;
+    private final ShieldLicenseState licenseState;
 
     @Inject
     public ShieldActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService, CryptoService cryptoService,
-                              AuditTrail auditTrail, LicenseEventsNotifier licenseEventsNotifier, ShieldActionMapper actionMapper, Set<RequestInterceptor> requestInterceptors) {
+                              AuditTrail auditTrail, ShieldLicenseState licenseState, ShieldActionMapper actionMapper, Set<RequestInterceptor> requestInterceptors) {
         super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
         this.cryptoService = cryptoService;
         this.auditTrail = auditTrail;
         this.actionMapper = actionMapper;
-        licenseEventsNotifier.register(new LicenseEventsNotifier.Listener() {
-            @Override
-            public void notify(LicenseState state) {
-                licenseEnabled = state != LicenseState.DISABLED;
-            }
-        });
+        this.licenseState = licenseState;
         this.requestInterceptors = requestInterceptors;
     }
 
@@ -77,36 +70,40 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             A functional requirement - when the license of shield is disabled (invalid/expires), shield will continue
             to operate normally, except all read operations will be blocked.
          */
-        if (!licenseEnabled && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
+        if (!licenseState.statsAndHealthEnabled() && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
             logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +
                     "operations are blocked on shield license expiration. All data operations (read and write) continue to work. \n" +
                     "If you have a new license, please update it. Otherwise, please reach out to your support contact.", action);
-            throw LicenseUtils.newExpirationException(LicenseService.FEATURE_NAME);
+            throw LicenseUtils.newExpirationException(ShieldPlugin.NAME);
         }
 
         try {
-            /**
-             here we fallback on the system user. Internal system requests are requests that are triggered by
-             the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated
-             by user interaction. Since these requests are triggered by es core modules, they are security
-             agnostic and therefore not associated with any user. When these requests execute locally, they
-             are executed directly on their relevant action. Since there is no other way a request can make
-             it to the action without an associated user (not via REST or transport - this is taken care of by
-             the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
-             here if a request is not associated with any other user.
-             */
+            if (licenseState.securityEnabled()) {
+                /**
+                 here we fallback on the system user. Internal system requests are requests that are triggered by
+                 the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated
+                 by user interaction. Since these requests are triggered by es core modules, they are security
+                 agnostic and therefore not associated with any user. When these requests execute locally, they
+                 are executed directly on their relevant action. Since there is no other way a request can make
+                 it to the action without an associated user (not via REST or transport - this is taken care of by
+                 the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
+                 here if a request is not associated with any other user.
+                 */
 
-            String shieldAction = actionMapper.action(action, request);
-            User user = authcService.authenticate(shieldAction, request, User.SYSTEM);
-            authzService.authorize(user, shieldAction, request);
-            request = unsign(user, shieldAction, request);
+                String shieldAction = actionMapper.action(action, request);
+                User user = authcService.authenticate(shieldAction, request, User.SYSTEM);
+                authzService.authorize(user, shieldAction, request);
+                request = unsign(user, shieldAction, request);
 
-            for (RequestInterceptor interceptor : requestInterceptors) {
-                if (interceptor.supports(request)) {
-                    interceptor.intercept(request, user);
+                for (RequestInterceptor interceptor : requestInterceptors) {
+                    if (interceptor.supports(request)) {
+                        interceptor.intercept(request, user);
+                    }
                 }
+                chain.proceed(action, request, new SigningListener(this, listener));
+            } else {
+                chain.proceed(action, request, listener);
             }
-            chain.proceed(action, request, new SigningListener(this, listener));
         } catch (Throwable t) {
             listener.onFailure(t);
         }

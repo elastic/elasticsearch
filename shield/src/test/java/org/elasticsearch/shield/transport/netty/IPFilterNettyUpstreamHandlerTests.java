@@ -14,6 +14,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.shield.audit.AuditTrail;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
@@ -52,7 +53,9 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
 
         NodeSettingsService nodeSettingsService = mock(NodeSettingsService.class);
-        IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP, nodeSettingsService, transport).start();
+        ShieldLicenseState licenseState = mock(ShieldLicenseState.class);
+        when(licenseState.securityEnabled()).thenReturn(true);
+        IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP, nodeSettingsService, transport, licenseState).start();
 
         if (isHttpEnabled) {
             HttpServerTransport httpTransport = mock(HttpServerTransport.class);

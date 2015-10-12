@@ -12,6 +12,7 @@ import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.accesscontrol.RequestContext;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -35,6 +36,7 @@ public class ShieldServerTransportService extends TransportService {
     protected final AuthorizationService authzService;
     protected final ShieldActionMapper actionMapper;
     protected final ClientTransportFilter clientFilter;
+    protected final ShieldLicenseState licenseState;
 
     protected final Map<String, ServerTransportFilter> profileFilters;
 
@@ -43,12 +45,14 @@ public class ShieldServerTransportService extends TransportService {
                                         AuthenticationService authcService,
                                         AuthorizationService authzService,
                                         ShieldActionMapper actionMapper,
-                                        ClientTransportFilter clientTransportFilter) {
+                                        ClientTransportFilter clientTransportFilter,
+                                        ShieldLicenseState licenseState) {
         super(settings, transport, threadPool);
         this.authcService = authcService;
         this.authzService = authzService;
         this.actionMapper = actionMapper;
         this.clientFilter = clientTransportFilter;
+        this.licenseState = licenseState;
         this.profileFilters = initializeProfileFilters();
     }
 
@@ -64,13 +68,13 @@ public class ShieldServerTransportService extends TransportService {
 
     @Override
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
-        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters);
+        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters, licenseState);
         super.registerRequestHandler(action, requestFactory, executor, wrappedHandler);
     }
 
     @Override
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
-        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters);
+        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters, licenseState);
         super.registerRequestHandler(action, request, executor, forceExecution, wrappedHandler);
     }
 
@@ -104,7 +108,7 @@ public class ShieldServerTransportService extends TransportService {
             profileFilters.put(NettyTransport.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, extractClientCert));
         }
 
-        return profileFilters;
+        return Collections.unmodifiableMap(profileFilters);
     }
 
     ServerTransportFilter transportFilter(String profile) {
@@ -116,30 +120,34 @@ public class ShieldServerTransportService extends TransportService {
         protected final String action;
         protected final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
+        private final ShieldLicenseState licenseState;
 
-        public ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler, Map<String, ServerTransportFilter> profileFilters) {
+        public ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler, Map<String, ServerTransportFilter> profileFilters, ShieldLicenseState licenseState) {
             this.action = action;
             this.handler = handler;
             this.profileFilters = profileFilters;
+            this.licenseState = licenseState;
         }
 
         @Override
         @SuppressWarnings("unchecked")
         public void messageReceived(T request, TransportChannel channel) throws Exception {
             try {
-                String profile = channel.getProfileName();
-                ServerTransportFilter filter = profileFilters.get(profile);
+                if (licenseState.securityEnabled()) {
+                    String profile = channel.getProfileName();
+                    ServerTransportFilter filter = profileFilters.get(profile);
 
-                if (filter == null) {
-                    if (TransportService.DIRECT_RESPONSE_PROFILE.equals(profile)) {
-                        // apply the default filter to local requests. We never know what the request is or who sent it...
-                        filter = profileFilters.get("default");
-                    } else {
-                        throw new IllegalStateException("transport profile [" + profile + "] is not associated with a transport filter");
+                    if (filter == null) {
+                        if (TransportService.DIRECT_RESPONSE_PROFILE.equals(profile)) {
+                            // apply the default filter to local requests. We never know what the request is or who sent it...
+                            filter = profileFilters.get("default");
+                        } else {
+                            throw new IllegalStateException("transport profile [" + profile + "] is not associated with a transport filter");
+                        }
                     }
+                    assert filter != null;
+                    filter.inbound(action, request, channel);
                 }
-                assert filter != null;
-                filter.inbound(action, request, channel);
                 RequestContext context = new RequestContext(request);
                 RequestContext.setCurrent(context);
                 handler.messageReceived(request, channel);

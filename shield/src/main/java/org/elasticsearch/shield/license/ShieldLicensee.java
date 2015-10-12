@@ -7,37 +7,33 @@ package org.elasticsearch.shield.license;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicenseState;
-import org.elasticsearch.license.plugin.core.Licensee;
-import org.elasticsearch.license.plugin.core.LicenseeRegistry;
+import org.elasticsearch.license.core.License.OperationMode;
+import org.elasticsearch.license.plugin.core.*;
 import org.elasticsearch.shield.ShieldPlugin;
 
 /**
  *
  */
-public class LicenseService extends AbstractLifecycleComponent<LicenseService> implements Licensee {
+public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> implements Licensee {
 
-    public static final String FEATURE_NAME = ShieldPlugin.NAME;
-
-    private final LicenseeRegistry licenseeRegistry;
-    private final LicenseEventsNotifier notifier;
-
-    private volatile LicenseState state = LicenseState.DISABLED;
+    private final boolean isTribeNode;
+    private final ShieldLicenseState shieldLicenseState;
 
     @Inject
-    public LicenseService(Settings settings, LicenseeRegistry licenseeRegistry, LicenseEventsNotifier notifier) {
-        super(settings);
-        this.licenseeRegistry = licenseeRegistry;
-        this.notifier = notifier;
-    }
-
-    @Override
-    public String id() {
-        return FEATURE_NAME;
+    public ShieldLicensee(Settings settings, LicenseeRegistry clientService,
+                          LicensesManagerService managerService, ShieldLicenseState shieldLicenseState) {
+        super(settings, ShieldPlugin.NAME, clientService, managerService);
+        add(new Listener() {
+            @Override
+            public void onChange(License license, Status status) {
+                shieldLicenseState.updateStatus(status);
+            }
+        });
+        this.shieldLicenseState = shieldLicenseState;
+        this.isTribeNode = settings.getGroups("tribe", true).isEmpty() == false;
     }
 
     @Override
@@ -78,31 +74,13 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> i
     }
 
     @Override
-    public void onChange(License license, LicenseState state) {
-        synchronized (this) {
-            this.state = state;
-            notifier.notify(state);
-        }
-    }
-    public LicenseState state() {
-        return state;
-    }
-
-    @Override
-    protected void doStart() throws ElasticsearchException {
-        if (settings.getGroups("tribe", true).isEmpty()) {
-            licenseeRegistry.register(this);
-        } else {
+    protected void doStart() throws ElasticsearchException {;
+        if (isTribeNode) {
             //TODO currently we disable licensing on tribe node. remove this once es core supports merging cluster
-            onChange(null,  LicenseState.ENABLED);
+            this.status = new Status(OperationMode.TRIAL, LicenseState.ENABLED);
+            shieldLicenseState.updateStatus(status);
+        } else {
+            super.doStart();
         }
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
     }
 }

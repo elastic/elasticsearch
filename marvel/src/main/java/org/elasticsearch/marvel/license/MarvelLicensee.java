@@ -52,6 +52,9 @@ public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> im
     }
 
     public boolean collectionEnabled() {
+        // when checking multiple parts of the status, we should get a local reference to the status object since it is
+        // volatile and can change between check statements...
+        Status status = this.status;
         return status.getMode() != License.OperationMode.NONE &&
                 status.getLicenseState() != LicenseState.DISABLED;
     }

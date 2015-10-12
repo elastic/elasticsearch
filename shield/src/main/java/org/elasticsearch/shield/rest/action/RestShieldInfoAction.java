@@ -12,11 +12,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.shield.ShieldBuild;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.shield.license.LicenseService;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -24,14 +23,14 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestShieldInfoAction extends BaseRestHandler {
 
     private final ClusterName clusterName;
-    private final LicenseService licenseService;
+    private final ShieldLicenseState shieldLicenseState;
     private final boolean shieldEnabled;
 
     @Inject
-    public RestShieldInfoAction(Settings settings, RestController controller, Client client, ClusterName clusterName, @Nullable LicenseService licenseService) {
+    public RestShieldInfoAction(Settings settings, RestController controller, Client client, ClusterName clusterName, @Nullable ShieldLicenseState licenseState) {
         super(settings, controller, client);
         this.clusterName = clusterName;
-        this.licenseService = licenseService;
+        this.shieldLicenseState = licenseState;
         this.shieldEnabled = ShieldPlugin.shieldEnabled(settings);
         controller.registerHandler(GET, "/_shield", this);
         controller.registerHandler(HEAD, "/_shield", this);
@@ -72,7 +71,10 @@ public class RestShieldInfoAction extends BaseRestHandler {
 
     private Status resolveStatus() {
         if (shieldEnabled) {
-            if (licenseService.state() != LicenseState.DISABLED) {
+            assert shieldLicenseState != null;
+            // TODO this is error prone since the state could change between checks. We can also make this status better
+            // but we may remove this endpoint since it no longer serves much purpose
+            if (shieldLicenseState.securityEnabled() && shieldLicenseState.statsAndHealthEnabled()) {
                 return Status.ENABLED;
             }
             return Status.UNLICENSED;

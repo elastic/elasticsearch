@@ -47,6 +47,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.After;
@@ -73,6 +74,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
     private MapperService mapperService;
     private ShieldIndexSearcherWrapper shieldIndexSearcherWrapper;
     private ElasticsearchDirectoryReader esIn;
+    private ShieldLicenseState licenseState;
 
     @Before
     public void before() throws Exception {
@@ -84,7 +86,9 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         mapperService = new MapperService(index, settings, analysisService, similarityService, scriptService);
 
         shardId = new ShardId(index, 0);
-        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(settings, null, mapperService, null);
+        licenseState = mock(ShieldLicenseState.class);
+        when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
+        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(settings, null, mapperService, null, licenseState);
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
 
@@ -128,6 +132,21 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         assertThat(result.getFieldNames().contains("_size"), is(true));
         assertThat(result.getFieldNames().contains("_index"), is(true));
         assertThat(result.getFieldNames().contains("_all"), is(false)); // _all contains actual user data and therefor can't be included by default
+    }
+
+    public void testWrapReaderWhenFeatureDisabled() throws Exception {
+        when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(false);
+        DirectoryReader reader = shieldIndexSearcherWrapper.wrap(esIn);
+        assertThat(reader, sameInstance(esIn));
+    }
+
+    public void testWrapSearcherWhenFeatureDisabled() throws Exception {
+        ShardId shardId = new ShardId("_index", 0);
+        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(shardId.index(), Settings.EMPTY), QueryCachingPolicy.ALWAYS_CACHE, null); // can't mock...
+
+        IndexSearcher indexSearcher = new IndexSearcher(esIn);
+        IndexSearcher result = shieldIndexSearcherWrapper.wrap(engineConfig, indexSearcher);
+        assertThat(result, sameInstance(indexSearcher));
     }
 
     public void testWildcards() throws Exception {

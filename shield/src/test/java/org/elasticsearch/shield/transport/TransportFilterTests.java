@@ -18,6 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -298,7 +299,8 @@ public class TransportFilterTests extends ESIntegTestCase {
 
         @Inject
         public InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool, AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, ClientTransportFilter clientTransportFilter) {
-            super(settings, transport, threadPool, authcService, authzService, actionMapper, clientTransportFilter);
+            super(settings, transport, threadPool, authcService, authzService, actionMapper, clientTransportFilter, mock(ShieldLicenseState.class));
+            when(licenseState.securityEnabled()).thenReturn(true);
         }
 
         protected Map<String, ServerTransportFilter> initializeProfileFilters() {

@@ -6,6 +6,7 @@
 package org.elasticsearch.shield;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.shield.license.ShieldLicensee;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
@@ -28,7 +29,7 @@ public class VersionCompatibilityTests extends ESTestCase {
     @Test
     public void testCompatibility() {
         /**
-         * see https://github.com/elasticsearch/elasticsearch/issues/9372 {@link org.elasticsearch.shield.license.LicenseService}
+         * see https://github.com/elasticsearch/elasticsearch/issues/9372 {@link ShieldLicensee}
          * Once es core supports merging cluster level custom metadata (licenses in our case), the tribe node will see some license coming from the tribe and everything will be ok.
          *
          */

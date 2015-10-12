@@ -11,14 +11,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.crypto.CryptoService;
-import org.elasticsearch.shield.license.LicenseEventsNotifier;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,7 +38,7 @@ public class ShieldActionFilterTests extends ESTestCase {
     private AuthorizationService authzService;
     private CryptoService cryptoService;
     private AuditTrail auditTrail;
-    private LicenseEventsNotifier licenseEventsNotifier;
+    private ShieldLicenseState shieldLicenseState;
     private ShieldActionFilter filter;
 
     @Before
@@ -48,8 +47,10 @@ public class ShieldActionFilterTests extends ESTestCase {
         authzService = mock(AuthorizationService.class);
         cryptoService = mock(CryptoService.class);
         auditTrail = mock(AuditTrail.class);
-        licenseEventsNotifier = new MockLicenseEventsNotifier();
-        filter = new ShieldActionFilter(Settings.EMPTY, authcService, authzService, cryptoService, auditTrail, licenseEventsNotifier, new ShieldActionMapper(), new HashSet<RequestInterceptor>());
+        shieldLicenseState = mock(ShieldLicenseState.class);
+        when(shieldLicenseState.securityEnabled()).thenReturn(true);
+        when(shieldLicenseState.statsAndHealthEnabled()).thenReturn(true);
+        filter = new ShieldActionFilter(Settings.EMPTY, authcService, authzService, cryptoService, auditTrail, shieldLicenseState, new ShieldActionMapper(), new HashSet<RequestInterceptor>());
     }
 
     @Test
@@ -110,10 +111,16 @@ public class ShieldActionFilterTests extends ESTestCase {
         verifyNoMoreInteractions(chain);
     }
 
-    private class MockLicenseEventsNotifier extends LicenseEventsNotifier {
-        @Override
-        public void register(MockLicenseEventsNotifier.Listener listener) {
-            listener.notify(LicenseState.ENABLED);
-        }
+    @Test
+    public void testApplyUnlicensed() throws Exception {
+        ActionRequest request = mock(ActionRequest.class);
+        ActionListener listener = mock(ActionListener.class);
+        ActionFilterChain chain = mock(ActionFilterChain.class);
+        when(shieldLicenseState.securityEnabled()).thenReturn(false);
+        filter.apply("_action", request, listener, chain);
+        verifyZeroInteractions(authcService);
+        verifyZeroInteractions(authzService);
+        verify(chain).proceed(eq("_action"), eq(request), eq(listener));
     }
+
 }

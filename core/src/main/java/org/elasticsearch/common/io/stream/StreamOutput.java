@@ -438,10 +438,24 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeVIntArray(int[] values) throws IOException {
+        writeVInt(values.length);
+        for (int value : values) {
+            writeVInt(value);
+        }
+    }
+
     public void writeLongArray(long[] values) throws IOException {
         writeVInt(values.length);
         for (long value : values) {
             writeLong(value);
+        }
+    }
+
+    public void writeVLongArray(long[] values) throws IOException {
+        writeVInt(values.length);
+        for (long value : values) {
+            writeVLong(value);
         }
     }
 

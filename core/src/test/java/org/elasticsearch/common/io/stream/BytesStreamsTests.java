@@ -276,8 +276,12 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeDouble(2.2);
         int[] intArray = {1, 2, 3};
         out.writeGenericValue(intArray);
+        int[] vIntArray = {4, 5, 6};
+        out.writeVIntArray(vIntArray);
         long[] longArray = {1, 2, 3};
         out.writeGenericValue(longArray);
+        long[] vLongArray = {4, 5, 6};
+        out.writeVLongArray(vLongArray);
         float[] floatArray = {1.1f, 2.2f, 3.3f};
         out.writeGenericValue(floatArray);
         double[] doubleArray = {1.1, 2.2, 3.3};
@@ -296,7 +300,9 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat((double)in.readFloat(), closeTo(1.1, 0.0001));
         assertThat(in.readDouble(), closeTo(2.2, 0.0001));
         assertThat(in.readGenericValue(), equalTo((Object) intArray));
+        assertThat(in.readVIntArray(), equalTo(vIntArray));
         assertThat(in.readGenericValue(), equalTo((Object)longArray));
+        assertThat(in.readVLongArray(), equalTo(vLongArray));
         assertThat(in.readGenericValue(), equalTo((Object)floatArray));
         assertThat(in.readGenericValue(), equalTo((Object)doubleArray));
         assertThat(in.readString(), equalTo("hello"));

@@ -236,7 +236,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
                              CircuitBreakerService breakerService, MapperService mapperService);
     }
 
-    public static interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
+    interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
 
         IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);
 

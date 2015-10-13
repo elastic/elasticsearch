@@ -27,6 +27,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -62,13 +63,12 @@ import org.elasticsearch.index.IndexServicesProvider;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
@@ -897,7 +897,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexService("test");
         IndexShard shard = indexService.getShardOrNull(0);
-        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefresh(randomBoolean()).get();
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefresh(true).get();
         client().prepareIndex("test", "test", "1").setSource("{\"foobar\" : \"bar\"}").setRefresh(true).get();
 
         Engine.GetResult getResult = shard.get(new Engine.Get(false, new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
@@ -946,9 +946,31 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertTrue(getResult.exists());
         assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
         assertTrue(getResult.searcher().reader() instanceof FilterDirectoryReader);
-        assertTrue(((FilterDirectoryReader)getResult.searcher().reader()).getDelegate() instanceof FieldMaskingReader);
+        assertTrue(((FilterDirectoryReader) getResult.searcher().reader()).getDelegate() instanceof FieldMaskingReader);
         getResult.release();
-        newShard.close("just do it", randomBoolean());
+        try {
+            // test global ordinals are evicted
+            MappedFieldType foo = newShard.mapperService().indexName("foo");
+            IndexFieldData.Global ifd = shard.indexFieldDataService().getForField(foo);
+            FieldDataStats before = shard.fieldData().stats("foo");
+            FieldDataStats after = null;
+            try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
+                assumeTrue("we have to have more than one segment", searcher.getDirectoryReader().leaves().size() > 1);
+                IndexFieldData indexFieldData = ifd.loadGlobal(searcher.getDirectoryReader());
+                after = shard.fieldData().stats("foo");
+                assertEquals(after.getEvictions(), before.getEvictions());
+                assertTrue(indexFieldData.toString(), after.getMemorySizeInBytes() > before.getMemorySizeInBytes());
+            }
+            assertEquals(shard.fieldData().stats("foo").getEvictions(), before.getEvictions());
+            assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), after.getMemorySizeInBytes());
+            newShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+            newShard.refresh("test");
+            assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), before.getMemorySizeInBytes());
+            assertEquals(shard.fieldData().stats("foo").getEvictions(), before.getEvictions());
+        } finally {
+            newShard.close("just do it", randomBoolean());
+        }
+
     }
 
     private static class FieldMaskingReader extends FilterDirectoryReader {

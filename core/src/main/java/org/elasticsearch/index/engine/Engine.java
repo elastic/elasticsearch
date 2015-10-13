@@ -600,7 +600,7 @@ public abstract class Engine implements Closeable {
             if (reader() instanceof  DirectoryReader) {
                 return (DirectoryReader) reader();
             }
-            throw new IllegalStateException("Can't use " + reader().getClass() + " as an directory reader");
+            throw new IllegalStateException("Can't use " + reader().getClass() + " as a directory reader");
         }
 
         public IndexSearcher searcher() {

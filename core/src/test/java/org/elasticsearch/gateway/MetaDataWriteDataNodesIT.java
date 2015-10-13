@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -27,13 +26,16 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
-import java.util.concurrent.Future;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -70,14 +72,14 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         index(index, "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
         assertIndexInMetaState(node1, index);
-        assertIndexNotInMetaState(node2, index);
+        assertIndexDirectoryDeleted(node2, index);
         assertIndexInMetaState(masterNode, index);
 
         logger.debug("relocating index...");
         client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "_name", node2)).get();
         client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).get();
         ensureGreen();
-        assertIndexNotInMetaState(node1, index);
+        assertIndexDirectoryDeleted(node1, index);
         assertIndexInMetaState(node2, index);
         assertIndexInMetaState(masterNode, index);
     }
@@ -149,48 +151,52 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         assertThat(indicesMetaData.get(index).state(), equalTo(IndexMetaData.State.OPEN));
     }
 
-    protected void assertIndexNotInMetaState(String nodeName, String indexName) throws Exception {
-        assertMetaState(nodeName, indexName, false);
+    protected void assertIndexDirectoryDeleted(final String nodeName, final String indexName) throws Exception {
+        assertBusy(new Runnable() {
+                       @Override
+                       public void run() {
+                           logger.info("checking if meta state exists...");
+                           try {
+                               assertFalse("Expecting index directory of " + indexName + " to be deleted from node " + nodeName, indexDirectoryExists(nodeName, indexName));
+                           } catch (Exception e) {
+                               logger.info("failed to check for data director of index {} on node {}", indexName, nodeName);
+                               fail("could not check if data directory still exists");
+                           }
+                       }
+                   }
+        );
     }
 
-    protected void assertIndexInMetaState(String nodeName, String indexName) throws Exception {
-        assertMetaState(nodeName, indexName, true);
+    protected void assertIndexInMetaState(final String nodeName, final String indexName) throws Exception {
+        assertBusy(new Runnable() {
+                       @Override
+                       public void run() {
+                           logger.info("checking if meta state exists...");
+                           try {
+                               assertTrue("Expecting meta state of index " + indexName + " to be on node " + nodeName, getIndicesMetaDataOnNode(nodeName).containsKey(indexName));
+                           } catch (Throwable t) {
+                               logger.info("failed to load meta state", t);
+                               fail("could not load meta state");
+                           }
+                       }
+                   }
+        );
     }
 
 
-    private void assertMetaState(final String nodeName, final String indexName, final boolean shouldBe) throws Exception {
-        awaitBusy(() -> {
-            logger.info("checking if meta state exists...");
-            try {
-                return shouldBe == metaStateExists(nodeName, indexName);
-            } catch (Throwable t) {
-                logger.info("failed to load meta state", t);
-                // TODO: loading of meta state fails rarely if the state is deleted while we try to load it
-                // this here is a hack, would be much better to use for example a WatchService
-                return false;
+    private boolean indexDirectoryExists(String nodeName, String indexName) throws Exception {
+        NodeEnvironment nodeEnv = ((InternalTestCluster) cluster()).getInstance(NodeEnvironment.class, nodeName);
+        for (Path path : nodeEnv.indexPaths(new Index(indexName))) {
+            if (Files.exists(path)) {
+                return true;
             }
-        });
-        boolean inMetaSate = metaStateExists(nodeName, indexName);
-        if (shouldBe) {
-            assertTrue("expected " + indexName + " in meta state of node " + nodeName, inMetaSate);
-        } else {
-            assertFalse("expected " + indexName + " to not be in meta state of node " + nodeName, inMetaSate);
         }
-    }
-
-    private boolean metaStateExists(String nodeName, String indexName) throws Exception {
-        ImmutableOpenMap<String, IndexMetaData> indices = getIndicesMetaDataOnNode(nodeName);
-        boolean inMetaSate = false;
-        for (ObjectObjectCursor<String, IndexMetaData> index : indices) {
-            inMetaSate = inMetaSate || index.key.equals(indexName);
-        }
-        return inMetaSate;
+        return false;
     }
 
     private ImmutableOpenMap<String, IndexMetaData> getIndicesMetaDataOnNode(String nodeName) throws Exception {
         GatewayMetaState nodeMetaState = ((InternalTestCluster) cluster()).getInstance(GatewayMetaState.class, nodeName);
-        MetaData nodeMetaData = null;
-        nodeMetaData = nodeMetaState.loadMetaState();
+        MetaData nodeMetaData = nodeMetaState.loadMetaState();
         return nodeMetaData.getIndices();
     }
 }

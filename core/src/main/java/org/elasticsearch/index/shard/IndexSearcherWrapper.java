@@ -67,7 +67,7 @@ public class IndexSearcherWrapper {
         if (elasticsearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
         }
-        DirectoryReader reader = wrap((DirectoryReader)engineSearcher.reader());
+        DirectoryReader reader = wrap(engineSearcher.reader());
         IndexSearcher innerIndexSearcher = new IndexSearcher(new CacheFriendlyReaderWrapper(reader, elasticsearchDirectoryReader));
         innerIndexSearcher.setQueryCache(engineConfig.getQueryCache());
         innerIndexSearcher.setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());

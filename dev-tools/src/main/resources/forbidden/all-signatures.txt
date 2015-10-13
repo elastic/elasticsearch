@@ -91,3 +91,5 @@ java.net.InetSocketAddress#getHostName() @ Use getHostString() instead, which av
 java.lang.reflect.AccessibleObject#setAccessible(boolean)
 java.lang.reflect.AccessibleObject#setAccessible(java.lang.reflect.AccessibleObject[], boolean)
 
+@defaultMessage this should not have been added to lucene in the first place
+org.apache.lucene.index.IndexReader#getCombinedCoreAndDeletesKey()

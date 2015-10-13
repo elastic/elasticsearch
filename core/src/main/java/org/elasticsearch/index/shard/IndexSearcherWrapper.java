@@ -24,7 +24,6 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -67,8 +66,20 @@ public class IndexSearcherWrapper {
         if (elasticsearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
         }
-        DirectoryReader reader = wrap(engineSearcher.getDirectoryReader());
-        IndexSearcher innerIndexSearcher = new IndexSearcher(new CacheFriendlyReaderWrapper(reader, elasticsearchDirectoryReader));
+        NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
+        DirectoryReader reader = wrap(nonClosingReaderWrapper);
+        if (reader != nonClosingReaderWrapper) {
+            if (reader.getCoreCacheKey() != elasticsearchDirectoryReader.getCoreCacheKey()) {
+                throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey, wrappers must override this method and delegate" +
+                        " to the original readers core cache key. Wrapped readers can't used as cache keys since their are used only per request which would lead to subtile bugs");
+            }
+            if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
+                // prevent that somebody wraps with a non-filter reader
+                throw new IllegalStateException("wrapped directory reader hides actual ElasticsearchDirectoryReader but shouldn't");
+            }
+        }
+
+        IndexSearcher innerIndexSearcher = new IndexSearcher(reader);
         innerIndexSearcher.setQueryCache(engineConfig.getQueryCache());
         innerIndexSearcher.setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());
         innerIndexSearcher.setSimilarity(engineConfig.getSimilarity());
@@ -76,14 +87,16 @@ public class IndexSearcherWrapper {
         // For example if IndexSearcher#rewrite() is overwritten than also IndexSearcher#createNormalizedWeight needs to be overwritten
         // This needs to be fixed before we can allow the IndexSearcher from Engine to be wrapped multiple times
         IndexSearcher indexSearcher = wrap(engineConfig, innerIndexSearcher);
-        if (reader == engineSearcher.reader() && indexSearcher == innerIndexSearcher) {
+        if (reader == nonClosingReaderWrapper && indexSearcher == innerIndexSearcher) {
             return engineSearcher;
         } else {
-            Engine.Searcher newSearcher = new Engine.Searcher(engineSearcher.source(), indexSearcher) {
+            final Engine.Searcher newSearcher = new Engine.Searcher(engineSearcher.source(), indexSearcher) {
                 @Override
                 public void close() throws ElasticsearchException {
                     try {
                         reader().close();
+                        // we close the reader to make sure wrappers can release resources if needed....
+                        // our NonClosingReaderWrapper makes sure that our reader is not closed
                     } catch (IOException e) {
                         throw new ElasticsearchException("failed to close reader", e);
                     } finally {
@@ -92,28 +105,24 @@ public class IndexSearcherWrapper {
 
                 }
             };
-            // TODO should this be a real exception? this checks that our wrapper doesn't wrap in it's own ElasticsearchDirectoryReader
-            assert ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(newSearcher.getDirectoryReader()) == elasticsearchDirectoryReader : "Wrapper hides actual ElasticsearchDirectoryReader but shouldn't";
             return newSearcher;
         }
     }
 
-    final class CacheFriendlyReaderWrapper extends FilterDirectoryReader {
-        private final ElasticsearchDirectoryReader elasticsearchReader;
+    final class NonClosingReaderWrapper extends FilterDirectoryReader {
 
-        private CacheFriendlyReaderWrapper(DirectoryReader in, ElasticsearchDirectoryReader elasticsearchReader) throws IOException {
+        private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
                     return reader;
                 }
             });
-            this.elasticsearchReader = elasticsearchReader;
         }
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new CacheFriendlyReaderWrapper(in, elasticsearchReader);
+            return new NonClosingReaderWrapper(in);
         }
 
         @Override
@@ -123,8 +132,7 @@ public class IndexSearcherWrapper {
 
         @Override
         public Object getCoreCacheKey() {
-            // this is important = we always use the ES reader core cache key on top level
-            return elasticsearchReader.getCoreCacheKey();
+            return in.getCoreCacheKey();
         }
     }
 

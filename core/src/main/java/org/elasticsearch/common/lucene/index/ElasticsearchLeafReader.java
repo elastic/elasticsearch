@@ -52,11 +52,6 @@ public final class ElasticsearchLeafReader extends FilterLeafReader {
         return in.getCoreCacheKey();
     }
 
-    @Override
-    public Object getCombinedCoreAndDeletesKey() {
-        return in.getCombinedCoreAndDeletesKey();
-    }
-
     public static ElasticsearchLeafReader getElasticsearchLeafReader(LeafReader reader) {
         if (reader instanceof FilterLeafReader) {
             if (reader instanceof ElasticsearchLeafReader) {

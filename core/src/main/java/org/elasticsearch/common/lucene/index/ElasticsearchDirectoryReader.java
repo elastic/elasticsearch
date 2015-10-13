@@ -108,6 +108,4 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
         }
         return null;
     }
-
-
 }

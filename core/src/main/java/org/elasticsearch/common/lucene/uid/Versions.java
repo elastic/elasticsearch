@@ -54,7 +54,7 @@ public class Versions {
     public static final long MATCH_DELETED = -4L;
 
     // TODO: is there somewhere else we can store these?
-    private static final ConcurrentMap<Object, CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    static final ConcurrentMap<Object, CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     // Evict this reader from lookupStates once it's closed:
     private static final CoreClosedListener removeLookupState = new CoreClosedListener() {

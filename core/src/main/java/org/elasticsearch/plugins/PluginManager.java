@@ -359,23 +359,35 @@ public class PluginManager {
                 throw new IOException("Could not move [" + sourcePluginBinDirectory + "] to [" + destPluginBinDirectory + "]", e);
             }
             if (Environment.getFileStore(destPluginBinDirectory).supportsFileAttributeView(PosixFileAttributeView.class)) {
-                // add read and execute permissions to existing perms, so execution will work.
-                // read should generally be set already, but set it anyway: don't rely on umask...
-                final Set<PosixFilePermission> executePerms = new HashSet<>();
-                executePerms.add(PosixFilePermission.OWNER_READ);
-                executePerms.add(PosixFilePermission.GROUP_READ);
-                executePerms.add(PosixFilePermission.OTHERS_READ);
-                executePerms.add(PosixFilePermission.OWNER_EXECUTE);
-                executePerms.add(PosixFilePermission.GROUP_EXECUTE);
-                executePerms.add(PosixFilePermission.OTHERS_EXECUTE);
+                PosixFileAttributes parentDirAttributes = Files.getFileAttributeView(destPluginBinDirectory.getParent(), PosixFileAttributeView.class).readAttributes();
+                //copy permissions from parent bin directory
+                Set<PosixFilePermission> filePermissions = new HashSet<>();
+                for (PosixFilePermission posixFilePermission : parentDirAttributes.permissions()) {
+                    switch (posixFilePermission) {
+                        case OWNER_EXECUTE:
+                        case GROUP_EXECUTE:
+                        case OTHERS_EXECUTE:
+                            break;
+                        default:
+                            filePermissions.add(posixFilePermission);
+                    }
+                }
+                // add file execute permissions to existing perms, so execution will work.
+                filePermissions.add(PosixFilePermission.OWNER_EXECUTE);
+                filePermissions.add(PosixFilePermission.GROUP_EXECUTE);
+                filePermissions.add(PosixFilePermission.OTHERS_EXECUTE);
                 Files.walkFileTree(destPluginBinDirectory, new SimpleFileVisitor<Path>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                         if (attrs.isRegularFile()) {
-                            Set<PosixFilePermission> perms = Files.getPosixFilePermissions(file);
-                            perms.addAll(executePerms);
-                            Files.setPosixFilePermissions(file, perms);
+                            setPosixFileAttributes(file, parentDirAttributes.owner(), parentDirAttributes.group(), filePermissions);
                         }
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                        setPosixFileAttributes(dir, parentDirAttributes.owner(), parentDirAttributes.group(), parentDirAttributes.permissions());
                         return FileVisitResult.CONTINUE;
                     }
                 });

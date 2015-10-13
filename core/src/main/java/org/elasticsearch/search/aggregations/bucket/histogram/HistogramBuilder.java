@@ -119,7 +119,7 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
         }
 
         if (extendedBoundsMin != null || extendedBoundsMax != null) {
-            builder.startObject(HistogramParser.EXTENDED_BOUNDS.getPreferredName());
+            builder.startObject(ExtendedBounds.EXTENDED_BOUNDS_FIELD.getPreferredName());
             if (extendedBoundsMin != null) {
                 builder.field("min", extendedBoundsMin);
             }

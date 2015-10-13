@@ -22,7 +22,6 @@ package org.elasticsearch.index.query.functionscore;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
@@ -47,7 +46,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -374,9 +372,12 @@ public class FunctionScoreTests extends ESTestCase {
 
     public Explanation getFiltersFunctionScoreExplanation(IndexSearcher searcher, ScoreFunction... scoreFunctions) throws IOException {
         FiltersFunctionScoreQuery filtersFunctionScoreQuery = getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode.AVG, CombineFunction.AVG, scoreFunctions);
+        return getExplanation(searcher, filtersFunctionScoreQuery).getDetails()[1];
+    }
+
+    protected Explanation getExplanation(IndexSearcher searcher, FiltersFunctionScoreQuery filtersFunctionScoreQuery) throws IOException {
         Weight weight = searcher.createNormalizedWeight(filtersFunctionScoreQuery, true);
-        Explanation explanation = weight.explain(searcher.getIndexReader().leaves().get(0), 0);
-        return explanation.getDetails()[1];
+        return weight.explain(searcher.getIndexReader().leaves().get(0), 0);
     }
 
     public FiltersFunctionScoreQuery getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode scoreMode, CombineFunction combineFunction, ScoreFunction... scoreFunctions) {
@@ -430,7 +431,7 @@ public class FunctionScoreTests extends ESTestCase {
 
                 @Override
                 public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
-                    throw new UnsupportedOperationException(UNSUPPORTED);
+                    return Explanation.match((float) score, "a random score for testing");
                 }
             };
         }
@@ -473,6 +474,8 @@ public class FunctionScoreTests extends ESTestCase {
             score *= weights[i] * scores[i];
         }
         assertThat(scoreWithWeight / (float) score, is(1f));
+        float explainedScore = getExplanation(searcher, filtersFunctionScoreQueryWithWeights).getValue();
+        assertThat(explainedScore / scoreWithWeight, is(1f));
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.SUM
@@ -487,6 +490,8 @@ public class FunctionScoreTests extends ESTestCase {
             sum += weights[i] * scores[i];
         }
         assertThat(scoreWithWeight / (float) sum, is(1f));
+        explainedScore = getExplanation(searcher, filtersFunctionScoreQueryWithWeights).getValue();
+        assertThat(explainedScore / scoreWithWeight, is(1f));
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.AVG
@@ -503,6 +508,8 @@ public class FunctionScoreTests extends ESTestCase {
             sum += weights[i] * scores[i];
         }
         assertThat(scoreWithWeight / (float) (sum / norm), is(1f));
+        explainedScore = getExplanation(searcher, filtersFunctionScoreQueryWithWeights).getValue();
+        assertThat(explainedScore / scoreWithWeight, is(1f));
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.MIN
@@ -517,6 +524,8 @@ public class FunctionScoreTests extends ESTestCase {
             min = Math.min(min, weights[i] * scores[i]);
         }
         assertThat(scoreWithWeight / (float) min, is(1f));
+        explainedScore = getExplanation(searcher, filtersFunctionScoreQueryWithWeights).getValue();
+        assertThat(explainedScore / scoreWithWeight, is(1f));
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.MAX
@@ -531,6 +540,8 @@ public class FunctionScoreTests extends ESTestCase {
             max = Math.max(max, weights[i] * scores[i]);
         }
         assertThat(scoreWithWeight / (float) max, is(1f));
+        explainedScore = getExplanation(searcher, filtersFunctionScoreQueryWithWeights).getValue();
+        assertThat(explainedScore / scoreWithWeight, is(1f));
     }
 
     @Test

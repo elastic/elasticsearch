@@ -152,10 +152,14 @@ allprojects {
     }
   }
 }
+
 idea {
-  project {
-    languageLevel = sourceCompatibility
-    vcs = 'Git'
+  if (project != null) {
+    // could be null, if this project is attached to another...
+    project {
+      languageLevel = sourceCompatibility
+      vcs = 'Git'
+    }
   }
 }
 

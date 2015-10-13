@@ -140,4 +140,10 @@ project.afterEvaluate {
       }.optional = true
     }
   }
+  // this is not done by the extra config plugin, but should be
+  project.configurations { configsContainer ->
+    project.ext.optionalDeps.each { optionalDep ->
+      configsContainer.runtime.exclude group: optionalDep.group, module: optionalDep.name
+    }
+  }
 }

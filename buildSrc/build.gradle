@@ -1,15 +1,22 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 
-apply plugin: 'groovy'
+plugins {
+  id 'groovy'
+  id 'com.bmuschko.nexus' version '2.3.1'
+}
 // TODO: move common IDE configuration to a common file to include
 apply plugin: 'idea'
 apply plugin: 'eclipse'
+
 /*idea {
   project {
     languageLevel = '1.8'
     vcs = 'Git'
   }
 }*/
+
+group = 'org.elasticsearch.gradle'
+archivesBaseName = 'build-tools'
 
 repositories {
   mavenCentral()
@@ -32,12 +39,18 @@ dependencies {
 
 Properties props = new Properties()
 props.load(project.file('../gradle.properties').newDataInputStream())
+version = props.getProperty('version')
 
 processResources {
     inputs.file('../gradle.properties')
     filter ReplaceTokens, tokens: [
         'version': props.getProperty('version')
     ]
+}
+
+extraArchive {
+  javadoc = false
+  tests = false
 }
 
 eclipse {

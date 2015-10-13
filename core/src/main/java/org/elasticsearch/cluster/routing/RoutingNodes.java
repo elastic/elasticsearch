@@ -614,7 +614,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
              */
             public void initialize(String nodeId, long version, long expectedShardSize) {
                 innerRemove();
-                nodes.initialize(new ShardRouting(current, version, current.primary() ? current.primaryTerm() + 1 : current.primaryTerm()), nodeId, expectedShardSize);
+                nodes.initialize(new ShardRouting(current, version), nodeId, expectedShardSize);
             }
 
             /**

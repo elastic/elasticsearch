@@ -440,8 +440,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         result = 31 * result + aliases.hashCode();
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
+        result = 31 * result + Arrays.hashCode(primaryTerms);
         return result;
     }
+
 
     @Override
     public Diff<IndexMetaData> diff(IndexMetaData previousState) {
@@ -735,14 +737,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
         public int primaryTerm(int shardId) {
             if (primaryTerms == null) {
-                allocatePrimaryTerms();
+                initializePrimaryTerms();
             }
             return this.primaryTerms[shardId];
         }
 
         public Builder primaryTerm(int shardId, int primaryTerm) {
             if (primaryTerms == null) {
-                allocatePrimaryTerms();
+                initializePrimaryTerms();
             }
             this.primaryTerms[shardId] = primaryTerm;
             return this;
@@ -752,7 +754,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             this.primaryTerms = primaryTerms;
         }
 
-        private void allocatePrimaryTerms() {
+        private void initializePrimaryTerms() {
             assert primaryTerms == null;
             if (numberOfShards() < 0) {
                 throw new IllegalStateException("you must set the number of shards before setting/reading primary terms");
@@ -774,7 +776,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             }
 
             if (primaryTerms == null) {
-                allocatePrimaryTerms();
+                initializePrimaryTerms();
             } else if (primaryTerms.length != numberOfShards()) {
                 throw new IllegalStateException("primaryTerms length is [" + primaryTerms.length
                         + "] but should be equal to number of shards [" + numberOfShards() + "]");

@@ -54,7 +54,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
     protected MapperService mapperService;
     protected IndexWriter writer;
     protected LeafReaderContext readerContext;
-    protected IndexReader topLevelReader;
+    protected DirectoryReader topLevelReader;
     protected IndicesFieldDataCache indicesFieldDataCache;
     protected abstract FieldDataType getFieldDataType();
 

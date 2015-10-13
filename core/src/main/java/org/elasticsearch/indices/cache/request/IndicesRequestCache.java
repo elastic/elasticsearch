@@ -249,7 +249,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
                 if (previous == null) {
-                    ElasticsearchDirectoryReader.addReaderCloseListener(context.searcher().getIndexReader(), cleanupKey);
+                    ElasticsearchDirectoryReader.addReaderCloseListener(context.searcher().getDirectoryReader(), cleanupKey);
                 }
             }
         } else {

@@ -47,15 +47,12 @@ public final class ShardUtils {
      * will return null.
      */
     @Nullable
-    public static ShardId extractShardId(IndexReader reader) {
+    public static ShardId extractShardId(DirectoryReader reader) {
         final ElasticsearchDirectoryReader esReader = ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader);
         if (esReader != null) {
             return esReader.shardId();
         }
-        if (!reader.leaves().isEmpty()) {
-            return extractShardId(reader.leaves().get(0).reader());
-        }
-        return null;
+        throw new IllegalArgumentException("can't extract shard ID, can't unwrap ElasticsearchDirectoryReader");
     }
 
 

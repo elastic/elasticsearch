@@ -75,16 +75,9 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
     }
 
     @SuppressForbidden(reason = "This is the only sane way to add a ReaderClosedListener")
-    public static void addReaderCloseListener(IndexReader reader, IndexReader.ReaderClosedListener listener) {
+    public static void addReaderCloseListener(DirectoryReader reader, IndexReader.ReaderClosedListener listener) {
         ElasticsearchDirectoryReader elasticsearchDirectoryReader = getElasticsearchDirectoryReader(reader);
-        if (elasticsearchDirectoryReader == null && reader instanceof LeafReader) {
-            ElasticsearchLeafReader leafReader = ElasticsearchLeafReader.getElasticsearchLeafReader((LeafReader) reader);
-            if (leafReader != null) {
-                assert reader.getCoreCacheKey() == leafReader.getCoreCacheKey();
-                leafReader.addReaderClosedListener(listener);
-                return;
-            }
-        } else {
+        if (elasticsearchDirectoryReader != null) {
             assert reader.getCoreCacheKey() == elasticsearchDirectoryReader.getCoreCacheKey();
             elasticsearchDirectoryReader.addReaderClosedListener(listener);
             return;
@@ -92,7 +85,7 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
         throw new IllegalStateException("Can't install close listener reader is not an ElasticsearchDirectoryReader/ElasticsearchLeafReader");
     }
 
-    public static ElasticsearchDirectoryReader getElasticsearchDirectoryReader(IndexReader reader) {
+    public static ElasticsearchDirectoryReader getElasticsearchDirectoryReader(DirectoryReader reader) {
         if (reader instanceof FilterDirectoryReader) {
             if (reader instanceof ElasticsearchDirectoryReader) {
                 return (ElasticsearchDirectoryReader) reader;

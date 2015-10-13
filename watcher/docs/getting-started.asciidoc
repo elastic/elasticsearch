@@ -53,6 +53,7 @@ is empty:
     "queue_size": 0,
     "max_size": 0
   }
+ "manually_stopped" : false
 }
 --------------------------------------------------
 

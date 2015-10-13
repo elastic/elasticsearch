@@ -46,7 +46,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
-import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class FunctionScoreTests extends ESTestCase {
@@ -364,10 +364,12 @@ public class FunctionScoreTests extends ESTestCase {
 
     public Explanation getFiltersFunctionScoreExplanation(IndexSearcher searcher, ScoreFunction... scoreFunctions) throws IOException {
         FiltersFunctionScoreQuery filtersFunctionScoreQuery = getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode.Avg, scoreFunctions);
+        return getExplanation(searcher, filtersFunctionScoreQuery).getDetails()[1];
+    }
+
+    protected Explanation getExplanation(IndexSearcher searcher, FiltersFunctionScoreQuery filtersFunctionScoreQuery) throws IOException {
         Weight weight = searcher.createNormalizedWeight(filtersFunctionScoreQuery, true);
-        Explanation explanation = weight.explain(searcher.getIndexReader().leaves().get(0), 0);
-        logger.info(explanation.toString());
-        return explanation.getDetails()[1];
+        return weight.explain(searcher.getIndexReader().leaves().get(0), 0);
     }
 
     public FiltersFunctionScoreQuery getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode scoreMode, ScoreFunction... scoreFunctions) {
@@ -388,17 +390,25 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     private static float[] randomFloats(int size) {
-        float[] weights = new float[size];
-        for (int i = 0; i < weights.length; i++) {
-            weights[i] = randomFloat() * (randomBoolean() ? 1.0f : -1.0f) * randomInt(100) + 1.e-5f;
+        float[] values = new float[size];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = randomFloat() * (randomBoolean() ? 1.0f : -1.0f) * randomInt(100) + 1.e-5f;
         }
-        return weights;
+        return values;
+    }
+
+    private static double[] randomDoubles(int size) {
+        double[] values = new double[size];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = randomDouble() * (randomBoolean() ? 1.0d : -1.0d) * randomInt(100) + 1.e-5d;
+        }
+        return values;
     }
 
     private static class ScoreFunctionStub extends ScoreFunction {
-        private float score;
+        private double score;
 
-        ScoreFunctionStub(float score) {
+        ScoreFunctionStub(double score) {
             super(CombineFunction.REPLACE);
             this.score = score;
         }
@@ -413,7 +423,7 @@ public class FunctionScoreTests extends ESTestCase {
 
                 @Override
                 public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
-                    throw new UnsupportedOperationException(UNSUPPORTED);
+                    return Explanation.match((float) score, "a random score for testing");
                 }
             };
         }
@@ -429,7 +439,7 @@ public class FunctionScoreTests extends ESTestCase {
     public void simpleWeightedFunctionsTest() throws IOException, ExecutionException, InterruptedException {
         int numFunctions = randomIntBetween(1, 3);
         float[] weights = randomFloats(numFunctions);
-        float[] scores = randomFloats(numFunctions);
+        double[] scores = randomDoubles(numFunctions);
         ScoreFunctionStub[] scoreFunctionStubs = new ScoreFunctionStub[numFunctions];
         for (int i = 0; i < numFunctions; i++) {
             scoreFunctionStubs[i] = new ScoreFunctionStub(scores[i]);
@@ -451,7 +461,9 @@ public class FunctionScoreTests extends ESTestCase {
         for (int i = 0; i < weights.length; i++) {
             score *= weights[i] * scores[i];
         }
-        assertThat(scoreWithWeight / score, closeTo(1, 1.e-5d));
+        assertThat(scoreWithWeight / (float) score, is(1f));
+        float explainedScore = getExplanation(searcher, filtersFunctionScoreQueryWithWeights).getValue();
+        assertThat(explainedScore / scoreWithWeight, is(1f));
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.Sum
@@ -465,7 +477,9 @@ public class FunctionScoreTests extends ESTestCase {
         for (int i = 0; i < weights.length; i++) {
             sum += weights[i] * scores[i];
         }
-        assertThat(scoreWithWeight / sum, closeTo(1, 1.e-5d));
+        assertThat(scoreWithWeight / (float) sum, is(1f));
+        explainedScore = getExplanation(searcher, filtersFunctionScoreQueryWithWeights).getValue();
+        assertThat(explainedScore / scoreWithWeight, is(1f));
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.Avg
@@ -481,7 +495,9 @@ public class FunctionScoreTests extends ESTestCase {
             norm += weights[i];
             sum += weights[i] * scores[i];
         }
-        assertThat(scoreWithWeight * norm / sum, closeTo(1, 1.e-5d));
+        assertThat(scoreWithWeight / (float) (sum / norm), is(1f));
+        explainedScore = getExplanation(searcher, filtersFunctionScoreQueryWithWeights).getValue();
+        assertThat(explainedScore / scoreWithWeight, is(1f));
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.Min
@@ -495,7 +511,9 @@ public class FunctionScoreTests extends ESTestCase {
         for (int i = 0; i < weights.length; i++) {
             min = Math.min(min, weights[i] * scores[i]);
         }
-        assertThat(scoreWithWeight / min, closeTo(1, 1.e-5d));
+        assertThat(scoreWithWeight / (float) min, is(1f));
+        explainedScore = getExplanation(searcher, filtersFunctionScoreQueryWithWeights).getValue();
+        assertThat(explainedScore / scoreWithWeight, is(1f));
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.Max
@@ -509,7 +527,9 @@ public class FunctionScoreTests extends ESTestCase {
         for (int i = 0; i < weights.length; i++) {
             max = Math.max(max, weights[i] * scores[i]);
         }
-        assertThat(scoreWithWeight / max, closeTo(1, 1.e-5d));
+        assertThat(scoreWithWeight / (float) max, is(1f));
+        explainedScore = getExplanation(searcher, filtersFunctionScoreQueryWithWeights).getValue();
+        assertThat(explainedScore / scoreWithWeight, is(1f));
     }
 
     @Test

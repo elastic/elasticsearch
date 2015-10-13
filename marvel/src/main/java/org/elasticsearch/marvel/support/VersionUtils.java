@@ -17,11 +17,13 @@ import java.util.regex.Pattern;
  */
 public final class VersionUtils {
 
+    public static final String VERSION_NUMBER_FIELD = "number";
+
     private VersionUtils() {
     }
 
     public static Version parseVersion(byte[] text) {
-        return parseVersion("", new String(text, Charset.forName("UTF-8")));
+        return parseVersion(VERSION_NUMBER_FIELD, new String(text, Charset.forName("UTF-8")));
     }
 
     /**

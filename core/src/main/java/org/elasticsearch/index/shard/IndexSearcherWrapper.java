@@ -63,11 +63,11 @@ public class IndexSearcherWrapper {
      * This is invoked each time a {@link Engine.Searcher} is requested to do an operation. (for example search)
      */
     public final Engine.Searcher wrap(EngineConfig engineConfig, Engine.Searcher engineSearcher) throws IOException {
-        final ElasticsearchDirectoryReader elasticsearchDirectoryReader = ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.reader());
+        final ElasticsearchDirectoryReader elasticsearchDirectoryReader = ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
         if (elasticsearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
         }
-        DirectoryReader reader = wrap(engineSearcher.reader());
+        DirectoryReader reader = wrap(engineSearcher.getDirectoryReader());
         IndexSearcher innerIndexSearcher = new IndexSearcher(new CacheFriendlyReaderWrapper(reader, elasticsearchDirectoryReader));
         innerIndexSearcher.setQueryCache(engineConfig.getQueryCache());
         innerIndexSearcher.setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());

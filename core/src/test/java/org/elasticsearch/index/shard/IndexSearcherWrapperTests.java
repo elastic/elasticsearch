@@ -75,7 +75,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
             final Engine.Searcher wrap = wrapper.wrap(ENGINE_CONFIG, engineSearcher);
             assertEquals(1, wrap.reader().getRefCount());
-            ElasticsearchDirectoryReader.addReaderCloseListener(wrap.reader(), reader -> {
+            ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), reader -> {
                 if (reader == open) {
                     count.incrementAndGet();
                 }
@@ -119,7 +119,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         final ConcurrentHashMap<Object, TopDocs> cache = new ConcurrentHashMap<>();
         try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
             try (final Engine.Searcher wrap = wrapper.wrap(ENGINE_CONFIG, engineSearcher)) {
-                ElasticsearchDirectoryReader.addReaderCloseListener(wrap.reader(), reader -> {
+                ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), reader -> {
                     cache.remove(reader.getCoreCacheKey());
                 });
                 TopDocs search = wrap.searcher().search(new TermQuery(new Term("field", "doc")), 1);

@@ -579,12 +579,10 @@ public abstract class Engine implements Closeable {
 
         private final String source;
         private final IndexSearcher searcher;
-        private final DirectoryReader reader;
 
         public Searcher(String source, IndexSearcher searcher) {
             this.source = source;
             this.searcher = searcher;
-            this.reader = (DirectoryReader) searcher.getIndexReader();
         }
 
         /**
@@ -594,8 +592,15 @@ public abstract class Engine implements Closeable {
             return source;
         }
 
-        public DirectoryReader reader() {
-            return reader;
+        public IndexReader reader() {
+            return searcher.getIndexReader();
+        }
+
+        public DirectoryReader getDirectoryReader() {
+            if (reader() instanceof  DirectoryReader) {
+                return (DirectoryReader) reader();
+            }
+            throw new IllegalStateException("Can't use " + reader().getClass() + " as an directory reader");
         }
 
         public IndexSearcher searcher() {

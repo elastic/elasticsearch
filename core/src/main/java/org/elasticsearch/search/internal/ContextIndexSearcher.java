@@ -41,12 +41,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private AggregatedDfs aggregatedDfs;
 
-    private final DirectoryReader directoryReader;
+    private final Engine.Searcher engineSearcher;
 
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.reader());
         in = searcher.searcher();
-        directoryReader = searcher.reader();
+        engineSearcher = searcher;
         setSimilarity(searcher.searcher().getSimilarity(true));
         setQueryCache(searchContext.getQueryCache());
         setQueryCachingPolicy(searchContext.indexShard().getQueryCachingPolicy());
@@ -110,6 +110,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public DirectoryReader getDirectoryReader() {
-        return directoryReader;
+        return engineSearcher.getDirectoryReader();
     }
 }

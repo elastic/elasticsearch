@@ -177,8 +177,12 @@ public final class IndicesWarmer extends AbstractComponent {
             return searcher;
         }
 
-        public DirectoryReader reader() {
+        public IndexReader reader() {
             return searcher.reader();
+        }
+
+        public DirectoryReader getDirectoryReader() {
+            return searcher.getDirectoryReader();
         }
 
         @Override

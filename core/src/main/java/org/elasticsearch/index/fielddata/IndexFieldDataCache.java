@@ -45,8 +45,6 @@ public interface IndexFieldDataCache {
      */
     void clear(String fieldName);
 
-    void clear(IndexReader reader);
-
     interface Listener {
 
         /**
@@ -79,10 +77,6 @@ public interface IndexFieldDataCache {
 
         @Override
         public void clear(String fieldName) {
-        }
-
-        @Override
-        public void clear(IndexReader reader) {
         }
     }
 }

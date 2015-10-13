@@ -89,11 +89,6 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     }
 
     @Override
-    public void clear(IndexReader reader) {
-        // no need to clear, because this is cached and cleared in AbstractBytesIndexFieldData
-    }
-
-    @Override
     public long ramBytesUsed() {
         return memorySizeInBytes;
     }

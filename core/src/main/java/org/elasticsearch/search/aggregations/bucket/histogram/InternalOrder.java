@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.Objects;
 
 /**
  * An internal {@link Histogram.Order} strategy which is identified by a unique id.
@@ -63,6 +64,25 @@ class InternalOrder extends Histogram.Order {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject().field(key, asc ? "asc" : "desc").endObject();
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, key, asc);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        InternalOrder other = (InternalOrder) obj;
+        return Objects.equals(id, other.id)
+                && Objects.equals(key, other.key)
+                && Objects.equals(asc, other.asc);
     }
 
     static class Aggregation extends InternalOrder {

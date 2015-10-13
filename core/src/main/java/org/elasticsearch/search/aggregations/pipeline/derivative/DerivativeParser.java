@@ -24,7 +24,7 @@ import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramParser;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
@@ -104,7 +104,7 @@ public class DerivativeParser implements PipelineAggregator.Parser {
 
         Long xAxisUnits = null;
         if (units != null) {
-            DateTimeUnit dateTimeUnit = DateHistogramParser.DATE_FIELD_UNITS.get(units);
+            DateTimeUnit dateTimeUnit = HistogramAggregator.DateHistogramFactory.DATE_FIELD_UNITS.get(units);
             if (dateTimeUnit != null) {
                 xAxisUnits = dateTimeUnit.field().getDurationField().getUnitMillis();
             } else {

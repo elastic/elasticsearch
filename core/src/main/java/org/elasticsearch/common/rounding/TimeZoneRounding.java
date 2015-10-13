@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.rounding;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -27,10 +28,13 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.DurationField;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  */
 public abstract class TimeZoneRounding extends Rounding {
+    public static final ParseField INTERVAL_FIELD = new ParseField("interval");
+    public static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
 
     public static Builder builder(DateTimeUnit unit) {
         return new Builder(unit);
@@ -157,6 +161,24 @@ public abstract class TimeZoneRounding extends Rounding {
             out.writeByte(unit.id());
             out.writeString(timeZone.getID());
         }
+        
+        @Override
+        public int hashCode() {
+            return Objects.hash(unit, timeZone);
+        }
+        
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            TimeUnitRounding other = (TimeUnitRounding) obj;
+            return Objects.equals(unit, other.unit)
+                    && Objects.equals(timeZone, other.timeZone);
+        }
     }
 
     static class TimeIntervalRounding extends TimeZoneRounding {
@@ -213,6 +235,24 @@ public abstract class TimeZoneRounding extends Rounding {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
             out.writeString(timeZone.getID());
+        }
+        
+        @Override
+        public int hashCode() {
+            return Objects.hash(interval, timeZone);
+        }
+        
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            TimeIntervalRounding other = (TimeIntervalRounding) obj;
+            return Objects.equals(interval, other.interval)
+                    && Objects.equals(timeZone, other.timeZone);
         }
     }
 }

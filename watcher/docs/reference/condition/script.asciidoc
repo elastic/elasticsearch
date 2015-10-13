@@ -133,9 +133,9 @@ and uses a `script` condition to check if the number of hits is above a specifie
 {
   "input" : {
     "search" : {
-      "search_type" : "count",
       "indices" : "log-events",
       "body" : {
+        "size" : 0,
         "query" : { "match" : { "status" : "error" } }
       }
     }

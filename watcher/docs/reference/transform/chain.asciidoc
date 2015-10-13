@@ -16,9 +16,9 @@ as shown in the following snippet:
   "chain" : [ <1>
     {
       "search" : {  <2>
-        "search_type" : "count",
         "indices" : [ "logstash-*" ],
         "body" : {
+          "size" : 0,
           "query" : {
             "match" : { "priority" : "error" }
           }

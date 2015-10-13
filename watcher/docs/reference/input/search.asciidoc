@@ -18,7 +18,7 @@ example, to get the message field from the first hit, use `ctx.payload.hits.hits
 [options="header"]
 |======
 | Name                                          |Required   | Default     | Description
-| `request.search_type`                         | no        | count       | The {ref}/search-request-search-type.html#search-request-search-type[type] of search request to perform. Valid values are: `count`, `dfs_query_and_fetch`, `dfs_query_then_fetch`, `query_and_fetch`, `query_then_fetch`, and `scan`. The Elasticsearch default is `query_then_fetch`.
+| `request.search_type`                         | no        | `query_then_fetch` | The {ref}/search-request-search-type.html#search-request-search-type[type] of search request to perform. Valid values are: `dfs_query_and_fetch`, `dfs_query_then_fetch`, `query_and_fetch`, `query_then_fetch`, and `scan`. The Elasticsearch default is `query_then_fetch`.
 | `request.indices`                             | no        | -           | The indices to search. If omitted, all indices are searched, which is the default behaviour in Elasticsearch.
 | `request.types`                               | no        | -           | The document types to search for. If omitted, all document types are are searched, which is the default behaviour in Elasticsearch.
 | `request.body`                                | no        | -           | The body of the request. The {ref}/search-request-body.html[request body] follows the same structure you normally send in the body of a REST `_search` request. The body can be static text or include `mustache` <<templates, templates>>.

@@ -32,9 +32,9 @@ additional parameters:
   "transform" : {
     "search" : {
       "request" : {
-        "search_type" : "count",
         "indices" : [ "logstash-*" ],
         "body" : {
+          "size" : 0,
           "query" : {
             "match" : { "priority" : "error"}
           }
@@ -81,10 +81,10 @@ The following snippet shows an example of a search that refers to the scheduled 
 {
   "transform" : {
     "search" : {
-      "search_type" : "count",
       "index" : [ "logstash-*" ],
       "type" : "event",
       "body" : {
+        "size" : 0,
         "query" : {
           "filtered" : {
             "filter" : {
@@ -123,10 +123,10 @@ The model of the template (based on which the mustache template will be evaluate
 {
   "transform" : {
     "search" : {
-      "search_type" : "count",
       "index" : [ "logstash-*" ],
       "type" : "event",
       "body" : {
+        "size" : 0,
         "template" {
           "inline" : {
             "query" : {

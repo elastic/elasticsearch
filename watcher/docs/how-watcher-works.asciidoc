@@ -53,9 +53,9 @@ PUT _watcher/watch/log_event_watch
   "input" : { <3>
     "search" : {
       "request" : {
-        "search_type" : "count",
         "indices" : "log-events",
         "body" : {
+          "size" : 0,
           "query" : { "match" : { "status" : "error" } }
         }
       }

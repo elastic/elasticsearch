@@ -56,8 +56,8 @@ For example, the following search input searches the watch history indices for w
         "indices": [
           ".watch_history*"
         ],
-        "search_type": "count",
         "body": {
+          "size" : 0,
           "query" : {
             "filtered": {
               "query" : {

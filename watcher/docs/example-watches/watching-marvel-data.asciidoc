@@ -163,8 +163,8 @@ PUT _watcher/watch/mem_watch
         "indices": [
           ".marvel-*"
         ],
-        "search_type": "count",
         "body": {
+          "size" : 0,
           "query": {
             "filtered": {
               "filter": {
@@ -264,8 +264,8 @@ PUT _watcher/watch/cpu_usage
         "indices": [
           ".marvel-*"
         ],
-        "search_type": "count",
         "body": {
+          "size" : 0,
           "query": {
             "filtered": {
               "filter": {
@@ -374,9 +374,9 @@ PUT _watcher/watch/open_file_descriptors
           ".marvel-*"
         ],
         "types": "node_stats",
-        "search_type": "count",
         "body": {
           "query": {
+            "size" : 0,
             "filtered": {
               "filter": {
                 "range": {
@@ -483,9 +483,9 @@ PUT _watcher/watch/fielddata_utilization
           ".marvel-*"
         ],
         "types": "node_stats",
-        "search_type": "count",
         "body": {
           "query": {
+            "size" : 0,
             "filtered": {
               "filter": {
                 "range": {

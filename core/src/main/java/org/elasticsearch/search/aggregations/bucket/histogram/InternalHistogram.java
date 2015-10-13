@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -52,6 +53,7 @@ import java.util.Map;
 public class InternalHistogram<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation<InternalHistogram, B> implements
         Histogram {
 
+    public static final Factory<Bucket> HISTOGRAM_FACTORY = new Factory<Bucket>();
     final static Type TYPE = new Type("histogram", "histo");
 
     private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
@@ -238,6 +240,10 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
         public String type() {
             return TYPE.name();
+        }
+
+        public ValueType valueType() {
+            return ValueType.NUMERIC;
         }
 
         public InternalHistogram<B> create(String name, List<B> buckets, InternalOrder order, long minDocCount,
@@ -496,7 +502,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @SuppressWarnings("unchecked")
-    private static <B extends InternalHistogram.Bucket> Factory<B> resolveFactory(String factoryType) {
+    protected static <B extends InternalHistogram.Bucket> Factory<B> resolveFactory(String factoryType) {
         if (factoryType.equals(InternalDateHistogram.TYPE.name())) {
             return (Factory<B>) new InternalDateHistogram.Factory();
         } else if (factoryType.equals(TYPE.name())) {

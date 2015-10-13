@@ -952,6 +952,9 @@ public class InternalEngine extends Engine {
         public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader) throws IOException {
             IndexSearcher searcher = super.newSearcher(reader, previousReader);
             if (reader instanceof LeafReader && isMergedSegment((LeafReader)reader)) {
+                // we call newSearcher from the IndexReaderWarmer which warms segments during merging
+                // in that case the reader is a LeafReader and all we need to do is to build a new Searcher
+                // and return it since it does it's own warming for that particular reader.
                 return searcher;
             }
             if (warmer != null) {

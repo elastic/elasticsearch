@@ -79,7 +79,7 @@ public class IndexSearcherWrapper {
         if (reader == engineSearcher.reader() && indexSearcher == innerIndexSearcher) {
             return engineSearcher;
         } else {
-            return new Engine.Searcher(engineSearcher.source(), indexSearcher) {
+            Engine.Searcher newSearcher = new Engine.Searcher(engineSearcher.source(), indexSearcher) {
                 @Override
                 public void close() throws ElasticsearchException {
                     try {
@@ -92,6 +92,9 @@ public class IndexSearcherWrapper {
 
                 }
             };
+            // TODO should this be a real exception? this checks that our wrapper doesn't wrap in it's own ElasticsearchDirectoryReader
+            assert ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(newSearcher.getDirectoryReader()) == elasticsearchDirectoryReader : "Wrapper hides actual ElasticsearchDirectoryReader but shouldn't";
+            return newSearcher;
         }
     }
 

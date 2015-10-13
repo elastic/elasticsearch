@@ -73,7 +73,8 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         final AtomicInteger count = new AtomicInteger();
         final AtomicInteger outerCount = new AtomicInteger();
         try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
-            final Engine.Searcher wrap = wrapper.wrap(ENGINE_CONFIG, engineSearcher);
+            // sometimes double wrap....
+            final Engine.Searcher wrap = randomBoolean() ? wrapper.wrap(ENGINE_CONFIG, engineSearcher) : wrapper.wrap(ENGINE_CONFIG, wrapper.wrap(ENGINE_CONFIG, engineSearcher));
             assertEquals(1, wrap.reader().getRefCount());
             ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), reader -> {
                 if (reader == open) {

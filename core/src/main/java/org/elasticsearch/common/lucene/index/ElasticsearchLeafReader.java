@@ -18,10 +18,7 @@
  */
 package org.elasticsearch.common.lucene.index;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.*;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
@@ -38,7 +35,7 @@ public final class ElasticsearchLeafReader extends FilterLeafReader {
      *
      * @param in specified base reader.
      */
-    ElasticsearchLeafReader(LeafReader in, ShardId shardId) {
+    public ElasticsearchLeafReader(LeafReader in, ShardId shardId) {
         super(in);
         this.shardId = shardId;
     }

@@ -74,6 +74,12 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
         }
     }
 
+    /**
+     * Adds the given listener to the provided directory reader. The reader must contain an {@link ElasticsearchDirectoryReader} in it's hierarchy
+     * otherwise we can't safely install the listener.
+     *
+     * @throws IllegalArgumentException if the reader doesn't contain an {@link ElasticsearchDirectoryReader} in it's hierarchy
+     */
     @SuppressForbidden(reason = "This is the only sane way to add a ReaderClosedListener")
     public static void addReaderCloseListener(DirectoryReader reader, IndexReader.ReaderClosedListener listener) {
         ElasticsearchDirectoryReader elasticsearchDirectoryReader = getElasticsearchDirectoryReader(reader);
@@ -82,9 +88,12 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
             elasticsearchDirectoryReader.addReaderClosedListener(listener);
             return;
         }
-        throw new IllegalStateException("Can't install close listener reader is not an ElasticsearchDirectoryReader/ElasticsearchLeafReader");
+        throw new IllegalArgumentException("Can't install close listener reader is not an ElasticsearchDirectoryReader/ElasticsearchLeafReader");
     }
 
+    /**
+     * Tries to unwrap the given reader until the first {@link ElasticsearchDirectoryReader} instance is found or <code>null</code> if no instance is found;
+     */
     public static ElasticsearchDirectoryReader getElasticsearchDirectoryReader(DirectoryReader reader) {
         if (reader instanceof FilterDirectoryReader) {
             if (reader instanceof ElasticsearchDirectoryReader) {

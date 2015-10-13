@@ -300,6 +300,15 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             return this;
         }
 
+        public Builder updateBlocks(IndexMetaData indexMetaData) {
+            removeIndexBlock(indexMetaData.index(), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+            removeIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_READ_ONLY_BLOCK);
+            removeIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_READ_BLOCK);
+            removeIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_WRITE_BLOCK);
+            removeIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_METADATA_BLOCK);
+            return addBlocks(indexMetaData);
+        }
+
         public Builder addGlobalBlock(ClusterBlock block) {
             global.add(block);
             return this;

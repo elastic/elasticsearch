@@ -99,7 +99,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_UPGRADED;
-import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
@@ -268,6 +267,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                     populateIgnoredShards(index, ignoreShards);
                                 }
                                 rtBuilder.addAsNewRestore(updatedIndexMetaData, restoreSource, ignoreShards);
+                                blocks.addBlocks(updatedIndexMetaData);
                                 mdBuilder.put(updatedIndexMetaData, true);
                             } else {
                                 validateExistingIndex(currentIndexMetaData, snapshotIndexMetaData, renamedIndex, partial);
@@ -291,9 +291,10 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_INDEX_UUID, currentIndexMetaData.indexUUID()));
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndex).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, restoreSource);
-                                blocks.removeIndexBlock(renamedIndex, INDEX_CLOSED_BLOCK);
+                                blocks.updateBlocks(updatedIndexMetaData);
                                 mdBuilder.put(updatedIndexMetaData, true);
                             }
+
                             for (int shard = 0; shard < snapshotIndexMetaData.getNumberOfShards(); shard++) {
                                 if (!ignoreShards.contains(shard)) {
                                     shardsBuilder.put(new ShardId(renamedIndex, shard), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().localNodeId()));

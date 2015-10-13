@@ -33,6 +33,7 @@ import org.junit.Test;
 import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -149,6 +150,13 @@ public class CreateIndexIT extends ESIntegTestCase {
         } finally {
             setClusterReadOnly(false);
         }
+    }
+
+    @Test
+    public void testCreateIndexWithMetadataBlocks() {
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_METADATA, true)));
+        assertBlocked(client().admin().indices().prepareGetSettings("test"), IndexMetaData.INDEX_METADATA_BLOCK);
+        disableIndexBlock("test", IndexMetaData.SETTING_BLOCKS_METADATA);
     }
 
     @Test

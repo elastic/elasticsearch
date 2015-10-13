@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.Entry;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -1756,6 +1757,96 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertHitCount(client.prepareCount("test-idx").setQuery(matchQuery("field1", "foo")).get(), 0);
         assertHitCount(client.prepareCount("test-idx").setQuery(matchQuery("field1", "bar")).get(), numdocs);
 
+    }
+
+    @Test
+    public void recreateBlocksOnRestoreTest() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(Settings.settingsBuilder()
+                        .put("location", randomRepoPath())
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        Settings.Builder indexSettings = Settings.builder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))
+                .put(INDEX_REFRESH_INTERVAL, "10s");
+
+        logger.info("--> create index");
+        assertAcked(prepareCreate("test-idx", 2, indexSettings));
+
+        try {
+            List<String> initialBlockSettings = randomSubsetOf(randomInt(3),
+                    IndexMetaData.SETTING_BLOCKS_WRITE, IndexMetaData.SETTING_BLOCKS_METADATA, IndexMetaData.SETTING_READ_ONLY);
+            Settings.Builder initialSettingsBuilder = Settings.builder();
+            for (String blockSetting : initialBlockSettings) {
+                initialSettingsBuilder.put(blockSetting, true);
+            }
+            Settings initialSettings = initialSettingsBuilder.build();
+            logger.info("--> using initial block settings {}", initialSettings.getAsMap());
+
+            if (!initialSettings.getAsMap().isEmpty()) {
+                logger.info("--> apply initial blocks to index");
+                client().admin().indices().prepareUpdateSettings("test-idx").setSettings(initialSettingsBuilder).get();
+            }
+
+            logger.info("--> snapshot index");
+            CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                    .setWaitForCompletion(true).setIndices("test-idx").get();
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+            logger.info("--> remove blocks and delete index");
+            disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_METADATA);
+            disableIndexBlock("test-idx", IndexMetaData.SETTING_READ_ONLY);
+            disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_WRITE);
+            disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_READ);
+            cluster().wipeIndices("test-idx");
+
+            logger.info("--> restore index with additional block changes");
+            List<String> changeBlockSettings = randomSubsetOf(randomInt(4),
+                    IndexMetaData.SETTING_BLOCKS_METADATA, IndexMetaData.SETTING_BLOCKS_WRITE,
+                    IndexMetaData.SETTING_READ_ONLY, IndexMetaData.SETTING_BLOCKS_READ);
+            Settings.Builder changedSettingsBuilder = Settings.builder();
+            for (String blockSetting : changeBlockSettings) {
+                changedSettingsBuilder.put(blockSetting, randomBoolean());
+            }
+            Settings changedSettings = changedSettingsBuilder.build();
+            logger.info("--> applying changed block settings {}", changedSettings.getAsMap());
+
+            RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
+                    .prepareRestoreSnapshot("test-repo", "test-snap")
+                    .setIndexSettings(changedSettings)
+                    .setWaitForCompletion(true).execute().actionGet();
+            assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+            ClusterBlocks blocks = client.admin().cluster().prepareState().clear().setBlocks(true).get().getState().blocks();
+            // compute current index settings (as we cannot query them if they contain SETTING_BLOCKS_METADATA)
+            Settings mergedSettings = Settings.builder()
+                    .put(initialSettings)
+                    .put(changedSettings)
+                    .build();
+            logger.info("--> merged block settings {}", mergedSettings.getAsMap());
+
+            logger.info("--> checking consistency between settings and blocks");
+            assertThat(mergedSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, false),
+                    is(blocks.hasIndexBlock("test-idx", IndexMetaData.INDEX_METADATA_BLOCK)));
+            assertThat(mergedSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_READ, false),
+                    is(blocks.hasIndexBlock("test-idx", IndexMetaData.INDEX_READ_BLOCK)));
+            assertThat(mergedSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_WRITE, false),
+                    is(blocks.hasIndexBlock("test-idx", IndexMetaData.INDEX_WRITE_BLOCK)));
+            assertThat(mergedSettings.getAsBoolean(IndexMetaData.SETTING_READ_ONLY, false),
+                    is(blocks.hasIndexBlock("test-idx", IndexMetaData.INDEX_READ_ONLY_BLOCK)));
+        } finally {
+            logger.info("--> cleaning up blocks");
+            disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_METADATA);
+            disableIndexBlock("test-idx", IndexMetaData.SETTING_READ_ONLY);
+            disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_WRITE);
+            disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_READ);
+        }
     }
 
     @Test

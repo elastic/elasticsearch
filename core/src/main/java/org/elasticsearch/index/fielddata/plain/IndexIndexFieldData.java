@@ -112,10 +112,6 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public void clear(IndexReader reader) {
-    }
-
-    @Override
     public final AtomicOrdinalsFieldData load(LeafReaderContext context) {
         return atomicFieldData;
     }

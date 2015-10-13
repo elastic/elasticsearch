@@ -332,11 +332,6 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public void clear(IndexReader reader) {
-            ParentChildIndexFieldData.this.clear(reader);
-        }
-
-        @Override
         public Index index() {
             return ParentChildIndexFieldData.this.index();
         }

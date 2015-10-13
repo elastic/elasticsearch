@@ -65,11 +65,6 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
     }
 
     @Override
-    public void clear(IndexReader reader) {
-        cache.clear(reader);
-    }
-
-    @Override
     public FD load(LeafReaderContext context) {
         if (context.reader().getFieldInfos().fieldInfo(fieldNames.indexName()) == null) {
             // If the field doesn't exist, then don't bother with loading and adding an empty instance to the field data cache

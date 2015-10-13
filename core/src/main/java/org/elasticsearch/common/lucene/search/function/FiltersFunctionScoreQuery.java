@@ -341,14 +341,14 @@ public class FiltersFunctionScoreQuery extends Query {
                     break;
                 default: // Avg / Total
                     double totalFactor = 0.0f;
-                    float weightSum = 0;
+                    double weightSum = 0;
                     for (int i = 0; i < filterFunctions.length; i++) {
                         if (docSets[i].get(docId)) {
                             totalFactor += functions[i].score(docId, subQueryScore);
                             if (filterFunctions[i].function instanceof WeightFactorFunction) {
-                                weightSum+= ((WeightFactorFunction)filterFunctions[i].function).getWeight();
+                                weightSum += ((WeightFactorFunction) filterFunctions[i].function).getWeight();
                             } else {
-                                weightSum++;
+                                weightSum += 1.0;
                             }
                         }
                     }

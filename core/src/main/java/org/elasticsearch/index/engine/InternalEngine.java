@@ -1023,7 +1023,7 @@ public class InternalEngine extends Engine {
     }
 
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {
-        try (final Searcher searcher = acquireSearcher("load_version")) {
+        try (final Searcher searcher = acquireSearcher("load_version", false)) {
             return Versions.loadVersion(searcher.reader(), uid);
         }
     }

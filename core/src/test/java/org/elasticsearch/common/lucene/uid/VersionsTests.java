@@ -41,9 +41,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
@@ -296,6 +298,57 @@ public class VersionsTests extends ESTestCase {
         iw.close();
         assertThat(IndexWriter.isLocked(iw.getDirectory()), is(false));
         ir.close();
+        dir.close();
+    }
+
+    /** Test that version map cache works, is evicted on close, etc */
+    public void testCache() throws Exception {
+        int size = Versions.lookupStates.size();
+
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+        Document doc = new Document();
+        doc.add(new Field(UidFieldMapper.NAME, "6", UidFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
+        writer.addDocument(doc);
+        DirectoryReader reader = DirectoryReader.open(writer, false);
+        // should increase cache size by 1
+        assertEquals(87, Versions.loadVersion(reader, new Term(UidFieldMapper.NAME, "6")));
+        assertEquals(size+1, Versions.lookupStates.size());
+        // should be cache hit
+        assertEquals(87, Versions.loadVersion(reader, new Term(UidFieldMapper.NAME, "6")));
+        assertEquals(size+1, Versions.lookupStates.size());
+
+        reader.close();
+        writer.close();
+        // core should be evicted from the map
+        assertEquals(size, Versions.lookupStates.size());
+        dir.close();
+    }
+
+    /** Test that version map cache behaves properly with a filtered reader */
+    public void testCacheFilterReader() throws Exception {
+        int size = Versions.lookupStates.size();
+
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+        Document doc = new Document();
+        doc.add(new Field(UidFieldMapper.NAME, "6", UidFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
+        writer.addDocument(doc);
+        DirectoryReader reader = DirectoryReader.open(writer, false);
+        assertEquals(87, Versions.loadVersion(reader, new Term(UidFieldMapper.NAME, "6")));
+        assertEquals(size+1, Versions.lookupStates.size());
+        // now wrap the reader
+        DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId("bogus", 5));
+        assertEquals(87, Versions.loadVersion(wrapped, new Term(UidFieldMapper.NAME, "6")));
+        // same size map: core cache key is shared
+        assertEquals(size+1, Versions.lookupStates.size());
+
+        reader.close();
+        writer.close();
+        // core should be evicted from the map
+        assertEquals(size, Versions.lookupStates.size());
         dir.close();
     }
 }

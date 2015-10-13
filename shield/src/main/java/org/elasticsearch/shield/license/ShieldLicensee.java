@@ -23,9 +23,8 @@ public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> im
     private final ShieldLicenseState shieldLicenseState;
 
     @Inject
-    public ShieldLicensee(Settings settings, LicenseeRegistry clientService,
-                          LicensesManagerService managerService, ShieldLicenseState shieldLicenseState) {
-        super(settings, ShieldPlugin.NAME, clientService, managerService);
+    public ShieldLicensee(Settings settings, LicenseeRegistry clientService, ShieldLicenseState shieldLicenseState) {
+        super(settings, ShieldPlugin.NAME, clientService);
         add(new Listener() {
             @Override
             public void onChange(License license, Status status) {

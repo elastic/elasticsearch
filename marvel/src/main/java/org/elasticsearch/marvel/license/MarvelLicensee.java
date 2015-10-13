@@ -17,8 +17,8 @@ import org.elasticsearch.marvel.MarvelPlugin;
 public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> implements Licensee {
 
     @Inject
-    public MarvelLicensee(Settings settings, LicenseeRegistry clientService, LicensesManagerService managerService) {
-        super(settings, MarvelPlugin.NAME, clientService, managerService);
+    public MarvelLicensee(Settings settings, LicenseeRegistry clientService) {
+        super(settings, MarvelPlugin.NAME, clientService);
     }
 
     @Override

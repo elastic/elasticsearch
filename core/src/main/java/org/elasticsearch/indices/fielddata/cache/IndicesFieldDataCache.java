@@ -247,12 +247,6 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             // soon as possible
             cache.cleanUp();
         }
-
-        @Override
-        public void clear(IndexReader indexReader) {
-            cache.invalidate(new Key(this, indexReader.getCoreCacheKey(), null));
-            // don't call cache.cleanUp here as it would have bad performance implications
-        }
     }
 
     public static class Key {

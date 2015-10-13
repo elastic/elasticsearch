@@ -1030,7 +1030,7 @@ public class HistogramTests extends ESIntegTestCase {
                     .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(-1).minDocCount(0)).execute().actionGet();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString(), containsString("Missing required field [interval]"));
+            assertThat(e.toString(), containsString("[interval] must be 1 or greater for histogram aggregation [histo]"));
         }
     }
 }

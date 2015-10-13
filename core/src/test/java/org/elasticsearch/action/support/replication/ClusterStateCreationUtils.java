@@ -225,6 +225,29 @@ public class ClusterStateCreationUtils {
         return state.build();
     }
 
+    /**
+     * Creates a cluster state where local node and master node can be specified
+     * @param localNode  node in allNodes that is the local node
+     * @param masterNode node in allNodes that is the master node. Can be null if no master exists
+     * @param allNodes   all nodes in the cluster
+     * @return cluster state
+     */
+    public static  ClusterState state(DiscoveryNode localNode, DiscoveryNode masterNode, DiscoveryNode... allNodes) {
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        for (DiscoveryNode node : allNodes) {
+            discoBuilder.put(node);
+        }
+        if (masterNode != null) {
+            discoBuilder.masterNodeId(masterNode.id());
+        }
+        discoBuilder.localNodeId(localNode.id());
+
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        state.nodes(discoBuilder);
+        state.metaData(MetaData.builder().generateClusterUuidIfNeeded());
+        return state.build();
+    }
+
     private static DiscoveryNode newNode(int nodeId) {
         return new DiscoveryNode("node_" + nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);
     }

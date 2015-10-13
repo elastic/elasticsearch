@@ -67,13 +67,13 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
     public void testDuelAllTypesSingleValue() throws Exception {
         final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                    .startObject("bytes").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", "doc_values").endObject().endObject()
-                    .startObject("byte").field("type", "byte").startObject("fielddata").field("format", "doc_values").endObject().endObject()
-                    .startObject("short").field("type", "short").startObject("fielddata").field("format", "doc_values").endObject().endObject()
-                    .startObject("integer").field("type", "integer").startObject("fielddata").field("format", "doc_values").endObject().endObject()
-                    .startObject("long").field("type", "long").startObject("fielddata").field("format", "doc_values").endObject().endObject()
-                    .startObject("float").field("type", "float").startObject("fielddata").field("format", "doc_values").endObject().endObject()
-                    .startObject("double").field("type", "double").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                    .startObject("bytes").field("type", "string").field("index", "not_analyzed").endObject()
+                    .startObject("byte").field("type", "byte").endObject()
+                    .startObject("short").field("type", "short").endObject()
+                    .startObject("integer").field("type", "integer").endObject()
+                    .startObject("long").field("type", "long").endObject()
+                    .startObject("float").field("type", "float").endObject()
+                    .startObject("double").field("type", "double").endObject()
                 .endObject().endObject().endObject().string();
         final DocumentMapper mapper = mapperService.documentMapperParser().parse(mapping);
         Random random = getRandom();
@@ -99,12 +99,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
         LeafReaderContext context = refreshReader();
         Map<FieldDataType, Type> typeMap = new HashMap<>();
         typeMap.put(new FieldDataType("string", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
-        typeMap.put(new FieldDataType("byte", Settings.builder().put("format", "array")), Type.Integer);
-        typeMap.put(new FieldDataType("short", Settings.builder().put("format", "array")), Type.Integer);
-        typeMap.put(new FieldDataType("int", Settings.builder().put("format", "array")), Type.Integer);
-        typeMap.put(new FieldDataType("long", Settings.builder().put("format", "array")), Type.Long);
-        typeMap.put(new FieldDataType("double", Settings.builder().put("format", "array")), Type.Double);
-        typeMap.put(new FieldDataType("float", Settings.builder().put("format", "array")), Type.Float);
         typeMap.put(new FieldDataType("byte", Settings.builder().put("format", "doc_values")), Type.Integer);
         typeMap.put(new FieldDataType("short", Settings.builder().put("format", "doc_values")), Type.Integer);
         typeMap.put(new FieldDataType("int", Settings.builder().put("format", "doc_values")), Type.Integer);
@@ -125,9 +119,9 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
             }
 
             ifdService.clear();
-            IndexFieldData<?> leftFieldData = getForField(left.getKey(), left.getValue().name().toLowerCase(Locale.ROOT));
+            IndexFieldData<?> leftFieldData = getForField(left.getKey(), left.getValue().name().toLowerCase(Locale.ROOT), true);
             ifdService.clear();
-            IndexFieldData<?> rightFieldData = getForField(right.getKey(), right.getValue().name().toLowerCase(Locale.ROOT));
+            IndexFieldData<?> rightFieldData = getForField(right.getKey(), right.getValue().name().toLowerCase(Locale.ROOT), true);
             duelFieldDataBytes(random, context, leftFieldData, rightFieldData, pre);
             duelFieldDataBytes(random, context, rightFieldData, leftFieldData, pre);
 
@@ -143,10 +137,10 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
     public void testDuelIntegers() throws Exception {
         final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                    .startObject("byte").field("type", "byte").startObject("fielddata").field("format", "doc_values").endObject().endObject()
-                    .startObject("short").field("type", "short").startObject("fielddata").field("format", "doc_values").endObject().endObject()
-                    .startObject("integer").field("type", "integer").startObject("fielddata").field("format", "doc_values").endObject().endObject()
-                    .startObject("long").field("type", "long").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                    .startObject("byte").field("type", "byte").endObject()
+                    .startObject("short").field("type", "short").endObject()
+                    .startObject("integer").field("type", "integer").endObject()
+                    .startObject("long").field("type", "long").endObject()
                 .endObject().endObject().endObject().string();
 
         final DocumentMapper mapper = mapperService.documentMapperParser().parse(mapping);
@@ -187,10 +181,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
         }
         LeafReaderContext context = refreshReader();
         Map<FieldDataType, Type> typeMap = new HashMap<>();
-        typeMap.put(new FieldDataType("byte", Settings.builder().put("format", "array")), Type.Integer);
-        typeMap.put(new FieldDataType("short", Settings.builder().put("format", "array")), Type.Integer);
-        typeMap.put(new FieldDataType("int", Settings.builder().put("format", "array")), Type.Integer);
-        typeMap.put(new FieldDataType("long", Settings.builder().put("format", "array")), Type.Long);
         typeMap.put(new FieldDataType("byte", Settings.builder().put("format", "doc_values")), Type.Integer);
         typeMap.put(new FieldDataType("short", Settings.builder().put("format", "doc_values")), Type.Integer);
         typeMap.put(new FieldDataType("int", Settings.builder().put("format", "doc_values")), Type.Integer);
@@ -206,9 +196,9 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
                 right = left = list.remove(0);
             }
             ifdService.clear();
-            IndexNumericFieldData leftFieldData = getForField(left.getKey(), left.getValue().name().toLowerCase(Locale.ROOT));
+            IndexNumericFieldData leftFieldData = getForField(left.getKey(), left.getValue().name().toLowerCase(Locale.ROOT), true);
             ifdService.clear();
-            IndexNumericFieldData rightFieldData = getForField(right.getKey(), right.getValue().name().toLowerCase(Locale.ROOT));
+            IndexNumericFieldData rightFieldData = getForField(right.getKey(), right.getValue().name().toLowerCase(Locale.ROOT), true);
 
             duelFieldDataLong(random, context, leftFieldData, rightFieldData);
             duelFieldDataLong(random, context, rightFieldData, leftFieldData);
@@ -226,8 +216,8 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
     public void testDuelDoubles() throws Exception {
         final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                    .startObject("float").field("type", "float").startObject("fielddata").field("format", "doc_values").endObject().endObject()
-                    .startObject("double").field("type", "double").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                    .startObject("float").field("type", "float").endObject()
+                    .startObject("double").field("type", "double").endObject()
                 .endObject().endObject().endObject().string();
 
         final DocumentMapper mapper = mapperService.documentMapperParser().parse(mapping);
@@ -272,8 +262,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
         }
         LeafReaderContext context = refreshReader();
         Map<FieldDataType, Type> typeMap = new HashMap<>();
-        typeMap.put(new FieldDataType("double", Settings.builder().put("format", "array")), Type.Double);
-        typeMap.put(new FieldDataType("float", Settings.builder().put("format", "array")), Type.Float);
         typeMap.put(new FieldDataType("double", Settings.builder().put("format", "doc_values")), Type.Double);
         typeMap.put(new FieldDataType("float", Settings.builder().put("format", "doc_values")), Type.Float);
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<>(typeMap.entrySet());
@@ -287,10 +275,10 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
                 right = left = list.remove(0);
             }
             ifdService.clear();
-            IndexNumericFieldData leftFieldData = getForField(left.getKey(), left.getValue().name().toLowerCase(Locale.ROOT));
+            IndexNumericFieldData leftFieldData = getForField(left.getKey(), left.getValue().name().toLowerCase(Locale.ROOT), true);
 
             ifdService.clear();
-            IndexNumericFieldData rightFieldData = getForField(right.getKey(), right.getValue().name().toLowerCase(Locale.ROOT));
+            IndexNumericFieldData rightFieldData = getForField(right.getKey(), right.getValue().name().toLowerCase(Locale.ROOT), true);
 
             duelFieldDataDouble(random, context, leftFieldData, rightFieldData);
             duelFieldDataDouble(random, context, rightFieldData, leftFieldData);

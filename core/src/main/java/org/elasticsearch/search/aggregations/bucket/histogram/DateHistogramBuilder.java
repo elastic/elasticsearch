@@ -171,7 +171,7 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
         }
 
         if (extendedBoundsMin != null || extendedBoundsMax != null) {
-            builder.startObject(DateHistogramParser.EXTENDED_BOUNDS.getPreferredName());
+            builder.startObject(ExtendedBounds.EXTENDED_BOUNDS_FIELD.getPreferredName());
             if (extendedBoundsMin != null) {
                 builder.field("min", extendedBoundsMin);
             }

@@ -46,7 +46,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 import java.util.*;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 1)
+@ESIntegTestCase.ClusterScope(numDataNodes = 1, randomDynamicTemplates = false)
 public class IndexSearcherWrapperIT extends ESIntegTestCase {
 
     public static class TestPlugin extends Plugin {

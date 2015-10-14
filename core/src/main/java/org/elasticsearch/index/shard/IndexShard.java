@@ -179,7 +179,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS = "index.translog.flush_threshold_ops";
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
     public static final String INDEX_TRANSLOG_DISABLE_FLUSH = "index.translog.disable_flush";
-
+    public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
 
     private final ShardPath path;
 
@@ -898,12 +898,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     /** Records timestamp of the last write operation, possibly switching {@code active} to true if we were inactive. */
     private void markLastWrite(Engine.Operation op) {
         lastWriteNS = op.startTime();
-        if (active.getAndSet(true) == false) {
-            // We are currently inactive, but a new write operation just showed up, so we now notify IMC
-            // to wake up and fix our indexing buffer.  We could do this async instead, but cost should
-            // be low, and it's rare this happens.
-            indexingMemoryController.forceCheck();
-        }
     }
 
     private void ensureWriteAllowed(Engine.Operation op) throws IllegalIndexShardStateException {
@@ -962,8 +956,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             logger.debug("scheduled refresher disabled");
         }
     }
-
-    public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
 
     public void addFailedEngineListener(Engine.FailedEngineListener failedEngineListener) {
         this.failedEngineListener.delegates.add(failedEngineListener);
@@ -1177,7 +1169,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
      * changes.
      */
     public void refreshAsync(final String reason) {
-        // nocommit this really is async???
         engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
                 @Override
                 public void run() {
@@ -1202,6 +1193,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
                 @Override
                 public void run() {
                     try {
+                        // TODO: now that we use refresh to clear the indexing buffer, we should check here if we did that "recently" and
+                        // reschedule if so...
                         if (getEngine().refreshNeeded()) {
                             refresh("schedule");
                         }

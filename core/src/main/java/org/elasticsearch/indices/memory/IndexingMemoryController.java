@@ -54,7 +54,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     /** If we see no indexing operations after this much time for a given shard, we consider that shard inactive (default: 5 minutes). */
     public static final String SHARD_INACTIVE_TIME_SETTING = "indices.memory.shard_inactive_time";
 
-    /** How frequently we check indexing memory usage (default: 5 seconds). */
+    /** How frequently we check indexing memory usage (default: 1 seconds). */
     public static final String SHARD_MEMORY_INTERVAL_TIME_SETTING = "indices.memory.interval";
 
     /** Hardwired translog buffer size */
@@ -107,7 +107,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
         this.inactiveTime = this.settings.getAsTime(SHARD_INACTIVE_TIME_SETTING, TimeValue.timeValueMinutes(5));
         // we need to have this relatively small to free up heap quickly enough
-        this.interval = this.settings.getAsTime(SHARD_MEMORY_INTERVAL_TIME_SETTING, TimeValue.timeValueSeconds(5));
+        this.interval = this.settings.getAsTime(SHARD_MEMORY_INTERVAL_TIME_SETTING, TimeValue.timeValueSeconds(1));
 
         this.statusChecker = new ShardsIndicesStatusChecker();
 
@@ -238,12 +238,9 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                 totalBytesUsed += getIndexBufferRAMBytesUsed(shardId);
             }
 
-            System.out.println("TOTAL=" + totalBytesUsed + " vs " + indexingBuffer);
-
             if (totalBytesUsed > indexingBuffer.bytes()) {
                 // OK we are using too much; make a queue and ask largest shard(s) to refresh:
                 logger.debug("now refreshing some shards: total indexing bytes used [{}] vs index_buffer_size [{}]", new ByteSizeValue(totalBytesUsed), indexingBuffer);
-
                 PriorityQueue<ShardAndBytesUsed> queue = new PriorityQueue<>();
                 for (ShardId shardId : availableShards()) {
                     long shardBytesUsed = getIndexBufferRAMBytesUsed(shardId);

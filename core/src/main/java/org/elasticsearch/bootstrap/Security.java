@@ -21,9 +21,9 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.*;
-import java.net.URI;
 import java.net.URL;
 import java.nio.file.AccessMode;
 import java.nio.file.DirectoryStream;
@@ -169,7 +169,7 @@ final class Security {
         if (Files.exists(environment.pluginsFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
                 for (Path plugin : stream) {
-                    Path policyFile = plugin.resolve("plugin-security.policy");
+                    Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
                     if (Files.exists(policyFile)) {
                         // parse the plugin's policy file into a set of permissions
                         Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toUri()));
@@ -191,7 +191,7 @@ final class Security {
                 }
             }
         }
-        return map;
+        return Collections.unmodifiableMap(map);
     }
 
     /** returns dynamic Permissions to configured paths */

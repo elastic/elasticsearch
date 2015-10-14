@@ -25,6 +25,7 @@ import org.elasticsearch.bootstrap.ESPolicy;
 import org.elasticsearch.bootstrap.Security;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.FilePermission;
 import java.io.InputStream;
@@ -123,7 +124,7 @@ public class BootstrapForTesting {
                 final Policy policy;
                 // if its a plugin with special permissions, we use a wrapper policy impl to try
                 // to simulate what happens with a real distribution
-                List<URL> pluginPolicies = Collections.list(BootstrapForTesting.class.getClassLoader().getResources("plugin-security.policy"));
+                List<URL> pluginPolicies = Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_POLICY));
                 if (!pluginPolicies.isEmpty()) {
                     Permissions extra = new Permissions();
                     for (URL url : pluginPolicies) {
@@ -149,7 +150,7 @@ public class BootstrapForTesting {
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.
                 // this just makes unit testing more realistic
-                for (URL url : Collections.list(BootstrapForTesting.class.getClassLoader().getResources("plugin-descriptor.properties"))) {
+                for (URL url : Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_PROPERTIES))) {
                     Properties properties = new Properties();
                     try (InputStream stream = url.openStream()) {
                         properties.load(stream);

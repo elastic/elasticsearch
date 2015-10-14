@@ -260,7 +260,8 @@
               <executions>
                   <execution>
                       <id>copy-resources</id>
-                      <phase>validate</phase>
+                      <!-- process-resources makes more sense, but is not done by e.g. mvn eclipse:eclipse! -->
+                      <phase>generate-resources</phase>
                       <goals>
                           <goal>copy-resources</goal>
                       </goals>

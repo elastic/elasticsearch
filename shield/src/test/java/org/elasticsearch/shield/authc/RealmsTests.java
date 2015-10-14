@@ -143,12 +143,12 @@ public class RealmsTests extends ESTestCase {
     @Test
     public void testUnlicensedWithInternalRealms() throws Exception {
         factories.put(LdapRealm.TYPE, new DummyRealm.Factory(LdapRealm.TYPE, false));
-        assertThat(factories.get("type_1"), notNullValue());
+        assertThat(factories.get("type_0"), notNullValue());
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
                 .put("shield.authc.realms.foo.type", "ldap")
                 .put("shield.authc.realms.foo.order", "0")
-                .put("shield.authc.realms.custom.type", "type_1")
+                .put("shield.authc.realms.custom.type", "type_0")
                 .put("shield.authc.realms.custom.order", "1");
         Settings settings = builder.build();
         Environment env = new Environment(settings);
@@ -161,7 +161,7 @@ public class RealmsTests extends ESTestCase {
             i++;
             types.add(realm.type());
         }
-        assertThat(types, contains("ldap", "type_1"));
+        assertThat(types, contains("ldap", "type_0"));
 
         i = 0;
         when(shieldLicenseState.customRealmsEnabled()).thenReturn(false);

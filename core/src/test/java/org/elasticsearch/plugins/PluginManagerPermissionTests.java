@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static java.nio.file.attribute.PosixFilePermission.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.plugins.PluginInfoTests.writeProperties;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -283,6 +284,39 @@ public class PluginManagerPermissionTests extends ESTestCase {
         assertThat(pluginConfigFileAttributes.permissions(), equalTo(expectedFilePermissions));
     }
 
+    public void testBinDirectoryOwnerGroupAndPermissions() throws IOException {
+        assumeTrue("File system does not support permissions, skipping", supportsPermissions);
+        URL pluginUrl = createPlugin(true, false);
+        PluginManager pluginManager = new PluginManager(environment, pluginUrl, PluginManager.OutputMode.VERBOSE, TimeValue.timeValueSeconds(10));
+        pluginManager.downloadAndExtract(pluginName, terminal);
+        PosixFileAttributes parentFileAttributes = Files.getFileAttributeView(environment.binFile(), PosixFileAttributeView.class).readAttributes();
+        Path binPath = environment.binFile().resolve(pluginName);
+        PosixFileAttributes pluginBinDirAttributes = Files.getFileAttributeView(binPath, PosixFileAttributeView.class).readAttributes();
+        assertThat(pluginBinDirAttributes.owner(), equalTo(parentFileAttributes.owner()));
+        assertThat(pluginBinDirAttributes.group(), equalTo(parentFileAttributes.group()));
+        assertThat(pluginBinDirAttributes.permissions(), equalTo(parentFileAttributes.permissions()));
+        Path executableFile = binPath.resolve("my-binary");
+        PosixFileAttributes pluginExecutableFileAttributes = Files.getFileAttributeView(executableFile, PosixFileAttributeView.class).readAttributes();
+        assertThat(pluginExecutableFileAttributes.owner(), equalTo(parentFileAttributes.owner()));
+        assertThat(pluginExecutableFileAttributes.group(), equalTo(parentFileAttributes.group()));
+        Set<PosixFilePermission> expectedFilePermissions = new HashSet<>();
+        expectedFilePermissions.add(OWNER_EXECUTE);
+        expectedFilePermissions.add(GROUP_EXECUTE);
+        expectedFilePermissions.add(OTHERS_EXECUTE);
+        for (PosixFilePermission parentPermission : parentFileAttributes.permissions()) {
+            switch(parentPermission) {
+                case OWNER_EXECUTE:
+                case GROUP_EXECUTE:
+                case OTHERS_EXECUTE:
+                    break;
+                default:
+                    expectedFilePermissions.add(parentPermission);
+            }
+        }
+
+        assertThat(pluginExecutableFileAttributes.permissions(), equalTo(expectedFilePermissions));
+    }
+
     private URL createPlugin(boolean withBinDir, boolean withConfigDir) throws IOException {
         final Path structure = createTempDir().resolve("fake-plugin");
         writeProperties(structure, "description", "fake desc",
@@ -301,7 +335,7 @@ public class PluginManagerPermissionTests extends ESTestCase {
             // create executable
             Path executable = binDir.resolve("my-binary");
             Files.createFile(executable);
-            Files.setPosixFilePermissions(executable, PosixFilePermissions.fromString("rwxr-xr-x"));
+            Files.setPosixFilePermissions(executable, PosixFilePermissions.fromString("rw-r--r--"));
         }
         if (withConfigDir) {
             // create bin dir

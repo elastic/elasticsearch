@@ -79,8 +79,13 @@ install_jvm_example() {
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
     install_jvm_plugin jvm-example "$relativePath"
 
-    assert_file_exist "$ESHOME/bin/jvm-example"
-    assert_file_exist "$ESHOME/bin/jvm-example/test"
+    #owner group and permissions vary depending on how es was installed
+    #just make sure that everything is the same as the parent bin dir, which was properly set up during install
+    bin_user=$(find "$ESHOME/bin" -maxdepth 0 -printf "%u")
+    bin_owner=$(find "$ESHOME/bin" -maxdepth 0 -printf "%g")
+    bin_privileges=$(find "$ESHOME/bin" -maxdepth 0 -printf "%m")
+    assert_file "$ESHOME/bin/jvm-example" d $bin_user $bin_owner $bin_privileges
+    assert_file "$ESHOME/bin/jvm-example/test" f $bin_user $bin_owner $bin_privileges
 
     #owner group and permissions vary depending on how es was installed
     #just make sure that everything is the same as $CONFIG_DIR, which was properly set up during install

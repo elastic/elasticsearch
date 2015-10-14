@@ -1016,7 +1016,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         try {
                             final long start = System.nanoTime();
                             IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
-                            ifd.loadGlobal(context.reader());
+                            ifd.loadGlobal(context.getDirectoryReader());
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
                                 indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
                             }

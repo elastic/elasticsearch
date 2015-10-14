@@ -1499,7 +1499,7 @@ public class InternalEngineTests extends ESTestCase {
     @Test
     public void testExtractShardId() {
         try (Engine.Searcher test = this.engine.acquireSearcher("test")) {
-            ShardId shardId = ShardUtils.extractShardId(test.reader());
+            ShardId shardId = ShardUtils.extractShardId(test.getDirectoryReader());
             assertNotNull(shardId);
             assertEquals(shardId, engine.config().getShardId());
         }

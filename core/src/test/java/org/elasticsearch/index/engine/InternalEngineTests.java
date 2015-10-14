@@ -91,6 +91,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogTests;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1564,7 +1565,8 @@ public class InternalEngineTests extends ESTestCase {
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
         Settings settings = Settings.builder()
                               .put(defaultSettings)
-                              .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
+                              .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb")
+                              .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING, "100ms").build();
         try (Store store = createStore();
             Engine engine = new InternalEngine(config(settings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()), false)) {
             for (int i = 0; i < 100; i++) {

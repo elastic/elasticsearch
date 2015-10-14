@@ -76,6 +76,10 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         }
 
         @Override
+        protected void checkIdle(ShardId shardId, long inactiveTimeNS) {
+        }
+
+        @Override
         public void refreshShardAsync(ShardId shardId) {
             indexBufferRAMBytesUsed.put(shardId, 0L);
         }
@@ -103,7 +107,6 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         final ShardId shard1 = new ShardId("test", 1);
         controller.simulateIndexing(shard1);
         controller.assertBuffer(shard1, new ByteSizeValue(1, ByteSizeUnit.MB));
-                                
 
         // add another shard
         final ShardId shard2 = new ShardId("test", 2);
@@ -144,7 +147,8 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         controller.assertBuffer(shard1, new ByteSizeValue(2, ByteSizeUnit.MB));
         controller.assertBuffer(shard2, new ByteSizeValue(2, ByteSizeUnit.MB));
 
-        // index into one shard only, hits the 5mb limit, so shard1 is refreshed
+        // index into one shard only, crosses the 5mb limit, so shard1 is refreshed
+        controller.simulateIndexing(shard1);
         controller.simulateIndexing(shard1);
         controller.assertBuffer(shard1, new ByteSizeValue(0, ByteSizeUnit.MB));
         controller.assertBuffer(shard2, new ByteSizeValue(2, ByteSizeUnit.MB));
@@ -153,7 +157,8 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         controller.simulateIndexing(shard2);
         controller.assertBuffer(shard2, new ByteSizeValue(4, ByteSizeUnit.MB));
         controller.simulateIndexing(shard2);
-        // shard2 used up the full 5 mb and is now cleared:
+        controller.simulateIndexing(shard2);
+        // shard2 crossed 5 mb and is now cleared:
         controller.assertBuffer(shard2, new ByteSizeValue(0, ByteSizeUnit.MB));
     }
 

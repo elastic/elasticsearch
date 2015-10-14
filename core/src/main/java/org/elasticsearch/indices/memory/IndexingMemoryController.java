@@ -51,6 +51,9 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     /** Only applies when <code>indices.memory.index_buffer_size</code> is a %, to set a ceiling on the actual size in bytes (default: not set). */
     public static final String MAX_INDEX_BUFFER_SIZE_SETTING = "indices.memory.max_index_buffer_size";
 
+    /** If we see no indexing operations after this much time for a given shard, we consider that shard inactive (default: 5 minutes). */
+    public static final String SHARD_INACTIVE_TIME_SETTING = "indices.memory.shard_inactive_time";
+
     /** How frequently we check indexing memory usage (default: 5 seconds). */
     public static final String SHARD_MEMORY_INTERVAL_TIME_SETTING = "indices.memory.interval";
 
@@ -62,6 +65,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     private final ByteSizeValue indexingBuffer;
 
+    private final TimeValue inactiveTime;
     private final TimeValue interval;
 
     private volatile ScheduledFuture scheduler;
@@ -101,12 +105,16 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         }
         this.indexingBuffer = indexingBuffer;
 
+        this.inactiveTime = this.settings.getAsTime(SHARD_INACTIVE_TIME_SETTING, TimeValue.timeValueMinutes(5));
         // we need to have this relatively small to free up heap quickly enough
         this.interval = this.settings.getAsTime(SHARD_MEMORY_INTERVAL_TIME_SETTING, TimeValue.timeValueSeconds(5));
 
         this.statusChecker = new ShardsIndicesStatusChecker();
 
-        logger.debug("using indexing buffer size [{}] with {} [{}]", this.indexingBuffer, SHARD_MEMORY_INTERVAL_TIME_SETTING, this.interval);
+        logger.debug("using indexing buffer size [{}] with {} [{}], {} [{}]",
+                     this.indexingBuffer,
+                     SHARD_INACTIVE_TIME_SETTING, this.inactiveTime,
+                     SHARD_MEMORY_INTERVAL_TIME_SETTING, this.interval);
     }
 
     @Override
@@ -175,6 +183,15 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         return shard != null && shard.canIndex() && CAN_UPDATE_INDEX_BUFFER_STATES.contains(shard.state());
     }
 
+    /** ask this shard to check now whether it is inactive, and reduces its indexing and translog buffers if so.  returns Boolean.TRUE if
+     *  it did deactive, Boolean.FALSE if it did not, and null if the shard is unknown */
+    protected void checkIdle(ShardId shardId, long inactiveTimeNS) {
+        final IndexShard shard = getShard(shardId);
+        if (shard != null) {
+            shard.checkIdle(inactiveTimeNS);
+        }
+    }
+
     /** gets an {@link IndexShard} instance for the given shard. returns null if the shard doesn't exist */
     protected IndexShard getShard(ShardId shardId) {
         IndexService indexService = indicesService.indexService(shardId.index().name());
@@ -214,10 +231,11 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
             // Fast check to sum up how much heap all shards' indexing buffers are using now:
             long totalBytesUsed = 0;
             for (ShardId shardId : availableShards()) {
-                long shardBytesUsed = getIndexBufferRAMBytesUsed(shardId);
-                if (shardBytesUsed > 0) {
-                    totalBytesUsed += shardBytesUsed;
-                }
+
+                // Give shard a chance to transition to inactive so sync'd flush can happen:
+                checkIdle(shardId, inactiveTime.nanos());
+
+                totalBytesUsed += getIndexBufferRAMBytesUsed(shardId);
             }
 
             if (totalBytesUsed > indexingBuffer.bytes()) {

@@ -189,6 +189,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     private final IndexSearcherWrapper searcherWrapper;
 
+    /** True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
+     *  IndexingMemoryController}). */
+    private final AtomicBoolean active = new AtomicBoolean();
+
+    private volatile long lastWriteNS;
     private final IndexingMemoryController indexingMemoryController;
 
     @Inject
@@ -450,6 +455,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
      */
     public boolean index(Engine.Index index) {
         ensureWriteAllowed(index);
+        markLastWrite(index);
         index = indexingService.preIndex(index);
         final boolean created;
         try {
@@ -474,6 +480,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public void delete(Engine.Delete delete) {
         ensureWriteAllowed(delete);
+        markLastWrite(delete);
         delete = indexingService.preDelete(delete);
         try {
             if (logger.isTraceEnabled()) {
@@ -883,6 +890,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         }
     }
 
+    /** Returns timestamp of last indexing operation */
+    public long getLastWriteNS() {
+        return lastWriteNS;
+    }
+
+    /** Records timestamp of the last write operation, possibly switching {@code active} to true if we were inactive. */
+    private void markLastWrite(Engine.Operation op) {
+        lastWriteNS = op.startTime();
+        if (active.getAndSet(true) == false) {
+            // We are currently inactive, but a new write operation just showed up, so we now notify IMC
+            // to wake up and fix our indexing buffer.  We could do this async instead, but cost should
+            // be low, and it's rare this happens.
+            indexingMemoryController.forceCheck();
+        }
+    }
+
     private void ensureWriteAllowed(Engine.Operation op) throws IllegalIndexShardStateException {
         Engine.Operation.Origin origin = op.origin();
         IndexShardState state = this.state; // one time volatile read
@@ -952,6 +975,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             return 0;
         }
         return engine.indexBufferRAMBytesUsed();
+    }
+
+    /** Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
+     *  indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so. */
+    public void checkIdle(long inactiveTimeNS) {
+        if (System.nanoTime() - lastWriteNS >= inactiveTimeNS) {
+            boolean wasActive = active.getAndSet(false);
+            if (wasActive) {
+                logger.debug("shard is now inactive");
+                indicesLifecycle.onShardInactive(this);
+            }
+        }
+    }
+
+    /** Returns {@code true} if this shard is active (has seen indexing ops in the last {@link
+     *  IndexingMemoryController#SHARD_INACTIVE_TIME_SETTING} (default 5 minutes), else {@code false}. */
+    public boolean getActive() {
+        return active.get();
     }
 
     public final boolean isFlushOnClose() {

@@ -51,7 +51,7 @@ class ClusterConfiguration {
         FileCollection file
         @Override
         String toString() {
-            return "file://${file.singleFile}"
+            return file.singleFile.toURI().toURL().toString();
         }
 
     }

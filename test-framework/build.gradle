@@ -27,70 +27,41 @@ project.ext {
   srcDir = new File(project.buildDir, 'src')
   coreDir = new File(project("${projectsPrefix}:core").projectDir, 'src' + File.separator + 'test')
 }
-class ExecHack extends DefaultTask {
-  File srcDir = project.ext.srcDir
-  File coreDir = project.ext.coreDir
-  List commands = ["rm -rf ${srcDir}", "mkdir -p ${srcDir}"]
-  void copy(String path) {
-    File corePath = project.file("${coreDir}/${path}")
-    File srcPath = project.file("${srcDir}/${path}")
-    String dir = path
-    if (corePath.isDirectory()) {
-      srcPath = srcPath.getParentFile() 
-    } else {
-      dir = coreDir.toURI().relativize(corePath.getParentFile().toURI()).getPath()
-    }
-    commands.add("mkdir -p ${srcDir}/${dir}")
-    commands.add("cp -a ${corePath} ${srcPath}")
-  }
-  void remove(String path) {
-    commands.add("rm -rf ${srcDir}/${path}")
-  }
-  @TaskAction
-  void executeHack() {
-    for (String command : commands) {
-      logger.info(command)
-      def p = command.execute()
-      p.waitFor()
-      if (p.exitValue()) {
-        logger.error(p.text)
-        throw new GradleException("Failed to execute '${command}'")
-      }
-    }
-  } 
-}
 sourceSets.main.java.srcDir(new File(srcDir, "java"))
 sourceSets.main.resources.srcDir(new File(srcDir, "resources"))
-task copySourceFiles(type: ExecHack) {
-  copy 'resources/log4j.properties'
-  copy 'java/org/elasticsearch/test'
-  copy 'java/org/elasticsearch/bootstrap/BootstrapForTesting.java'
-  copy 'java/org/elasticsearch/bootstrap/MockPluginPolicy.java'
-  copy 'java/org/elasticsearch/common/cli/CliToolTestCase.java'
-  copy 'java/org/elasticsearch/cluster/MockInternalClusterInfoService.java'
-  copy 'java/org/elasticsearch/index/MockEngineFactoryPlugin.java'
-  copy 'java/org/elasticsearch/search/MockSearchService.java'
-  copy 'java/org/elasticsearch/search/aggregations/bucket/AbstractTermsTestCase.java'
-  copy 'java/org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptNoParams.java'
-  copy 'java/org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptWithParams.java'
-  copy 'java/org/elasticsearch/search/aggregations/bucket/script/TestScript.java'
-  copy 'java/org/elasticsearch/search/aggregations/metrics/AbstractNumericTestCase.java'
-  copy 'java/org/elasticsearch/percolator/PercolatorTestUtil.java'
-  copy 'java/org/elasticsearch/cache/recycler/MockPageCacheRecycler.java'
-  copy 'java/org/elasticsearch/common/util/MockBigArrays.java'
-  copy 'java/org/elasticsearch/node/NodeMocksPlugin.java'
-  copy 'java/org/elasticsearch/node/MockNode.java'
-  copy 'java/org/elasticsearch/common/io/PathUtilsForTesting.java'
-  // unit tests for yaml suite parser & rest spec parser need to be excluded
-  remove 'java/org/elasticsearch/test/rest/test'
-  // unit tests for test framework classes
-  remove 'java/org/elasticsearch/test/test'
+task copySourceFiles(type: Sync) {
+ from(coreDir) {
+   include 'resources/log4j.properties'
+   include 'java/org/elasticsearch/test/**'
+   include 'java/org/elasticsearch/bootstrap/BootstrapForTesting.java'
+   include 'java/org/elasticsearch/bootstrap/MockPluginPolicy.java'
+   include 'java/org/elasticsearch/common/cli/CliToolTestCase.java'
+   include 'java/org/elasticsearch/cluster/MockInternalClusterInfoService.java'
+   include 'java/org/elasticsearch/index/MockEngineFactoryPlugin.java'
+   include 'java/org/elasticsearch/search/MockSearchService.java'
+   include 'java/org/elasticsearch/search/aggregations/bucket/AbstractTermsTestCase.java'
+   include 'java/org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptNoParams.java'
+   include 'java/org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptWithParams.java'
+   include 'java/org/elasticsearch/search/aggregations/bucket/script/TestScript.java'
+   include 'java/org/elasticsearch/search/aggregations/metrics/AbstractNumericTestCase.java'
+   include 'java/org/elasticsearch/percolator/PercolatorTestUtil.java'
+   include 'java/org/elasticsearch/cache/recycler/MockPageCacheRecycler.java'
+   include 'java/org/elasticsearch/common/util/MockBigArrays.java'
+   include 'java/org/elasticsearch/node/NodeMocksPlugin.java'
+   include 'java/org/elasticsearch/node/MockNode.java'
+   include 'java/org/elasticsearch/common/io/PathUtilsForTesting.java'
+   // unit tests for yaml suite parser & rest spec parser need to be excluded
+   exclude 'java/org/elasticsearch/test/rest/test/**'
+   // unit tests for test framework classes
+   exclude 'java/org/elasticsearch/test/test/**'
 
-  // no geo (requires optional deps)
-  remove 'java/org/elasticsearch/test/hamcrest/ElasticsearchGeoAssertions.java'
-  remove 'java/org/elasticsearch/test/geo/RandomShapeGenerator.java'
-  // this mock is just for a single logging test
-  remove 'java/org/elasticsearch/test/MockLogAppender.java'
+   // no geo (requires optional deps)
+   exclude 'java/org/elasticsearch/test/hamcrest/ElasticsearchGeoAssertions.java'
+   exclude 'java/org/elasticsearch/test/geo/RandomShapeGenerator.java'
+   // this mock is just for a single logging test
+   exclude 'java/org/elasticsearch/test/MockLogAppender.java'
+ }
+ into srcDir
 }
 compileJava.dependsOn copySourceFiles
 

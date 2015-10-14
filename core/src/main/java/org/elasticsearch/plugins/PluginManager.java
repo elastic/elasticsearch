@@ -220,13 +220,6 @@ public class PluginManager {
         PluginInfo info = PluginInfo.readFromProperties(root);
         terminal.println(VERBOSE, "%s", info);
 
-        // read optional security policy (extra permissions)
-        // if it exists, confirm or warn the user
-        Path policy = root.resolve(PluginInfo.ES_PLUGIN_POLICY);
-        if (Files.exists(policy)) {
-            PluginSecurity.readPolicy(policy, terminal, environment, batch);
-        }
-
         // check for jar hell before any copying
         if (info.isJvm()) {
             jarHellCheck(root, info.isIsolated());
@@ -237,6 +230,13 @@ public class PluginManager {
         final Path extractLocation = pluginHandle.extractedDir(environment);
         if (Files.exists(extractLocation)) {
             throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + pluginHandle.name + "' command");
+        }
+
+        // read optional security policy (extra permissions)
+        // if it exists, confirm or warn the user
+        Path policy = root.resolve(PluginInfo.ES_PLUGIN_POLICY);
+        if (Files.exists(policy)) {
+            PluginSecurity.readPolicy(policy, terminal, environment, batch);
         }
 
         // install plugin

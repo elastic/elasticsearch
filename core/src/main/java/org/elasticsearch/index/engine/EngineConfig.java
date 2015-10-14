@@ -97,7 +97,6 @@ public final class EngineConfig {
      * Index setting to control the index buffer size.
      * This setting is <b>not</b> realtime updateable.
      */
-    public static final String INDEX_BUFFER_SIZE_SETTING = "index.buffer_size";
 
     /** if set to true the engine will start even if the translog id in the commit point can not be found */
     public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
@@ -132,9 +131,9 @@ public final class EngineConfig {
         this.failedEngineListener = failedEngineListener;
         this.compoundOnFlush = indexSettings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, compoundOnFlush);
         codecName = indexSettings.get(INDEX_CODEC_SETTING, DEFAULT_CODEC_NAME);
-        // We tell IndexWriter to use large heap, but IndexingMemoryController checks periodically and refreshes the most heap-consuming
-        // shards when total indexing heap usage is too high:
-        indexingBufferSize = indexSettings.getAsBytesSize(INDEX_BUFFER_SIZE_SETTING, new ByteSizeValue(256, ByteSizeUnit.MB));
+        // We give IndexWriter a huge buffer, so it won't flush on its own.  Instead, IndexingMemoryController periodically checks
+        // and refreshes the most heap-consuming shards when total indexing heap usage is too high:
+        indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
         gcDeletesInMillis = indexSettings.getAsTime(INDEX_GC_DELETES_SETTING, DEFAULT_GC_DELETES).millis();
         this.translogRecoveryPerformer = translogRecoveryPerformer;
         this.forceNewTranslog = indexSettings.getAsBoolean(INDEX_FORCE_NEW_TRANSLOG, false);

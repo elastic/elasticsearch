@@ -170,7 +170,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     }
 
     /** ask this shard to refresh, in the background, to free up heap */
-    public void refreshShardAsync(ShardId shardId) {
+    protected void refreshShardAsync(ShardId shardId) {
         IndexShard shard = getShard(shardId);
         if (shard != null) {
             shard.refreshAsync("memory");
@@ -237,6 +237,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
                 totalBytesUsed += getIndexBufferRAMBytesUsed(shardId);
             }
+
+            System.out.println("TOTAL=" + totalBytesUsed + " vs " + indexingBuffer);
 
             if (totalBytesUsed > indexingBuffer.bytes()) {
                 // OK we are using too much; make a queue and ask largest shard(s) to refresh:

@@ -1565,10 +1565,9 @@ public class InternalEngineTests extends ESTestCase {
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
         Settings settings = Settings.builder()
                               .put(defaultSettings)
-                              .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb")
-                              .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING, "100ms").build();
+                              .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
         try (Store store = createStore();
-            Engine engine = new InternalEngine(config(settings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()), false)) {
+             Engine engine = new InternalEngine(config(settings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()), false)) {
             for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
                 ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, null);
@@ -1578,6 +1577,30 @@ public class InternalEngineTests extends ESTestCase {
             // Force merge so we know all merges are done before we start deleting:
             engine.forceMerge(true, 1, false, false, false);
 
+            // Make a shell of an IMC to check up on indexing buffer usage:
+            IndexingMemoryController imc = new IndexingMemoryController(settings, threadPool, null) {
+                    @Override
+                    protected IndexShard getShard(ShardId shardId) {
+                        return null;
+                    }
+
+                    @Override
+                    protected List<ShardId> availableShards() {
+                        return Collections.singletonList(new ShardId("foo", 0));
+                    }
+
+                    @Override
+                    protected void refreshShardAsync(ShardId shardId) {
+                        engine.refresh("memory");
+                    }
+
+                    @Override
+                    protected long getIndexBufferRAMBytesUsed(ShardId shardId) {
+                        System.out.println("BYTES USED: " + engine.indexBufferRAMBytesUsed());
+                        return engine.indexBufferRAMBytesUsed();
+                    }
+                };
+
             Searcher s = engine.acquireSearcher("test");
             final long version1 = ((DirectoryReader) s.reader()).getVersion();
             s.close();
@@ -1586,18 +1609,10 @@ public class InternalEngineTests extends ESTestCase {
                 engine.delete(new Engine.Delete("test", id, newUid(id), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
             }
 
-            // We must assertBusy because refresh due to version map being full is done in background (REFRESH) thread pool:
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    Searcher s2 = engine.acquireSearcher("test");
-                    long version2 = ((DirectoryReader) s2.reader()).getVersion();
-                    s2.close();
-
-                    // 100 buffered deletes will easily exceed 25% of our 1 KB indexing buffer so it should have forced a refresh:
-                    assertThat(version2, greaterThan(version1));
-                }
-            });
+            imc.forceCheck();
+            try (Searcher s2 = engine.acquireSearcher("test")) {
+                assertThat(((DirectoryReader) s2.reader()).getVersion(), greaterThan(version1));
+            }
         }
     }
 

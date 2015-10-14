@@ -6,14 +6,14 @@ Its nature as a distributed search engine and data storage system requires as a 
 Both the growing need for high throughput and the need for reliability are fulfilled by the redundancy in the replicated shards housed in the nodes.
 
 Requirements:
--Data Storage
--High Availability
--High Throughput/Performance
--High Flexibility in queries/data
--Reliability
--Developer Friendliness
--Real time Analytics
--Distributed
+* Data Storage
+* High Availability
+* High Throughput/Performance
+* High Flexibility in queries/data
+* Reliability
+* Developer Friendliness
+* Real time Analytics
+* Distributed
 
 
 

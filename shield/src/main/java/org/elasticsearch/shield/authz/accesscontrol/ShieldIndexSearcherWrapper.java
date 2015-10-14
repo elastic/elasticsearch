@@ -14,6 +14,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -49,18 +51,19 @@ import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
  * Document level security is enabled by wrapping the original {@link DirectoryReader} in a {@link DocumentSubsetReader}
  * instance.
  */
-public final class ShieldIndexSearcherWrapper extends AbstractComponent implements IndexSearcherWrapper {
+public final class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
 
     private final MapperService mapperService;
     private final Set<String> allowedMetaFields;
     private final IndexQueryParserService parserService;
     private final BitsetFilterCache bitsetFilterCache;
     private final ShieldLicenseState shieldLicenseState;
+    private final ESLogger logger;
 
     @Inject
     public ShieldIndexSearcherWrapper(@IndexSettings Settings indexSettings, IndexQueryParserService parserService,
                                       MapperService mapperService, BitsetFilterCache bitsetFilterCache, ShieldLicenseState shieldLicenseState) {
-        super(indexSettings);
+        this.logger = Loggers.getLogger(getClass(), indexSettings);
         this.mapperService = mapperService;
         this.parserService = parserService;
         this.bitsetFilterCache = bitsetFilterCache;
@@ -76,7 +79,7 @@ public final class ShieldIndexSearcherWrapper extends AbstractComponent implemen
     }
 
     @Override
-    public DirectoryReader wrap(DirectoryReader reader) {
+    protected DirectoryReader wrap(DirectoryReader reader) {
         if (shieldLicenseState.documentAndFieldLevelSecurityEnabled() == false) {
             return reader;
         }
@@ -131,7 +134,7 @@ public final class ShieldIndexSearcherWrapper extends AbstractComponent implemen
     }
 
     @Override
-    public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
+    protected IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
         if (shieldLicenseState.documentAndFieldLevelSecurityEnabled() == false) {
             return searcher;
         }

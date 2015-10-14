@@ -707,9 +707,6 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertEquals(1, ir2.leaves().size());
         assertSame(ir.leaves().get(0).reader().getCoreCacheKey(), ir2.leaves().get(0).reader().getCoreCacheKey());
         
-        // this is kind of stupid, but for now its here
-        assertNotSame(ir.leaves().get(0).reader().getCombinedCoreAndDeletesKey(), ir2.leaves().get(0).reader().getCombinedCoreAndDeletesKey());
-        
         TestUtil.checkReader(ir);
         IOUtils.close(ir, ir2, iw, dir);
     }

@@ -81,6 +81,11 @@ public final class FieldSubsetReader extends FilterLeafReader {
                 }
             }
         }
+
+        @Override
+        public Object getCoreCacheKey() {
+            return in.getCoreCacheKey();
+        }
     }
     
     /** List of filtered fields */
@@ -215,11 +220,6 @@ public final class FieldSubsetReader extends FilterLeafReader {
     
     // we share core cache keys (for e.g. fielddata)
     
-    @Override
-    public Object getCombinedCoreAndDeletesKey() {
-        return in.getCombinedCoreAndDeletesKey();
-    }
-
     @Override
     public Object getCoreCacheKey() {
         return in.getCoreCacheKey();

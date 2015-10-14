@@ -65,6 +65,10 @@ public final class DocumentSubsetReader extends FilterLeafReader {
             }
         }
 
+        @Override
+        public Object getCoreCacheKey() {
+            return in.getCoreCacheKey();
+        }
     }
 
     private final BitSet roleQueryBits;

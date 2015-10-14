@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.search.geo;
 
-
 import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.geo.RandomGeoGenerator;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -36,9 +36,7 @@ import static org.hamcrest.Matchers.closeTo;
 
 
 public class GeoPointParsingTests  extends ESTestCase {
-
-    // mind geohash precision and error
-    private static final double ERROR = 0.00001d;
+    static double TOLERANCE = 1E-5;
 
     @Test
     public void testGeoPointReset() throws IOException {
@@ -46,36 +44,66 @@ public class GeoPointParsingTests  extends ESTestCase {
         double lon = 1 + randomDouble() * 179;
 
         GeoPoint point = new GeoPoint(0, 0);
-        assertCloseTo(point, 0, 0);
+        GeoPoint point2 = new GeoPoint(0, 0);
+        assertPointsEqual(point, point2);
 
-        assertCloseTo(point.reset(lat, lon), lat, lon);
-        assertCloseTo(point.reset(0, 0), 0, 0);
-        assertCloseTo(point.resetLat(lat), lat, 0);
-        assertCloseTo(point.resetLat(0), 0, 0);
-        assertCloseTo(point.resetLon(lon), 0, lon);
-        assertCloseTo(point.resetLon(0), 0, 0);
+        assertPointsEqual(point.reset(lat, lon), point2.reset(lat, lon));
+        assertPointsEqual(point.reset(0, 0), point2.reset(0, 0));
+        assertPointsEqual(point.resetLat(lat), point2.reset(lat, 0));
+        assertPointsEqual(point.resetLat(0), point2.reset(0, 0));
+        assertPointsEqual(point.resetLon(lon), point2.reset(0, lon));
+        assertPointsEqual(point.resetLon(0), point2.reset(0, 0));
         assertCloseTo(point.resetFromGeoHash(XGeoHashUtils.stringEncode(lon, lat)), lat, lon);
-        assertCloseTo(point.reset(0, 0), 0, 0);
-        assertCloseTo(point.resetFromString(Double.toString(lat) + ", " + Double.toHexString(lon)), lat, lon);
-        assertCloseTo(point.reset(0, 0), 0, 0);
+        assertPointsEqual(point.reset(0, 0), point2.reset(0, 0));
+        assertPointsEqual(point.resetFromString(Double.toString(lat) + ", " + Double.toHexString(lon)), point2.reset(lat, lon));
+        assertPointsEqual(point.reset(0, 0), point2.reset(0, 0));
     }
-    
+
+    @Test
+    public void testEqualsHashCodeContract() {
+        // generate a random geopoint
+        final GeoPoint x = RandomGeoGenerator.randomPoint(random());
+        final GeoPoint y = new GeoPoint(x.lat(), x.lon());
+        final GeoPoint z = new GeoPoint(y.lat(), y.lon());
+        // GeoPoint doesn't care about coordinate system bounds, this simply validates inequality
+        final GeoPoint a = new GeoPoint(x.lat() + randomIntBetween(1, 5), x.lon() + randomIntBetween(1, 5));
+
+        /** equality test */
+        // reflexive
+        assertTrue(x.equals(x));
+        // symmetry
+        assertTrue(x.equals(y));
+        // transitivity
+        assertTrue(y.equals(z));
+        assertTrue(x.equals(z));
+        // inequality
+        assertFalse(x.equals(a));
+
+        /** hashCode test */
+        // symmetry
+        assertTrue(x.hashCode() == y.hashCode());
+        // transitivity
+        assertTrue(y.hashCode() == z.hashCode());
+        assertTrue(x.hashCode() == z.hashCode());
+        // inequality
+        assertFalse(x.hashCode() == a.hashCode());
+    }
+
     @Test
     public void testGeoPointParsing() throws IOException {
-        double lat = randomDouble() * 180 - 90;
-        double lon = randomDouble() * 360 - 180;
-        
-        GeoPoint point = GeoUtils.parseGeoPoint(objectLatLon(lat, lon));
-        assertCloseTo(point, lat, lon);
-        
-        GeoUtils.parseGeoPoint(arrayLatLon(lat, lon), point);
-        assertCloseTo(point, lat, lon);
+        GeoPoint randomPt = RandomGeoGenerator.randomPoint(random());
 
-        GeoUtils.parseGeoPoint(geohash(lat, lon), point);
-        assertCloseTo(point, lat, lon);
+        GeoPoint point = GeoUtils.parseGeoPoint(objectLatLon(randomPt.lat(), randomPt.lon()));
+        assertPointsEqual(point, randomPt);
 
-        GeoUtils.parseGeoPoint(stringLatLon(lat, lon), point);
-        assertCloseTo(point, lat, lon);
+        GeoUtils.parseGeoPoint(arrayLatLon(randomPt.lat(), randomPt.lon()), point);
+        assertPointsEqual(point, randomPt);
+
+        GeoUtils.parseGeoPoint(geohash(randomPt.lat(), randomPt.lon()), point);
+        assertCloseTo(point, randomPt.lat(), randomPt.lon());
+
+        GeoUtils.parseGeoPoint(stringLatLon(randomPt.lat(), randomPt.lon()), point);
+        assertCloseTo(point, randomPt.lat(), randomPt.lon());
     }
 
     // Based on issue5390
@@ -98,7 +126,7 @@ public class GeoPointParsingTests  extends ESTestCase {
     public void testInvalidPointLatHashMix() throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startObject();
-        content.field("lat", 0).field("geohash", XGeoHashUtils.stringEncode(0, 0));
+        content.field("lat", 0).field("geohash", XGeoHashUtils.stringEncode(0d, 0d));
         content.endObject();
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
@@ -111,7 +139,7 @@ public class GeoPointParsingTests  extends ESTestCase {
     public void testInvalidPointLonHashMix() throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startObject();
-        content.field("lon", 0).field("geohash", XGeoHashUtils.stringEncode(0, 0));
+        content.field("lon", 0).field("geohash", XGeoHashUtils.stringEncode(0d, 0d));
         content.endObject();
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
@@ -166,10 +194,15 @@ public class GeoPointParsingTests  extends ESTestCase {
         parser.nextToken();
         return parser;
     }
-    
-    public static void assertCloseTo(GeoPoint point, double lat, double lon) {
-        assertThat(point.lat(), closeTo(lat, ERROR));
-        assertThat(point.lon(), closeTo(lon, ERROR));
+
+    public static void assertPointsEqual(final GeoPoint point1, final GeoPoint point2) {
+        assertEquals(point1, point2);
+        assertEquals(point1.hashCode(), point2.hashCode());
+    }
+
+    public static void assertCloseTo(final GeoPoint point, final double lat, final double lon) {
+        assertEquals(point.lat(), lat, TOLERANCE);
+        assertEquals(point.lon(), lon, TOLERANCE);
     }
 
 }

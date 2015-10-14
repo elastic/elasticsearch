@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
@@ -32,11 +33,18 @@ import java.io.IOException;
 
 /**
  * Extension point to add custom functionality at request time to the {@link DirectoryReader}
- * and {@link IndexSearcher} managed by the {@link Engine}.
+ * and {@link IndexSearcher} managed by the {@link IndexShard}.
  */
 public class IndexSearcherWrapper {
 
     /**
+     * Wraps the given {@link DirectoryReader}. The wrapped reader can filter out document just like delete documents etc. but
+     * must not change any term or document content.
+     * <p>
+     * NOTE: The wrapper has a per-request lifecycle, must delegate {@link IndexReader#getCoreCacheKey()} and must be an instance
+     * of {@link FilterDirectoryReader} that eventually exposes the original reader via  {@link FilterDirectoryReader#getDelegate()}.
+     * The returned reader is closed once it goes out of scope.
+     * </p>
      * @param reader The provided directory reader to be wrapped to add custom functionality
      * @return a new directory reader wrapping the provided directory reader or if no wrapping was performed
      *         the provided directory reader
@@ -79,18 +87,18 @@ public class IndexSearcherWrapper {
             }
         }
 
-        IndexSearcher innerIndexSearcher = new IndexSearcher(reader);
+        final IndexSearcher innerIndexSearcher = new IndexSearcher(reader);
         innerIndexSearcher.setQueryCache(engineConfig.getQueryCache());
         innerIndexSearcher.setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());
         innerIndexSearcher.setSimilarity(engineConfig.getSimilarity());
         // TODO: Right now IndexSearcher isn't wrapper friendly, when it becomes wrapper friendly we should revise this extension point
         // For example if IndexSearcher#rewrite() is overwritten than also IndexSearcher#createNormalizedWeight needs to be overwritten
         // This needs to be fixed before we can allow the IndexSearcher from Engine to be wrapped multiple times
-        IndexSearcher indexSearcher = wrap(engineConfig, innerIndexSearcher);
+        final IndexSearcher indexSearcher = wrap(engineConfig, innerIndexSearcher);
         if (reader == nonClosingReaderWrapper && indexSearcher == innerIndexSearcher) {
             return engineSearcher;
         } else {
-            final Engine.Searcher newSearcher = new Engine.Searcher(engineSearcher.source(), indexSearcher) {
+            return new Engine.Searcher(engineSearcher.source(), indexSearcher) {
                 @Override
                 public void close() throws ElasticsearchException {
                     try {
@@ -105,7 +113,6 @@ public class IndexSearcherWrapper {
 
                 }
             };
-            return newSearcher;
         }
     }
 

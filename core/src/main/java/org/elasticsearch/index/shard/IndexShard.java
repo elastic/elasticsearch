@@ -41,6 +41,8 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.Lucene;
@@ -717,11 +719,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public Engine.Searcher acquireSearcher(String source) {
         readAllowed();
-        Engine engine = getEngine();
+        final Engine engine = getEngine();
+        final Engine.Searcher searcher = engine.acquireSearcher(source);
+        boolean success = false;
         try {
-            return searcherWrapper == null ? engine.acquireSearcher(source) : searcherWrapper.wrap(engineConfig, engine.acquireSearcher(source));
+            final Engine.Searcher wrappedSearcher = searcherWrapper == null ? searcher : searcherWrapper.wrap(engineConfig, searcher);
+            assert wrappedSearcher != null;
+            success = true;
+            return wrappedSearcher;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to wrap searcher", ex);
+        } finally {
+            if (success == false) {
+                Releasables.close(success, searcher);
+            }
         }
     }
 

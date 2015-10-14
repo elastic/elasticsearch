@@ -1,0 +1,254 @@
+[[search-profile]]
+== Profile API
+
+coming[2.1.0]
+
+experimental[]
+
+The Profile API provides detailed timing information about the execution of individual components
+in a query.  It gives the user insight into how queries are executed at a low level so that
+the user can understand why certain queries are slow, and take steps to improve their slow queries.
+
+The output from the Profile API is *very* verbose, especially for complicated queries executed across
+many shards. Pretty-printing the response is recommended to help understand the output
+
+[float]
+=== Usage
+
+Any `_search` request can be profiled by adding a top-level `profile` parameter:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_search' -d '{
+  "profile": true, <1>
+  "query" : {
+    "term" : { "message" : "search" }
+  }
+}'
+--------------------------------------------------
+<1> Setting the top-level `profile` parameter to `true` will enable profiling
+for the search
+
+This will yield the following result:
+
+[source,js]
+--------------------------------------------------
+{
+   "took": 25,
+   "timed_out": false,
+   "_shards": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+   },
+   "hits": {
+      "total": 1,
+      "max_score": 1,
+      "hits": [ ... ] <1>
+   },
+   "profile": {
+      "shards": [
+         {
+            "shard_id": "P51lzeWXRHOPt4ksduh55Q",
+            "query": [
+               {
+                  "query_type": "TermQuery",
+                  "lucene": "message:search",
+                  "time": "11.04309100ms",
+                  "relative_time": "100.0000000%",
+                  "breakdown": {
+                     "rewrite": 3157,
+                     "weight": 1903984,
+                     "build_scorer": 9063670,
+                     "next_doc": 31877,
+                     "advance": 0,
+                     "match": 0,
+                     "score": 40403
+                  },
+                  "children": []
+               }
+            ],
+            "collector": [
+               {
+                  "name": "SimpleTopScoreDocCollector",
+                  "reason": "search_sorted",
+                  "time": "0.1153240000ms",
+                  "relative_time": "100.0000000%",
+                  "children": []
+               }
+            ]
+         }
+      ]
+   }
+}
+--------------------------------------------------
+<1> Search results are returned, but were omitted here for brevity
+
+Even for a simple query, the response is complicated.  Let's break it down piece-by-piece before moving
+to more complex examples.
+
+First, the overall structure of the profile response is as follows:
+
+[source,js]
+--------------------------------------------------
+{
+   "profile": {
+      "shards": [
+         {
+            "shard_id": "P51lzeWXRHOPt4ksduh55Q",  <1>
+            "query": [ ... ],                      <2>
+            "collector": [ ... ]                   <3>
+         }
+      ]
+   }
+}
+--------------------------------------------------
+<1> A profile is returned for each shard that participated in the response, and is identified
+by it's shard ID
+<2> Each profile contains a section which holds details about the query execution
+<3> Each profile also contains a section about the Lucene Collectors which run the search
+
+Because a search request may be executed against one or more shards in an index, and a search may cover
+one or more indices, the top level element in the profile response is an array of `shard` objects.
+Each shard object lists it's `shard_id` which uniquely identifies the shard (e.g. these are the same IDs
+used in the Cluster State `routing_table`).  Each object then contains two arrays of profiled information:
+a `query` array and a `collector` array.  In the future, more sections may be added, such as `suggest`, `highlight`,
+`aggregations`, etc
+
+=== `query` Section
+
+The `query` section contains detailed timing of the query tree executed by Lucene on a particular shard.
+The overall structure of this query tree will resemble your original Elasticsearch query, but may be slightly
+(or sometimes very) different.  It will also use similar but not always identical naming.  Using our previous
+`term` query example, let's analyze the `query` section:
+
+[source,js]
+--------------------------------------------------
+"query": [
+   {
+      "query_type": "TermQuery",
+      "lucene": "message:search",
+      "time": "11.04309100ms",
+      "relative_time": "100.0000000%",
+      "breakdown": {...},               <1>
+      "children": []
+   }
+]
+--------------------------------------------------
+<1> The breakdown timings are omitted for simplicity
+
+This tells us a few things.  First, the `query_type` field tells us that our Elasticsearch `term` query was
+executed as a Lucene `TermQuery`.  The `lucene` field shows us a Lucene Query String translation of query,
+which is helpful for identifying which part of your original query it relates to (e.g. here we see that the query
+is searching for "search" in the "message" field)
+
+The `time` field shows that this query took ~11ms, and the `relative_time` shows that it accounted for 100% of the
+overall execution time.  The `relative_time` is inclusive of all sub-query children, meaning it is represents the
+the relative timing of the entire subtree starting at this particular node.  It is also normalized against the
+overall, cumulative time of all shards.  This means it is not relative to the query tree in a particular shard,
+but all shards in the search.
+
+The `breakdown` field will give detailed stats about how the time was spent, we'll look at
+that in a moment.  Finally, the `children` array lists any sub-queries that may be present.  A `term` query has no
+children, so it is empty.  But other queries, such as a Boolean, may have sub-queries and thus entries in the
+children array.
+
+[WARNING]
+---------------------
+The wall-clock time is displayed because it can be useful on occasion, but it *cannot* be compared to
+non-profiled query timings.  Profiling introduces certain overheads and may skew timings compared to
+the non-profiled case, so it is not an accurate comparison.
+
+In addition, it records the wall-clock time for each *shard's* execution of the query, and thus cannot
+be reliably compared to the overall query execution time either.  Multiple nodes can be executing
+shards in parallel, and single nodes may execute shards serially, so the `took` time may differ from
+any particular `time` by a large margin.
+
+When profiling, you should generally rely on the `relative_time` metric.  It provides the most unbiased
+view into what component(s) are slowing down your query, whereas the wall-clock time may mislead you
+---------------------
+
+==== Timing Breakdown
+
+The `breakdown` component lists detailed timing statistics about low-level Lucene execution:
+
+[source,js]
+--------------------------------------------------
+"breakdown": {
+    "rewrite": 3157,
+    "weight": 1903984,
+    "build_scorer": 9063670,
+    "next_doc": 31877,
+    "advance": 0,
+    "match": 0,
+    "score": 40403
+}
+--------------------------------------------------
+
+Timings are listed in wall-clock nanoseconds and are not normalized at all.  All caveats about the overall
+`time` apply here.  The intention of the breakdown is to give you a feel for A) what machinery in Lucene is
+actually eating time, and B) the magnitude of differences in times between the various components.
+
+The meaning of the stats are as follows:
+
+[float]
+=== All parameters:
+
+[horizontal]
+`rewrite`::
+
+    All queries in Lucene undergo a "rewriting" process.  A query (and it's sub-queries) may be rewritten one or
+    more times, and the process continues until the query stops changing.  This process allows Lucene to perform
+    optimizations, such as removing redundant clauses, replacing one query for a more efficient execution path,
+    etc.  For example a Boolean -> Boolean -> TermQuery can be rewritten to a TermQuery, because all the Booleans
+    are unnecessary in this case.
+
+    Because rewriting can fundamentally change a query's structure, you may sometimes see the structure of the
+    profiled query differing substantially from your original query.
+
+`weight`::
+
+    A Query in Lucene must be capable of reuse across multiple IndexSearchers (think of it as the engine that
+    executes a search against a specific Lucene Index).  This puts Lucene in a tricky spot, since many queries
+    need to accumulate temporary state/statistics associated with the index it is being used against, but the
+    Query contract mandates that it must be immutable.
+
+    To get around this, Lucene asks each query to generate a Weight object which acts as a temporary context
+    object to hold state associated with this particular (IndexSearcher, Query) tuple.  The `weight` metric
+    shows how long this process takes
+
+    This may also showing timing associated with caching, if enabled and/or applicable for the query
+
+`build_scorer`::
+
+    This parameter shows how long it takes to build a Scorer for the query.  A Scorer is the mechanism that
+    iterates over matching documents generates a score per-document (e.g. how well does "foo" match the document?).
+    Note, this records the time required to generate the Scorer object, not actuall score the documents.  Some
+    queries have faster or slower initialization of the Scorer, depending on optimizations, complexity, etc.
+
+`next_doc`::
+
+    The Lucene method `next_doc` returns Doc ID of the next document matching the query.  This statistic shows
+    the time it takes to determine which document is the next match, a process that varies considerably depending
+    on the nature of the query.
+
+`advance`::
+
+    ???
+
+`matches`::
+
+    Some queries, such as phrase queries, match documents using a "Two Phase" process.  First, the document is
+    "approximately" matched, and if it matches approximately, it is checked a second time with a more rigorous
+    (and expensive) process.  The second phase verification is what the `matches` statistic measures.
+
+    For example, a phrase query first checks a document approximately by ensuring all terms in the phrase are
+    present in the doc.  If all the terms are present, it then executes the second phase verification to ensure
+    the terms are in-order to form the phrase, which is relatively more expensive than just checking for presence
+    of the terms.
+
+    Because this two-phase process is only used by a handful of queries, the `metric` statistic will often be zero
+
+`score`::
+
+    This records the time taken to score a particular document via it's Scorer

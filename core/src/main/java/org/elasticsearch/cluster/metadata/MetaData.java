@@ -184,8 +184,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         int totalNumberOfShards = 0;
         int numberOfShards = 0;
         for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-            totalNumberOfShards += cursor.value.totalNumberOfShards();
-            numberOfShards += cursor.value.numberOfShards();
+            totalNumberOfShards += cursor.value.getTotalNumberOfShards();
+            numberOfShards += cursor.value.getNumberOfShards();
         }
         this.totalNumberOfShards = totalNumberOfShards;
         this.numberOfShards = numberOfShards;
@@ -353,7 +353,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
             } else {
                 filteredMappings = ImmutableOpenMap.builder();
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                     if (Regex.simpleMatch(types, cursor.key)) {
                         filteredMappings.put(cursor.key, cursor.value);
                     }
@@ -854,19 +854,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             // we know its a new one, increment the version and store
             indexMetaDataBuilder.version(indexMetaDataBuilder.version() + 1);
             IndexMetaData indexMetaData = indexMetaDataBuilder.build();
-            indices.put(indexMetaData.index(), indexMetaData);
+            indices.put(indexMetaData.getIndex(), indexMetaData);
             return this;
         }
 
         public Builder put(IndexMetaData indexMetaData, boolean incrementVersion) {
-            if (indices.get(indexMetaData.index()) == indexMetaData) {
+            if (indices.get(indexMetaData.getIndex()) == indexMetaData) {
                 return this;
             }
             // if we put a new index metadata, increment its version
             if (incrementVersion) {
-                indexMetaData = IndexMetaData.builder(indexMetaData).version(indexMetaData.version() + 1).build();
+                indexMetaData = IndexMetaData.builder(indexMetaData).version(indexMetaData.getVersion() + 1).build();
             }
-            indices.put(indexMetaData.index(), indexMetaData);
+            indices.put(indexMetaData.getIndex(), indexMetaData);
             return this;
         }
 
@@ -937,7 +937,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                     throw new IndexNotFoundException(index);
                 }
                 put(IndexMetaData.builder(indexMetaData)
-                        .settings(settingsBuilder().put(indexMetaData.settings()).put(settings)));
+                        .settings(settingsBuilder().put(indexMetaData.getSettings()).put(settings)));
             }
             return this;
         }
@@ -1003,7 +1003,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
             List<String> allIndicesLst = new ArrayList<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                allIndicesLst.add(cursor.value.index());
+                allIndicesLst.add(cursor.value.getIndex());
             }
             String[] allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
 
@@ -1011,10 +1011,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             List<String> allClosedIndicesLst = new ArrayList<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
-                if (indexMetaData.state() == IndexMetaData.State.OPEN) {
-                    allOpenIndicesLst.add(indexMetaData.index());
-                } else if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
-                    allClosedIndicesLst.add(indexMetaData.index());
+                if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
+                    allOpenIndicesLst.add(indexMetaData.getIndex());
+                } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                    allClosedIndicesLst.add(indexMetaData.getIndex());
                 }
             }
             String[] allOpenIndices = allOpenIndicesLst.toArray(new String[allOpenIndicesLst.size()]);

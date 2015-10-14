@@ -275,7 +275,7 @@ public class AllocationService extends AbstractComponent {
                             }
                         }
                     }
-                    if (IndexMetaData.isIndexUsingShadowReplicas(index.settings())) {
+                    if (IndexMetaData.isIndexUsingShadowReplicas(index.getSettings())) {
                         routingNodes.reinitShadowPrimary(candidate);
                         changed = true;
                     }

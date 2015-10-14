@@ -449,17 +449,17 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
             builder.startObject("indices");
             for (IndexMetaData indexMetaData : metaData()) {
-                builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexMetaData.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
-                builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
+                builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
                 builder.startObject("settings");
-                Settings settings = indexMetaData.settings();
+                Settings settings = indexMetaData.getSettings();
                 settings.toXContent(builder, params);
                 builder.endObject();
 
                 builder.startObject("mappings");
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                     byte[] mappingSource = cursor.value.source().uncompressed();
                     XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
                     Map<String, Object> mapping = parser.map();
@@ -473,7 +473,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 builder.endObject();
 
                 builder.startArray("aliases");
-                for (ObjectCursor<String> cursor : indexMetaData.aliases().keys()) {
+                for (ObjectCursor<String> cursor : indexMetaData.getAliases().keys()) {
                     builder.value(cursor.value);
                 }
                 builder.endArray();

@@ -118,7 +118,7 @@ public class SyncedFlushService extends AbstractComponent {
         int numberOfShards = 0;
         for (String index : concreteIndices) {
             final IndexMetaData indexMetaData = state.metaData().index(index);
-            totalNumberOfShards += indexMetaData.totalNumberOfShards();
+            totalNumberOfShards += indexMetaData.getTotalNumberOfShards();
             numberOfShards += indexMetaData.getNumberOfShards();
             results.put(index, Collections.synchronizedList(new ArrayList<ShardsSyncedFlushResult>()));
 
@@ -241,7 +241,7 @@ public class SyncedFlushService extends AbstractComponent {
         final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.index().name());
         if (indexRoutingTable == null) {
             IndexMetaData index = state.getMetaData().index(shardId.index().getName());
-            if (index != null && index.state() == IndexMetaData.State.CLOSE) {
+            if (index != null && index.getState() == IndexMetaData.State.CLOSE) {
                 throw new IndexClosedException(shardId.index());
             }
             throw new IndexNotFoundException(shardId.index().getName());

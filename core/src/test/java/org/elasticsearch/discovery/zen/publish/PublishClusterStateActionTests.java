@@ -726,7 +726,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     private void assertProperMetaDataForVersion(MetaData metaData, long version) {
         for (long i = 1; i <= version; i++) {
             assertThat(metaData.index("test" + i), notNullValue());
-            assertThat(metaData.index("test" + i).numberOfShards(), equalTo((int) i));
+            assertThat(metaData.index("test" + i).getNumberOfShards(), equalTo((int) i));
         }
         assertThat(metaData.index("test" + (version + 1)), nullValue());
         assertThat(metaData.transientSettings().get("test"), equalTo(Long.toString(version)));

@@ -54,7 +54,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(indices.size(), equalTo(1));
         IndexMetaData index = indices.get("test");
         assertThat(index, notNullValue());
-        assertThat(index.creationDate(), equalTo(4l));
+        assertThat(index.getCreationDate(), equalTo(4l));
     }
 
     @Test
@@ -72,7 +72,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(indices.size(), equalTo(1));
         IndexMetaData index = indices.get("test");
         assertThat(index, notNullValue());
-        assertThat(index.creationDate(), allOf(lessThanOrEqualTo(timeAfterRequest), greaterThanOrEqualTo(timeBeforeRequest)));
+        assertThat(index.getCreationDate(), allOf(lessThanOrEqualTo(timeAfterRequest), greaterThanOrEqualTo(timeBeforeRequest)));
     }
 
     @Test

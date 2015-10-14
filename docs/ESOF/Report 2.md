@@ -8,12 +8,14 @@ Both the growing need for high throughput and the need for reliability are fulfi
 Requirements:
 * Data Storage
 * High Availability
-* High Throughput/Performance
+* High Throughput/Real Time Performance
 * High Flexibility in queries/data
 * Reliability
 * Developer Friendliness
-* Real time Analytics
+* Analytics
 * Distributed
+* Full Text Search
+
 
 
 

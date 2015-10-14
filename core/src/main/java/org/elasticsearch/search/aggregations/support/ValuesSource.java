@@ -18,12 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomAccessOrds;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.Bits;
@@ -146,7 +141,7 @@ public abstract class ValuesSource {
 
                 @Override
                 public RandomAccessOrds globalOrdinalsValues(LeafReaderContext context) {
-                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal(context.parent.reader());
+                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
                     final AtomicOrdinalsFieldData atomicFieldData = global.load(context);
                     return atomicFieldData.getOrdinalsValues();
                 }
@@ -162,7 +157,7 @@ public abstract class ValuesSource {
             }
 
             public long globalMaxOrd(IndexSearcher indexSearcher, String type) {
-                IndexReader indexReader = indexSearcher.getIndexReader();
+                DirectoryReader indexReader = (DirectoryReader) indexSearcher.getIndexReader();
                 if (indexReader.leaves().isEmpty()) {
                     return 0;
                 } else {
@@ -175,7 +170,7 @@ public abstract class ValuesSource {
             }
 
             public SortedDocValues globalOrdinalsValues(String type, LeafReaderContext context) {
-                final IndexParentChildFieldData global = indexFieldData.loadGlobal(context.parent.reader());
+                final IndexParentChildFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
                 final AtomicParentChildFieldData atomicFieldData = global.load(context);
                 return atomicFieldData.getOrdinalsValues(type);
             }

@@ -18,8 +18,8 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
-import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherService;
@@ -32,7 +32,6 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
-import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
@@ -56,7 +55,6 @@ import static org.hamcrest.core.Is.is;
 @SuppressLocalMode
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
-
     private ClusterDiscoveryConfiguration.UnicastZen config;
 
     @Override
@@ -81,7 +79,6 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
                 .build();
     }
 
-    @Test
     public void testSimpleFailure() throws Exception {
         // we need 3 hosts here because we stop the master and start another - it doesn't restart the pre-existing node...
         config = new ClusterDiscoveryConfiguration.UnicastZen(3, Settings.EMPTY);
@@ -134,7 +131,6 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
         assertWatchWithMinimumPerformedActionsCount("my-second-watch", 1);
     }
 
-    @Test
     public void testDedicatedMasterNodeLayout() throws Exception {
         // Only the master nodes are in the unicast nodes list:
         config = new ClusterDiscoveryConfiguration.UnicastZen(11, 3, Settings.EMPTY);
@@ -187,7 +183,6 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
         assertWatchWithMinimumPerformedActionsCount("_watch_id", 3, false);
     }
 
-    @Test
     public void testMultipleFailures() throws Exception {
         int numberOfFailures = scaledRandomIntBetween(2, 9);
         int numberOfWatches = scaledRandomIntBetween(numberOfFailures, 12);
@@ -244,6 +239,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
         internalCluster().stopCurrentMasterNode();
         // Can't use ensureWatcherStopped, b/c that relies on the watcher stats api which requires an elected master node
         assertBusy(new Runnable() {
+            @Override
             public void run () {
                 for (Client client : clients()) {
                     ClusterState state = client.admin().cluster().prepareState().setLocal(true).get().getState();

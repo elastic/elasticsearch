@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,14 +23,14 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
 public class SlackMessageTests extends ESTestCase {
-
-    @Test
     public void testToXContent() throws Exception {
         String from = randomBoolean() ? null : randomAsciiOfLength(10);
         String[] to = rarely() ? null : new String[randomIntBetween(0, 2)];
@@ -222,9 +221,7 @@ public class SlackMessageTests extends ESTestCase {
         assertThat(actual, equalTo(expected));
     }
 
-
-    @Test
-    public void testTemplate_Parse() throws Exception {
+    public void testTemplateParse() throws Exception {
         ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         XContentBuilder jsonBuilder = jsonBuilder();
         jsonBuilder.startObject();
@@ -362,8 +359,7 @@ public class SlackMessageTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void testTemplate_ParseSelfGenerated() throws Exception {
+    public void testTemplateParseSelfGenerated() throws Exception {
         SlackMessage.Template template = createRandomTemplate();
 
         XContentBuilder jsonBuilder = jsonBuilder();
@@ -377,8 +373,7 @@ public class SlackMessageTests extends ESTestCase {
         assertThat(parsed, equalTo(template));
     }
 
-    @Test
-    public void testTemplate_Render() throws Exception {
+    public void testTemplateRender() throws Exception {
         Settings settings = SlackMessageDefaultsTests.randomSettings();
         SlackMessageDefaults defaults = new SlackMessageDefaults(settings);
         SlackMessage.Template.Builder templateBuilder = SlackMessage.Template.builder();

@@ -18,7 +18,6 @@ import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
-import org.junit.Test;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -29,7 +28,6 @@ import static org.hamcrest.core.Is.is;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     protected boolean enableShield() {
         return true;
@@ -44,7 +42,6 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
                 .build();
     }
 
-    @Test
     public void testNoAuthorization() throws Exception {
         try {
             watcherClient().prepareWatcherStats().get();
@@ -55,7 +52,6 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    @Test
     public void testWatcherMonitorRole() throws Exception {
         // stats and get watch apis require at least monitor role:
         String token = basicAuthHeaderValue("test", new SecuredString("changeme".toCharArray()));
@@ -100,7 +96,6 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    @Test
     public void testWatcherAdminRole() throws Exception {
         // put, execute and delete watch apis requires watcher admin role:
         String token = basicAuthHeaderValue("test", new SecuredString("changeme".toCharArray()));
@@ -162,5 +157,4 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
                 .get();
         assertThat(getWatchResponse.isFound(), is(false));
     }
-
 }

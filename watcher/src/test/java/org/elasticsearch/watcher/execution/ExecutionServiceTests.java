@@ -29,7 +29,6 @@ import org.elasticsearch.watcher.watch.*;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,7 +43,6 @@ import static org.mockito.Mockito.*;
 /**
  */
 public class ExecutionServiceTests extends ESTestCase {
-
     private Payload payload;
     private ExecutableInput input;
     private Input.Result inputResult;
@@ -82,7 +80,6 @@ public class ExecutionServiceTests extends ESTestCase {
         executionService.start(clusterState);
     }
 
-    @Test
     public void testExecute() throws Exception {
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.acquire("_id")).thenReturn(lock);
@@ -151,8 +148,7 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(action, times(1)).execute("_action", context, payload);
     }
 
-    @Test
-    public void testExecute_FailedInput() throws Exception {
+    public void testExecuteFailedInput() throws Exception {
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.acquire("_id")).thenReturn(lock);
 
@@ -224,8 +220,7 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(action, never()).execute("_action", context, payload);
     }
 
-    @Test
-    public void testExecute_FailedCondition() throws Exception {
+    public void testExecuteFailedCondition() throws Exception {
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.acquire("_id")).thenReturn(lock);
 
@@ -293,8 +288,7 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(action, never()).execute("_action", context, payload);
     }
 
-    @Test
-    public void testExecute_FailedWatchTransform() throws Exception {
+    public void testExecuteFailedWatchTransform() throws Exception {
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.acquire("_id")).thenReturn(lock);
 
@@ -361,8 +355,7 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(action, never()).execute("_action", context, payload);
     }
 
-    @Test
-    public void testExecute_FailedActionTransform() throws Exception {
+    public void testExecuteFailedActionTransform() throws Exception {
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.acquire("_id")).thenReturn(lock);
 
@@ -434,7 +427,6 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(action, never()).execute("_action", context, payload);
     }
 
-    @Test
     public void testExecuteInner() throws Exception {
         DateTime now = DateTime.now(DateTimeZone.UTC);
         Watch watch = mock(Watch.class);
@@ -495,8 +487,7 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(action, times(1)).execute("_action", context, payload);
     }
 
-    @Test
-    public void testExecuteInner_throttled() throws Exception {
+    public void testExecuteInnerThrottled() throws Exception {
         DateTime now = DateTime.now(DateTimeZone.UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -544,8 +535,7 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(transform, never()).execute(context, payload);
     }
 
-    @Test
-    public void testExecuteInner_conditionNotMet() throws Exception {
+    public void testExecuteInnerConditionNotMet() throws Exception {
         DateTime now = DateTime.now(DateTimeZone.UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);

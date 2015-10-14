@@ -16,12 +16,11 @@ import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
-import org.junit.Test;
-
-import javax.mail.internet.MimeMessage;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import javax.mail.internet.MimeMessage;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -39,7 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTestCase {
-
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";
 
@@ -66,7 +64,6 @@ public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTestC
                 .build();
     }
 
-    @Test
     public void testArrayAccess() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         server.addListener(new EmailServer.Listener() {

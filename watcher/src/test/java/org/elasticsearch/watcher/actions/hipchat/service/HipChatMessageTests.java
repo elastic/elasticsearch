@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.xcontent.WatcherXContentUtils;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,14 +21,14 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
 public class HipChatMessageTests extends ESTestCase {
-
-    @Test
     public void testToXContent() throws Exception {
         String message = randomAsciiOfLength(10);
         String[] rooms = generateRandomStringArray(3, 10, true);
@@ -105,7 +104,6 @@ public class HipChatMessageTests extends ESTestCase {
         assertThat(notify, is(msg.notify));
     }
 
-    @Test
     public void testEquals() throws Exception {
         String message = randomAsciiOfLength(10);
         String[] rooms = generateRandomStringArray(3, 10, true);
@@ -161,8 +159,7 @@ public class HipChatMessageTests extends ESTestCase {
         assertThat(msg1.equals(msg2), is(equals));
     }
 
-    @Test
-    public void testTemplate_Parse() throws Exception {
+    public void testTemplateParse() throws Exception {
         XContentBuilder jsonBuilder = jsonBuilder();
         jsonBuilder.startObject();
 
@@ -233,8 +230,7 @@ public class HipChatMessageTests extends ESTestCase {
         assertThat(template.notify, is(notify));
     }
 
-    @Test
-    public void testTemplate_ParseSelfGenerated() throws Exception {
+    public void testTemplateParseSelfGenerated() throws Exception {
         TextTemplate body = TextTemplate.inline(randomAsciiOfLength(10)).build();
         HipChatMessage.Template.Builder templateBuilder = new HipChatMessage.Template.Builder(body);
 
@@ -287,5 +283,4 @@ public class HipChatMessageTests extends ESTestCase {
         }
         return randomFrom(includes);
     }
-
 }

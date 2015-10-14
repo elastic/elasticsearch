@@ -14,17 +14,18 @@ import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
-import org.junit.Test;
 
 import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class ShardsCollectorTests extends AbstractCollectorTestCase {
-
-    @Test
     public void testShardsCollectorNoIndices() throws Exception {
         Collection<MarvelDoc> results = newShardsCollector().doCollect();
         assertThat(results, hasSize(0));
@@ -38,7 +39,6 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
                 .build();
     }
 
-    @Test
     public void testShardsCollectorOneIndex() throws Exception {
         int nbDocs = randomIntBetween(1, 20);
         for (int i = 0; i < nbDocs; i++) {
@@ -87,7 +87,6 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         assertThat(replicas, equalTo(expectedReplicas));
     }
 
-    @Test
     public void testShardsCollectorMultipleIndices() throws Exception {
         final String indexPrefix = "test-shards-";
         final int nbIndices = randomIntBetween(1, 3);
@@ -154,7 +153,6 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    @Test
     public void testShardsCollectorWithLicensing() {
         try {
             String[] nodes = internalCluster().getNodeNames();

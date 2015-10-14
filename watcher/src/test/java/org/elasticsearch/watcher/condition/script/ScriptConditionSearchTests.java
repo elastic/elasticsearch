@@ -25,7 +25,6 @@ import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.is;
@@ -35,7 +34,6 @@ import static org.mockito.Mockito.when;
  */
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCase {
-
     private ThreadPool tp = null;
     private ScriptServiceProxy scriptService;
 
@@ -50,9 +48,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
         tp.shutdownNow();
     }
 
-    @Test
-    public void testExecute_withAggs() throws Exception {
-
+    public void testExecuteWithAggs() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .addMapping("my-type", "_timestamp", "enabled=true")
                 .get();
@@ -83,8 +79,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
         assertThat(condition.execute(ctx).met(), is(true));
     }
 
-    @Test
-    public void testExecute_accessHits() throws Exception {
+    public void testExecuteAccessHits() throws Exception {
         ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("ctx.payload.hits?.hits[0]?._score == 1.0").build()), logger, scriptService);
         InternalSearchHit hit = new InternalSearchHit(0, "1", new StringText("type"), null);
         hit.score(1f);
@@ -99,5 +94,4 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
         when(ctx.payload()).thenReturn(new Payload.XContent(response));
         assertThat(condition.execute(ctx).met(), is(false));
     }
-
 }

@@ -16,19 +16,31 @@ import org.elasticsearch.marvel.shield.SecuredClient;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  *
  */
 public class ExportersTests extends ESTestCase {
-
     private Exporters exporters;
     private Map<String, Exporter.Factory> factories;
     private MarvelSettingsFilter settingsFilter;
@@ -51,8 +63,7 @@ public class ExportersTests extends ESTestCase {
         exporters = new Exporters(Settings.EMPTY, factories, settingsFilter, clusterService, nodeSettingsService);
     }
 
-    @Test
-    public void testInitExporters_Default() throws Exception {
+    public void testInitExportersDefault() throws Exception {
         Exporter.Factory factory = new TestFactory("_type", true);
         factories.put("_type", factory);
         Exporters.CurrentExporters internalExporters = exporters.initExporters(Settings.builder()
@@ -65,8 +76,7 @@ public class ExportersTests extends ESTestCase {
         assertThat(internalExporters.exporters.get("default_" + LocalExporter.TYPE), instanceOf(LocalExporter.class));
     }
 
-    @Test
-    public void testInitExporters_Single() throws Exception {
+    public void testInitExportersSingle() throws Exception {
         Exporter.Factory factory = new TestFactory("_type", true);
         factories.put("_type", factory);
         Exporters.CurrentExporters internalExporters = exporters.initExporters(Settings.builder()
@@ -82,8 +92,7 @@ public class ExportersTests extends ESTestCase {
         assertThat(internalExporters.exporters.get("_name").type, is("_type"));
     }
 
-    @Test
-    public void testInitExporters_Single_Disabled() throws Exception {
+    public void testInitExportersSingleDisabled() throws Exception {
         Exporter.Factory factory = new TestFactory("_type", true);
         factories.put("_type", factory);
         Exporters.CurrentExporters internalExporters = exporters.initExporters(Settings.builder()
@@ -101,22 +110,29 @@ public class ExportersTests extends ESTestCase {
         assertThat(internalExporters.exporters.size(), is(0));
     }
 
-    @Test(expected = SettingsException.class)
-    public void testInitExporters_Single_UnknownType() throws Exception {
-        exporters.initExporters(Settings.builder()
-                .put("_name.type", "unknown_type")
-                .build());
+    public void testInitExportersSingleUnknownType() throws Exception {
+        try {
+            exporters.initExporters(Settings.builder()
+                    .put("_name.type", "unknown_type")
+                    .build());
+            fail("Expected SettingsException");
+        } catch (SettingsException e) {
+            assertThat(e.getMessage(), containsString("unknown exporter type [unknown_type]"));
+        }
     }
 
-    @Test(expected = SettingsException.class)
-    public void testInitExporters_Single_MissingExporterType() throws Exception {
-        exporters.initExporters(Settings.builder()
-                .put("_name.foo", "bar")
-                .build());
+    public void testInitExportersSingleMissingExporterType() throws Exception {
+        try {
+            exporters.initExporters(Settings.builder()
+                    .put("_name.foo", "bar")
+                    .build());
+            fail("Expected SettingsException");
+        } catch (SettingsException e) {
+            assertThat(e.getMessage(), containsString("missing exporter type for [_name]"));
+        }
     }
 
-    @Test
-    public void testInitExporters_Multiple_SameType() throws Exception {
+    public void testInitExportersMultipleSameType() throws Exception {
         Exporter.Factory factory = new TestFactory("_type", false);
         factories.put("_type", factory);
         Exporters.CurrentExporters internalExporters = exporters.initExporters(Settings.builder()
@@ -137,17 +153,20 @@ public class ExportersTests extends ESTestCase {
         assertThat(internalExporters.exporters.get("_name1").type, is("_type"));
     }
 
-    @Test(expected = SettingsException.class)
-    public void testInitExporters_Multiple_SameType_Singletons() throws Exception {
+    public void testInitExportersMultipleSameTypeSingletons() throws Exception {
         Exporter.Factory factory = new TestFactory("_type", true);
         factories.put("_type", factory);
-        exporters.initExporters(Settings.builder()
-                .put("_name0.type", "_type")
-                .put("_name1.type", "_type")
-                .build());
+        try {
+            exporters.initExporters(Settings.builder()
+                    .put("_name0.type", "_type")
+                    .put("_name1.type", "_type")
+                    .build());
+            fail("Expected SettingsException");
+        } catch (SettingsException e) {
+            assertThat(e.getMessage(), containsString("multiple [_type] exporters are configured. there can only be one"));
+        }
     }
 
-    @Test
     public void testSettingsUpdate() throws Exception {
         Exporter.Factory factory = spy(new TestFactory("_type", false));
         factories.put("_type", factory);
@@ -188,8 +207,7 @@ public class ExportersTests extends ESTestCase {
         assertThat(settings, hasEntry("_name1.foo", "bar"));
     }
 
-    @Test
-    public void testOpenBulk_OnMaster() throws Exception {
+    public void testOpenBulkOnMaster() throws Exception {
         Exporter.Factory factory = new MockFactory("mock", false);
         Exporter.Factory masterOnlyFactory = new MockFactory("mock_master_only", true);
         factories.put("mock", factory);
@@ -213,8 +231,7 @@ public class ExportersTests extends ESTestCase {
         verify(exporters.getExporter("_name1"), times(1)).openBulk();
     }
 
-    @Test
-    public void testExport_NotOnMaster() throws Exception {
+    public void testExportNotOnMaster() throws Exception {
         Exporter.Factory factory = new MockFactory("mock", false);
         Exporter.Factory masterOnlyFactory = new MockFactory("mock_master_only", true);
         factories.put("mock", factory);
@@ -239,7 +256,6 @@ public class ExportersTests extends ESTestCase {
     }
 
     static class TestFactory extends Exporter.Factory<TestFactory.TestExporter> {
-
         public TestFactory(String type, boolean singleton) {
             super(type, singleton);
         }
@@ -250,7 +266,6 @@ public class ExportersTests extends ESTestCase {
         }
 
         static class TestExporter extends Exporter {
-
             public TestExporter(String type, Config config) {
                 super(type, config);
             }
@@ -271,7 +286,6 @@ public class ExportersTests extends ESTestCase {
     }
 
     static class MockFactory extends Exporter.Factory<Exporter> {
-
         private final boolean masterOnly;
 
         public MockFactory(String type, boolean masterOnly) {
@@ -291,7 +305,6 @@ public class ExportersTests extends ESTestCase {
     }
 
     static class TestNodeSettingsService extends NodeSettingsService {
-
         private final List<Listener> listeners = new ArrayList<>();
 
         public TestNodeSettingsService() {

@@ -23,29 +23,31 @@ import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.Test;
+
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+import java.util.Locale;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(numClientNodes = 0, numDataNodes = 1)
 public class PkiWithoutClientAuthenticationTests extends ShieldIntegTestCase {
-
     private TrustManager[] trustAllCerts = new TrustManager[] {
             new X509TrustManager() {
+                @Override
                 public X509Certificate[] getAcceptedIssuers() {
                     return null;
                 }
 
+                @Override
                 public void checkClientTrusted(X509Certificate[] certs, String authType) {
                 }
 
+                @Override
                 public void checkServerTrusted(X509Certificate[] certs, String authType) {
                 }
             }
@@ -69,13 +71,11 @@ public class PkiWithoutClientAuthenticationTests extends ShieldIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testThatTransportClientWorks() {
         Client client = internalCluster().transportClient();
         assertGreenClusterState(client);
     }
 
-    @Test
     public void testThatHttpWorks() throws Exception {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         SSLContext sc = SSLContext.getInstance("SSL");

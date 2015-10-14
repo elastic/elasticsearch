@@ -6,7 +6,6 @@
 package org.elasticsearch.integration.ldap;
 
 import org.elasticsearch.test.junit.annotations.Network;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -16,14 +15,11 @@ import java.io.IOException;
  */
 @Network
 public class GroupMappingTests extends AbstractAdLdapRealmTestCase {
-
-    @Test
     public void testAuthcAuthz() throws IOException {
         String avenger = realmConfig.loginWithCommonName ? "Natasha Romanoff" : "blackwidow";
         assertAccessAllowed(avenger, "avengers");
     }
 
-    @Test
     public void testGroupMapping() throws IOException {
         String asgardian = "odin";
         String shieldPhilanthropist = realmConfig.loginWithCommonName ? "Bruce Banner" : "hulk";

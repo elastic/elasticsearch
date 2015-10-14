@@ -19,7 +19,6 @@ import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
-import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
@@ -41,8 +40,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 @TestLogging("watcher:TRACE")
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class WatcherStatsTests extends AbstractWatcherIntegrationTestCase {
-
-    @Test
     public void testStartedStats() throws Exception {
         WatcherStatsRequest watcherStatsRequest = watcherClient().prepareWatcherStats().request();
         WatcherStatsResponse response = watcherClient().watcherStats(watcherStatsRequest).actionGet();
@@ -54,7 +51,6 @@ public class WatcherStatsTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getBuild(), is(WatcherBuild.CURRENT));
     }
 
-    @Test
     public void testWatchCountStats() throws Exception {
         WatcherClient watcherClient = watcherClient();
 

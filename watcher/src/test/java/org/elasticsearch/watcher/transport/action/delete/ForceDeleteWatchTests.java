@@ -12,7 +12,6 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.transport.actions.service.WatcherServiceResponse;
-import org.junit.Test;
 
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -26,8 +25,8 @@ import static org.hamcrest.Matchers.is;
  */
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTestCase {
-
     //Disable time warping for the force delete long running watch test
+    @Override
     protected boolean timeWarped() {
         return false;
     }
@@ -37,8 +36,8 @@ public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
-    @Test @TestLogging("_root:DEBUG")
-    public void testForceDelete_LongRunningWatch() throws Exception {
+    @TestLogging("_root:DEBUG")
+    public void testForceDeleteLongRunningWatch() throws Exception {
         PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
                 .trigger(schedule(interval("3s")))
                 .condition(scriptCondition(Script.inline("sleep 5000; return true")))
@@ -59,5 +58,4 @@ public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTestCase {
         deleteWatchResponse = watcherClient().prepareDeleteWatch("_name").get();
         assertThat(deleteWatchResponse.isFound(), is(false));
     }
-
 }

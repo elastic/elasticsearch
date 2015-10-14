@@ -13,15 +13,16 @@ import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
-import org.junit.Test;
 
 import java.util.Collection;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
-
-    @Test
     public void testClusterInfoCollector() throws Exception {
         Collection<MarvelDoc> results = newClusterInfoCollector().doCollect();
         assertThat(results, hasSize(1));
@@ -44,7 +45,6 @@ public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
         assertThat(clusterInfoMarvelDoc.getClusterStats().getNodesStats().getCounts().getTotal(), equalTo(internalCluster().getNodeNames().length));
     }
 
-    @Test
     public void testClusterInfoCollectorWithLicensing() {
         try {
             String[] nodes = internalCluster().getNodeNames();

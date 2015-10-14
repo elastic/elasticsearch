@@ -19,7 +19,6 @@ import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
-import org.junit.Test;
 
 import java.util.Map;
 
@@ -34,9 +33,7 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class HttpRequestTemplateTests extends ESTestCase {
-
-    @Test
-    public void testBody_WithXContent() throws Exception {
+    public void testBodyWithXContent() throws Exception {
         XContentType type = randomFrom(XContentType.JSON, XContentType.YAML);
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
                 .body(XContentBuilder.builder(type.xContent()).startObject().endObject())
@@ -45,7 +42,6 @@ public class HttpRequestTemplateTests extends ESTestCase {
         assertThat(request.headers, hasEntry(HttpHeaders.Names.CONTENT_TYPE, type.restContentType()));
     }
 
-    @Test
     public void testBody() throws Exception {
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
                 .body("_body")
@@ -54,8 +50,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         assertThat(request.headers.size(), is(0));
     }
 
-    @Test
-    public void testParse_SelfGenerated() throws Exception {
+    public void testParseSelfGenerated() throws Exception {
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("_host", 1234);
 
         if (randomBoolean()) {

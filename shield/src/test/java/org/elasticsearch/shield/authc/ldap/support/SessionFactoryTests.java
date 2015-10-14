@@ -8,19 +8,19 @@ package org.elasticsearch.shield.authc.ldap.support;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import com.unboundid.util.ssl.TrustAllSSLSocketVerifier;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class SessionFactoryTests extends ESTestCase {
-
-    @Test
-    public void connectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() {
+    public void testConnectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() {
         SessionFactory factory = createSessionFactory();
         LDAPConnectionOptions options = SessionFactory.connectionOptions(Settings.EMPTY);
         assertThat(options.followReferrals(), is(equalTo(true)));
@@ -30,8 +30,7 @@ public class SessionFactoryTests extends ESTestCase {
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(HostNameSSLSocketVerifier.class)));
     }
 
-    @Test
-    public void connectionFactoryReturnsCorrectLDAPConnectionOptions() {
+    public void testConnectionFactoryReturnsCorrectLDAPConnectionOptions() {
         Settings settings = settingsBuilder()
                 .put(SessionFactory.TIMEOUT_TCP_CONNECTION_SETTING, "10ms")
                 .put(SessionFactory.HOSTNAME_VERIFICATION_SETTING, "false")
@@ -47,13 +46,11 @@ public class SessionFactoryTests extends ESTestCase {
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
     }
 
-    @Test
-    public void sessionFactoryDoesNotSupportUnauthenticated() {
+    public void testSessionFactoryDoesNotSupportUnauthenticated() {
         assertThat(createSessionFactory().supportsUnauthenticatedSession(), is(false));
     }
 
-    @Test
-    public void unauthenticatedSessionThrowsUnsupportedOperationException() throws Exception {
+    public void testUnauthenticatedSessionThrowsUnsupportedOperationException() throws Exception {
         try {
             createSessionFactory().unauthenticatedSession(randomAsciiOfLength(5));
             fail("session factory should throw an unsupported operation exception");
@@ -61,6 +58,7 @@ public class SessionFactoryTests extends ESTestCase {
             // expected...
         }
     }
+
     private SessionFactory createSessionFactory() {
         Settings global = settingsBuilder().put("path.home", createTempDir()).build();
         return new SessionFactory(new RealmConfig("_name", Settings.EMPTY, global)) {

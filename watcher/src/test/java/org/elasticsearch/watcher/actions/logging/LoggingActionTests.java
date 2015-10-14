@@ -21,7 +21,6 @@ import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -33,6 +32,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 import static org.joda.time.DateTimeZone.UTC;
@@ -44,7 +44,6 @@ import static org.mockito.Mockito.when;
 /**
  */
 public class LoggingActionTests extends ESTestCase {
-
     private ESLogger actionLogger;
     private LoggingLevel level;
     private TextTemplateEngine engine;
@@ -56,7 +55,6 @@ public class LoggingActionTests extends ESTestCase {
         engine = mock(TextTemplateEngine.class);
     }
 
-    @Test
     public void testExecute() throws Exception {
         final DateTime now = DateTime.now(UTC);
 
@@ -94,7 +92,6 @@ public class LoggingActionTests extends ESTestCase {
         assertThat(((LoggingAction.Result.Success) result).loggedText(), is(text));
     }
 
-    @Test
     public void testParser() throws Exception {
         Settings settings = Settings.EMPTY;
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
@@ -129,8 +126,7 @@ public class LoggingActionTests extends ESTestCase {
         assertThat(executable.action().text, is(template));
     }
 
-    @Test
-    public void testParser_SelfGenerated() throws Exception {
+    public void testParserSelfGenerated() throws Exception {
         Settings settings = Settings.EMPTY;
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
@@ -150,8 +146,7 @@ public class LoggingActionTests extends ESTestCase {
         assertThat(parsedAction, equalTo(executable));
     }
 
-    @Test
-    public void testParser_Builder() throws Exception {
+    public void testParserBuilder() throws Exception {
         Settings settings = Settings.EMPTY;
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
@@ -177,8 +172,7 @@ public class LoggingActionTests extends ESTestCase {
         assertThat(executable.action(), is(action));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_Failure() throws Exception {
+    public void testParserFailure() throws Exception {
         Settings settings = Settings.EMPTY;
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
@@ -188,8 +182,12 @@ public class LoggingActionTests extends ESTestCase {
         XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
         xContentParser.nextToken();
 
-        // will fail as there's no text
-        parser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(5), xContentParser);
+        try {
+            parser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(5), xContentParser);
+            fail("Expected failure as there's no text");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("missing required [text] field"));
+        }
     }
 
     static void verifyLogger(ESLogger logger, LoggingLevel level, String text) {
@@ -213,5 +211,4 @@ public class LoggingActionTests extends ESTestCase {
                 fail("unhandled logging level [" + level.name() + "]");
         }
     }
-
 }

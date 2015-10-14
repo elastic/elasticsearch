@@ -15,7 +15,6 @@ import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,16 +31,20 @@ import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.watcher.transform.TransformBuilders.*;
+import static org.elasticsearch.watcher.transform.TransformBuilders.chainTransform;
+import static org.elasticsearch.watcher.transform.TransformBuilders.scriptTransform;
+import static org.elasticsearch.watcher.transform.TransformBuilders.searchTransform;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  */
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         Path configDir = createTempDir();
@@ -59,7 +62,6 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("path.conf", configDir.toString()).build();
     }
 
-    @Test
     public void testScriptTransform() throws Exception {
         final Script script;
         if (randomBoolean()) {
@@ -117,7 +119,6 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertThat(response.getHits().getAt(0).sourceAsMap().get("key3").toString(), equalTo("20"));
     }
 
-    @Test
     public void testSearchTransform() throws Exception {
         createIndex("my-condition-index", "my-payload-index");
         ensureGreen("my-condition-index", "my-payload-index");
@@ -165,7 +166,6 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertThat(response.getHits().getAt(0).sourceAsString(), containsString("mytestresult"));
     }
 
-    @Test
     public void testChainTransform() throws Exception {
         final Script script1 = Script.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
         final Script script2 = Script.inline("return [key4 : ctx.payload.key3 + 10]").lang("groovy").build();

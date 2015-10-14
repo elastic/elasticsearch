@@ -12,8 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
+import org.elasticsearch.shield.crypto.tool.SystemKeyTool.Generate;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,7 +21,6 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Set;
 
-import static org.elasticsearch.shield.crypto.tool.SystemKeyTool.Generate;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -35,7 +34,6 @@ import static org.mockito.Mockito.when;
  *
  */
 public class SystemKeyToolTests extends CliToolTestCase {
-
     private Terminal terminal;
     private Environment env;
 
@@ -47,16 +45,14 @@ public class SystemKeyToolTests extends CliToolTestCase {
         when(env.binFile()).thenReturn(tmpDir.resolve("bin"));
     }
 
-    @Test
-    public void testParse_NoArgs() throws Exception {
+    public void testParseNoArgs() throws Exception {
         CliTool.Command cmd = new SystemKeyTool().parse("generate", args(""));
         assertThat(cmd, instanceOf(Generate.class));
         Generate generate = (Generate) cmd;
         assertThat(generate.path, nullValue());
     }
 
-    @Test
-    public void testParse_FileArg() throws Exception {
+    public void testParseFileArg() throws Exception {
         Path path = createTempFile();
         CliTool.Command cmd = new SystemKeyTool().parse("generate", new String[]{path.toAbsolutePath().toString()});
         assertThat(cmd, instanceOf(Generate.class));
@@ -66,7 +62,6 @@ public class SystemKeyToolTests extends CliToolTestCase {
         assertThat(generate.path.toString(), equalTo(path.toString()));
     }
 
-    @Test
     public void testGenerate() throws Exception {
         Path path = createTempFile();
         Generate generate = new Generate(terminal, path);
@@ -76,8 +71,7 @@ public class SystemKeyToolTests extends CliToolTestCase {
         assertThat(bytes.length, is(InternalCryptoService.KEY_SIZE / 8));
     }
 
-    @Test
-    public void testGenerate_PathInSettings() throws Exception {
+    public void testGeneratePathInSettings() throws Exception {
         Path path = createTempFile();
         Settings settings = Settings.builder()
                 .put("shield.system_key.file", path.toAbsolutePath().toString())
@@ -89,8 +83,7 @@ public class SystemKeyToolTests extends CliToolTestCase {
         assertThat(bytes.length, is(InternalCryptoService.KEY_SIZE / 8));
     }
 
-    @Test
-    public void testGenerate_DefaultPath() throws Exception {
+    public void testGenerateDefaultPath() throws Exception {
         Path config = createTempDir();
         Path shieldConfig = config.resolve(ShieldPlugin.NAME);
         Files.createDirectories(shieldConfig);
@@ -103,7 +96,6 @@ public class SystemKeyToolTests extends CliToolTestCase {
         assertThat(bytes.length, is(InternalCryptoService.KEY_SIZE / 8));
     }
 
-    @Test
     public void testThatSystemKeyMayOnlyBeReadByOwner() throws Exception {
         Path config = createTempDir();
         Path shieldConfig = config.resolve(ShieldPlugin.NAME);

@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.junit.Test;
 
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -19,6 +18,7 @@ import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondit
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -26,9 +26,6 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 public class PutWatchTests extends AbstractWatcherIntegrationTestCase {
-
-    @Test
-
     public void testPut() throws Exception {
         ensureWatcherStarted();
 
@@ -52,32 +49,42 @@ public class PutWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getVersion(), is(1L));
     }
 
-    @Test(expected = IllegalStateException.class)
-    public void testPut_NoTrigger() throws Exception {
+    public void testPutNoTrigger() throws Exception {
         ensureWatcherStarted();
-        watcherClient().preparePutWatch("_name").setSource(watchBuilder()
-                .input(simpleInput())
-                .condition(alwaysCondition())
-                .addAction("_action1", loggingAction("{{ctx.watch_id}}")))
-                .get();
+        try {
+            watcherClient().preparePutWatch("_name").setSource(watchBuilder()
+                    .input(simpleInput())
+                    .condition(alwaysCondition())
+                    .addAction("_action1", loggingAction("{{ctx.watch_id}}")))
+                    .get();
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("failed to build watch source. no trigger defined"));
+        }
     }
 
-    @Test(expected = ActionRequestValidationException.class)
-    public void testPut_InvalidWatchId() throws Exception {
+    public void testPutInvalidWatchId() throws Exception {
         ensureWatcherStarted();
-        watcherClient().preparePutWatch("id with whitespaces").setSource(watchBuilder()
-                .trigger(schedule(interval("5m"))))
-                .get();
+        try {
+            watcherClient().preparePutWatch("id with whitespaces").setSource(watchBuilder()
+                    .trigger(schedule(interval("5m"))))
+                    .get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("Watch id cannot have white spaces"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testPut_InvalidActionId() throws Exception {
+    public void testPutInvalidActionId() throws Exception {
         ensureWatcherStarted();
-        watcherClient().preparePutWatch("_name").setSource(watchBuilder()
-                .trigger(schedule(interval("5m")))
-                .addAction("id with whitespaces", loggingAction("{{ctx.watch_id}}")))
-                .get();
+        try {
+            watcherClient().preparePutWatch("_name").setSource(watchBuilder()
+                    .trigger(schedule(interval("5m")))
+                    .addAction("id with whitespaces", loggingAction("{{ctx.watch_id}}")))
+                    .get();
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("Action id cannot have white spaces"));
+        }
     }
-
-
 }

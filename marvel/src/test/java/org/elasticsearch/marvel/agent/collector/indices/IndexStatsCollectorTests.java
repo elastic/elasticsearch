@@ -14,17 +14,20 @@ import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.Iterator;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 @ClusterScope(numClientNodes = 0)
 public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
-
     @Override
     protected int numberOfReplicas() {
         return 0;
@@ -35,7 +38,6 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         waitForNoBlocksOnNodes();
     }
 
-    @Test
     public void testIndexStatsCollectorOneIndex() throws Exception {
         final String indexName = "one-index";
 
@@ -74,7 +76,6 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(indexStats.getTotal().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0L));
     }
 
-    @Test
     public void testIndexStatsCollectorMultipleIndices() throws Exception {
         final String indexPrefix = "multi-indices-";
         final int nbIndices = randomIntBetween(1, 5);
@@ -133,7 +134,6 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    @Test
     public void testIndexStatsCollectorWithLicensing() {
         try {
             final int nbDocs = randomIntBetween(1, 20);

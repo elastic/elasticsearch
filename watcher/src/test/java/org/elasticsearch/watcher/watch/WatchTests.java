@@ -115,7 +115,6 @@ import org.elasticsearch.watcher.trigger.schedule.support.YearTimes;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -140,7 +139,6 @@ import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 
 public class WatchTests extends ESTestCase {
-
     private ScriptServiceProxy scriptService;
     private ClientProxy client;
     private HttpClient httpClient;
@@ -167,8 +165,7 @@ public class WatchTests extends ESTestCase {
         logger = Loggers.getLogger(WatchTests.class);
     }
 
-    @Test
-    public void testParser_SelfGenerated() throws Exception {
+    public void testParserSelfGenerated() throws Exception {
         DateTime now = new DateTime(UTC);
         ClockMock clock = new ClockMock();
         clock.setTime(now);
@@ -223,8 +220,7 @@ public class WatchTests extends ESTestCase {
         assertThat(parsedWatch.actions(), equalTo(actions));
     }
 
-    @Test
-    public void testParser_BadActions() throws Exception {
+    public void testParserBadActions() throws Exception {
         ClockMock clock = new ClockMock();
         ScheduleRegistry scheduleRegistry = registry(randomSchedule());
         TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, clock);
@@ -254,8 +250,7 @@ public class WatchTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void testParser_Defaults() throws Exception {
+    public void testParserDefaults() throws Exception {
         Schedule schedule = randomSchedule();
         ScheduleRegistry scheduleRegistry = registry(schedule);
         TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);

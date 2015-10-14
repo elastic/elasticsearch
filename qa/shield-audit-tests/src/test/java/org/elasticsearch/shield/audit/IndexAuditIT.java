@@ -14,7 +14,6 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -24,11 +23,9 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class IndexAuditIT extends ESIntegTestCase {
-
     private static final String USER = "test_user";
     private static final String PASS = "changeme";
 
-    @Test
     public void testShieldIndexAuditTrailWorking() throws Exception {
         HttpResponse response = httpClient().path("/_cluster/health")
                 .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray())))

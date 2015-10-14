@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.util.Collections;
 import java.util.Set;
@@ -25,7 +24,6 @@ import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, randomDynamicTemplates = false)
 public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
-
     IndexNameResolver.Rollover rollover = randomFrom(IndexNameResolver.Rollover.values());
 
     @Override
@@ -55,7 +53,6 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
         // after the test has completed
     }
 
-    @Test
     public void testAuditTrailIndexAndTemplateExists() throws Exception {
         awaitIndexTemplateCreation();
 
@@ -63,7 +60,6 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
         awaitIndexCreation();
     }
 
-    @Test
     public void testAuditTrailTemplateIsRecreatedAfterDelete() throws Exception {
         // this is already "tested" by the test framework since we wipe the templates before and after, but lets be explicit about the behavior
         awaitIndexTemplateCreation();

@@ -34,7 +34,6 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -51,8 +50,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
-
-    @Test
     public void testSingleActionAckThrottle() throws Exception {
         boolean useClientForAcking = randomBoolean();
 
@@ -92,7 +89,6 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    @Test
     public void testRandomMultiActionAckThrottle() throws Exception {
         boolean useClientForAcking = randomBoolean();
 
@@ -140,7 +136,6 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    @Test
     public void testDifferentThrottlePeriods() throws Exception {
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval("60m")));
@@ -190,7 +185,6 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
 
     }
 
-    @Test
     public void testDefaultThrottlePeriod() throws Exception {
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval("60m")));
@@ -252,7 +246,6 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         }, 6, TimeUnit.SECONDS);
     }
 
-    @Test
     public void testWatchThrottlePeriod() throws Exception {
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval("60m")))
@@ -314,7 +307,6 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         }, 20, TimeUnit.SECONDS);
     }
 
-    @Test
     public void testFailingActionDoesGetThrottled() throws Exception {
         TimeValue throttlePeriod = new TimeValue(60, TimeUnit.MINUTES);
 
@@ -414,10 +406,8 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
             }
         };
 
-
         public abstract Action.Builder action() throws Exception;
 
         public abstract String type();
     }
-
 }

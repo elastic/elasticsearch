@@ -18,7 +18,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.BufferedWriter;
 import java.nio.charset.StandardCharsets;
@@ -26,19 +25,30 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.contains;
-import static org.mockito.Mockito.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Matchers.contains;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  *
  */
 public class FileUserRolesStoreTests extends ESTestCase {
-
     private Settings settings;
     private Environment env;
     private ThreadPool threadPool;
@@ -58,9 +68,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    @Test
     public void testStore_ConfiguredWithUnreadableFile() throws Exception {
-
         Path file = createTempFile();
         List<String> lines = new ArrayList<>();
         lines.add("aldlfkjldjdflkjd");
@@ -78,8 +86,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         assertThat(store.entriesCount(), is(0));
     }
 
-    @Test
-    public void testStore_AutoReload() throws Exception {
+    public void testStoreAutoReload() throws Exception {
         Path users = getDataPath("users_roles");
         Path tmp = createTempFile();
         Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
@@ -122,8 +129,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         assertThat(roles, arrayContaining("role4", "role5"));
     }
 
-    @Test
-    public void testStore_AutoReload_WithParseFailure() throws Exception {
+    public void testStoreAutoReloadWithParseFailure() throws Exception {
         Path users = getDataPath("users_roles");
         Path tmp = createTempFile();
         Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
@@ -161,7 +167,6 @@ public class FileUserRolesStoreTests extends ESTestCase {
         assertThat(store.entriesCount(), is(0));
     }
 
-    @Test
     public void testParseFile() throws Exception {
         Path path = getDataPath("users_roles");
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(path, null);
@@ -180,8 +185,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         assertThat(usersRoles.get("period.user"), arrayContaining("role4"));
     }
 
-    @Test
-    public void testParseFile_Empty() throws Exception {
+    public void testParseFileEmpty() throws Exception {
         Path empty = createTempFile();
         ESLogger log = ESLoggerFactory.getLogger("test");
         log = spy(log);
@@ -189,8 +193,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         verify(log, times(1)).warn(contains("no entries found"), eq(empty.toAbsolutePath()));
     }
 
-    @Test
-    public void testParseFile_WhenFileDoesNotExist() throws Exception {
+    public void testParseFileWhenFileDoesNotExist() throws Exception {
         Path file = createTempDir().resolve(randomAsciiOfLength(10));
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file, logger);
@@ -198,8 +201,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         assertThat(usersRoles.isEmpty(), is(true));
     }
 
-    @Test
-    public void testParseFile_WhenCannotReadFile() throws Exception {
+    public void testParseFileWhenCannotReadFile() throws Exception {
         Path file = createTempFile();
         List<String> lines = new ArrayList<>();
         lines.add("aldlfkjldjdflkjd");
@@ -215,8 +217,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void testParseFile_EmptyRolesDoesNotCauseNPE() throws Exception {
+    public void testParseFileEmptyRolesDoesNotCauseNPE() throws Exception {
         ThreadPool threadPool = null;
         try {
             threadPool = new ThreadPool("test");
@@ -241,27 +242,23 @@ public class FileUserRolesStoreTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void testParseFile_EmptyFileIsParsed() throws Exception {
+    public void testParseFileEmptyFileIsParsed() throws Exception {
         assertInvalidInputIsSilentlyIgnored("");
         assertInvalidInputIsSilentlyIgnored("#");
     }
 
-    @Test
-    public void testParseFile_EmptyRoleNameDoesNotThrowException() throws Exception {
+    public void testParseFileEmptyRoleNameDoesNotThrowException() throws Exception {
         assertInvalidInputIsSilentlyIgnored(":user1,user2");
         assertInvalidInputIsSilentlyIgnored(" :user1,user2");
     }
 
-    @Test
-    public void testParseFile_EmptyRoleDoesNotThrowException() throws Exception {
+    public void testParseFileEmptyRoleDoesNotThrowException() throws Exception {
         assertInvalidInputIsSilentlyIgnored("role:");
         assertInvalidInputIsSilentlyIgnored("role: ");
         assertInvalidInputIsSilentlyIgnored("role: , ");
     }
 
-    @Test
-    public void testParseFileLenient_WhenCannotReadFile() throws Exception {
+    public void testParseFileLenientWhenCannotReadFile() throws Exception {
         Path file = createTempFile();
         List<String> lines = new ArrayList<>();
         lines.add("aldlfkjldjdflkjd");

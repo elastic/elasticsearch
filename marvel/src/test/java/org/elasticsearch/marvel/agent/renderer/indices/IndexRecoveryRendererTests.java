@@ -16,7 +16,6 @@ import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,10 +23,8 @@ import java.util.List;
 import java.util.Map;
 
 public class IndexRecoveryRendererTests extends ESTestCase {
-
     private static final String SAMPLE_FILE = "/samples/index_recovery.json";
 
-    @Test
     public void testIndexRecoveryRenderer() throws Exception {
         logger.debug("--> creating the index recovery marvel document");
         String indexName = "index-0";

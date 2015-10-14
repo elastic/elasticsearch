@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.actions.email;
 
 import org.elasticsearch.action.get.GetResponse;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
@@ -22,14 +21,15 @@ import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.WatchStore;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
-import org.junit.Test;
 
-import javax.mail.internet.MimeMessage;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import javax.mail.internet.MimeMessage;
 
 import static org.elasticsearch.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -37,13 +37,16 @@ import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondit
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
 public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTestCase {
-
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";
 
@@ -73,7 +76,6 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                 .build();
     }
 
-    @Test
     public void testEmail() throws Exception {
         WatcherClient watcherClient = watcherClient();
         watcherClient.preparePutWatch("_id")

@@ -14,7 +14,6 @@ import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.After;
-import org.junit.Test;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -25,7 +24,6 @@ import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = TEST)
 public class IndexRecoveryTests extends MarvelIntegTestCase {
-
     private static final String INDEX_PREFIX = "test-index-recovery-";
 
     @Override
@@ -46,7 +44,6 @@ public class IndexRecoveryTests extends MarvelIntegTestCase {
         wipeMarvelIndices();
     }
 
-    @Test
     public void testIndexRecovery() throws Exception {
         logger.debug("--> creating some indices so that index recovery collector reports data");
         for (int i = 0; i < randomIntBetween(1, 10); i++) {

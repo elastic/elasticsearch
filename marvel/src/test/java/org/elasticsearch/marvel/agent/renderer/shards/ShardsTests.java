@@ -20,17 +20,18 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.After;
-import org.junit.Test;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope = Scope.TEST)
 public class ShardsTests extends MarvelIntegTestCase {
-
     private static final String INDEX_PREFIX = "test-shards-";
 
     @Override
@@ -51,7 +52,6 @@ public class ShardsTests extends MarvelIntegTestCase {
         wipeMarvelIndices();
     }
 
-    @Test
     public void testShards() throws Exception {
         logger.debug("--> creating some indices so that shards collector reports data");
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
@@ -87,7 +87,6 @@ public class ShardsTests extends MarvelIntegTestCase {
      * This test uses a terms aggregation to check that the "not_analyzed"
      * fields of the "shards" document type are indeed not analyzed
      */
-    @Test
     public void testNotAnalyzedFields() throws Exception {
         final String indexName = INDEX_PREFIX + randomInt();
         assertAcked(prepareCreate(indexName).setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));

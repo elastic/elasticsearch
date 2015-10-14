@@ -6,20 +6,15 @@
 package org.elasticsearch.marvel.agent.renderer.indices;
 
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.indices.IndicesStatsMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.StreamsUtils;
-import org.junit.Test;
 
 public class IndicesStatsRendererTests extends ESSingleNodeTestCase {
-
     private static final String SAMPLE_FILE = "/samples/indices_stats.json";
 
-    @Test
     public void testIndexStatsRenderer() throws Exception {
         createIndex("index-0");
 

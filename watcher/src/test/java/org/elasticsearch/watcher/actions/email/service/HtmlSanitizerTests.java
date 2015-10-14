@@ -7,18 +7,15 @@ package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 
 
 /**
  *
  */
 public class HtmlSanitizerTests extends ESTestCase {
-
-    @Test
-    public void testDefault_WithTemplatePlaceholders() {
+    public void testDefaultWithTemplatePlaceholders() {
         String blockTag = randomFrom(HtmlSanitizer.BLOCK_TAGS);
         while (blockTag.equals("li")) {
             blockTag = randomFrom(HtmlSanitizer.BLOCK_TAGS);
@@ -54,8 +51,7 @@ public class HtmlSanitizerTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void testDefault_onclick_Disallowed() {
+    public void testDefaultOnClickDisallowed() {
         String badHtml = "<button type=\"button\"" +
                 "onclick=\"document.getElementById('demo').innerHTML = Date()\">" +
                 "Click me to display Date and Time.</button>";
@@ -64,24 +60,21 @@ public class HtmlSanitizerTests extends ESTestCase {
         assertThat(sanitizedHtml, equalTo("Click me to display Date and Time."));
     }
 
-    @Test
-    public void testDefault_ExternalImage_Disallowed() {
+    public void testDefaultExternalImageDisallowed() {
         String html = "<img src=\"http://test.com/nastyimage.jpg\"/>This is a bad image";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo("This is a bad image"));
     }
 
-    @Test
-    public void testDefault_EmbeddedImage_Allowed() {
+    public void testDefault_EmbeddedImageAllowed() {
         String html = "<img src=\"cid:foo\" />This is a good image";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo(html));
     }
 
-    @Test
-    public void testDefault_Tables_Allowed() {
+    public void testDefaultTablesAllowed() {
         String html = "<table>" +
                 "<caption>caption</caption>" +
                 "<colgroup>" +
@@ -112,8 +105,7 @@ public class HtmlSanitizerTests extends ESTestCase {
         assertThat(sanitizedHtml, equalTo(html));
     }
 
-    @Test
-    public void testDefault_Formatting_Allowed() {
+    public void testDefaultFormattingAllowed() {
         String html =  "<b></b><i></i><s></s><u></u><o></o><sup></sup><sub></sub><ins></ins><del></del><strong></strong>" +
                 "<strike></strike><tt></tt><code></code><big></big><small></small><span></span><br /><em></em><hr />";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
@@ -121,16 +113,14 @@ public class HtmlSanitizerTests extends ESTestCase {
         assertThat(sanitizedHtml, equalTo(html));
     }
 
-    @Test
-    public void testDefault_Scipts_Disallowed() {
+    public void testDefaultSciptsDisallowed() {
         String html = "<script>doSomethingNefarious()</script>This was a dangerous script";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo("This was a dangerous script"));
     }
 
-    @Test
-    public void testCustom_Disabled() {
+    public void testCustomDisabled() {
         String html = "<img src=\"http://test.com/nastyimage.jpg\" />This is a bad image";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.builder()
                 .put("watcher.actions.email.html.sanitization.enabled", false)
@@ -139,8 +129,7 @@ public class HtmlSanitizerTests extends ESTestCase {
         assertThat(sanitizedHtml, equalTo(html));
     }
 
-    @Test
-    public void testCustom_AllImage_Allowed() {
+    public void testCustomAllImageAllowed() {
         String html = "<img src=\"http://test.com/nastyimage.jpg\" />This is a bad image";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.builder()
                 .put("watcher.actions.email.html.sanitization.allow", "img:all")
@@ -149,8 +138,7 @@ public class HtmlSanitizerTests extends ESTestCase {
         assertThat(sanitizedHtml, equalTo(html));
     }
 
-    @Test
-    public void testCustom_Tables_Disallowed() {
+    public void testCustomTablesDisallowed() {
         String html = "<table><tr><td>cell1</td><td>cell2</td></tr></table>";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.builder()
                 .put("watcher.actions.email.html.sanitization.disallow", "_tables")
@@ -158,5 +146,4 @@ public class HtmlSanitizerTests extends ESTestCase {
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo("cell1cell2"));
     }
-
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,10 +19,8 @@ import java.util.List;
 import static org.hamcrest.Matchers.is;
 
 public class LicenseTests extends ESTestCase {
-
     private SimpleLicenseeRegistry licenseeRegistry = new SimpleLicenseeRegistry();
 
-    @Test
     public void testPlatinumGoldTrialLicenseCanDoEverything() throws Exception {
         licenseeRegistry.setOperationMode(randomFrom(License.OperationMode.PLATINUM, License.OperationMode.GOLD, License.OperationMode.TRIAL));
         WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
@@ -32,7 +29,6 @@ public class LicenseTests extends ESTestCase {
         assertLicenseGoldPlatinumTrialBehaviour(watcherLicensee);
     }
 
-    @Test
     public void testBasicLicenseIsDisabled() throws Exception {
         licenseeRegistry.setOperationMode(License.OperationMode.BASIC);
         WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
@@ -41,7 +37,6 @@ public class LicenseTests extends ESTestCase {
         assertLicenseBasicOrNoneOrExpiredBehaviour(watcherLicensee);
     }
 
-    @Test
     public void testNoLicenseDoesNotWork() {
         licenseeRegistry.setOperationMode(License.OperationMode.BASIC);
         WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
@@ -51,7 +46,6 @@ public class LicenseTests extends ESTestCase {
         assertLicenseBasicOrNoneOrExpiredBehaviour(watcherLicensee);
     }
 
-    @Test
     public void testExpiredPlatinumGoldTrialLicenseIsRestricted() throws Exception {
         licenseeRegistry.setOperationMode(randomFrom(License.OperationMode.PLATINUM, License.OperationMode.GOLD, License.OperationMode.TRIAL));
         WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
@@ -61,7 +55,6 @@ public class LicenseTests extends ESTestCase {
         assertLicenseBasicOrNoneOrExpiredBehaviour(watcherLicensee);
     }
 
-    @Test
     public void testUpgradingFromBasicLicenseWorks() {
         licenseeRegistry.setOperationMode(License.OperationMode.BASIC);
         WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
@@ -73,7 +66,6 @@ public class LicenseTests extends ESTestCase {
         assertLicenseGoldPlatinumTrialBehaviour(watcherLicensee);
     }
 
-    @Test
     public void testDowngradingToBasicLicenseWorks() {
         licenseeRegistry.setOperationMode(randomFrom(License.OperationMode.PLATINUM, License.OperationMode.GOLD, License.OperationMode.TRIAL));
         WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
@@ -85,7 +77,6 @@ public class LicenseTests extends ESTestCase {
         assertLicenseBasicOrNoneOrExpiredBehaviour(watcherLicensee);
     }
 
-    @Test
     public void testUpgradingExpiredLicenseWorks() {
         licenseeRegistry.setOperationMode(randomFrom(License.OperationMode.PLATINUM, License.OperationMode.GOLD, License.OperationMode.TRIAL));
         WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
@@ -113,7 +104,6 @@ public class LicenseTests extends ESTestCase {
     }
 
     public static class SimpleLicenseeRegistry extends AbstractComponent implements LicenseeRegistry {
-
         private final List<Licensee> licensees = new ArrayList<>();
         private License.OperationMode operationMode;
 

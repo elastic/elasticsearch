@@ -11,13 +11,10 @@ import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.StreamsUtils;
-import org.junit.Test;
 
 public class ClusterStatsRendererTests extends ESSingleNodeTestCase {
-
     private static final String SAMPLE_FILE = "/samples/cluster_stats.json";
 
-    @Test
     public void testClusterStatsRenderer() throws Exception {
         createIndex("index-0");
 

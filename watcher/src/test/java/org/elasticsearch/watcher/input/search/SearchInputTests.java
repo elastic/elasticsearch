@@ -39,7 +39,6 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,7 +68,6 @@ import static org.joda.time.DateTimeZone.UTC;
  */
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 public class SearchInputTests extends ESIntegTestCase {
-
     private final static String TEMPLATE_QUERY = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
             "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
             "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
@@ -106,7 +104,6 @@ public class SearchInputTests extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testExecute() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
                 boolQuery().must(matchQuery("event_type", "a")).must(rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}")));
@@ -139,8 +136,7 @@ public class SearchInputTests extends ESIntegTestCase {
         assertEquals(result.executedRequest().indicesOptions(), request.indicesOptions());
     }
 
-    @Test
-    public void testSearch_InlineTemplate() throws Exception {
+    public void testSearchInlineTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
 
         final String expectedTemplateString = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\","
@@ -174,8 +170,7 @@ public class SearchInputTests extends ESIntegTestCase {
         assertThat(executedResult.executedRequest().template(), equalTo(expectedTemplate));
     }
 
-    @Test
-    public void testSearch_IndexedTemplate() throws Exception {
+    public void testSearchIndexedTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
 
         PutIndexedScriptRequest indexedScriptRequest = client().preparePutIndexedScript("mustache","test-template", TEMPLATE_QUERY).request();
@@ -197,8 +192,7 @@ public class SearchInputTests extends ESIntegTestCase {
         assertThat(resultTemplate.getType(), equalTo(ScriptType.INDEXED));
     }
 
-    @Test
-    public void testSearch_OndiskTemplate() throws Exception {
+    public void testSearchOnDiskTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
 
         Map<String, Object> params = new HashMap<>();
@@ -215,7 +209,6 @@ public class SearchInputTests extends ESIntegTestCase {
         assertThat(resultTemplate.getType(), equalTo(ScriptType.FILE));
     }
 
-    @Test
     public void testDifferentSearchType() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
                 boolQuery().must(matchQuery("event_type", "a")).must(rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))
@@ -251,8 +244,7 @@ public class SearchInputTests extends ESIntegTestCase {
         assertEquals(result.executedRequest().indicesOptions(), request.indicesOptions());
     }
 
-    @Test
-    public void testParser_Valid() throws Exception {
+    public void testParserValid() throws Exception {
         SearchRequest request = client().prepareSearch()
                 .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
                 .request()

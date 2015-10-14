@@ -6,7 +6,6 @@
 package org.elasticsearch.integration.ldap;
 
 import org.elasticsearch.test.junit.annotations.Network;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -15,7 +14,6 @@ import java.io.IOException;
  */
 @Network
 public class MultiGroupMappingTests extends AbstractAdLdapRealmTestCase {
-
     @Override
     protected String configRoles() {
         return super.configRoles() +
@@ -39,7 +37,6 @@ public class MultiGroupMappingTests extends AbstractAdLdapRealmTestCase {
                 "  - \"cn=Philanthropists,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"";
     }
 
-    @Test
     public void testGroupMapping() throws IOException {
         String asgardian = "odin";
         String shieldPhilanthropist = realmConfig.loginWithCommonName ? "Bruce Banner" : "hulk";

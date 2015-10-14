@@ -6,20 +6,16 @@
 package org.elasticsearch.watcher.support.clock;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.joda.time.DateTimeZone.UTC;
 import static org.hamcrest.Matchers.equalTo;
+import static org.joda.time.DateTimeZone.UTC;
 
 /**
  */
 public class ClockTests extends ESTestCase {
-
-    @Test
-    public void test_now_UTC() {
+    public void testNowUTC() {
         Clock clockMock = new ClockMock();
         assertThat(clockMock.now(UTC).getZone(), equalTo(UTC));
         assertThat(SystemClock.INSTANCE.now(UTC).getZone(), equalTo(UTC));
     }
-
 }

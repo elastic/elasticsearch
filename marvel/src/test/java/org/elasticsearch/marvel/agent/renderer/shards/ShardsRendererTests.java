@@ -14,15 +14,12 @@ import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.StreamsUtils;
-import org.junit.Test;
 
 import java.io.IOException;
 
 public class ShardsRendererTests extends ESSingleNodeTestCase {
-
     private static final String SAMPLE_FILE = "/samples/shards.json";
 
-    @Test
     public void testShardsRenderer() throws Exception {
         createIndex("my-index", Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -47,7 +44,6 @@ public class ShardsRendererTests extends ESSingleNodeTestCase {
         RendererTestUtils.assertJSONStructure(result, expected);
     }
 
-    @Test
     public void testNoShard() throws IOException {
         String result = RendererTestUtils.renderAsJSON(new ShardMarvelDoc("my-index", "shards", "my-id", "cluster-uuid", 1437580442979L, null, "my-state-uuid"), new ShardsRenderer());
         RendererTestUtils.assertJSONStructureAndValues(result, "{\"cluster_uuid\":\"my-cluster-uuid\",\"timestamp\":\"2015-07-22T15:54:02.979Z\",\"state_uuid\":\"my-state-uuid\"}");

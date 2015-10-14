@@ -7,26 +7,25 @@ package org.elasticsearch.shield.support;
 
 import dk.brics.automaton.Automaton;
 import dk.brics.automaton.RunAutomaton;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.shield.support.Automatons.*;
+import org.elasticsearch.test.ESTestCase;
+
+import static org.elasticsearch.shield.support.Automatons.pattern;
+import static org.elasticsearch.shield.support.Automatons.patterns;
+import static org.elasticsearch.shield.support.Automatons.wildcard;
 import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
 public class AutomatonsTests extends ESTestCase {
-
-    @Test
-    public void testPatterns_UnionOfMultiplePatterns() throws Exception {
+    public void testPatternsUnionOfMultiplePatterns() throws Exception {
         assertMatch(patterns("/fo.*/", "ba*"), "foo");
         assertMatch(patterns("/fo.*/", "ba*"), "bar");
         assertMismatch(patterns("/fo.*/", "ba*"), "zipfoo");
     }
 
-    @Test
-    public void testPattern_Single() throws Exception {
+    public void testPatternSingle() throws Exception {
         assertMatch(pattern("/.*st/"), "test");
         assertMatch(pattern("/t.*st/"), "test");
         assertMatch(pattern("/tes*./"), "test");
@@ -48,7 +47,6 @@ public class AutomatonsTests extends ESTestCase {
         assertMatch(pattern("\\/test"), "/test");
     }
 
-    @Test
     public void testWildcard() throws Exception {
         assertMatch(wildcard("*st"), "test");
         assertMatch(wildcard("t*st"), "test");

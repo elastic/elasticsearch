@@ -97,7 +97,7 @@ public class IntervalSchedule implements Schedule {
                     return new IntervalSchedule(Interval.parse(value));
                 }
             } catch (Exception e) {
-                throw new ElasticsearchParseException("could not parse [{}] shcedule", e);
+                throw new ElasticsearchParseException("could not parse schedule: {}", e, e.getMessage());
             }
             throw new ElasticsearchParseException("could not parse [{}] schedule. expected either a numeric value " +
                     "(millis) or a string value representing time value (e.g. '5s'), but found [{}]", TYPE, token);

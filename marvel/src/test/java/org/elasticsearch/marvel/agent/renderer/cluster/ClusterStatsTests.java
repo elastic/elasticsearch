@@ -15,8 +15,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Locale;
 import java.util.Map;
@@ -27,7 +25,6 @@ import static org.hamcrest.Matchers.greaterThan;
 
 @ClusterScope(scope = Scope.TEST, numClientNodes = 0)
 public class ClusterStatsTests extends MarvelIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -45,7 +42,6 @@ public class ClusterStatsTests extends MarvelIntegTestCase {
         wipeMarvelIndices();
     }
 
-    @Test
     public void testClusterStats() throws Exception {
         logger.debug("--> creating some indices so that every data nodes will at least a shard");
         ClusterStatsNodes.Counts counts = client().admin().cluster().prepareClusterStats().get().getNodesStats().getCounts();

@@ -18,7 +18,6 @@ import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -53,7 +52,6 @@ public class OpenLdapTests extends ESTestCase {
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     }
 
-    @Test
     public void testConnect() throws Exception {
         //openldap does not use cn as naming attributes by default
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
@@ -69,7 +67,6 @@ public class OpenLdapTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testGroupSearchScopeBase() throws Exception {
         //base search on a groups means that the user can be in just one group
 
@@ -86,7 +83,6 @@ public class OpenLdapTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCustomFilter() throws Exception {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
@@ -103,7 +99,6 @@ public class OpenLdapTests extends ESTestCase {
         }
     }
 
-    @Test
     @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/499")
     public void testTcpTimeout() throws Exception {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
@@ -125,7 +120,6 @@ public class OpenLdapTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testStandardLdapConnectionHostnameVerification() throws Exception {
         //openldap does not use cn as naming attributes by default
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";

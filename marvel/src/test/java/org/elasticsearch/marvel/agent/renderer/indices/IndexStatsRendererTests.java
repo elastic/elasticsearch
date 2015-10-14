@@ -21,13 +21,10 @@ import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
-import org.junit.Test;
 
 public class IndexStatsRendererTests extends ESTestCase {
-
     private static final String SAMPLE_FILE = "/samples/index_stats.json";
 
-    @Test
     public void testIndexStatsRenderer() throws Exception {
         logger.debug("--> creating the index stats marvel document");
         IndexStatsMarvelDoc marvelDoc = new IndexStatsMarvelDoc("test", "index_stats", 1437580442979L,

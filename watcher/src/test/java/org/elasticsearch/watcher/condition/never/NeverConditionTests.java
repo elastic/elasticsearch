@@ -14,22 +14,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.condition.ConditionFactory;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  */
 public class NeverConditionTests extends ESTestCase {
-
-    @Test
     public void testExecute() throws Exception {
         ExecutableCondition executable = new ExecutableNeverCondition(logger);
         assertFalse(executable.execute(null).met());
     }
 
-    @Test
-    public void testParser_Valid() throws Exception {
+    public void testParserValid() throws Exception {
         NeverConditionFactory factory = new NeverConditionFactory(Settings.settingsBuilder().build());
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
@@ -42,8 +39,7 @@ public class NeverConditionTests extends ESTestCase {
         assertFalse(executable.execute(null).met());
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_Invalid() throws Exception {
+    public void testParserInvalid() throws Exception {
         ConditionFactory factory = new NeverConditionFactory(Settings.settingsBuilder().build());
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
@@ -51,10 +47,12 @@ public class NeverConditionTests extends ESTestCase {
         builder.endObject();
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-
-        factory.parseCondition("_id", parser);
-        fail("expected a condition exception trying to parse an invalid condition XContent, ["
-                + AlwaysCondition.TYPE + "] condition should not parse with a body");
+        try {
+            factory.parseCondition("_id", parser);
+            fail("expected a condition exception trying to parse an invalid condition XContent, ["
+                    + AlwaysCondition.TYPE + "] condition should not parse with a body");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("expected an empty object but found [foo]"));
+        }
     }
-
 }

@@ -20,7 +20,6 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
@@ -32,18 +31,18 @@ import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
 public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     protected boolean timeWarped() {
         return false;
     }
 
-    @Test
     public void testDeactivateAndActivate() throws Exception {
         WatcherClient watcherClient = watcherClient();
 
@@ -101,7 +100,6 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(count3, greaterThan(count1));
     }
 
-    @Test
     public void testLoadWatchWithoutAState() throws Exception {
         WatcherClient watcherClient = watcherClient();
 

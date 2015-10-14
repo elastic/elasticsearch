@@ -27,7 +27,6 @@ import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
@@ -41,14 +40,16 @@ import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.elasticsearch.watcher.transform.TransformBuilders.searchTransform;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
-
     private IndexResponse indexTestDoc() {
         createIndex("actions", "events");
         ensureGreen("actions", "events");
@@ -61,8 +62,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         return eventIndexResponse;
     }
 
-    @Test
-    public void testAck_SingleAction() throws Exception {
+    public void testAckSingleAction() throws Exception {
         WatcherClient watcherClient = watcherClient();
         IndexResponse eventIndexResponse = indexTestDoc();
 
@@ -134,8 +134,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(throttledCount, greaterThan(0L));
     }
 
-    @Test
-    public void testAck_AllActions() throws Exception {
+    public void testAckAllActions() throws Exception {
         WatcherClient watcherClient = watcherClient();
         IndexResponse eventIndexResponse = indexTestDoc();
 
@@ -215,8 +214,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(throttledCount, greaterThan(0L));
     }
 
-    @Test
-    public void testAck_WithRestart() throws Exception {
+    public void testAckWithRestart() throws Exception {
         WatcherClient watcherClient = watcherClient();
         indexTestDoc();
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
@@ -278,15 +276,23 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(countAfterPostAckFires, equalTo(countAfterAck));
     }
 
-    @Test(expected = ActionRequestValidationException.class)
-    public void testAck_InvalidWatchId() throws Exception {
+    public void testAckInvalidWatchId() throws Exception {
         WatcherClient watcherClient = watcherClient();
-        watcherClient.prepareAckWatch("id with whitespaces").get();
+        try {
+            watcherClient.prepareAckWatch("id with whitespaces").get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("Watch id cannot have white spaces"));
+        }
     }
 
-    @Test(expected = ActionRequestValidationException.class)
-    public void testAck_InvalidActionId() throws Exception {
+    public void testAckInvalidActionId() throws Exception {
         WatcherClient watcherClient = watcherClient();
-        watcherClient.prepareAckWatch("_id").setActionIds("id with whitespaces").get();
+        try {
+            watcherClient.prepareAckWatch("_id").setActionIds("id with whitespaces").get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("Watch id cannot have white spaces"));
+        }
     }
 }

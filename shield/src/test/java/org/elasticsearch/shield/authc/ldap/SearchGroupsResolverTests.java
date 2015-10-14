@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.ldap;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPURL;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -20,12 +21,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.nio.file.Path;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @Network
 public class SearchGroupsResolverTests extends ESTestCase {
@@ -55,13 +59,13 @@ public class SearchGroupsResolverTests extends ESTestCase {
         ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(), BRUCE_BANNER_DN, OpenLdapTests.PASSWORD);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
         ldapConnection.close();
     }
 
-    @Test
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
@@ -76,7 +80,6 @@ public class SearchGroupsResolverTests extends ESTestCase {
                 containsString("Philanthropists")));
     }
 
-    @Test
     public void testResolveOneLevel() throws Exception {
         Settings settings = Settings.builder()
                 .put("base_dn", "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
@@ -92,7 +95,6 @@ public class SearchGroupsResolverTests extends ESTestCase {
                 containsString("Philanthropists")));
     }
 
-    @Test
     public void testResolveBase() throws Exception {
         Settings settings = Settings.builder()
                 .put("base_dn", "cn=Avengers,ou=People,dc=oldap,dc=test,dc=elasticsearch,dc=com")
@@ -104,7 +106,6 @@ public class SearchGroupsResolverTests extends ESTestCase {
         assertThat(groups, hasItem(containsString("Avengers")));
     }
 
-    @Test
     public void testResolveCustomFilter() throws Exception {
         Settings settings = Settings.builder()
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
@@ -117,7 +118,6 @@ public class SearchGroupsResolverTests extends ESTestCase {
         assertThat(groups, hasItem(containsString("Geniuses")));
     }
 
-    @Test
     public void testCreateWithoutSpecifyingBaseDN() throws Exception {
         Settings settings = Settings.builder()
                 .put("scope", LdapSearchScope.SUB_TREE)
@@ -131,7 +131,6 @@ public class SearchGroupsResolverTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testReadUserAttributeUid() throws Exception {
         Settings settings = Settings.builder()
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
@@ -140,7 +139,6 @@ public class SearchGroupsResolverTests extends ESTestCase {
         assertThat(resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE), is("hulk"));
     }
 
-    @Test
     public void testReadUserAttributeCn() throws Exception {
         Settings settings = Settings.builder()
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
@@ -150,7 +148,6 @@ public class SearchGroupsResolverTests extends ESTestCase {
         assertThat(resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE), is("Bruce Banner"));
     }
 
-    @Test
     public void testReadNonExistentUserAttribute() throws Exception {
         Settings settings = Settings.builder()
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
@@ -165,7 +162,6 @@ public class SearchGroupsResolverTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testReadBinaryUserAttribute() throws Exception {
         Settings settings = Settings.builder()
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")

@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.actions;
 
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexResponse;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ExecutionState;
@@ -16,8 +15,8 @@ import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
@@ -38,7 +37,6 @@ import static org.hamcrest.Matchers.is;
  */
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
-
     private IndexResponse indexTestDoc() {
         createIndex("actions", "events");
         ensureGreen("actions", "events");
@@ -55,8 +53,6 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
     protected boolean enableShield() {
         return false;
     }
-
-    @Test
 
     public void testTimeThrottle() throws Exception {
         WatcherClient watcherClient = watcherClient();
@@ -132,8 +128,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         }
     }
 
-    @Test
-    public void testTimeThrottle_Defaults() throws Exception {
+    public void testTimeThrottleDefaults() throws Exception {
         WatcherClient watcherClient = watcherClient();
         indexTestDoc();
 

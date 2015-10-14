@@ -30,18 +30,19 @@ import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DefaultIndicesResolverTests extends ESTestCase {
-
     private User user;
     private User userNoIndices;
     private MetaData metaData;
@@ -86,7 +87,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         defaultIndicesResolver = new DefaultIndicesAndAliasesResolver(authzService);
     }
 
-    @Test
     public void testResolveEmptyIndicesExpandWilcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest();
         request.indicesOptions(IndicesOptions.strictExpand());
@@ -97,7 +97,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(replacedIndices));
     }
 
-    @Test
     public void testResolveEmptyIndicesExpandWilcardsOpen() {
         SearchRequest request = new SearchRequest();
         request.indicesOptions(randomFrom(IndicesOptions.strictExpandOpen(), IndicesOptions.lenientExpandOpen()));
@@ -108,7 +107,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(replacedIndices));
     }
 
-    @Test
     public void testResolveAllExpandWilcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest("_all");
         request.indicesOptions(IndicesOptions.strictExpand());
@@ -119,7 +117,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(replacedIndices));
     }
 
-    @Test
     public void testResolveAllExpandWilcardsOpen() {
         SearchRequest request = new SearchRequest("_all");
         request.indicesOptions(randomFrom(IndicesOptions.strictExpandOpen(), IndicesOptions.lenientExpandOpen()));
@@ -130,7 +127,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(replacedIndices));
     }
 
-    @Test
     public void testResolveWildcardsExpandWilcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest("barbaz", "foofoo*");
         request.indicesOptions(IndicesOptions.strictExpand());
@@ -141,7 +137,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(replacedIndices));
     }
 
-    @Test
     public void testResolveWildcardsExpandWilcardsOpen() {
         SearchRequest request = new SearchRequest("barbaz", "foofoo*");
         request.indicesOptions(randomFrom(IndicesOptions.strictExpandOpen(), IndicesOptions.lenientExpandOpen()));
@@ -152,7 +147,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(replacedIndices));
     }
 
-    @Test
     public void testResolveWildcardsMinusExpandWilcardsOpen() {
         SearchRequest request = new SearchRequest("-foofoo*");
         request.indicesOptions(randomFrom(IndicesOptions.strictExpandOpen(), IndicesOptions.lenientExpandOpen()));
@@ -163,7 +157,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(replacedIndices));
     }
 
-    @Test
     public void testResolveWildcardsMinusExpandWilcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest("-foofoo*");
         request.indicesOptions(IndicesOptions.strictExpand());
@@ -174,7 +167,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(replacedIndices));
     }
 
-    @Test
     public void testResolveWildcardsPlusAndMinusExpandWilcardsOpen() {
         SearchRequest request = new SearchRequest("-foofoo*", "+barbaz", "+foob*");
         request.indicesOptions(randomFrom(IndicesOptions.strictExpandOpen(), IndicesOptions.lenientExpandOpen()));
@@ -185,7 +177,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(replacedIndices));
     }
 
-    @Test
     public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest("-foofoo*", "+barbaz");
         request.indicesOptions(IndicesOptions.strictExpand());
@@ -196,19 +187,26 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(replacedIndices));
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveNonMatchingIndices() {
         SearchRequest request = new SearchRequest("missing*");
-        defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveNoAuthorizedIndices() {
         SearchRequest request = new SearchRequest();
-        defaultIndicesResolver.resolve(userNoIndices, SearchAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(userNoIndices, SearchAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test
     public void testResolveMissingIndex() {
         SearchRequest request = new SearchRequest("bar*", "missing");
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
@@ -218,7 +216,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), equalTo(expectedIndices));
     }
 
-    @Test
     public void testResolveNonMatchingIndicesAndExplicit() {
         SearchRequest request = new SearchRequest("missing*", "bar");
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
@@ -227,7 +224,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), equalTo(expectedIndices));
     }
 
-    @Test
     public void testResolveNoExpand() {
         SearchRequest request = new SearchRequest("missing*");
         request.indicesOptions(IndicesOptions.strictSingleIndexNoExpandForbidClosed());
@@ -237,7 +233,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), equalTo(expectedIndices));
     }
 
-    @Test
     public void testResolveIndicesAliasesRequest() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAlias("alias1", "foo", "foofoo");
@@ -253,7 +248,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("alias2"));
     }
 
-    @Test
     public void testResolveIndicesAliasesRequestExistingAlias() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAlias("alias1", "foo", "foofoo");
@@ -269,7 +263,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("foofoobar"));
     }
 
-    @Test
     public void testResolveIndicesAliasesRequestMissingIndex() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAlias("alias1", "foo", "foofoo");
@@ -285,7 +278,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("alias2"));
     }
 
-    @Test
     public void testResolveWildcardsIndicesAliasesRequest() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAlias("alias1", "foo*");
@@ -302,17 +294,20 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("alias2"));
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveWildcardsIndicesAliasesRequestNoMatchingIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAlias("alias1", "foo*");
         request.addAlias("alias2", "bar*");
         request.addAlias("alias3", "non_matching_*");
         //if a single operation contains wildcards and ends up being resolved to no indices, it makes the whole request fail
-        defaultIndicesResolver.resolve(user, IndicesAliasesAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(user, IndicesAliasesAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test
     public void testResolveAllIndicesAliasesRequest() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAlias("alias1", "_all");
@@ -330,23 +325,30 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("alias2"));
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveAllIndicesAliasesRequestNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAlias("alias1", "_all");
         //current user is not authorized for any index, _all resolves to no indices, the request fails
-        defaultIndicesResolver.resolve(userNoIndices, IndicesAliasesAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(userNoIndices, IndicesAliasesAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveWildcardsIndicesAliasesRequestNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAlias("alias1", "foo*");
         //current user is not authorized for any index, foo* resolves to no indices, the request fails
-        defaultIndicesResolver.resolve(userNoIndices, IndicesAliasesAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(userNoIndices, IndicesAliasesAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test
     public void testResolveIndicesAliasesRequestDeleteActions() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasAction.newRemoveAliasAction("foo", "foofoobar"));
@@ -362,7 +364,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("barbaz"));
     }
 
-    @Test
     public void testResolveIndicesAliasesRequestDeleteActionsMissingIndex() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasAction.newRemoveAliasAction("foo", "foofoobar"));
@@ -378,7 +379,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("missing_alias"));
     }
 
-    @Test
     public void testResolveWildcardsIndicesAliasesRequestDeleteActions() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasAction.newRemoveAliasAction("foo*", "foofoobar"));
@@ -395,7 +395,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("barbaz"));
     }
 
-    @Test
     public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActions() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasAction.newRemoveAliasAction("*", "foo*"));
@@ -414,7 +413,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("foofoobar"));
     }
 
-    @Test
     public void testResolveAllAliasesWildcardsIndicesAliasesRequestDeleteActions() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasAction.newRemoveAliasAction("*", "_all"));
@@ -433,16 +431,19 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("foofoobar", "explicit"));
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActionsNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasAction.newRemoveAliasAction("foo*", "foo*"));
         //no authorized aliases match bar*, hence this action fails and makes the whole request fail
         request.addAliasAction(AliasAction.newRemoveAliasAction("*bar", "bar*"));
-        defaultIndicesResolver.resolve(user, IndicesAliasesAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(user, IndicesAliasesAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test
     public void testResolveWildcardsIndicesAliasesRequestAddAndDeleteActions() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasAction.newRemoveAliasAction("foo*", "foofoobar"));
@@ -459,7 +460,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("foofoobar"));
     }
 
-    @Test
     public void testResolveGetAliasesRequest() {
         GetAliasesRequest request = new GetAliasesRequest("alias1").indices("foo", "foofoo");
         Set<String> indices = defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
@@ -471,7 +471,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContaining("alias1"));
     }
 
-    @Test
     public void testResolveGetAliasesRequestMissingIndex() {
         GetAliasesRequest request = new GetAliasesRequest();
         request.indices("missing");
@@ -485,7 +484,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContaining("alias2"));
     }
 
-    @Test
     public void testResolveWildcardsGetAliasesRequest() {
         GetAliasesRequest request = new GetAliasesRequest();
         request.aliases("alias1");
@@ -500,16 +498,19 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContaining("alias1"));
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveWildcardsGetAliasesRequestNoMatchingIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
         request.aliases("alias3");
         request.indices("non_matching_*");
         //indices get resolved to no indices, request gets rejected
-        defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test
     public void testResolveAllGetAliasesRequest() {
         GetAliasesRequest request = new GetAliasesRequest();
         //even if not set, empty means _all
@@ -528,7 +529,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContaining("alias1"));
     }
 
-    @Test
     public void testResolveAllGetAliasesRequestExpandWildcardsClosed() {
         GetAliasesRequest request = new GetAliasesRequest();
         //set indices options to have wildcards resolved to open and closed indices (default is open only)
@@ -549,25 +549,32 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContaining("alias1"));
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveAllGetAliasesRequestNoAuthorizedIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
         request.aliases("alias1");
         request.indices("_all");
         //current user is not authorized for any index, _all resolves to no indices, the request fails
-        defaultIndicesResolver.resolve(userNoIndices, GetAliasesAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(userNoIndices, GetAliasesAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveWildcardsGetAliasesRequestNoAuthorizedIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
         request.aliases("alias1");
         request.indices("foo*");
         //current user is not authorized for any index, foo* resolves to no indices, the request fails
-        defaultIndicesResolver.resolve(userNoIndices, GetAliasesAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(userNoIndices, GetAliasesAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test
     public void testResolveAllAliasesGetAliasesRequest() {
         GetAliasesRequest request = new GetAliasesRequest();
         if (randomBoolean()) {
@@ -586,7 +593,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContaining("foofoobar"));
     }
 
-    @Test
     public void testResolveAllAndExplicitAliasesGetAliasesRequest() {
         GetAliasesRequest request = new GetAliasesRequest(new String[]{"_all", "explicit"});
         if (randomBoolean()) {
@@ -602,7 +608,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContaining("foofoobar", "explicit"));
     }
 
-    @Test
     public void testResolveAllAndWildcardsAliasesGetAliasesRequest() {
         GetAliasesRequest request = new GetAliasesRequest(new String[]{"_all", "foo*", "non_matching_*"});
         if (randomBoolean()) {
@@ -618,7 +623,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContaining("foofoobar", "foofoobar"));
     }
 
-    @Test
     public void testResolveAliasesWildcardsGetAliasesRequest() {
         GetAliasesRequest request = new GetAliasesRequest();
         request.indices("*bar");
@@ -635,16 +639,19 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContaining("foofoobar"));
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveAliasesWildcardsGetAliasesRequestNoAuthorizedIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
         //no authorized aliases match bar*, hence the request fails
         request.aliases("bar*");
         request.indices("*bar");
-        defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveAliasesAllGetAliasesRequestNoAuthorizedIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
         if (randomBoolean()) {
@@ -652,11 +659,15 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         }
         request.indices("non_existing");
         //current user is not authorized for any index, foo* resolves to no indices, the request fails
-        defaultIndicesResolver.resolve(userNoIndices, GetAliasesAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(userNoIndices, GetAliasesAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
     //msearch is a CompositeIndicesRequest whose items (SearchRequests) implement IndicesRequest.Replaceable, wildcards will get replaced
-    @Test
     public void testResolveMultiSearchNoWildcards() {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(Requests.searchRequest("foo", "bar"));
@@ -669,7 +680,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"bar2"}));
     }
 
-    @Test
     public void testResolveMultiSearchNoWildcardsMissingIndex() {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(Requests.searchRequest("foo", "bar"));
@@ -684,7 +694,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.subRequests().get(2).indices(), equalTo(new String[]{"missing"}));
     }
 
-    @Test
     public void testResolveMultiSearchWildcardsExpandOpen() {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(Requests.searchRequest("bar*")).indicesOptions(randomFrom(IndicesOptions.strictExpandOpen(), IndicesOptions.lenientExpandOpen()));
@@ -697,7 +706,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"foobar"}));
     }
 
-    @Test
     public void testResolveMultiSearchWildcardsExpandOpenAndClose() {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(Requests.searchRequest("bar*").indicesOptions(IndicesOptions.strictExpand()));
@@ -710,7 +718,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"foobar"}));
     }
 
-    @Test
     public void testResolveMultiSearchWildcardsMissingIndex() {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(Requests.searchRequest("bar*"));
@@ -723,24 +730,31 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"missing"}));
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveMultiSearchWildcardsNoMatchingIndices() {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(Requests.searchRequest("missing*"));
         request.add(Requests.searchRequest("foobar"));
-        defaultIndicesResolver.resolve(user, MultiSearchAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(user, MultiSearchAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test(expected = IndexNotFoundException.class)
     public void testResolveMultiSearchWildcardsNoAuthorizedIndices() {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(Requests.searchRequest("foofoo*"));
         request.add(Requests.searchRequest("foobar"));
-        defaultIndicesResolver.resolve(userNoIndices, MultiSearchAction.NAME, request, metaData);
+        try {
+            defaultIndicesResolver.resolve(userNoIndices, MultiSearchAction.NAME, request, metaData);
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
     //mget is a CompositeIndicesRequest whose items don't support expanding wildcards
-    @Test
     public void testResolveMultiGet() {
         MultiGetRequest request = new MultiGetRequest();
         request.add("foo", "type", "id");
@@ -753,7 +767,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"bar"}));
     }
 
-    @Test
     public void testResolveMultiGetMissingIndex() {
         MultiGetRequest request = new MultiGetRequest();
         request.add("foo", "type", "id");
@@ -766,7 +779,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"missing"}));
     }
 
-    @Test
     public void testResolveAdminAction() {
         DeleteIndexRequest request = new DeleteIndexRequest("*");
         Set<String> indices = defaultIndicesResolver.resolve(user, DeleteIndexAction.NAME, request, metaData);

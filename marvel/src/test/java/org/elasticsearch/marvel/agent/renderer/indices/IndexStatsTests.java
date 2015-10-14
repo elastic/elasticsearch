@@ -15,7 +15,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.After;
-import org.junit.Test;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -24,7 +23,6 @@ import static org.hamcrest.Matchers.greaterThan;
 
 @ClusterScope(scope = Scope.TEST, numClientNodes = 0)
 public class IndexStatsTests extends MarvelIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -42,7 +40,6 @@ public class IndexStatsTests extends MarvelIntegTestCase {
         wipeMarvelIndices();
     }
 
-    @Test
     public void testIndexStats() throws Exception {
         logger.debug("--> creating some indices for future index stats");
         final int nbIndices = randomIntBetween(1, 5);

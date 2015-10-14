@@ -19,18 +19,19 @@ import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthenticationException;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 
 @Network
 public class ActiveDirectorySessionFactoryTests extends ESTestCase {
-
     public static final String AD_LDAP_URL = "ldaps://54.213.145.20:636";
     public static final String PASSWORD = "NickFuryHeartsES";
     public static final String AD_DOMAIN = "ad.test.elasticsearch.com";
@@ -56,7 +57,7 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     }
 
-    @Test @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked")
     public void testAdAuth() throws Exception {
         RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false), globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
@@ -77,7 +78,6 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         }
     }
 
-    @Test
     @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/499")
     public void testTcpReadTimeout() throws Exception {
         Settings settings = Settings.builder()
@@ -98,8 +98,7 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void testAdAuth_avengers() throws Exception {
+    public void testAdAuthAvengers() throws Exception {
         RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false), globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
@@ -111,7 +110,7 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         }
     }
 
-    @Test @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked")
     public void testAuthenticate() throws Exception {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false);
         RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
@@ -132,8 +131,8 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         }
     }
 
-    @Test @SuppressWarnings("unchecked")
-    public void testAuthenticate_baseUserSearch() throws Exception {
+    @SuppressWarnings("unchecked")
+    public void testAuthenticateBaseUserSearch() throws Exception {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Bruce Banner, CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.BASE, false);
         RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
@@ -153,8 +152,7 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         }
     }
 
-    @Test @SuppressWarnings("unchecked")
-    public void testAuthenticate_baseGroupSearch() throws Exception {
+    public void testAuthenticateBaseGroupSearch() throws Exception {
         Settings settings = Settings.builder()
                 .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false))
                 .put(ActiveDirectorySessionFactory.AD_GROUP_SEARCH_BASEDN_SETTING, "CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
@@ -171,7 +169,7 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         }
     }
 
-    @Test @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked")
     public void testAuthenticateWithUserPrincipalName() throws Exception {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false);
         RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
@@ -189,7 +187,6 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testAuthenticateWithSAMAccountName() throws Exception {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false);
         RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
@@ -208,7 +205,7 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         }
     }
 
-    @Test @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked")
     public void testCustomUserFilter() throws Exception {
         Settings settings = Settings.builder()
                 .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.SUB_TREE, false))
@@ -228,7 +225,7 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
     }
 
 
-    @Test @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked")
     public void testStandardLdapConnection() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
@@ -248,7 +245,7 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         }
     }
 
-    @Test @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked")
     public void testStandardLdapWithAttributeGroups() throws Exception {
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = LdapTestCase.buildLdapSettings(AD_LDAP_URL, userTemplate, false);
@@ -267,7 +264,6 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testAdAuthWithHostnameVerification() throws Exception {
         RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, true), globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);

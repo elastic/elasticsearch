@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Locale;
 
@@ -50,7 +49,6 @@ import static org.mockito.Mockito.when;
  *
  */
 public class ESUsersRealmTests extends ESTestCase {
-
     private Client client;
     private AdminClient adminClient;
     private FileUserPasswdStore userPasswdStore;
@@ -66,7 +64,6 @@ public class ESUsersRealmTests extends ESTestCase {
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     }
 
-    @Test
     public void testAuthenticate() throws Exception {
         when(userPasswdStore.verifyPassword("user1", SecuredStringTests.build("test123"))).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
@@ -80,8 +77,7 @@ public class ESUsersRealmTests extends ESTestCase {
         assertThat(user.roles(), arrayContaining("role1", "role2"));
     }
 
-    @Test
-    public void testAuthenticate_Caching() throws Exception {
+    public void testAuthenticateCaching() throws Exception {
         Settings settings = Settings.builder()
                 .put("cache.hash_algo", Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT))
                 .build();
@@ -94,8 +90,7 @@ public class ESUsersRealmTests extends ESTestCase {
         assertThat(user1, sameInstance(user2));
     }
 
-    @Test
-    public void testAuthenticate_Caching_Refresh() throws Exception {
+    public void testAuthenticateCachingRefresh() throws Exception {
         RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
         userPasswdStore = spy(new UserPasswdStore(config));
         userRolesStore = spy(new UserRolesStore(config));
@@ -117,7 +112,6 @@ public class ESUsersRealmTests extends ESTestCase {
         assertThat(user5, sameInstance(user6));
     }
 
-    @Test
     public void testToken() throws Exception {
         RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
         when(userPasswdStore.verifyPassword("user1", SecuredStringTests.build("test123"))).thenReturn(true);
@@ -134,7 +128,6 @@ public class ESUsersRealmTests extends ESTestCase {
         assertThat(new String(token.credentials().internalChars()), equalTo("test123"));
     }
 
-    @Test
     public void testLookup() throws Exception {
         when(userPasswdStore.userExists("user1")).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
@@ -150,7 +143,6 @@ public class ESUsersRealmTests extends ESTestCase {
         assertThat(user.roles(), arrayContaining("role1", "role2"));
     }
 
-    @Test
     public void testLookupCaching() throws Exception {
         when(userPasswdStore.userExists("user1")).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
@@ -164,7 +156,6 @@ public class ESUsersRealmTests extends ESTestCase {
         verify(userRolesStore).roles("user1");
     }
 
-    @Test
     public void testLookupCachingWithRefresh() throws Exception {
         RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
         userPasswdStore = spy(new UserPasswdStore(config));
@@ -187,7 +178,7 @@ public class ESUsersRealmTests extends ESTestCase {
         assertThat(user5, sameInstance(user6));
     }
 
-    @Test @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked")
     public void testAuthorizationHeaderIsNotCopied() throws Exception {
         RestController restController = mock(RestController.class);
         RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
@@ -221,14 +212,12 @@ public class ESUsersRealmTests extends ESTestCase {
     }
 
     static class UserPasswdStore extends FileUserPasswdStore {
-
         public UserPasswdStore(RealmConfig config) {
             super(config, mock(ResourceWatcherService.class));
         }
     }
 
     static class UserRolesStore extends FileUserRolesStore {
-
         public UserRolesStore(RealmConfig config) {
             super(config, mock(ResourceWatcherService.class));
         }

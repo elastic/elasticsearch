@@ -8,8 +8,6 @@ package org.elasticsearch.watcher.test.integration;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.joda.time.DateTime;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.actions.logging.LoggingLevel;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
@@ -22,14 +20,13 @@ import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.junit.Test;
+import org.joda.time.DateTime;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -41,14 +38,13 @@ import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.joda.time.DateTimeZone.UTC;
 
 /**
  *
  */
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
-
-    @Test
     public void testWatchMetadata() throws Exception {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("foo", "bar");
@@ -81,7 +77,6 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
         assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
     }
 
-    @Test
     public void testWatchMetadataAvailableAtExecution() throws Exception {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("foo", "bar");

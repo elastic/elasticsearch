@@ -33,7 +33,6 @@ import org.elasticsearch.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.watcher.trigger.schedule.support.MonthTimes;
 import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
 import org.elasticsearch.watcher.watch.WatchStore;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -68,8 +67,6 @@ import static org.hamcrest.Matchers.notNullValue;
 @TestLogging("watcher.trigger.schedule:TRACE")
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
-
-    @Test
     public void testIndexWatch() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("idx");
@@ -100,8 +97,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getWatchResponse.getSource(), notNullValue());
     }
 
-    @Test
-    public void testIndexWatch_registerWatchBeforeTargetIndex() throws Exception {
+    public void testIndexWatchRegisterWatchBeforeTargetIndex() throws Exception {
         WatcherClient watcherClient = watcherClient();
         SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
         watcherClient.preparePutWatch("_name")
@@ -132,7 +128,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertWatchWithMinimumPerformedActionsCount("_name", 1);
     }
 
-    @Test
     public void testDeleteWatch() throws Exception {
         WatcherClient watcherClient = watcherClient();
         SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(matchAllQuery()));
@@ -165,7 +160,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(deleteWatchResponse.isFound(), is(false));
     }
 
-    @Test
     public void testMalformedWatch() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("idx");
@@ -200,7 +194,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    @Test
     public void testModifyWatches() throws Exception {
         SearchRequest searchRequest = newInputSearchRequest("idx")
                 .source(searchSource().query(matchAllQuery()));
@@ -259,7 +252,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(count, equalTo(findNumberOfPerformedActions("_name")));
     }
 
-    @Test
     public void testModifyWatchWithSameUnit() throws Exception {
         if (timeWarped()) {
             logger.info("Skipping testModifyWatches_ because timewarp is enabled");
@@ -294,7 +286,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat("Watch has been updated to 100s interval, so no new records should have been added.", historyRecordsCount("_name"), equalTo(before));
     }
 
-    @Test
     public void testConditionSearchWithSource() throws Exception {
         String variable = randomFrom("ctx.execution_time", "ctx.trigger.scheduled_time", "ctx.trigger.triggered_time");
         SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
@@ -306,7 +297,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         testConditionSearch(newInputSearchRequest("events").source(searchSourceBuilder));
     }
 
-    @Test
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         String variable = randomFrom("ctx.execution_time", "ctx.trigger.scheduled_time", "ctx.trigger.triggered_time");
         SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
@@ -329,7 +319,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         testConditionSearch(searchRequest);
     }
 
-    @Test
     public void testInputFiltering() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("idx");
@@ -375,7 +364,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(source.getValue("result.input.payload.hits.total"), equalTo((Object) 1));
     }
 
-    @Test
     public void testPutWatchWithNegativeSchedule() throws Exception {
         try {
             watcherClient().preparePutWatch("_name")

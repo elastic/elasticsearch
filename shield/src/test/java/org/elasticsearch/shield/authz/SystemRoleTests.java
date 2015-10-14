@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
 
@@ -14,8 +13,6 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class SystemRoleTests extends ESTestCase {
-
-    @Test
     public void testCheck() throws Exception {
         assertThat(SystemRole.INSTANCE.check("indices:monitor/whatever"), is(true));
         assertThat(SystemRole.INSTANCE.check("cluster:monitor/whatever"), is(true));

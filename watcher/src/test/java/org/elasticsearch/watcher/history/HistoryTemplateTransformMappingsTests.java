@@ -14,7 +14,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
@@ -36,7 +35,6 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     protected boolean timeWarped() {
         return true; // just to have better control over the triggers
@@ -47,7 +45,6 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
         return false; // remove shield noise from this test
     }
 
-    @Test
     public void testTransformFields() throws Exception {
         String index = "the-index";
         String type = "the-type";

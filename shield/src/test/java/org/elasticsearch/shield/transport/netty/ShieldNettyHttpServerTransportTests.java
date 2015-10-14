@@ -19,7 +19,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.handler.ssl.SslHandler;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.nio.file.Path;
 import java.util.Locale;
@@ -29,7 +28,6 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class ShieldNettyHttpServerTransportTests extends ESTestCase {
-
     private ServerSSLService serverSSLService;
 
     @Before
@@ -44,7 +42,6 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
         serverSSLService = new ServerSSLService(settings, settingsFilter, env);
     }
 
-    @Test
     public void testDefaultClientAuth() throws Exception {
         Settings settings = Settings.builder().put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true).build();
         ShieldNettyHttpServerTransport transport = new ShieldNettyHttpServerTransport(settings, mock(NetworkService.class), mock(BigArrays.class), mock(IPFilter.class), serverSSLService);
@@ -54,7 +51,6 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
     }
 
-    @Test
     public void testOptionalClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
@@ -67,7 +63,6 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(true));
     }
 
-    @Test
     public void testRequiredClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT), "true", "TRUE");
         Settings settings = Settings.builder()
@@ -80,7 +75,6 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
     }
 
-    @Test
     public void testNoClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.NO.name(), SSLClientAuth.NO.name().toLowerCase(Locale.ROOT), "false", "FALSE");
         Settings settings = Settings.builder()

@@ -9,19 +9,25 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.support.http.*;
-import org.junit.Test;
+import org.elasticsearch.watcher.support.http.HttpClient;
+import org.elasticsearch.watcher.support.http.HttpMethod;
+import org.elasticsearch.watcher.support.http.HttpRequest;
+import org.elasticsearch.watcher.support.http.HttpResponse;
+import org.elasticsearch.watcher.support.http.Scheme;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  *
  */
 public class V1AccountTests extends ESTestCase {
-
-    @Test
     public void testSettings() throws Exception {
         String accountName = "_name";
 
@@ -86,13 +92,16 @@ public class V1AccountTests extends ESTestCase {
         assertThat(account.defaults.notify, is(defaultNotify));
     }
 
-    @Test(expected = SettingsException.class)
-    public void testSettings_NoAuthToken() throws Exception {
+    public void testSettingsNoAuthToken() throws Exception {
         Settings.Builder sb = Settings.builder();
-        new V1Account("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(ESLogger.class));
+        try {
+            new V1Account("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(ESLogger.class));
+            fail("Expected SettingsException");
+        } catch (SettingsException e) {
+            assertThat(e.getMessage(), is("hipchat account [_name] missing required [auth_token] setting"));
+        }
     }
 
-    @Test
     public void testSend() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
         V1Account account = new V1Account("_name", Settings.builder()

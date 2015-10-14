@@ -25,7 +25,6 @@ import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -48,7 +47,6 @@ import static org.joda.time.DateTimeZone.UTC;
 /**
  */
 public class IndexActionTests extends ESIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -63,9 +61,7 @@ public class IndexActionTests extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
-    public void testIndexActionExecute_SingleDoc() throws Exception {
-
+    public void testIndexActionExecuteSingleDoc() throws Exception {
         String timestampField = randomFrom(null, "_timestamp", "@timestamp");
         boolean customTimestampField = "@timestamp".equals(timestampField);
 
@@ -119,9 +115,7 @@ public class IndexActionTests extends ESIntegTestCase {
         assertThat(terms.getBuckets().get(0).getDocCount(), is(1L));
     }
 
-    @Test
-    public void testIndexActionExecute_MultiDoc() throws Exception {
-
+    public void testIndexActionExecuteMultiDoc() throws Exception {
         String timestampField = randomFrom(null, "_timestamp", "@timestamp");
         boolean customTimestampField = "@timestamp".equals(timestampField);
 
@@ -187,7 +181,6 @@ public class IndexActionTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testParser() throws Exception {
         String timestampField = randomBoolean() ? "@timestamp" : null;
         XContentBuilder builder = jsonBuilder();
@@ -217,8 +210,7 @@ public class IndexActionTests extends ESIntegTestCase {
         assertThat(executable.action().timeout, equalTo(writeTimeout));
     }
 
-    @Test
-    public void testParser_Failure() throws Exception {
+    public void testParserFailure() throws Exception {
         XContentBuilder builder = jsonBuilder();
         boolean useIndex = randomBoolean();
         boolean useType = randomBoolean();

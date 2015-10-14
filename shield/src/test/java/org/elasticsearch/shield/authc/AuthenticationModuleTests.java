@@ -23,16 +23,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportMessage;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Unit tests for the AuthenticationModule
  */
 public class AuthenticationModuleTests extends ESTestCase {
-
-    @Test
     public void testAddingReservedRealmType() {
         Settings settings = Settings.EMPTY;
         AuthenticationModule module = new AuthenticationModule(settings);
@@ -45,7 +44,6 @@ public class AuthenticationModuleTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testAddingNullOrEmptyType() {
         Settings settings = Settings.EMPTY;
         AuthenticationModule module = new AuthenticationModule(settings);
@@ -58,7 +56,6 @@ public class AuthenticationModuleTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testAddingNullFactory() {
         Settings settings = Settings.EMPTY;
         AuthenticationModule module = new AuthenticationModule(settings);
@@ -70,7 +67,6 @@ public class AuthenticationModuleTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testRegisteringCustomRealm() {
         Settings settings = Settings.builder()
                 .put("name", "foo")
@@ -92,7 +88,6 @@ public class AuthenticationModuleTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testDefaultFailureHandler() {
         Settings settings = Settings.builder()
                 .put("name", "foo")
@@ -120,7 +115,6 @@ public class AuthenticationModuleTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSettingFailureHandler() {
         Settings settings = Settings.builder()
                 .put("name", "foo")
@@ -147,7 +141,6 @@ public class AuthenticationModuleTests extends ESTestCase {
 
     // this class must be public for injection...
     public static class NoOpFailureHandler implements AuthenticationFailureHandler {
-
         @Override
         public ElasticsearchSecurityException unsuccessfulAuthentication(RestRequest request, AuthenticationToken token) {
             return null;

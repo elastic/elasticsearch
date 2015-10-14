@@ -10,15 +10,16 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.nio.ByteBuffer;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AnonymousUserHolderTests extends ESTestCase {
-
-    @Test
     public void testResolveAnonymousUser() throws Exception {
         Settings settings = Settings.builder()
                 .put("shield.authc.anonymous.username", "anonym1")
@@ -38,7 +39,6 @@ public class AnonymousUserHolderTests extends ESTestCase {
         assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
     }
 
-    @Test
     public void testResolveAnonymousUser_NoSettings() throws Exception {
         Settings settings = randomBoolean() ?
                 Settings.EMPTY :
@@ -47,7 +47,6 @@ public class AnonymousUserHolderTests extends ESTestCase {
         assertThat(user, nullValue());
     }
 
-    @Test
     public void testWhenAnonymousDisabled() {
         AnonymousService anonymousService = new AnonymousService(Settings.EMPTY);
         assertThat(anonymousService.enabled(), is(false));
@@ -56,7 +55,6 @@ public class AnonymousUserHolderTests extends ESTestCase {
         assertThat(anonymousService.authorizationExceptionsEnabled(), is(true));
     }
 
-    @Test
     public void testWhenAnonymousEnabled() throws Exception {
         Settings settings = Settings.builder()
                 .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
@@ -74,7 +72,6 @@ public class AnonymousUserHolderTests extends ESTestCase {
         assertThat(anonymousService.isAnonymous(anonymousSerialized), is(true));
     }
 
-    @Test
     public void testDisablingAuthorizationExceptions() {
         Settings settings = Settings.builder()
                 .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")

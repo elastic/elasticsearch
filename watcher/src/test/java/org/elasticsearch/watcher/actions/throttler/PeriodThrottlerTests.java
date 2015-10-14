@@ -5,20 +5,20 @@
  */
 package org.elasticsearch.watcher.actions.throttler;
 
-import org.joda.time.DateTime;
-import org.joda.time.PeriodType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.watch.WatchStatus;
-import org.junit.Test;
+import org.joda.time.PeriodType;
 
 import static org.elasticsearch.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -26,9 +26,7 @@ import static org.mockito.Mockito.when;
  *
  */
 public class PeriodThrottlerTests extends ESTestCase {
-
-    @Test
-    public void testBelowPeriod_Successful() throws Exception {
+    public void testBelowPeriodSuccessful() throws Exception {
         PeriodType periodType = randomFrom(PeriodType.millis(), PeriodType.seconds(), PeriodType.minutes());
         TimeValue period = TimeValue.timeValueSeconds(randomIntBetween(2, 5));
         PeriodThrottler throttler = new PeriodThrottler(SystemClock.INSTANCE, period, periodType);
@@ -47,7 +45,6 @@ public class PeriodThrottlerTests extends ESTestCase {
         assertThat(result.reason(), startsWith("throttling interval is set to [" + period.format(periodType) + "]"));
     }
 
-    @Test
     public void testAbovePeriod() throws Exception {
         PeriodType periodType = randomFrom(PeriodType.millis(), PeriodType.seconds(), PeriodType.minutes());
         TimeValue period = TimeValue.timeValueSeconds(randomIntBetween(2, 5));
@@ -65,5 +62,4 @@ public class PeriodThrottlerTests extends ESTestCase {
         assertThat(result.throttle(), is(false));
         assertThat(result.reason(), nullValue());
     }
-
 }

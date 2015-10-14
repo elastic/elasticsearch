@@ -14,17 +14,19 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.AuthenticationService;
-import org.elasticsearch.test.*;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Locale;
 
-import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.*;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.DAILY;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.HOURLY;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.MONTHLY;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.WEEKLY;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -34,7 +36,6 @@ import static org.mockito.Mockito.when;
  * This test checks to make sure that the index audit trail actually updates the mappings on startups
  */
 public class IndexAuditTrailUpdateMappingTests extends ShieldIntegTestCase {
-
     private ThreadPool threadPool;
 
     @Before
@@ -42,7 +43,6 @@ public class IndexAuditTrailUpdateMappingTests extends ShieldIntegTestCase {
         threadPool = new ThreadPool("index audit trail update mapping tests");
     }
 
-    @Test
     public void testMappingIsUpdated() throws Exception {
         // Setup
         IndexNameResolver.Rollover rollover = randomFrom(HOURLY, DAILY, WEEKLY, MONTHLY);

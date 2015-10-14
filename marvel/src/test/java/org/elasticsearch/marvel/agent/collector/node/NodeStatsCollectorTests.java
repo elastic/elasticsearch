@@ -18,19 +18,19 @@ import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import java.util.Collection;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 // numClientNodes is set to 0 in this test because the NodeStatsCollector never collects data on client nodes:
 // the NodeStatsCollector.shouldCollect() method checks if the node has node files and client nodes don't have
 // such files.
 @ClusterScope(numClientNodes = 0)
 public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
-
-    @Test
     public void testNodeStatsCollector() throws Exception {
         String[] nodes = internalCluster().getNodeNames();
         for (String node : nodes) {
@@ -57,7 +57,6 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    @Test
     public void testNodeStatsCollectorWithLicensing() {
         try {
             String[] nodes = internalCluster().getNodeNames();

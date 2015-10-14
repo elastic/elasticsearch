@@ -15,7 +15,6 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.List;
@@ -26,11 +25,16 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 @ClusterScope(numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
-
     private final boolean activeOnly = false;
     private final String indexName = "test";
 
@@ -43,9 +47,7 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
                 .build();
     }
 
-    @Test
     public void testIndexRecoveryCollector() throws Exception {
-
         logger.info("--> start first node");
         final String node1 = internalCluster().startNode();
         waitForNoBlocksOnNode(node1);
@@ -116,7 +118,6 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    @Test
     public void testIndexRecoveryCollectorWithLicensing() {
         try {
             String[] nodes = internalCluster().getNodeNames();

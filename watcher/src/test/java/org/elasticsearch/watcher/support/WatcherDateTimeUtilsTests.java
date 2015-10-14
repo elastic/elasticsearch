@@ -11,7 +11,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,6 +24,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.xContentParser;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -32,9 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 public class WatcherDateTimeUtilsTests extends ESTestCase {
-
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParseTimeValue_Numeric() throws Exception {
+    public void testParseTimeValueNumeric() throws Exception {
         TimeValue value = new TimeValue(randomInt(100), randomFrom(TimeUnit.values()));
         long millis = value.getMillis();
         XContentBuilder xContentBuilder = jsonBuilder().startObject();
@@ -48,13 +46,16 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
         parser.nextToken(); // field name
         parser.nextToken(); // value
 
-        TimeValue parsed = WatcherDateTimeUtils.parseTimeValue(parser, "test");
-        assertThat(parsed, notNullValue());
-        assertThat(parsed.millis(), is(value.millis()));
+        try {
+            WatcherDateTimeUtils.parseTimeValue(parser, "test");
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), either(is("failed to parse time unit"))
+                    .or(is("could not parse time value. expected either a string or a null value but found [VALUE_NUMBER] instead")));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParseTimeValue_Numeric_Negative() throws Exception {
+    public void testParseTimeValueNumericNegative() throws Exception {
         TimeValue value = new TimeValue(randomIntBetween(1, 100), randomFrom(MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS));
 
         XContentParser parser = xContentParser(jsonBuilder().startObject().field("value", -1 * value.getMillis()).endObject());
@@ -62,11 +63,15 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
         parser.nextToken(); // field name
         parser.nextToken(); // value
 
-        WatcherDateTimeUtils.parseTimeValue(parser, "test");
+        try {
+            WatcherDateTimeUtils.parseTimeValue(parser, "test");
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("could not parse time value. expected either a string or a null value but found [VALUE_NUMBER] instead"));
+        }
     }
 
-    @Test
-    public void testParseTimeValue_String() throws Exception {
+    public void testParseTimeValueString() throws Exception {
         int value = randomIntBetween(2, 200);
         Map<String, TimeValue> values = new HashMap<>();
         values.put(value + "s", TimeValue.timeValueSeconds(value));
@@ -85,8 +90,7 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
         assertThat(parsed.millis(), is(values.get(key).millis()));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParseTimeValue_String_Negative() throws Exception {
+    public void testParseTimeValueStringNegative() throws Exception {
         int value = -1 * randomIntBetween(2, 200);
         Map<String, TimeValue> values = new HashMap<>();
         values.put(value + "s", TimeValue.timeValueSeconds(value));
@@ -100,10 +104,15 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
         parser.nextToken(); // field name
         parser.nextToken(); // value
 
-        WatcherDateTimeUtils.parseTimeValue(parser, "test");
+        try {
+            WatcherDateTimeUtils.parseTimeValue(parser, "test");
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("failed to parse time unit"));
+        }
     }
 
-    public void testParseTimeValue_Null() throws Exception {
+    public void testParseTimeValueNull() throws Exception {
         XContentParser parser = xContentParser(jsonBuilder().startObject().nullField("value").endObject());
         parser.nextToken(); // start object
         parser.nextToken(); // field name

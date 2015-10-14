@@ -11,13 +11,12 @@ import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CustomRealmTests extends ESTestCase {
-
-    @Test
     public void testAuthenticate() {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         CustomRealm realm = new CustomRealm(new RealmConfig("test", Settings.EMPTY, globalSettings));
@@ -28,7 +27,6 @@ public class CustomRealmTests extends ESTestCase {
         assertThat(user.principal(), equalTo(CustomRealm.KNOWN_USER));
     }
 
-    @Test
     public void testAuthenticateBadUser() {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         CustomRealm realm = new CustomRealm(new RealmConfig("test", Settings.EMPTY, globalSettings));

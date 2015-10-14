@@ -11,7 +11,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherModule;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -24,8 +23,6 @@ import static org.hamcrest.core.Is.is;
 @TestLogging("cluster:DEBUG,action.admin.cluster.settings:DEBUG,watcher:DEBUG")
 @ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCase {
-
-    @Test
     public void testChangeSettings() throws Exception {
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
         assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("1"));
@@ -52,8 +49,7 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCas
         });
     }
 
-    @Test
-    public void testChangeSettings_ignoringForbiddenSetting() throws Exception {
+    public void testChangeSettingsIgnoringForbiddenSetting() throws Exception {
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
         assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("1"));
         assertThat(response.getIndexTemplates().get(0).getSettings().getAsBoolean("index.mapper.dynamic", null), is(false));

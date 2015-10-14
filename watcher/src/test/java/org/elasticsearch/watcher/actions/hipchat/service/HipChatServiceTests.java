@@ -12,7 +12,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -23,7 +22,9 @@ import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondit
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -31,7 +32,6 @@ import static org.hamcrest.Matchers.*;
 @Network
 @TestLogging("watcher.support.http:TRACE")
 public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     protected boolean timeWarped() {
         return true;
@@ -62,8 +62,7 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
                 .build();
     }
 
-    @Test
-    public void testSendMessage_V1Account() throws Exception {
+    public void testSendMessageV1Account() throws Exception {
         HipChatService service = getInstanceFromMaster(HipChatService.class);
         HipChatMessage hipChatMessage = new HipChatMessage(
                 "/code HipChatServiceIT#testSendMessage_V1Account",
@@ -86,8 +85,7 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    @Test
-    public void testSendMessage_IntegrationAccount() throws Exception {
+    public void testSendMessageIntegrationAccount() throws Exception {
         HipChatService service = getInstanceFromMaster(HipChatService.class);
         HipChatMessage hipChatMessage = new HipChatMessage(
                 "/code HipChatServiceIT#testSendMessage_IntegrationAccount",
@@ -110,8 +108,7 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    @Test
-    public void testSendMessage_UserAccount() throws Exception {
+    public void testSendMessageUserAccount() throws Exception {
         HipChatService service = getInstanceFromMaster(HipChatService.class);
         HipChatMessage hipChatMessage = new HipChatMessage(
                 "/code HipChatServiceIT#testSendMessage_UserAccount",
@@ -134,9 +131,7 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    @Test
     public void testWatchWithHipChatAction() throws Exception {
-
         HipChatAccount.Profile profile = randomFrom(HipChatAccount.Profile.values());
         String account;
         HipChatAction.Builder actionBuilder;

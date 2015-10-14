@@ -18,7 +18,6 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -28,7 +27,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
-
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
 
     @Override
@@ -68,8 +66,7 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
     /**
      * testing both "search" and "suggest" privileges can execute the suggest API
      */
-    @Test
-     public void testSuggestAPI() throws Exception {
+    public void testSuggestAPI() throws Exception {
         IndexResponse indexResponse = index("a", "type", jsonBuilder()
                 .startObject()
                 .field("name", "value")
@@ -106,7 +103,6 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
     /**
      * testing that "search" privilege cannot execute the get API
      */
-    @Test
     public void testGetAPI() throws Exception {
         IndexResponse indexResponse = index("a", "type", jsonBuilder()
                 .startObject()
@@ -133,7 +129,6 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
     /**
      * testing that "get" privilege can execute the mget API, and "search" privilege cannot execute mget
      */
-    @Test
     public void testMultiGetAPI() throws Exception {
         IndexResponse indexResponse = index("a", "type", jsonBuilder()
                 .startObject()
@@ -167,7 +162,6 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
     /**
      * testing that "search" privilege can execute the msearch API
      */
-    @Test
     public void testMultiSearchAPI() throws Exception {
         IndexResponse indexResponse = index("a", "type", jsonBuilder()
                 .startObject()

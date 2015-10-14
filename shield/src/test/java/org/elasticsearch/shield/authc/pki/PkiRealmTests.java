@@ -17,9 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
-import org.junit.Test;
 
-import javax.security.auth.x500.X500Principal;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,11 +26,18 @@ import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.*;
+import javax.security.auth.x500.X500Principal;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.anyList;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PkiRealmTests extends ESTestCase {
-
     private Settings globalSettings;
 
     @Before
@@ -40,7 +45,6 @@ public class PkiRealmTests extends ESTestCase {
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     }
 
-    @Test
     public void testTokenSupport() {
         RealmConfig config = new RealmConfig("", Settings.EMPTY, globalSettings);
         PkiRealm realm = new PkiRealm(config, mock(DnRoleMapper.class));
@@ -50,8 +54,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(realm.supports(new X509AuthenticationToken(new X509Certificate[0], "", "")), is(true));
     }
 
-    @Test
-    public void extractTokenFromRestRequest() throws Exception {
+    public void testExtractTokenFromRestRequest() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.cert"));
         RestRequest restRequest = new FakeRestRequest();
         restRequest.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
@@ -63,8 +66,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(token.principal(), is("Elasticsearch Test Node"));
     }
 
-    @Test
-    public void extractTokenFromTransportMessage() throws Exception {
+    public void testExtractTokenFromTransportMessage() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.cert"));
         Message message = new Message();
         message.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[]{certificate});
@@ -76,8 +78,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(token.principal(), is("Elasticsearch Test Node"));
     }
 
-    @Test
-    public void authenticateBasedOnCertToken() throws Exception {
+    public void testAuthenticateBasedOnCertToken() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.cert"));
         X509AuthenticationToken token = new X509AuthenticationToken(new X509Certificate[] { certificate }, "Elasticsearch Test Node", "CN=Elasticsearch Test Node,");
         DnRoleMapper roleMapper = mock(DnRoleMapper.class);
@@ -91,8 +92,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(user.roles().length, is(0));
     }
 
-    @Test
-    public void customUsernamePattern() throws Exception {
+    public void testCustomUsernamePattern() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.cert"));
         DnRoleMapper roleMapper = mock(DnRoleMapper.class);
         PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.builder().put("username_pattern", "OU=(.*?),").build(), globalSettings), roleMapper);
@@ -108,8 +108,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(user.roles().length, is(0));
     }
 
-    @Test
-    public void verificationUsingATruststore() throws Exception {
+    public void testVerificationUsingATruststore() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.cert"));
         DnRoleMapper roleMapper = mock(DnRoleMapper.class);
         Settings settings = Settings.builder()
@@ -130,8 +129,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(user.roles().length, is(0));
     }
 
-    @Test
-    public void verificationFailsUsingADifferentTruststore() throws Exception {
+    public void testVerificationFailsUsingADifferentTruststore() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.cert"));
         DnRoleMapper roleMapper = mock(DnRoleMapper.class);
         Settings settings = Settings.builder()
@@ -149,8 +147,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(user, is(nullValue()));
     }
 
-    @Test
-    public void truststorePathWithoutPasswordThrowsException() throws Exception {
+    public void testTruststorePathWithoutPasswordThrowsException() throws Exception {
         Settings settings = Settings.builder()
                 .put("truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-client-profile.jks"))
                 .build();
@@ -162,8 +159,7 @@ public class PkiRealmTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void certificateWithOnlyCnExtractsProperly() throws Exception {
+    public void testCertificateWithOnlyCnExtractsProperly() throws Exception {
         X509Certificate certificate = mock(X509Certificate.class);
         X500Principal principal = new X500Principal("CN=PKI Client");
         when(certificate.getSubjectX500Principal()).thenReturn(principal);
@@ -174,8 +170,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(token.dn(), is("CN=PKI Client"));
     }
 
-    @Test
-    public void certificateWithCnAndOuExtractsProperly() throws Exception {
+    public void testCertificateWithCnAndOuExtractsProperly() throws Exception {
         X509Certificate certificate = mock(X509Certificate.class);
         X500Principal principal = new X500Principal("CN=PKI Client, OU=Shield");
         when(certificate.getSubjectX500Principal()).thenReturn(principal);
@@ -186,8 +181,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(token.dn(), is("CN=PKI Client, OU=Shield"));
     }
 
-    @Test
-    public void certificateWithCnInMiddle() throws Exception {
+    public void testCertificateWithCnInMiddle() throws Exception {
         X509Certificate certificate = mock(X509Certificate.class);
         X500Principal principal = new X500Principal("EMAILADDRESS=pki@elastic.co, CN=PKI Client, OU=Shield");
         when(certificate.getSubjectX500Principal()).thenReturn(principal);

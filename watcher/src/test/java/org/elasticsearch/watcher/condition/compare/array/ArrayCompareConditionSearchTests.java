@@ -12,7 +12,6 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.watch.Payload;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,8 +25,6 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.collection.IsMapContaining.hasEntry;
 
 public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegrationTestCase {
-
-    @Test
     public void testExecuteWithAggs() throws Exception {
         String index = "test-index";
         String type = "test-type";

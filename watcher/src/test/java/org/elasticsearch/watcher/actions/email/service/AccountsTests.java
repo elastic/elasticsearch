@@ -9,16 +9,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.secret.SecretService;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
 public class AccountsTests extends ESTestCase {
-
-    @Test
     public void testSingleAccount() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "account1");
@@ -33,8 +33,7 @@ public class AccountsTests extends ESTestCase {
         assertThat(account.name(), equalTo("account1"));
     }
 
-    @Test
-    public void testSingleAccount_NoExplicitDefault() throws Exception {
+    public void testSingleAccountNoExplicitDefault() throws Exception {
         Settings.Builder builder = Settings.builder();
         addAccountSettings("account1", builder);
 
@@ -47,7 +46,6 @@ public class AccountsTests extends ESTestCase {
         assertThat(account.name(), equalTo("account1"));
     }
 
-    @Test
     public void testMultipleAccounts() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "account1");
@@ -66,8 +64,7 @@ public class AccountsTests extends ESTestCase {
         assertThat(account.name(), equalTo("account1"));
     }
 
-    @Test
-    public void testMultipleAccounts_NoExplicitDefault() throws Exception {
+    public void testMultipleAccountsNoExplicitDefault() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "account1");
         addAccountSettings("account1", builder);
@@ -85,28 +82,39 @@ public class AccountsTests extends ESTestCase {
         assertThat(account.name(), isOneOf("account1", "account2"));
     }
 
-    @Test(expected = SettingsException.class)
-    public void testMultipleAccounts_UnknownDefault() throws Exception {
+    public void testMultipleAccountsUnknownDefault() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "unknown");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
-        new Accounts(builder.build(), new SecretService.PlainText(), logger);
+        try {
+            new Accounts(builder.build(), new SecretService.PlainText(), logger);
+            fail("Expected SettingsException");
+        } catch (SettingsException e) {
+            assertThat(e.getMessage(), is("could not find default email account [unknown]"));
+        }
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testNoAccount() throws Exception {
         Settings.Builder builder = Settings.builder();
         Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
-        accounts.account(null);
-        fail("no accounts are configured so trying to get the default account should throw an IllegalStateException");
+        try {
+            accounts.account(null);
+            fail("no accounts are configured so trying to get the default account should throw an IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("cannot find default email account as no accounts have been configured"));
+        }
     }
 
-    @Test(expected = SettingsException.class)
-    public void testNoAccount_WithDefaultAccount() throws Exception {
+    public void testNoAccountWithDefaultAccount() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "unknown");
-        new Accounts(builder.build(), new SecretService.PlainText(), logger);
+        try {
+            new Accounts(builder.build(), new SecretService.PlainText(), logger);
+            fail("Expected SettingsException");
+        } catch (SettingsException e) {
+            assertThat(e.getMessage(), is("could not find default email account [unknown]"));
+        }
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {

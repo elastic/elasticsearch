@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,9 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class EmailTests extends ESTestCase {
-
-    @Test
-    public void testEmail_Parser_SelfGenerated() throws Exception {
+    public void testEmailParserSelfGenerated() throws Exception {
         String id = "test-id";
         Email.Address from = randomFrom(new Email.Address("from@from.com"), null);
         List<Email.Address> addresses = new ArrayList<>();

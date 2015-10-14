@@ -16,11 +16,19 @@ import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -28,7 +36,6 @@ import static org.mockito.Mockito.when;
  *
  */
 public class RealmsTests extends ESTestCase {
-
     private Map<String, Realm.Factory> factories;
     private ShieldSettingsFilter settingsFilter;
     private ShieldLicenseState shieldLicenseState;
@@ -46,7 +53,6 @@ public class RealmsTests extends ESTestCase {
         when(shieldLicenseState.customRealmsEnabled()).thenReturn(true);
     }
 
-    @Test
     public void testWithSettings() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
@@ -75,8 +81,7 @@ public class RealmsTests extends ESTestCase {
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testWithSettings_WithMultipleInternalRealmsOfSameType() throws Exception {
+    public void testWithSettingsWithMultipleInternalRealmsOfSameType() throws Exception {
         Settings settings = Settings.builder()
                 .put("shield.authc.realms.realm_1.type", ESUsersRealm.TYPE)
                 .put("shield.authc.realms.realm_1.order", 0)
@@ -85,10 +90,14 @@ public class RealmsTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         Environment env = new Environment(settings);
-        new Realms(settings, env, factories, settingsFilter, shieldLicenseState).start();
+        try {
+            new Realms(settings, env, factories, settingsFilter, shieldLicenseState).start();
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("multiple [esusers] realms are configured"));
+        }
     }
 
-    @Test
     public void testWithEmptySettings() throws Exception {
         Realms realms = new Realms(Settings.EMPTY, new Environment(Settings.builder().put("path.home", createTempDir()).build()),
                 factories, settingsFilter, shieldLicenseState);
@@ -102,7 +111,6 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(false));
     }
 
-    @Test
     public void testUnlicensedWithOnlyCustomRealms() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
@@ -140,7 +148,6 @@ public class RealmsTests extends ESTestCase {
         assertThat(i, is(1));
     }
 
-    @Test
     public void testUnlicensedWithInternalRealms() throws Exception {
         factories.put(LdapRealm.TYPE, new DummyRealm.Factory(LdapRealm.TYPE, false));
         assertThat(factories.get("type_0"), notNullValue());
@@ -172,7 +179,6 @@ public class RealmsTests extends ESTestCase {
         assertThat(i, is(1));
     }
 
-    @Test
     public void testDisabledRealmsAreNotAdded() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());

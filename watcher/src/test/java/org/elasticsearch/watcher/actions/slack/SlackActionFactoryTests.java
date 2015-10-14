@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.slack;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,7 +15,6 @@ import org.elasticsearch.watcher.actions.slack.service.SlackAccount;
 import org.elasticsearch.watcher.actions.slack.service.SlackService;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.actions.ActionBuilders.slackAction;
@@ -29,7 +27,6 @@ import static org.mockito.Mockito.when;
  *
  */
 public class SlackActionFactoryTests extends ESTestCase {
-
     private SlackActionFactory factory;
     private SlackService service;
 
@@ -39,9 +36,7 @@ public class SlackActionFactoryTests extends ESTestCase {
         factory = new SlackActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), service);
     }
 
-    @Test
     public void testParseAction() throws Exception {
-
         SlackAccount account = mock(SlackAccount.class);
         when(service.getAccount("_account1")).thenReturn(account);
 
@@ -54,15 +49,18 @@ public class SlackActionFactoryTests extends ESTestCase {
         assertThat(parsedAction, is(action));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParseAction_UnknownAccount() throws Exception {
-
+    public void testParseActionUnknownAccount() throws Exception {
         when(service.getAccount("_unknown")).thenReturn(null);
 
         SlackAction action = slackAction("_unknown", createRandomTemplate()).build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
         XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         parser.nextToken();
-        factory.parseAction("_w1", "_a1", parser);
+        try {
+            factory.parseAction("_w1", "_a1", parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("could not parse [slack] action [_w1]. unknown slack account [_unknown]"));
+        }
     }
 }

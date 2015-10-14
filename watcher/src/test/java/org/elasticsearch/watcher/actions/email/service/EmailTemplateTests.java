@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,9 +27,7 @@ import static org.mockito.Mockito.when;
 /**
  */
 public class EmailTemplateTests extends ESTestCase {
-
-    @Test
-    public void testEmailTemplate_Parser_SelfGenerated() throws Exception {
+    public void testEmailTemplateParserSelfGenerated() throws Exception {
         TextTemplate from = randomFrom(TextTemplate.inline("from@from.com").build(), null);
         List<TextTemplate> addresses = new ArrayList<>();
         for( int i = 0; i < randomIntBetween(1, 5); ++i){

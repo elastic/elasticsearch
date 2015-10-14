@@ -21,7 +21,6 @@ import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.net.BindException;
@@ -45,7 +44,6 @@ import static org.hamcrest.core.Is.is;
 /**
  */
 public class HttpClientTests extends ESTestCase {
-
     private MockWebServer webServer;
     private HttpClient httpClient;
     private HttpAuthRegistry authRegistry;
@@ -76,7 +74,6 @@ public class HttpClientTests extends ESTestCase {
         webServer.shutdown();
     }
 
-    @Test
     public void testBasics() throws Exception {
         int responseCode = randomIntBetween(200, 203);
         String body = randomAsciiOfLengthBetween(2, 8096);
@@ -113,7 +110,6 @@ public class HttpClientTests extends ESTestCase {
         assertThat(recordedRequest.getHeader(headerKey), equalTo(headerValue));
     }
 
-    @Test
     public void testNoQueryString() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
@@ -129,7 +125,6 @@ public class HttpClientTests extends ESTestCase {
         assertThat(recordedRequest.getBody().readUtf8Line(), nullValue());
     }
 
-    @Test
     public void testUrlEncoding() throws Exception{
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
@@ -146,7 +141,6 @@ public class HttpClientTests extends ESTestCase {
         assertThat(recordedRequest.getBody().readUtf8Line(), nullValue());
     }
 
-    @Test
     public void testBasicAuth() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
@@ -162,7 +156,6 @@ public class HttpClientTests extends ESTestCase {
         assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic dXNlcjpwYXNz"));
     }
 
-    @Test
     public void testHttps() throws Exception {
         Path resource = getDataPath("/org/elasticsearch/shield/keystore/truststore-testnode-only.jks");
 
@@ -201,7 +194,6 @@ public class HttpClientTests extends ESTestCase {
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
     }
 
-    @Test
     public void testHttpsClientAuth() throws Exception {
         Path resource = getDataPath("/org/elasticsearch/shield/keystore/testnode.jks");
         Settings settings;
@@ -233,7 +225,6 @@ public class HttpClientTests extends ESTestCase {
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
     }
 
-    @Test
     public void testHttpClientReadKeyWithDifferentPassword() throws Exception {
         // This truststore doesn't have a cert with a valid SAN so hostname verification will fail if used
         Path resource = getDataPath("/org/elasticsearch/shield/keystore/testnode-different-passwords.jks");
@@ -274,7 +265,6 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
-    @Test
     public void test400Code() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(400));
         HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
@@ -288,7 +278,6 @@ public class HttpClientTests extends ESTestCase {
         assertThat(response.body(), nullValue());
     }
 
-    @Test
     @Network
     public void testHttpsWithoutTruststore() throws Exception {
         HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment).start();
@@ -302,7 +291,6 @@ public class HttpClientTests extends ESTestCase {
         assertThat(response.body(), notNullValue());
     }
 
-    @Test
     @Network
     public void testHttpsWithoutTruststoreAndSSLIntegrationActive() throws Exception {
         // Add some settings with  SSL prefix to force socket factory creation
@@ -323,7 +311,6 @@ public class HttpClientTests extends ESTestCase {
     }
 
     static class ClientAuthRequiringSSLSocketFactory extends SSLSocketFactory {
-
         final SSLSocketFactory delegate;
 
         ClientAuthRequiringSSLSocketFactory(SSLSocketFactory delegate) {

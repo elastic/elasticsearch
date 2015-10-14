@@ -15,7 +15,6 @@ import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputFactory;
 import org.elasticsearch.watcher.watch.Payload;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,13 +22,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  */
 public class SimpleInputTests extends ESTestCase {
-
-    @Test
-    public void textExecute() throws Exception {
+    public void testExecute() throws Exception {
         Map<String, Object> data = new HashMap<>();
         data.put("foo", "bar");
         data.put("baz", new ArrayList<String>() );
@@ -41,9 +39,7 @@ public class SimpleInputTests extends ESTestCase {
         assertTrue(baz.isEmpty());
     }
 
-
-    @Test
-    public void testParser_Valid() throws Exception {
+    public void testParserValid() throws Exception {
         Map<String, Object> data = new HashMap<>();
         data.put("foo", "bar");
         data.put("baz", new ArrayList<String>());
@@ -62,17 +58,17 @@ public class SimpleInputTests extends ESTestCase {
         assertTrue(baz.isEmpty());
     }
 
-
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_Invalid() throws Exception {
-
+    public void testParserInvalid() throws Exception {
         XContentBuilder jsonBuilder = jsonBuilder().value("just a string");
 
         InputFactory parser = new SimpleInputFactory(Settings.builder().build());
         XContentParser xContentParser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         xContentParser.nextToken();
-        parser.parseInput("_id", xContentParser);
-        fail("[simple] input parse should fail with an InputException for an empty json object");
+        try {
+            parser.parseInput("_id", xContentParser);
+            fail("[simple] input parse should fail with an InputException for an empty json object");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("expected an object but found [VALUE_STRING] instead"));
+        }
     }
-
 }

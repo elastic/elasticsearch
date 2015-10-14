@@ -11,19 +11,19 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
 public class IntervalScheduleTests extends ESTestCase {
-
-    @Test
-    public void testParse_Number() throws Exception {
-        long value = (long) randomIntBetween(0, Integer.MAX_VALUE);
+    public void testParseNumber() throws Exception {
+        long value = randomIntBetween(0, Integer.MAX_VALUE);
         XContentBuilder builder = jsonBuilder().value(value);
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -33,9 +33,8 @@ public class IntervalScheduleTests extends ESTestCase {
         assertThat(schedule.interval().seconds(), is(value));
     }
 
-    @Test
-    public void testParse_NegativeNumber() throws Exception {
-        long value = (long) randomIntBetween(Integer.MIN_VALUE, 0);
+    public void testParseNegativeNumber() throws Exception {
+        long value = randomIntBetween(Integer.MIN_VALUE, 0);
         XContentBuilder builder = jsonBuilder().value(value);
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -49,8 +48,7 @@ public class IntervalScheduleTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void testParse_String() throws Exception {
+    public void testParseString() throws Exception {
         IntervalSchedule.Interval value = randomTimeInterval();
         XContentBuilder builder = jsonBuilder().value(value);
         BytesReference bytes = builder.bytes();
@@ -61,22 +59,30 @@ public class IntervalScheduleTests extends ESTestCase {
         assertThat(schedule.interval(), is(value));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParse_Invalid_String() throws Exception {
+    public void testParseInvalidString() throws Exception {
         XContentBuilder builder = jsonBuilder().value("43S");
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken(); // advancing to the start object
-        new IntervalSchedule.Parser().parse(parser);
+        try {
+            new IntervalSchedule.Parser().parse(parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("unrecognized interval format [43S]"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParse_Invalid_Object() throws Exception {
+    public void testParseInvalidObject() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken(); // advancing to the start object
-        new IntervalSchedule.Parser().parse(parser);
+        try {
+            new IntervalSchedule.Parser().parse(parser);
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("expected either a numeric value (millis) or a string value representing time value"));
+            assertThat(e.getMessage(), containsString("found [START_OBJECT]"));
+        }
     }
 
     private static IntervalSchedule.Interval randomTimeInterval() {

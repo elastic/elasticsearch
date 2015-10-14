@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.transform.search;
 
 import com.google.common.base.Charsets;
+
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -16,7 +17,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -45,7 +49,6 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -60,12 +63,25 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.parseDate;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.simplePayload;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.joda.time.DateTimeZone.UTC;
 
 /**
@@ -73,7 +89,6 @@ import static org.joda.time.DateTimeZone.UTC;
  */
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 public class SearchTransformTests extends ESIntegTestCase {
-
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         final Path tempDir = createTempDir();
@@ -117,9 +132,7 @@ public class SearchTransformTests extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testExecute() throws Exception {
-
         index("idx", "type", "1");
         ensureGreen("idx");
         refresh();
@@ -149,9 +162,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(resultData, equalTo(expectedData));
     }
 
-    @Test
-    public void testExecute_Failure() throws Exception {
-
+    public void testExecuteFailure() throws Exception {
         index("idx", "type", "1");
         ensureGreen("idx");
         refresh();
@@ -192,8 +203,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(decodedQuery, containsString("_unknown_query_"));
     }
 
-    @Test
-    public void testExecute_MustacheTemplate() throws Exception {
+    public void testExecuteMustacheTemplate() throws Exception {
 
         // The rational behind this test:
         //
@@ -256,7 +266,6 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(resultData, equalTo(expectedData));
     }
 
-    @Test
     public void testParser() throws Exception {
         String[] indices = rarely() ? null : randomBoolean() ? new String[] { "idx" } : new String[] { "idx1", "idx2" };
         SearchType searchType = getRandomSupportedSearchType();
@@ -313,8 +322,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(executable.transform().getTimeout(), equalTo(readTimeout));
     }
 
-    @Test
-    public void testSearch_InlineTemplate() throws Exception {
+    public void testSearchInlineTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
 
         final String templateQuery = "{\"query\":{\"bool\":{\"must\":[{\"match\":{\"event_type\":{\"query\":\"a\"," +
@@ -355,8 +363,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(executedResult.executedRequest().template(), equalTo(expectedTemplate));
     }
 
-    @Test
-    public void testSearch_IndexedTemplate() throws Exception {
+    public void testSearchIndexedTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
 
         final String templateQuery = "{\"query\":{\"bool\":{\"must\":[{\"match\":{\"event_type\":{\"query\":\"a\"," +
@@ -390,8 +397,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(resultTemplate.getType(), equalTo(ScriptType.INDEXED));
     }
 
-    @Test
-    public void testSearch_OndiskTemplate() throws Exception {
+    public void testSearchOnDiskTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
 
         Map<String, Object> params = new HashMap<>();
@@ -409,8 +415,6 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(resultTemplate.getType(), equalTo(ScriptType.FILE));
     }
 
-
-    @Test
     public void testDifferentSearchType() throws Exception {
         WatchExecutionContext ctx = createContext();
 

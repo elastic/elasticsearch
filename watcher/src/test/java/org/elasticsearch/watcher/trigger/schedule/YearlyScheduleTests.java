@@ -14,27 +14,27 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
 import org.elasticsearch.watcher.trigger.schedule.support.YearTimes;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.Strings.join;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.hasItemInArray;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
 public class YearlyScheduleTests extends ScheduleTestCase {
-
-    @Test
-    public void test_Default() throws Exception {
+    public void testDefault() throws Exception {
         YearlySchedule schedule = new YearlySchedule();
         String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(1));
         assertThat(crons, arrayContaining("0 0 0 1 JAN ?"));
     }
 
-    @Test
-    public void test_SingleTime() throws Exception {
+    public void testSingleTime() throws Exception {
         YearTimes time = validYearTime();
         YearlySchedule schedule = new YearlySchedule(time);
         String[] crons = expressions(schedule);
@@ -51,8 +51,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test
-    public void test_MultipleTimes() throws Exception {
+    public void testMultipleTimes() throws Exception {
         YearTimes[] times = validYearTimes();
         YearlySchedule schedule = new YearlySchedule(times);
         String[] crons = expressions(schedule);
@@ -73,8 +72,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test
-    public void testParser_Empty() throws Exception {
+    public void testParserEmpty() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -85,8 +83,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0], is(new YearTimes()));
     }
 
-    @Test
-    public void testParser_SingleTime() throws Exception {
+    public void testParserSingleTime() throws Exception {
         DayTimes time = validDayTime();
         Object day = randomDayOfMonth();
         Object month = randomMonth();
@@ -111,8 +108,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0].times(), hasItemInArray(time));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_SingleTime_Invalid() throws Exception {
+    public void testParserSingleTimeInvalid() throws Exception {
         HourAndMinute time = invalidDayTime();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -126,11 +122,15 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken(); // advancing to the start object
-        new MonthlySchedule.Parser().parse(parser);
+        try {
+            new MonthlySchedule.Parser().parse(parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("could not parse [monthly] schedule. invalid month times"));
+        }
     }
 
-    @Test
-    public void testParser_MultipleTimes() throws Exception {
+    public void testParserMultipleTimes() throws Exception {
         YearTimes[] times = validYearTimes();
         XContentBuilder builder = jsonBuilder().value(times);
         BytesReference bytes = builder.bytes();
@@ -144,8 +144,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_MultipleTimes_Invalid() throws Exception {
+    public void testParserMultipleTimesInvalid() throws Exception {
         HourAndMinute[] times = invalidDayTimes();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -156,6 +155,11 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken(); // advancing to the start object
-        new YearlySchedule.Parser().parse(parser);
+        try {
+            new YearlySchedule.Parser().parse(parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("could not parse [yearly] schedule. invalid year times"));
+        }
     }
 }

@@ -5,19 +5,6 @@
  */
 package org.elasticsearch.watcher.watch;
 
-import static org.hamcrest.core.Is.is;
-import static org.hamcrest.core.IsEqual.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
-import static org.mockito.Mockito.when;
-
-import java.util.Collections;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -46,12 +33,23 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.junit.Before;
-import org.junit.Test;
+
+import java.util.Collections;
+
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.core.IsEqual.equalTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  */
 public class WatchStoreTests extends ESTestCase {
-
     private WatchStore watchStore;
     private ClientProxy clientProxy;
     private Watch.Parser parser;
@@ -63,7 +61,6 @@ public class WatchStoreTests extends ESTestCase {
         watchStore = new WatchStore(Settings.EMPTY, clientProxy, parser);
     }
 
-    @Test
     public void testStartNoPreviousWatchesIndex() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
@@ -80,7 +77,6 @@ public class WatchStoreTests extends ESTestCase {
         verifyZeroInteractions(clientProxy);
     }
 
-    @Test
     public void testStartPrimaryShardNotReady() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
@@ -104,7 +100,6 @@ public class WatchStoreTests extends ESTestCase {
         verifyZeroInteractions(clientProxy);
     }
 
-    @Test
     public void testStartRefreshFailed() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
@@ -139,7 +134,6 @@ public class WatchStoreTests extends ESTestCase {
         verify(clientProxy, never()).clearScroll(anyString());
     }
 
-    @Test
     public void testStartSearchFailed() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
@@ -178,7 +172,6 @@ public class WatchStoreTests extends ESTestCase {
         verify(clientProxy, times(1)).clearScroll(anyString());
     }
 
-    @Test
     public void testStartNoWatchStored() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
@@ -215,7 +208,6 @@ public class WatchStoreTests extends ESTestCase {
         verify(clientProxy, times(1)).clearScroll(anyString());
     }
 
-    @Test
     public void testStartWatchStored() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();

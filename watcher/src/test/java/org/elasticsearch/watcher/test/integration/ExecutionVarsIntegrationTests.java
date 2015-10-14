@@ -15,7 +15,6 @@ import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
@@ -35,13 +34,11 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     protected boolean timeWarped() {
         return true;
     }
 
-    @Test
     public void testVars() throws Exception {
         WatcherClient watcherClient = watcherClient();
 
@@ -107,8 +104,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         }
     }
 
-    @Test
-    public void testVars_Manual() throws Exception {
+    public void testVarsManual() throws Exception {
         WatcherClient watcherClient = watcherClient();
 
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch("_id").setSource(watchBuilder()

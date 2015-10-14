@@ -18,7 +18,6 @@ import org.elasticsearch.watcher.input.InputBuilders;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.joda.time.DateTime;
-import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
@@ -36,7 +35,6 @@ import static org.hamcrest.Matchers.nullValue;
 @ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 2)
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     protected boolean timeWarped() {
         return false;
@@ -51,7 +49,6 @@ public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
                 .build();
     }
 
-    @Test
     public void testCurrentWatches() throws Exception {
         watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("1s")))
@@ -75,7 +72,6 @@ public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
         });
     }
 
-    @Test
     public void testPendingWatches() throws Exception {
         // Add 5 slow watches and we should almost immediately see pending watches in the stats api
         for (int i = 0; i < 5; i++) {

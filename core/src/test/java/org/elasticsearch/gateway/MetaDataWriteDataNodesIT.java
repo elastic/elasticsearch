@@ -152,29 +152,23 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
     }
 
     protected void assertIndexDirectoryDeleted(final String nodeName, final String indexName) throws Exception {
-        assertBusy(new Runnable() {
-                       @Override
-                       public void run() {
-                           logger.info("checking if index directory exists...");
-                           assertFalse("Expecting index directory of " + indexName + " to be deleted from node " + nodeName, indexDirectoryExists(nodeName, indexName));
-                       }
-                   }
+        assertBusy(() -> {
+            logger.info("checking if index directory exists...");
+            assertFalse("Expecting index directory of " + indexName + " to be deleted from node " + nodeName, indexDirectoryExists(nodeName, indexName));
+        }
         );
     }
 
     protected void assertIndexInMetaState(final String nodeName, final String indexName) throws Exception {
-        assertBusy(new Runnable() {
-                       @Override
-                       public void run() {
-                           logger.info("checking if meta state exists...");
-                           try {
-                               assertTrue("Expecting meta state of index " + indexName + " to be on node " + nodeName, getIndicesMetaDataOnNode(nodeName).containsKey(indexName));
-                           } catch (Throwable t) {
-                               logger.info("failed to load meta state", t);
-                               fail("could not load meta state");
-                           }
-                       }
-                   }
+        assertBusy(() -> {
+            logger.info("checking if meta state exists...");
+            try {
+                assertTrue("Expecting meta state of index " + indexName + " to be on node " + nodeName, getIndicesMetaDataOnNode(nodeName).containsKey(indexName));
+            } catch (Throwable t) {
+                logger.info("failed to load meta state", t);
+                fail("could not load meta state");
+            }
+        }
         );
     }
 

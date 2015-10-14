@@ -340,8 +340,18 @@ public class Cache<K, V> {
             Entry<K, V> entry;
             try {
                 entry = future.get();
-            } catch (InterruptedException e) {
-                throw new ExecutionException(e);
+            } catch (ExecutionException | InterruptedException e) {
+                // if the future ended exceptionally, we do not want to pollute the cache
+                // however, we have to take care to ensure that the polluted entry has not already been replaced
+                try (ReleasableLock ignored = segment.writeLock.acquire()) {
+                    Future<Entry<K, V>> sanity = segment.map.get(key);
+                    try {
+                        sanity.get();
+                    } catch (ExecutionException | InterruptedException gotcha) {
+                        segment.map.remove(key);
+                    }
+                }
+                throw (e instanceof ExecutionException) ? (ExecutionException)e : new ExecutionException(e);
             }
             if (entry.value == null) {
                 throw new ExecutionException(new NullPointerException("loader returned a null value"));

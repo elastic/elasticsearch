@@ -740,7 +740,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         if (shard.relocating()) {
                             numberOfPendingShardInstances++;
                         }
-                    } else if (shouldExecuteReplication(indexMetaData.settings()) == false) {
+                    } else if (shouldExecuteReplication(indexMetaData.getSettings()) == false) {
                         // If the replicas use shadow replicas, there is no reason to
                         // perform the action on the replica, so skip it and
                         // immediately return
@@ -770,7 +770,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                             // we have to replicate to the other copy
                             numberOfPendingShardInstances += 1;
                         }
-                    } else if (shouldExecuteReplication(indexMetaData.settings()) == false) {
+                    } else if (shouldExecuteReplication(indexMetaData.getSettings()) == false) {
                         // If the replicas use shadow replicas, there is no reason to
                         // perform the action on the replica, so skip it and
                         // immediately return
@@ -849,7 +849,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     if (shard.relocating()) {
                         performOnReplica(shard, shard.relocatingNodeId());
                     }
-                } else if (shouldExecuteReplication(indexMetaData.settings())) {
+                } else if (shouldExecuteReplication(indexMetaData.getSettings())) {
                     performOnReplica(shard, shard.currentNodeId());
                     if (shard.relocating()) {
                         performOnReplica(shard, shard.relocatingNodeId());

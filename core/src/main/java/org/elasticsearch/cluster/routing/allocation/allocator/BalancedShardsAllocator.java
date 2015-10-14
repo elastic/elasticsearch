@@ -262,7 +262,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * Returns the average of shards per node for the given index
          */
         public float avgShardsPerNode(String index) {
-            return ((float) metaData.index(index).totalNumberOfShards()) / nodes.size();
+            return ((float) metaData.index(index).getTotalNumberOfShards()) / nodes.size();
         }
 
         /**

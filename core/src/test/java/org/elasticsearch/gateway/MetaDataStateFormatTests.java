@@ -31,7 +31,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -365,9 +364,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
         for (IndexMetaData original : latestMetaData) {
             IndexMetaData deserialized = indices.get(original.getIndex());
             assertThat(deserialized, notNullValue());
-            assertThat(deserialized.version(), equalTo(original.version()));
-            assertThat(deserialized.numberOfReplicas(), equalTo(original.numberOfReplicas()));
-            assertThat(deserialized.numberOfShards(), equalTo(original.numberOfShards()));
+            assertThat(deserialized.getVersion(), equalTo(original.getVersion()));
+            assertThat(deserialized.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
+            assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
         }
 
         // now corrupt all the latest ones and make sure we fail to load the state

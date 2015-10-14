@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 
-import java.util.Locale;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
@@ -82,7 +81,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Checks if the index was already opened by this version of Elasticsearch and doesn't require any additional checks.
      */
     private boolean isUpgraded(IndexMetaData indexMetaData) {
-        return indexMetaData.upgradeVersion().onOrAfter(Version.V_3_0_0);
+        return indexMetaData.getUpgradedVersion().onOrAfter(Version.V_3_0_0);
     }
 
     /**
@@ -102,7 +101,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Returns true if this index can be supported by the current version of elasticsearch
      */
     private static boolean isSupportedVersion(IndexMetaData indexMetaData) {
-        if (indexMetaData.creationVersion().onOrAfter(Version.V_2_0_0_beta1)) {
+        if (indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0_beta1)) {
             // The index was created with elasticsearch that was using Lucene 5.2.1
             return true;
         }
@@ -160,7 +159,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         if (indexMetaData.getCreationVersion().before(Version.V_2_0_0_beta1)) {
             // TODO: can we somehow only do this *once* for a pre-2.0 index?  Maybe we could stuff a "fake marker setting" here?  Seems hackish...
             // Created lazily if we find any settings that are missing units:
-            Settings settings = indexMetaData.settings();
+            Settings settings = indexMetaData.getSettings();
             Settings.Builder newSettings = null;
             for(String byteSizeSetting : INDEX_BYTES_SIZE_SETTINGS) {
                 String value = settings.get(byteSizeSetting);
@@ -199,7 +198,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             if (newSettings != null) {
                 // At least one setting was changed:
                 return IndexMetaData.builder(indexMetaData)
-                    .version(indexMetaData.version())
+                    .version(indexMetaData.getVersion())
                     .settings(newSettings.build())
                     .build();
             }
@@ -215,7 +214,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      */
     private void checkMappingsCompatibility(IndexMetaData indexMetaData) {
         Index index = new Index(indexMetaData.getIndex());
-        Settings settings = indexMetaData.settings();
+        Settings settings = indexMetaData.getSettings();
         try {
             SimilarityService similarityService = new SimilarityService(index, settings);
             // We cannot instantiate real analysis server at this point because the node might not have
@@ -238,7 +237,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Marks index as upgraded so we don't have to test it again
      */
     private IndexMetaData markAsUpgraded(IndexMetaData indexMetaData) {
-        Settings settings = Settings.builder().put(indexMetaData.settings()).put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build();
+        Settings settings = Settings.builder().put(indexMetaData.getSettings()).put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build();
         return IndexMetaData.builder(indexMetaData).settings(settings).build();
     }
 

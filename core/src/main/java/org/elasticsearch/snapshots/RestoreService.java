@@ -251,14 +251,14 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 // Index doesn't exist - create it and start recovery
                                 // Make sure that the index we are about to create has a validate name
                                 createIndexService.validateIndexName(renamedIndex, currentState);
-                                createIndexService.validateIndexSettings(renamedIndex, snapshotIndexMetaData.settings());
+                                createIndexService.validateIndexSettings(renamedIndex, snapshotIndexMetaData.getSettings());
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN).index(renamedIndex);
-                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_INDEX_UUID, Strings.randomBase64UUID()));
-                                if (!request.includeAliases() && !snapshotIndexMetaData.aliases().isEmpty()) {
+                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, Strings.randomBase64UUID()));
+                                if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();
                                 } else {
-                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.aliases().keys()) {
+                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.getAliases().keys()) {
                                         aliases.add(alias.value);
                                     }
                                 }
@@ -273,22 +273,22 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 validateExistingIndex(currentIndexMetaData, snapshotIndexMetaData, renamedIndex, partial);
                                 // Index exists and it's closed - open it in metadata and start recovery
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN);
-                                indexMdBuilder.version(Math.max(snapshotIndexMetaData.version(), currentIndexMetaData.version() + 1));
+                                indexMdBuilder.version(Math.max(snapshotIndexMetaData.getVersion(), currentIndexMetaData.getVersion() + 1));
                                 if (!request.includeAliases()) {
                                     // Remove all snapshot aliases
-                                    if (!snapshotIndexMetaData.aliases().isEmpty()) {
+                                    if (!snapshotIndexMetaData.getAliases().isEmpty()) {
                                         indexMdBuilder.removeAllAliases();
                                     }
                                     /// Add existing aliases
-                                    for (ObjectCursor<AliasMetaData> alias : currentIndexMetaData.aliases().values()) {
+                                    for (ObjectCursor<AliasMetaData> alias : currentIndexMetaData.getAliases().values()) {
                                         indexMdBuilder.putAlias(alias.value);
                                     }
                                 } else {
-                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.aliases().keys()) {
+                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.getAliases().keys()) {
                                         aliases.add(alias.value);
                                     }
                                 }
-                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_INDEX_UUID, currentIndexMetaData.indexUUID()));
+                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, currentIndexMetaData.getIndexUUID()));
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndex).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, restoreSource);
                                 blocks.updateBlocks(updatedIndexMetaData);
@@ -359,7 +359,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                 private void validateExistingIndex(IndexMetaData currentIndexMetaData, IndexMetaData snapshotIndexMetaData, String renamedIndex, boolean partial) {
                     // Index exist - checking that it's closed
-                    if (currentIndexMetaData.state() != IndexMetaData.State.CLOSE) {
+                    if (currentIndexMetaData.getState() != IndexMetaData.State.CLOSE) {
                         // TODO: Enable restore for open indices
                         throw new SnapshotRestoreException(snapshotId, "cannot restore index [" + renamedIndex + "] because it's open");
                     }
@@ -384,7 +384,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     }
                     Settings normalizedChangeSettings = Settings.settingsBuilder().put(changeSettings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
                     IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
-                    Map<String, String> settingsMap = new HashMap<>(indexMetaData.settings().getAsMap());
+                    Map<String, String> settingsMap = new HashMap<>(indexMetaData.getSettings().getAsMap());
                     List<String> simpleMatchPatterns = new ArrayList<>();
                     for (String ignoredSetting : ignoreSettings) {
                         if (!Regex.isSimpleMatchPattern(ignoredSetting)) {

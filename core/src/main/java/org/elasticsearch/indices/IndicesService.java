@@ -472,7 +472,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 }
                 deleteIndexStore(reason, metaData, clusterState, true);
             } catch (IOException e) {
-                logger.warn("[{}] failed to delete closed index", e, metaData.index());
+                logger.warn("[{}] failed to delete closed index", e, metaData.getIndex());
             }
         }
     }
@@ -484,7 +484,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public void deleteIndexStore(String reason, IndexMetaData metaData, ClusterState clusterState, boolean closed) throws IOException {
         if (nodeEnv.hasNodeFile()) {
             synchronized (this) {
-                String indexName = metaData.index();
+                String indexName = metaData.getIndex();
                 if (indices.containsKey(indexName)) {
                     String localUUid = indices.get(indexName).getIndexService().indexUUID();
                     throw new IllegalStateException("Can't delete index store for [" + indexName + "] - it's still part of the indices service [" + localUUid + "] [" + metaData.getIndexUUID() + "]");
@@ -496,7 +496,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     throw new IllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
                 }
             }
-            Index index = new Index(metaData.index());
+            Index index = new Index(metaData.getIndex());
             final Settings indexSettings = buildIndexSettings(metaData);
             deleteIndexStore(reason, index, indexSettings, closed);
         }

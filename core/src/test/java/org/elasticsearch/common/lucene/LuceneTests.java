@@ -363,6 +363,7 @@ public class LuceneTests extends ESTestCase {
 
     /**
      * Test that the "unmap hack" is detected as supported by lucene.
+     * This works around the following bug: https://bugs.openjdk.java.net/browse/JDK-4724038
      * <p>
      * While not guaranteed, current status is "Critical Internal API": http://openjdk.java.net/jeps/260
      * Additionally this checks we did not screw up the security logic around the hack.

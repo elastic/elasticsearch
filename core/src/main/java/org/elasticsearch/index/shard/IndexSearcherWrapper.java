@@ -71,7 +71,7 @@ public class IndexSearcherWrapper {
         if (reader != nonClosingReaderWrapper) {
             if (reader.getCoreCacheKey() != elasticsearchDirectoryReader.getCoreCacheKey()) {
                 throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey, wrappers must override this method and delegate" +
-                        " to the original readers core cache key. Wrapped readers can't used as cache keys since their are used only per request which would lead to subtile bugs");
+                        " to the original readers core cache key. Wrapped readers can't be used as cache keys since their are used only per request which would lead to subtle bugs");
             }
             if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
                 // prevent that somebody wraps with a non-filter reader
@@ -109,7 +109,7 @@ public class IndexSearcherWrapper {
         }
     }
 
-    final class NonClosingReaderWrapper extends FilterDirectoryReader {
+    private static final class NonClosingReaderWrapper extends FilterDirectoryReader {
 
         private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
             super(in, new SubReaderWrapper() {

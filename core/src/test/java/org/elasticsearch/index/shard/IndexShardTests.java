@@ -967,9 +967,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             newShard.refresh("test");
             assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), before.getMemorySizeInBytes());
             assertEquals(shard.fieldData().stats("foo").getEvictions(), before.getEvictions());
-        } catch (Throwable t) {
-            t.printStackTrace();
-            throw t;
         } finally {
             newShard.close("just do it", randomBoolean());
         }

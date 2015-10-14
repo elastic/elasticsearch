@@ -61,3 +61,5 @@ OPTIONS
     -v,--verbose                 Verbose output
 
     -h,--help                    Shows this message
+    
+    -b,--batch                   Enable batch mode explicitly, automatic confirmation of security permissions

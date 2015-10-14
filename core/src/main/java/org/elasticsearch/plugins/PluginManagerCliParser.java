@@ -180,6 +180,7 @@ public class PluginManagerCliParser extends CliTool {
 
         private static final CliToolConfig.Cmd CMD = cmd(NAME, Install.class)
                 .options(option("t", "timeout").required(false).hasArg(false))
+                .options(option("b", "batch").required(false))
                 .build();
 
         static Command parse(Terminal terminal, CommandLine cli) {
@@ -210,21 +211,28 @@ public class PluginManagerCliParser extends CliTool {
             if (cli.hasOption("v")) {
                 outputMode = OutputMode.VERBOSE;
             }
+            
+            boolean batch = System.console() == null;
+            if (cli.hasOption("b")) {
+                batch = true;
+            }
 
-            return new Install(terminal, name, outputMode, optionalPluginUrl, timeout);
+            return new Install(terminal, name, outputMode, optionalPluginUrl, timeout, batch);
         }
 
         final String name;
         private OutputMode outputMode;
         final URL url;
         final TimeValue timeout;
+        final boolean batch;
 
-        Install(Terminal terminal, String name, OutputMode outputMode, URL url, TimeValue timeout) {
+        Install(Terminal terminal, String name, OutputMode outputMode, URL url, TimeValue timeout, boolean batch) {
             super(terminal);
             this.name = name;
             this.outputMode = outputMode;
             this.url = url;
             this.timeout = timeout;
+            this.batch = batch;
         }
 
         @Override
@@ -235,7 +243,7 @@ public class PluginManagerCliParser extends CliTool {
             } else {
                 terminal.println("-> Installing from " + URLDecoder.decode(url.toString(), "UTF-8") + "...");
             }
-            pluginManager.downloadAndExtract(name, terminal);
+            pluginManager.downloadAndExtract(name, terminal, batch);
             return ExitStatus.OK;
         }
     }

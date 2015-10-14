@@ -155,13 +155,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         assertBusy(new Runnable() {
                        @Override
                        public void run() {
-                           logger.info("checking if meta state exists...");
-                           try {
-                               assertFalse("Expecting index directory of " + indexName + " to be deleted from node " + nodeName, indexDirectoryExists(nodeName, indexName));
-                           } catch (Exception e) {
-                               logger.info("failed to check for data director of index {} on node {}", indexName, nodeName);
-                               fail("could not check if data directory still exists");
-                           }
+                           logger.info("checking if index directory exists...");
+                           assertFalse("Expecting index directory of " + indexName + " to be deleted from node " + nodeName, indexDirectoryExists(nodeName, indexName));
                        }
                    }
         );
@@ -184,7 +179,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
     }
 
 
-    private boolean indexDirectoryExists(String nodeName, String indexName) throws Exception {
+    private boolean indexDirectoryExists(String nodeName, String indexName) {
         NodeEnvironment nodeEnv = ((InternalTestCluster) cluster()).getInstance(NodeEnvironment.class, nodeName);
         for (Path path : nodeEnv.indexPaths(new Index(indexName))) {
             if (Files.exists(path)) {

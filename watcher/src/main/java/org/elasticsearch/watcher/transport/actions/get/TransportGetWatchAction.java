@@ -18,10 +18,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.WatcherService;
-import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.watcher.watch.Watch;
@@ -41,8 +42,8 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
     @Inject
     public TransportGetWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   WatcherService watcherService, LicenseService licenseService) {
-        super(settings, GetWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, GetWatchRequest::new);
+                                   WatcherService watcherService, WatcherLicensee watcherLicensee) {
+        super(settings, GetWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, watcherLicensee, GetWatchRequest::new);
         this.watcherService = watcherService;
     }
 
@@ -58,6 +59,11 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
 
     @Override
     protected void masterOperation(GetWatchRequest request, ClusterState state, ActionListener<GetWatchResponse> listener) throws ElasticsearchException {
+        if (!watcherLicensee.isGetWatchAllowed()) {
+            listener.onFailure(LicenseUtils.newComplianceException(WatcherLicensee.ID));
+            return;
+        }
+
         try {
             Watch watch = watcherService.getWatch(request.getId());
             if (watch == null) {

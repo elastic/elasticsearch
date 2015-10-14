@@ -8,11 +8,7 @@ package org.elasticsearch.watcher.execution;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.ActionStatus;
-import org.elasticsearch.watcher.actions.ActionWrapper;
-import org.elasticsearch.watcher.actions.ExecutableAction;
-import org.elasticsearch.watcher.actions.ExecutableActions;
+import org.elasticsearch.watcher.actions.*;
 import org.elasticsearch.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.watcher.actions.throttler.Throttler;
 import org.elasticsearch.watcher.condition.Condition;
@@ -29,11 +25,7 @@ import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchLockService;
-import org.elasticsearch.watcher.watch.WatchStatus;
-import org.elasticsearch.watcher.watch.WatchStore;
+import org.elasticsearch.watcher.watch.*;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
@@ -45,17 +37,9 @@ import java.util.concurrent.ArrayBlockingQueue;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  */
@@ -601,5 +585,4 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(actionTransform, never()).execute(context, payload);
         verify(action, never()).execute("_action", context, payload);
     }
-
 }

@@ -21,7 +21,7 @@ import org.elasticsearch.watcher.WatcherBuild;
 import org.elasticsearch.watcher.WatcherLifeCycleService;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.execution.ExecutionService;
-import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
 
 /**
@@ -36,8 +36,8 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
     @Inject
     public TransportWatcherStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
-                                       ExecutionService executionService, LicenseService licenseService, WatcherLifeCycleService lifeCycleService) {
-        super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, WatcherStatsRequest::new);
+                                       ExecutionService executionService, WatcherLicensee watcherLicensee, WatcherLifeCycleService lifeCycleService) {
+        super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, watcherLicensee, WatcherStatsRequest::new);
         this.watcherService = watcherService;
         this.executionService = executionService;
         this.lifeCycleService = lifeCycleService;

@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.WatcherLifeCycleService;
-import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
 
 /**
@@ -30,8 +30,8 @@ public class TransportWatcherServiceAction extends WatcherTransportAction<Watche
     @Inject
     public TransportWatcherServiceAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         WatcherLifeCycleService lifeCycleService, LicenseService licenseService) {
-        super(settings, WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, WatcherServiceRequest::new);
+                                         WatcherLifeCycleService lifeCycleService, WatcherLicensee watcherLicensee) {
+        super(settings, WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, watcherLicensee, WatcherServiceRequest::new);
         this.lifeCycleService = lifeCycleService;
     }
 

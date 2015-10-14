@@ -18,7 +18,7 @@ public class LicenseModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(LicenseService.class).asEagerSingleton();
+        bind(WatcherLicensee.class).asEagerSingleton();
     }
 
     private void verifyLicensePlugin() {

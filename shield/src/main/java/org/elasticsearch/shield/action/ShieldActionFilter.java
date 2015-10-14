@@ -74,7 +74,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +
                     "operations are blocked on shield license expiration. All data operations (read and write) continue to work. \n" +
                     "If you have a new license, please update it. Otherwise, please reach out to your support contact.", action);
-            throw LicenseUtils.newExpirationException(ShieldPlugin.NAME);
+            throw LicenseUtils.newComplianceException(ShieldPlugin.NAME);
         }
 
         try {

@@ -61,7 +61,7 @@ import org.elasticsearch.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInputFactory;
-import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
@@ -146,7 +146,7 @@ public class WatchTests extends ESTestCase {
     private HtmlSanitizer htmlSanitizer;
     private HttpAuthRegistry authRegistry;
     private SecretService secretService;
-    private LicenseService licenseService;
+    private WatcherLicensee watcherLicensee;
     private ESLogger logger;
     private Settings settings = Settings.EMPTY;
 
@@ -159,7 +159,7 @@ public class WatchTests extends ESTestCase {
         templateEngine = mock(TextTemplateEngine.class);
         htmlSanitizer = mock(HtmlSanitizer.class);
         secretService = mock(SecretService.class);
-        licenseService = mock(LicenseService.class);
+        watcherLicensee = mock(WatcherLicensee.class);
         authRegistry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(secretService)));
         logger = Loggers.getLogger(WatchTests.class);
     }
@@ -455,11 +455,11 @@ public class WatchTests extends ESTestCase {
                     break;
             }
         }
-        return new ActionRegistry(unmodifiableMap(parsers), transformRegistry, SystemClock.INSTANCE, licenseService);
+        return new ActionRegistry(unmodifiableMap(parsers), transformRegistry, SystemClock.INSTANCE, watcherLicensee);
     }
 
     private ActionThrottler randomThrottler() {
-        return new ActionThrottler(SystemClock.INSTANCE, randomBoolean() ? null : TimeValue.timeValueMinutes(randomIntBetween(3, 5)), licenseService);
+        return new ActionThrottler(SystemClock.INSTANCE, randomBoolean() ? null : TimeValue.timeValueMinutes(randomIntBetween(3, 5)), watcherLicensee);
     }
 
     static class ParseOnlyScheduleTriggerEngine extends ScheduleTriggerEngine {

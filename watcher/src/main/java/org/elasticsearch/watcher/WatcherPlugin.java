@@ -34,7 +34,7 @@ import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.input.InputModule;
 import org.elasticsearch.watcher.license.LicenseModule;
-import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.rest.action.*;
 import org.elasticsearch.watcher.shield.ShieldIntegration;
 import org.elasticsearch.watcher.shield.WatcherShieldModule;
@@ -143,7 +143,7 @@ public class WatcherPlugin extends Plugin {
             // as other services may depend on one of the initialized
             // constructs
             InitializingService.class,
-            LicenseService.class,
+            WatcherLicensee.class,
             InternalEmailService.class,
             InternalHipChatService.class,
             InternalSlackService.class,

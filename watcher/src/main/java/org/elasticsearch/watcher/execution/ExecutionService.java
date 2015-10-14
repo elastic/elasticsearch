@@ -18,6 +18,7 @@ import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.watcher.transform.Transform;
@@ -353,7 +354,6 @@ public class ExecutionService extends AbstractComponent {
         }
 
         if (conditionResult.met()) {
-
             if (watch.actions().count() > 0 && watch.transform() != null) {
                 ctx.beforeWatchTransform();
                 Transform.Result transformResult = watch.transform().execute(ctx, ctx.payload());

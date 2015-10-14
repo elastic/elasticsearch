@@ -5,10 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.throttler;
 
-import org.elasticsearch.watcher.actions.throttler.AckThrottler;
-import org.elasticsearch.watcher.actions.throttler.PeriodThrottler;
-import org.elasticsearch.watcher.actions.throttler.Throttler;
-import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.common.Nullable;
@@ -21,18 +18,18 @@ public class ActionThrottler implements Throttler {
 
     private static final AckThrottler ACK_THROTTLER = new AckThrottler();
 
-    private final LicenseService licenseService;
+    private final WatcherLicensee watcherLicensee;
     private final PeriodThrottler periodThrottler;
     private final AckThrottler ackThrottler;
 
-    public ActionThrottler(Clock clock, @Nullable TimeValue throttlePeriod, LicenseService licenseService) {
-        this(new PeriodThrottler(clock, throttlePeriod), ACK_THROTTLER, licenseService);
+    public ActionThrottler(Clock clock, @Nullable TimeValue throttlePeriod, WatcherLicensee watcherLicensee) {
+        this(new PeriodThrottler(clock, throttlePeriod), ACK_THROTTLER, watcherLicensee);
     }
 
-    ActionThrottler(PeriodThrottler periodThrottler, AckThrottler ackThrottler, LicenseService licenseService) {
+    ActionThrottler(PeriodThrottler periodThrottler, AckThrottler ackThrottler, WatcherLicensee watcherLicensee) {
         this.periodThrottler = periodThrottler;
         this.ackThrottler = ackThrottler;
-        this.licenseService = licenseService;
+        this.watcherLicensee = watcherLicensee;
     }
 
     public TimeValue throttlePeriod() {
@@ -41,8 +38,8 @@ public class ActionThrottler implements Throttler {
 
     @Override
     public Result throttle(String actionId, WatchExecutionContext ctx) {
-        if (!licenseService.enabled()) {
-            return Result.throttle("watcher license expired");
+        if (!watcherLicensee.isExecutingActionsAllowed()) {
+            return Result.throttle("watcher license does not allow action execution");
         }
         if (periodThrottler != null) {
             Result throttleResult = periodThrottler.throttle(actionId, ctx);

@@ -26,7 +26,7 @@ import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.execution.ManualExecutionContext;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
@@ -57,9 +57,9 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     @Inject
     public TransportExecuteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, ExecutionService executionService,
-                                       Clock clock, LicenseService licenseService, WatchStore watchStore, TriggerService triggerService,
+                                       Clock clock, WatcherLicensee watcherLicensee, WatchStore watchStore, TriggerService triggerService,
                                        Watch.Parser watchParser) {
-        super(settings, ExecuteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, ExecuteWatchRequest::new);
+        super(settings, ExecuteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, watcherLicensee, ExecuteWatchRequest::new);
         this.executionService = executionService;
         this.watchStore = watchStore;
         this.clock = clock;

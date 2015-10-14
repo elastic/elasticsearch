@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.WatcherService;
-import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.watcher.watch.WatchStore;
 
@@ -33,8 +33,8 @@ public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWat
     @Inject
     public TransportDeleteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters,  IndexNameExpressionResolver indexNameExpressionResolver,
-                                      WatcherService watcherService, LicenseService licenseService) {
-        super(settings, DeleteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, DeleteWatchRequest::new);
+                                      WatcherService watcherService, WatcherLicensee watcherLicensee) {
+        super(settings, DeleteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, watcherLicensee, DeleteWatchRequest::new);
         this.watcherService = watcherService;
     }
 

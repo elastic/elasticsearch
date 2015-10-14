@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.license.WatcherLicensee;
 
 import java.util.function.Supplier;
 
@@ -25,21 +25,21 @@ import java.util.function.Supplier;
  */
 public abstract class WatcherTransportAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends TransportMasterNodeAction<Request, Response> {
 
-    private final LicenseService licenseService;
+    protected final WatcherLicensee watcherLicensee;
 
     public WatcherTransportAction(Settings settings, String actionName, TransportService transportService,
                                   ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver, LicenseService licenseService,  Supplier<Request> request) {
+                                  IndexNameExpressionResolver indexNameExpressionResolver, WatcherLicensee watcherLicensee,  Supplier<Request> request) {
         super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
-        this.licenseService = licenseService;
+        this.watcherLicensee = watcherLicensee;
     }
 
     @Override
     protected void doExecute(Request request, ActionListener<Response> listener) {
-        if (licenseService.enabled()) {
+        if (watcherLicensee.isWatcherTransportActionAllowed()) {
             super.doExecute(request, listener);
         } else {
-            listener.onFailure(LicenseUtils.newExpirationException(LicenseService.FEATURE_NAME));
+            listener.onFailure(LicenseUtils.newComplianceException(WatcherLicensee.ID));
         }
     }
 }

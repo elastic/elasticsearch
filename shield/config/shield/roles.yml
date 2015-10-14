@@ -34,7 +34,7 @@ kibana4:
     '*':
       privileges: indices:admin/mappings/fields/get, indices:admin/validate/query, indices:data/read/search, indices:data/read/msearch, indices:admin/get
     '.kibana':
-      privileges: indices:admin/exists, indices:admin/mapping/put, indices:admin/mappings/fields/get, indices:admin/refresh, indices:admin/validate/query, indices:data/read/get, indices:data/read/mget, indices:data/read/search, indices:data/write/delete, indices:data/write/index, indices:data/write/update, indices:admin/create
+      privileges: indices:admin/exists, indices:admin/mapping/put, indices:admin/mappings/fields/get, indices:admin/refresh, indices:admin/validate/query, indices:data/read/get, indices:data/read/mget, indices:data/read/search, indices:data/write/delete, indices:data/write/index, indices:data/write/update
 
 # The required permissions for the kibana 4 server
 kibana4_server:
@@ -43,7 +43,7 @@ kibana4_server:
       - cluster:monitor/health
   indices:
     '.kibana':
-      privileges: indices:admin/exists, indices:admin/mapping/put, indices:admin/mappings/fields/get, indices:admin/refresh, indices:admin/validate/query, indices:data/read/get, indices:data/read/mget, indices:data/read/search, indices:data/write/delete, indices:data/write/index, indices:data/write/update
+      privileges: indices:admin/create, indices:admin/exists, indices:admin/mapping/put, indices:admin/mappings/fields/get, indices:admin/refresh, indices:admin/validate/query, indices:data/read/get, indices:data/read/mget, indices:data/read/search, indices:data/write/delete, indices:data/write/index, indices:data/write/update
 
 # The required role for logstash users
 logstash:
@@ -51,3 +51,17 @@ logstash:
   indices:
     'logstash-*':
       privileges: indices:data/write/bulk, indices:data/write/delete, indices:data/write/update, indices:data/read/search, indices:data/read/scroll, create_index
+
+# Marvel user role. Assign to marvel users.
+marvel_user:
+  indices:
+    '.marvel-es-*':
+      privileges: read
+
+# Marvel remote agent role. Assign to the agent user on the remote marvel cluster
+# to which the marvel agent will export all its data
+remote_marvel_agent:
+  cluster: indices:admin/template/put, indices:admin/template/get
+  indices:
+    '.marvel-es-*':
+      privileges: all

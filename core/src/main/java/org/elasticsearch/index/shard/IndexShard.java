@@ -909,6 +909,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     /** Records timestamp of the last write operation, possibly switching {@code active} to true if we were inactive. */
     private void markLastWrite(Engine.Operation op) {
         lastWriteNS = op.startTime();
+        active.set(true);
     }
 
     private void ensureWriteAllowed(Engine.Operation op) throws IllegalIndexShardStateException {

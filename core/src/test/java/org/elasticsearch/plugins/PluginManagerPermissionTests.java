@@ -288,7 +288,7 @@ public class PluginManagerPermissionTests extends ESTestCase {
         assumeTrue("File system does not support permissions, skipping", supportsPermissions);
         URL pluginUrl = createPlugin(true, false);
         PluginManager pluginManager = new PluginManager(environment, pluginUrl, PluginManager.OutputMode.VERBOSE, TimeValue.timeValueSeconds(10));
-        pluginManager.downloadAndExtract(pluginName, terminal);
+        pluginManager.downloadAndExtract(pluginName, terminal, true);
         PosixFileAttributes parentFileAttributes = Files.getFileAttributeView(environment.binFile(), PosixFileAttributeView.class).readAttributes();
         Path binPath = environment.binFile().resolve(pluginName);
         PosixFileAttributes pluginBinDirAttributes = Files.getFileAttributeView(binPath, PosixFileAttributeView.class).readAttributes();

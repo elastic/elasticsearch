@@ -124,8 +124,10 @@ Read more in {ref}/integration-tests.html#changing-node-configuration[Changing N
 
 Some plugins may need additional security permissions. A plugin can include
 the optional `plugin-security.policy` file containing `grant` statements for 
-additional permissions. These permissions will be displayed to the user and
-they will have to confirm them when installing the plugin interactively.
+additional permissions. Any additional permissions will be displayed to the user 
+with a large warning, and they will have to confirm them when installing the 
+plugin interactively. So if possible, it is best to avoid requesting any
+spurious permissions!
 
 If you are using the elasticsearch Maven build system, place this file in
 `src/main/plugin-metadata` and it will be applied during unit tests as well.
@@ -138,6 +140,9 @@ from gaining escalated permissions. For example:
 
 [source,java]
 --------------------------------------------------
+// ES permission you should check before doPrivileged() blocks
+import org.elasticsearch.SpecialPermission;
+
 SecurityManager sm = System.getSecurityManager();
 if (sm != null) {
   // unprivileged code such as scripts do not have SpecialPermission

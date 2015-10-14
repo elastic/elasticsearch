@@ -272,10 +272,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 assertThat(termQuery.getTerm().field(), equalTo(fields.next()));
                 assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(queryBuilder.value().toLowerCase(Locale.ROOT)));
             }
-
-            if (queryBuilder.minimumShouldMatch() != null) {
-                assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
-            }
         } else if (queryBuilder.fields().size() <= 1) {
             assertTrue("Query should have been TermQuery but was " + query.getClass().getName(), query instanceof TermQuery);
 
@@ -298,7 +294,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         //boost may get parsed from the random query, we then combine the main boost with that one coming from lucene
         //instead of trying to reparse the query and guess what the boost should be, we delegate boost checks to specific boost tests below
     }
-
 
     private int shouldClauses(BooleanQuery query) {
         int result = 0;
@@ -326,5 +321,62 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         query = simpleQueryStringBuilder.toQuery(shardContext);
         assertThat(query, instanceOf(TermQuery.class));
         assertThat(query.getBoost(), equalTo(10f));
+    }
+
+    @Test
+    public void testMinimumShouldMatch() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext shardContext = createShardContext();
+        SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
+        simpleQueryStringBuilder.field(STRING_FIELD_NAME);
+        simpleQueryStringBuilder.minimumShouldMatch("70%");
+
+        // one field and one term should be reduced to simple term query
+        TermQuery termQuery = (TermQuery) simpleQueryStringBuilder.toQuery(shardContext);
+
+        // one field and two terms should result in boolean query
+        simpleQueryStringBuilder = new SimpleQueryStringBuilder("test me");
+        simpleQueryStringBuilder.field(STRING_FIELD_NAME);
+        simpleQueryStringBuilder.minimumShouldMatch("70%");
+
+        BooleanQuery query = (BooleanQuery) simpleQueryStringBuilder.toQuery(shardContext);
+        assertEquals("expected two should clauses", 2, query.clauses().size());
+        assertEquals("minimum should match should be 1", 1, query.getMinimumNumberShouldMatch());
+
+        // one field and three terms should result in boolean query
+        simpleQueryStringBuilder = new SimpleQueryStringBuilder("test me too");
+        simpleQueryStringBuilder.field(STRING_FIELD_NAME);
+        simpleQueryStringBuilder.minimumShouldMatch("70%");
+
+        query = (BooleanQuery) simpleQueryStringBuilder.toQuery(shardContext);
+        assertEquals("expected two should clauses", 3, query.clauses().size());
+        assertEquals("minimum should match should be 1", 2, query.getMinimumNumberShouldMatch());
+
+        // two fields and three terms should result in boolean query with two clauses
+        simpleQueryStringBuilder = new SimpleQueryStringBuilder("test me too");
+        simpleQueryStringBuilder.field(STRING_FIELD_NAME);
+        simpleQueryStringBuilder.field("f1");
+        simpleQueryStringBuilder.minimumShouldMatch("70%");
+
+        query = (BooleanQuery) simpleQueryStringBuilder.toQuery(shardContext);
+        assertEquals("expected two should clauses", 2, query.clauses().size());
+        assertEquals("minimum should match of outer query should be 0", 0, query.getMinimumNumberShouldMatch());
+        for (BooleanClause clause : query.clauses()) {
+            assertEquals("subclauses should have minimum_match 2", 2, ((BooleanQuery) clause.getQuery()).getMinimumNumberShouldMatch());
+        }
+
+        // three fields and one term should result in boolean query with three clauses
+        simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
+        simpleQueryStringBuilder.field(STRING_FIELD_NAME);
+        simpleQueryStringBuilder.field("f1");
+        simpleQueryStringBuilder.field("f2");
+        simpleQueryStringBuilder.minimumShouldMatch("70%");
+
+        query = (BooleanQuery) simpleQueryStringBuilder.toQuery(shardContext);
+        assertEquals("expected two should clauses", 3, query.clauses().size());
+        assertEquals("minimum should match of outer query should be 0", 0, query.getMinimumNumberShouldMatch());
+        for (BooleanClause clause : query.clauses()) {
+            assertThat("subclauses should be simple term queries", clause.getQuery(), instanceOf(TermQuery.class));
+        }
     }
 }

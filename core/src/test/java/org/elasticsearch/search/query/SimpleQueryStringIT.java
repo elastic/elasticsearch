@@ -137,8 +137,30 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         logger.info("--> query 6");
         searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body2").field("other").minimumShouldMatch("70%")).get();
-        assertHitCount(searchResponse, 3l);
-        assertSearchHits(searchResponse, "6", "7", "8");
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "7", "8");
+    }
+
+    /**
+     * Test case from #13884, negative minimum_should_match and non existing fields
+     */
+    public void testNegativeMinimumShouldMatch() throws Exception {
+        createIndex("test");
+        ensureGreen("test");
+        indexRandom(true, false,
+                client().prepareIndex("test", "test", "1").setSource("title", "foo bar"));
+
+        logger.info("--> query 1");
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo")
+                .field("title").field("non-existing-f1").minimumShouldMatch("-50%")).get();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
+
+        logger.info("--> query 2");
+        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo")
+                .field("title").field("non-existing-f1").field("non-existing-f2").minimumShouldMatch("-50%")).get();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
     }
 
     @Test

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
@@ -32,9 +33,12 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SimpleQueryParser.Settings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.TreeMap;
 
@@ -277,17 +281,31 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                 throw new QueryShardException(context, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
                         + "] not found");
             }
-
         }
 
-        SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, settings);
-        sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
-
-        Query query = sqp.parse(queryText);
-        if (minimumShouldMatch != null && query instanceof BooleanQuery) {
-            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+        final List<Query> perFieldQueries = new ArrayList<Query>(resolvedFieldsAndWeights.size());
+        for (Entry<String, Float> entry : resolvedFieldsAndWeights.entrySet()) {
+            Map<String, Float> fieldAndWeight = new HashMap<String, Float>(1);
+            fieldAndWeight.put(entry.getKey(), entry.getValue());
+            SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, fieldAndWeight, flags, settings);
+            sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
+            Query query = sqp.parse(queryText);
+            if (minimumShouldMatch != null && query instanceof BooleanQuery) {
+                query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+            }
+            perFieldQueries.add(query);
         }
-        return query;
+
+        // if only one query, then simplify and return only that one
+        if (perFieldQueries.size() == 1) {
+            return perFieldQueries.get(0);
+        }
+
+        final BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
+        for (Query query : perFieldQueries) {
+            booleanQuery.add(query, BooleanClause.Occur.SHOULD);
+        }
+        return booleanQuery.build();
     }
 
     private static String resolveIndexName(String fieldName, QueryShardContext context) {

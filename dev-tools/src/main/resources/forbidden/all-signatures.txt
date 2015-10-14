@@ -86,3 +86,6 @@ java.net.InetAddress#getHostName()
 java.net.InetAddress#getCanonicalHostName()
 
 java.net.InetSocketAddress#getHostName() @ Use getHostString() instead, which avoids a DNS lookup
+
+@defaultMessage this should not have been added to lucene in the first place
+org.apache.lucene.index.IndexReader#getCombinedCoreAndDeletesKey()

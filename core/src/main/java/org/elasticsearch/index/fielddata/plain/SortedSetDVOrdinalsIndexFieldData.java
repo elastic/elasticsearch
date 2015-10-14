@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticsearchException;
@@ -61,7 +62,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global
             return this;
@@ -78,7 +79,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger);
     }
 }

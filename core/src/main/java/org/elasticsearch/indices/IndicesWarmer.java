@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -178,6 +179,10 @@ public final class IndicesWarmer extends AbstractComponent {
 
         public IndexReader reader() {
             return searcher.reader();
+        }
+
+        public DirectoryReader getDirectoryReader() {
+            return searcher.getDirectoryReader();
         }
 
         @Override

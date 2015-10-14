@@ -19,12 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiDocValues;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
@@ -248,13 +246,28 @@ public class HasChildQueryParser implements QueryParser {
 
         @Override
         public Query rewrite(IndexReader reader) throws IOException {
-            IndexSearcher indexSearcher = new IndexSearcher(reader);
-            indexSearcher.setQueryCache(null);
-            String joinField = ParentFieldMapper.joinField(parentType);
-            IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal(indexSearcher.getIndexReader());
-            MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);
-            return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode, ordinalMap, minChildren, maxChildren);
+            if (getBoost() != 1.0F) {
+                return super.rewrite(reader);
+            }
+            if (reader instanceof DirectoryReader) {
+                IndexSearcher indexSearcher = new IndexSearcher(reader);
+                indexSearcher.setQueryCache(null);
+                String joinField = ParentFieldMapper.joinField(parentType);
+                IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal((DirectoryReader)reader);
+                MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);
+                return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode, ordinalMap, minChildren, maxChildren);
+            } else {
+                if (reader.leaves().isEmpty() && reader.numDocs() == 0) {
+                    // asserting reader passes down a MultiReader during rewrite which makes this
+                    // blow up since for this query to work we have to have a DirectoryReader otherwise
+                    // we can't load global ordinals - for this to work we simply check if the reader has no leaves
+                    // and rewrite to match nothing
+                    return new MatchNoDocsQuery();
+                }
+                throw new IllegalStateException("can't load global ordinals for reader of type: " + reader.getClass() + " must be a DirectoryReader");
+            }
         }
+
 
         // Even though we only cache rewritten queries it is good to let all queries implement hashCode() and equals():
 

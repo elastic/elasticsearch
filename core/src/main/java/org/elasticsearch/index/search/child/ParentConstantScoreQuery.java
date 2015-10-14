@@ -18,10 +18,7 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSet;
@@ -76,7 +73,7 @@ public class ParentConstantScoreQuery extends IndexCacheableQuery {
 
     @Override
     public Weight doCreateWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
+        IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal((DirectoryReader)searcher.getIndexReader());
 
         final long maxOrd;
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();

@@ -321,7 +321,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     }
 
     @Override
-    public IndexParentChildFieldData loadGlobal(IndexReader indexReader) {
+    public IndexParentChildFieldData loadGlobal(DirectoryReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global
             return this;
@@ -356,7 +356,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     }
 
     @Override
-    public IndexParentChildFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexParentChildFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         final long startTime = System.nanoTime();
         final Set<String> parentTypes;
         if (Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1)) {
@@ -541,7 +541,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public IndexParentChildFieldData loadGlobal(IndexReader indexReader) {
+        public IndexParentChildFieldData loadGlobal(DirectoryReader indexReader) {
             if (indexReader.getCoreCacheKey() == reader.getCoreCacheKey()) {
                 return this;
             }
@@ -549,7 +549,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public IndexParentChildFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+        public IndexParentChildFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
             return loadGlobal(indexReader);
         }
 

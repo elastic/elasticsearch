@@ -21,7 +21,7 @@ import java.util.Map.Entry;
  */
 public class AuthenticationModule extends AbstractShieldModule.Node {
 
-    private static final List<String> INTERNAL_REALM_TYPES = Arrays.asList(ESUsersRealm.TYPE, ActiveDirectoryRealm.TYPE, LdapRealm.TYPE, PkiRealm.TYPE);
+    static final List<String> INTERNAL_REALM_TYPES = Arrays.asList(ESUsersRealm.TYPE, ActiveDirectoryRealm.TYPE, LdapRealm.TYPE, PkiRealm.TYPE);
 
     private final Map<String, Class<? extends Realm.Factory<? extends Realm<? extends AuthenticationToken>>>> customRealms = new HashMap<>();
 

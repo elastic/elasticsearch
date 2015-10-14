@@ -11,6 +11,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.ldap.LdapRealm;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
@@ -20,6 +22,7 @@ import java.util.*;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  *
@@ -28,6 +31,7 @@ public class RealmsTests extends ESTestCase {
 
     private Map<String, Realm.Factory> factories;
     private ShieldSettingsFilter settingsFilter;
+    private ShieldLicenseState shieldLicenseState;
 
     @Before
     public void init() throws Exception {
@@ -38,6 +42,8 @@ public class RealmsTests extends ESTestCase {
             factories.put("type_" + i, factory);
         }
         settingsFilter = mock(ShieldSettingsFilter.class);
+        shieldLicenseState = mock(ShieldLicenseState.class);
+        when(shieldLicenseState.customRealmsEnabled()).thenReturn(true);
     }
 
     @Test
@@ -57,7 +63,7 @@ public class RealmsTests extends ESTestCase {
         }
         Settings settings = builder.build();
         Environment env = new Environment(settings);
-        Realms realms = new Realms(settings, env, factories, settingsFilter);
+        Realms realms = new Realms(settings, env, factories, settingsFilter, shieldLicenseState);
         realms.start();
         int i = 0;
         for (Realm realm : realms) {
@@ -79,12 +85,13 @@ public class RealmsTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         Environment env = new Environment(settings);
-        new Realms(settings, env, factories, settingsFilter).start();
+        new Realms(settings, env, factories, settingsFilter, shieldLicenseState).start();
     }
 
     @Test
     public void testWithEmptySettings() throws Exception {
-        Realms realms = new Realms(Settings.EMPTY, new Environment(Settings.builder().put("path.home", createTempDir()).build()), factories, settingsFilter);
+        Realms realms = new Realms(Settings.EMPTY, new Environment(Settings.builder().put("path.home", createTempDir()).build()),
+                factories, settingsFilter, shieldLicenseState);
         realms.start();
         Iterator<Realm> iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
@@ -93,6 +100,76 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm.type(), equalTo(ESUsersRealm.TYPE));
         assertThat(realm.name(), equalTo("default_" + ESUsersRealm.TYPE));
         assertThat(iter.hasNext(), is(false));
+    }
+
+    @Test
+    public void testUnlicensedWithOnlyCustomRealms() throws Exception {
+        Settings.Builder builder = Settings.builder()
+                .put("path.home", createTempDir());
+        List<Integer> orders = new ArrayList<>(factories.size() - 1);
+        for (int i = 0; i < factories.size() - 1; i++) {
+            orders.add(i);
+        }
+        Collections.shuffle(orders, getRandom());
+        Map<Integer, Integer> orderToIndex = new HashMap<>();
+        for (int i = 0; i < factories.size() - 1; i++) {
+            builder.put("shield.authc.realms.realm_" + i + ".type", "type_" + i);
+            builder.put("shield.authc.realms.realm_" + i + ".order", orders.get(i));
+            orderToIndex.put(orders.get(i), i);
+        }
+        Settings settings = builder.build();
+        Environment env = new Environment(settings);
+        Realms realms = new Realms(settings, env, factories, settingsFilter, shieldLicenseState);
+        realms.start();
+        int i = 0;
+        // this is the iterator when licensed
+        for (Realm realm : realms) {
+            assertThat(realm.order(), equalTo(i));
+            int index = orderToIndex.get(i);
+            assertThat(realm.type(), equalTo("type_" + index));
+            assertThat(realm.name(), equalTo("realm_" + index));
+            i++;
+        }
+
+        i = 0;
+        when(shieldLicenseState.customRealmsEnabled()).thenReturn(false);
+        for (Realm realm : realms) {
+            assertThat(realm.type, is(ESUsersRealm.TYPE));
+            i++;
+        }
+        assertThat(i, is(1));
+    }
+
+    @Test
+    public void testUnlicensedWithInternalRealms() throws Exception {
+        factories.put(LdapRealm.TYPE, new DummyRealm.Factory(LdapRealm.TYPE, false));
+        assertThat(factories.get("type_1"), notNullValue());
+        Settings.Builder builder = Settings.builder()
+                .put("path.home", createTempDir())
+                .put("shield.authc.realms.foo.type", "ldap")
+                .put("shield.authc.realms.foo.order", "0")
+                .put("shield.authc.realms.custom.type", "type_1")
+                .put("shield.authc.realms.custom.order", "1");
+        Settings settings = builder.build();
+        Environment env = new Environment(settings);
+        Realms realms = new Realms(settings, env, factories, settingsFilter, shieldLicenseState);
+        realms.start();
+        int i = 0;
+        // this is the iterator when licensed
+        List<String> types = new ArrayList<>();
+        for (Realm realm : realms) {
+            i++;
+            types.add(realm.type());
+        }
+        assertThat(types, contains("ldap", "type_1"));
+
+        i = 0;
+        when(shieldLicenseState.customRealmsEnabled()).thenReturn(false);
+        for (Realm realm : realms) {
+            assertThat(realm.type, is("ldap"));
+            i++;
+        }
+        assertThat(i, is(1));
     }
 
     @Test
@@ -117,7 +194,7 @@ public class RealmsTests extends ESTestCase {
         }
         Settings settings = builder.build();
         Environment env = new Environment(settings);
-        Realms realms = new Realms(settings, env, factories, mock(ShieldSettingsFilter.class));
+        Realms realms = new Realms(settings, env, factories, mock(ShieldSettingsFilter.class), shieldLicenseState);
         realms.start();
         Iterator<Realm> iterator = realms.iterator();
 

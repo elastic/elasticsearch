@@ -63,7 +63,8 @@ public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> im
                         case BASIC:
                         case PLATINUM:
                             return new String[] {
-                                    "Field and document level access control will be disabled"
+                                    "Field and document level access control will be disabled",
+                                    "Custom realms will be ignored"
                             };
                     }
                 }

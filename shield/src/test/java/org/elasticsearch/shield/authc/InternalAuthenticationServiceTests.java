@@ -18,6 +18,7 @@ import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.crypto.CryptoService;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.TransportMessage;
@@ -28,7 +29,6 @@ import org.junit.rules.ExpectedException;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.shield.support.Exceptions.authenticationError;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthenticationException;
@@ -61,15 +61,20 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         message = new InternalMessage();
         restRequest = new FakeRestRequest();
         firstRealm = mock(Realm.class);
-        when(firstRealm.type()).thenReturn("first");
+        when(firstRealm.type()).thenReturn("esusers");
         secondRealm = mock(Realm.class);
         when(secondRealm.type()).thenReturn("second");
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        realms = new Realms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(), mock(ShieldSettingsFilter.class)) {
+        ShieldLicenseState shieldLicenseState = mock(ShieldLicenseState.class);
+        when(shieldLicenseState.customRealmsEnabled()).thenReturn(true);
+        realms = new Realms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(), mock(ShieldSettingsFilter.class), shieldLicenseState) {
+
             @Override
-            protected List<Realm> initRealms() {
-                return Arrays.asList(firstRealm, secondRealm);
+            protected void doStart() {
+                this.realms = Arrays.asList(firstRealm, secondRealm);
+                this.internalRealmsOnly = Collections.singletonList(firstRealm);
             }
+
         };
         realms.start();
         cryptoService = mock(CryptoService.class);
@@ -127,7 +132,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         User result = service.authenticate("_action", message, null);
         assertThat(result, notNullValue());
         assertThat(result, is(user));
-        verify(auditTrail).authenticationFailed("first", token, "_action", message);
+        verify(auditTrail).authenticationFailed("esusers", token, "_action", message);
         assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), notNullValue());
         assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), sameInstance((Object) user));
         assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_encoded_user"));

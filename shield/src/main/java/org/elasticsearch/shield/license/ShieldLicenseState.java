@@ -44,6 +44,14 @@ public class ShieldLicenseState {
         return status.getMode() == OperationMode.PLATINUM || status.getMode() == OperationMode.TRIAL;
     }
 
+    /**
+     * @return true if the license enables the use of custom authentication realms
+     */
+    public boolean customRealmsEnabled() {
+        Status status = this.status;
+        return status.getMode() == OperationMode.PLATINUM || status.getMode() == OperationMode.TRIAL;
+    }
+
     void updateStatus(Status status) {
         this.status = status;
     }

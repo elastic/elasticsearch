@@ -41,6 +41,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.closeTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class MissingValueIT extends ESIntegTestCase {
@@ -198,7 +199,8 @@ public class MissingValueIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx").addAggregation(geoCentroid("centroid").field("location").missing("2,1")).get();
         assertSearchResponse(response);
         GeoCentroid centroid = response.getAggregations().get("centroid");
-        assertEquals(new GeoPoint(1.5, 1.5), centroid.centroid());
+        GeoPoint point = new GeoPoint(1.5, 1.5);
+        assertThat(point.lat(), closeTo(centroid.centroid().lat(), 1E-5));
+        assertThat(point.lon(), closeTo(centroid.centroid().lon(), 1E-5));
     }
-
 }

@@ -84,7 +84,8 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();
-        assertThat(centroid, equalTo(singleCentroid));
+        assertThat(centroid.lat(), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
+        assertThat(centroid.lon(), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
     }
 
     @Test
@@ -99,7 +100,8 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();
-        assertThat(centroid, equalTo(singleCentroid));
+        assertThat(centroid.lat(), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
+        assertThat(centroid.lon(), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
     }
 
     @Test
@@ -122,10 +124,12 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(geoCentroid.getName(), equalTo(aggName));
         assertThat((GeoCentroid) global.getProperty(aggName), sameInstance(geoCentroid));
         GeoPoint centroid = geoCentroid.centroid();
-        assertThat(centroid, equalTo(singleCentroid));
-        assertThat((GeoPoint) global.getProperty(aggName + ".value"), equalTo(singleCentroid));
-        assertThat((double) global.getProperty(aggName + ".lat"), closeTo(singleCentroid.lat(), 1e-5));
-        assertThat((double) global.getProperty(aggName + ".lon"), closeTo(singleCentroid.lon(), 1e-5));
+        assertThat(centroid.lat(), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
+        assertThat(centroid.lon(), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
+        assertThat(((GeoPoint) global.getProperty(aggName + ".value")).lat(), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
+        assertThat(((GeoPoint) global.getProperty(aggName + ".value")).lon(), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
+        assertThat((double) global.getProperty(aggName + ".lat"), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
+        assertThat((double) global.getProperty(aggName + ".lon"), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
     }
 
     @Test
@@ -140,7 +144,8 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();
-        assertThat(centroid, equalTo(multiCentroid));
+        assertThat(centroid.lat(), closeTo(multiCentroid.lat(), GEOHASH_TOLERANCE));
+        assertThat(centroid.lon(), closeTo(multiCentroid.lon(), GEOHASH_TOLERANCE));
     }
 
     @Test
@@ -160,7 +165,10 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
             String geohash = cell.getKeyAsString();
             GeoPoint expectedCentroid = expectedCentroidsForGeoHash.get(geohash);
             GeoCentroid centroidAgg = cell.getAggregations().get(aggName);
-            assertEquals("Geohash " + geohash + " has wrong centroid ", expectedCentroid, centroidAgg.centroid());
+            assertThat("Geohash " + geohash + " has wrong centroid latitude ", expectedCentroid.lat(),
+                    closeTo(centroidAgg.centroid().lat(), GEOHASH_TOLERANCE));
+            assertThat("Geohash " + geohash + " has wrong centroid longitude", expectedCentroid.lon(),
+                    closeTo(centroidAgg.centroid().lon(), GEOHASH_TOLERANCE));
         }
     }
 }

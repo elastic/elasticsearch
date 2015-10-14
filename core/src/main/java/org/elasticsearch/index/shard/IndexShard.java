@@ -189,11 +189,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     private final IndexSearcherWrapper searcherWrapper;
 
-    /** True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
-     *  IndexingMemoryController}). */
-    private final AtomicBoolean active = new AtomicBoolean();
-
-    private volatile long lastWriteNS;
     private final IndexingMemoryController indexingMemoryController;
 
     @Inject
@@ -253,9 +248,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
             percolatorQueriesRegistry.enableRealTimePercolator();
         }
-
-        // We start up inactive
-        active.set(false);
     }
 
     public Store store() {
@@ -458,7 +450,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
      */
     public boolean index(Engine.Index index) {
         ensureWriteAllowed(index);
-        markLastWrite(index);
         index = indexingService.preIndex(index);
         final boolean created;
         try {
@@ -483,7 +474,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public void delete(Engine.Delete delete) {
         ensureWriteAllowed(delete);
-        markLastWrite(delete);
         delete = indexingService.preDelete(delete);
         try {
             if (logger.isTraceEnabled()) {
@@ -893,22 +883,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         }
     }
 
-    /** Returns timestamp of last indexing operation */
-    public long getLastWriteNS() {
-        return lastWriteNS;
-    }
-
-    /** Records timestamp of the last write operation, possibly switching {@code active} to true if we were inactive. */
-    private void markLastWrite(Engine.Operation op) {
-        lastWriteNS = op.startTime();
-        if (active.getAndSet(true) == false) {
-            // We are currently inactive, but a new write operation just showed up, so we now notify IMC
-            // to wake up and fix our indexing buffer.  We could do this async instead, but cost should
-            // be low, and it's rare this happens.
-            indexingMemoryController.forceCheck();
-        }
-    }
-
     private void ensureWriteAllowed(Engine.Operation op) throws IllegalIndexShardStateException {
         Engine.Operation.Origin origin = op.origin();
         IndexShardState state = this.state; // one time volatile read
@@ -972,70 +946,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.failedEngineListener.delegates.add(failedEngineListener);
     }
 
-    /** Change the indexing and translog buffer sizes.  If {@code IndexWriter} is currently using more than
-     *  the new buffering indexing size then we do a refresh to free up the heap. */
-    public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
-
-        final EngineConfig config = engineConfig;
-        final ByteSizeValue preValue = config.getIndexingBufferSize();
-
-        config.setIndexingBufferSize(shardIndexingBufferSize);
-
+    public long getIndexBufferRAMBytesUsed() {
         Engine engine = getEngineOrNull();
         if (engine == null) {
-            logger.debug("updateBufferSize: engine is closed; skipping");
-            return;
+            return 0;
         }
-
-        // update engine if it is already started.
-        if (preValue.bytes() != shardIndexingBufferSize.bytes()) {
-            // so we push changes these changes down to IndexWriter:
-            engine.onSettingsChanged();
-
-            long iwBytesUsed = engine.indexWriterRAMBytesUsed();
-
-            String message = LoggerMessageFormat.format("updating index_buffer_size from [{}] to [{}]; IndexWriter now using [{}] bytes",
-                                                        preValue, shardIndexingBufferSize, iwBytesUsed);
-
-            if (iwBytesUsed > shardIndexingBufferSize.bytes()) {
-                // our allowed buffer was changed to less than we are currently using; we ask IW to refresh
-                // so it clears its buffers (otherwise it won't clear until the next indexing/delete op)
-                logger.debug(message + "; now refresh to clear IndexWriter memory");
-
-                // TODO: should IW have an API to move segments to disk, but not refresh?  Its flush method is protected...
-                try {
-                    refresh("update index buffer");
-                } catch (Throwable e) {
-                    logger.warn("failed to refresh after decreasing index buffer", e);
-                }
-            } else {
-                logger.debug(message);
-            }
-        }
-
-        engine.getTranslog().updateBuffer(shardTranslogBufferSize);
-    }
-
-    /** Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
-     *  indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so.  This returns true
-     *  if the shard is inactive. */
-    public boolean checkIdle(long inactiveTimeNS) {
-        if (System.nanoTime() - lastWriteNS >= inactiveTimeNS) {
-            boolean wasActive = active.getAndSet(false);
-            if (wasActive) {
-                updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
-                logger.debug("shard is now inactive");
-                indicesLifecycle.onShardInactive(this);
-            }
-        }
-
-        return active.get() == false;
-    }
-
-    /** Returns {@code true} if this shard is active (has seen indexing ops in the last {@link
-     *  IndexingMemoryController#SHARD_INACTIVE_TIME_SETTING} (default 5 minutes), else {@code false}. */
-    public boolean getActive() {
-        return active.get();
+        return engine.indexBufferRAMBytesUsed();
     }
 
     public final boolean isFlushOnClose() {
@@ -1163,10 +1079,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
                 config.setCompoundOnFlush(compoundOnFlush);
                 change = true;
             }
-            final String versionMapSize = settings.get(EngineConfig.INDEX_VERSION_MAP_SIZE, config.getVersionMapSizeSetting());
-            if (config.getVersionMapSizeSetting().equals(versionMapSize) == false) {
-                config.setVersionMapSizeSetting(versionMapSize);
-            }
 
             final int maxThreadCount = settings.getAsInt(MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxThreadCount());
             if (maxThreadCount != mergeSchedulerConfig.getMaxThreadCount()) {
@@ -1217,6 +1129,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public PercolateStats percolateStats() {
         return percolatorQueriesRegistry.stats();
+    }
+
+    /**
+     * Asynchronously refreshes the engine for new search operations to reflect the latest
+     * changes.
+     */
+    public void refreshAsync(final String reason) {
+        // nocommit this really is async???
+        engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        refresh(reason);
+                    } catch (EngineClosedException ex) {
+                        // ignore
+                    }
+                }
+            });
     }
 
     class EngineRefresher implements Runnable {

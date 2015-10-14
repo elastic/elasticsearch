@@ -80,7 +80,7 @@ public class TranslogWriter extends TranslogReader {
             writeCheckpoint(headerLength, 0, file.getParent(), fileGeneration, StandardOpenOption.WRITE);
             final TranslogWriter writer = type.create(shardId, fileGeneration, new ChannelReference(file, fileGeneration, channel, onClose), bufferSize);
             return writer;
-        } catch (Throwable throwable){
+        } catch (Throwable throwable) {
             IOUtils.closeWhileHandlingException(channel);
             try {
                 Files.delete(file); // remove the file as well

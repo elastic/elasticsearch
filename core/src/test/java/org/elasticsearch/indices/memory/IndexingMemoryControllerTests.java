@@ -41,115 +41,80 @@ public class IndexingMemoryControllerTests extends ESTestCase {
 
     static class MockController extends IndexingMemoryController {
 
-        final static ByteSizeValue INACTIVE = new ByteSizeValue(-1);
-
-        final Map<ShardId, ByteSizeValue> indexingBuffers = new HashMap<>();
-        final Map<ShardId, ByteSizeValue> translogBuffers = new HashMap<>();
-
-        final Map<ShardId, Long> lastIndexTimeNanos = new HashMap<>();
-        final Set<ShardId> activeShards = new HashSet<>();
-
-        long currentTimeSec = TimeValue.timeValueNanos(System.nanoTime()).seconds();
+        final Map<ShardId, Long> indexBufferRAMBytesUsed = new HashMap<>();
 
         public MockController(Settings settings) {
             super(Settings.builder()
-                            .put(SHARD_INACTIVE_INTERVAL_TIME_SETTING, "200h") // disable it
-                            .put(SHARD_INACTIVE_TIME_SETTING, "1ms") // nearly immediate
+                            .put(SHARD_MEMORY_INTERVAL_TIME_SETTING, "200h") // disable it
                             .put(settings)
                             .build(),
                     null, null, 100 * 1024 * 1024); // fix jvm mem size to 100mb
         }
 
-        public void deleteShard(ShardId id) {
-            indexingBuffers.remove(id);
-            translogBuffers.remove(id);
-        }
-
-        public void assertBuffers(ShardId id, ByteSizeValue indexing, ByteSizeValue translog) {
-            assertThat(indexingBuffers.get(id), equalTo(indexing));
-            assertThat(translogBuffers.get(id), equalTo(translog));
-        }
-
-        public void assertInActive(ShardId id) {
-            assertThat(indexingBuffers.get(id), equalTo(INACTIVE));
-            assertThat(translogBuffers.get(id), equalTo(INACTIVE));
-        }
-
-        @Override
-        protected long currentTimeInNanos() {
-            return TimeValue.timeValueSeconds(currentTimeSec).nanos();
+        public void deleteShard(ShardId shardId) {
+            indexBufferRAMBytesUsed.remove(shardId);
         }
 
         @Override
         protected List<ShardId> availableShards() {
-            return new ArrayList<>(indexingBuffers.keySet());
+            return new ArrayList<>(indexBufferRAMBytesUsed.keySet());
         }
 
         @Override
         protected boolean shardAvailable(ShardId shardId) {
-            return indexingBuffers.containsKey(shardId);
+            return indexBufferRAMBytesUsed.containsKey(shardId);
         }
 
         @Override
-        protected Boolean getShardActive(ShardId shardId) {
-            return activeShards.contains(shardId);
-        }
-
-        @Override
-        protected void updateShardBuffers(ShardId shardId, ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
-            indexingBuffers.put(shardId, shardIndexingBufferSize);
-            translogBuffers.put(shardId, shardTranslogBufferSize);
-        }
-
-        @Override
-        protected Boolean checkIdle(ShardId shardId, long inactiveTimeNS) {
-            Long ns = lastIndexTimeNanos.get(shardId);
-            if (ns == null) {
-                return null;
-            } else if (currentTimeInNanos() - ns >= inactiveTimeNS) {
-                indexingBuffers.put(shardId, INACTIVE);
-                translogBuffers.put(shardId, INACTIVE);
-                activeShards.remove(shardId);
-                return true;
+        protected long getIndexBufferRAMBytesUsed(ShardId shardId) {
+            Long used = indexBufferRAMBytesUsed.get(shardId);
+            if (used == null) {
+                return 0;
             } else {
-                return false;
+                return used;
             }
         }
 
-        public void incrementTimeSec(int sec) {
-            currentTimeSec += sec;
+        @Override
+        public void refreshShardAsync(ShardId shardId) {
+            indexBufferRAMBytesUsed.put(shardId, 0L);
+        }
+
+        public void assertBuffer(ShardId shardId, ByteSizeValue expected) {
+            Long actual = indexBufferRAMBytesUsed.get(shardId);
+            assertEquals(expected.bytes(), actual.longValue());
         }
 
         public void simulateIndexing(ShardId shardId) {
-            lastIndexTimeNanos.put(shardId, currentTimeInNanos());
-            if (indexingBuffers.containsKey(shardId) == false) {
-                // First time we are seeing this shard; start it off with inactive buffers as IndexShard does:
-                indexingBuffers.put(shardId, IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER);
-                translogBuffers.put(shardId, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
+            Long bytes = indexBufferRAMBytesUsed.get(shardId);
+            if (bytes == null) {
+                bytes = 0L;
             }
-            activeShards.add(shardId);
+            // Each doc we index takes up a megabyte!
+            bytes += 1024*1024;
+            indexBufferRAMBytesUsed.put(shardId, bytes);
             forceCheck();
         }
     }
 
     public void testShardAdditionAndRemoval() {
         MockController controller = new MockController(Settings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "10mb")
-                .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "100kb").build());
+                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "4mb").build());
         final ShardId shard1 = new ShardId("test", 1);
         controller.simulateIndexing(shard1);
-        controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB)); // translog is maxed at 64K
+        controller.assertBuffer(shard1, new ByteSizeValue(1, ByteSizeUnit.MB));
+                                
 
         // add another shard
         final ShardId shard2 = new ShardId("test", 2);
         controller.simulateIndexing(shard2);
-        controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
-        controller.assertBuffers(shard2, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
+        controller.assertBuffer(shard1, new ByteSizeValue(1, ByteSizeUnit.MB));
+        controller.assertBuffer(shard2, new ByteSizeValue(1, ByteSizeUnit.MB));
 
         // remove first shard
         controller.deleteShard(shard1);
         controller.forceCheck();
-        controller.assertBuffers(shard2, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB)); // translog is maxed at 64K
+        controller.assertBuffer(shard2, new ByteSizeValue(1, ByteSizeUnit.MB));
 
         // remove second shard
         controller.deleteShard(shard2);
@@ -158,116 +123,62 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         // add a new one
         final ShardId shard3 = new ShardId("test", 3);
         controller.simulateIndexing(shard3);
-        controller.assertBuffers(shard3, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB)); // translog is maxed at 64K
+        controller.assertBuffer(shard3, new ByteSizeValue(1, ByteSizeUnit.MB));
     }
 
     public void testActiveInactive() {
         MockController controller = new MockController(Settings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "10mb")
-                .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "100kb")
-                .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, "5s")
+                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "5mb")
                 .build());
 
         final ShardId shard1 = new ShardId("test", 1);
         controller.simulateIndexing(shard1);
         final ShardId shard2 = new ShardId("test", 2);
         controller.simulateIndexing(shard2);
-        controller.assertBuffers(shard1, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
-        controller.assertBuffers(shard2, new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(50, ByteSizeUnit.KB));
+        controller.assertBuffer(shard1, new ByteSizeValue(1, ByteSizeUnit.MB));
+        controller.assertBuffer(shard2, new ByteSizeValue(1, ByteSizeUnit.MB));
 
-        // index into both shards, move the clock and see that they are still active
         controller.simulateIndexing(shard1);
         controller.simulateIndexing(shard2);
 
-        controller.incrementTimeSec(10);
-        controller.forceCheck();
+        controller.assertBuffer(shard1, new ByteSizeValue(2, ByteSizeUnit.MB));
+        controller.assertBuffer(shard2, new ByteSizeValue(2, ByteSizeUnit.MB));
 
-        // both shards now inactive
-        controller.assertInActive(shard1);
-        controller.assertInActive(shard2);
-
-        // index into one shard only, see it becomes active
+        // index into one shard only, hits the 5mb limit, so shard1 is refreshed
         controller.simulateIndexing(shard1);
-        controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
-        controller.assertInActive(shard2);
+        controller.assertBuffer(shard1, new ByteSizeValue(0, ByteSizeUnit.MB));
+        controller.assertBuffer(shard2, new ByteSizeValue(2, ByteSizeUnit.MB));
 
-        controller.incrementTimeSec(3); // increment but not enough to become inactive
-        controller.forceCheck();
-        controller.assertBuffers(shard1, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
-        controller.assertInActive(shard2);
-
-        controller.incrementTimeSec(3); // increment some more
-        controller.forceCheck();
-        controller.assertInActive(shard1);
-        controller.assertInActive(shard2);
-
-        // index some and shard becomes immediately active
         controller.simulateIndexing(shard2);
-        controller.assertInActive(shard1);
-        controller.assertBuffers(shard2, new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(64, ByteSizeUnit.KB));
-    }
-
-    public void testMinShardBufferSizes() {
-        MockController controller = new MockController(Settings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "10mb")
-                .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "50kb")
-                .put(IndexingMemoryController.MIN_SHARD_INDEX_BUFFER_SIZE_SETTING, "6mb")
-                .put(IndexingMemoryController.MIN_SHARD_TRANSLOG_BUFFER_SIZE_SETTING, "40kb").build());
-
-        assertTwoActiveShards(controller, new ByteSizeValue(6, ByteSizeUnit.MB), new ByteSizeValue(40, ByteSizeUnit.KB));
-    }
-
-    public void testMaxShardBufferSizes() {
-        MockController controller = new MockController(Settings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "10mb")
-                .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "50kb")
-                .put(IndexingMemoryController.MAX_SHARD_INDEX_BUFFER_SIZE_SETTING, "3mb")
-                .put(IndexingMemoryController.MAX_SHARD_TRANSLOG_BUFFER_SIZE_SETTING, "10kb").build());
-
-        assertTwoActiveShards(controller, new ByteSizeValue(3, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.KB));
+        controller.simulateIndexing(shard2);
+        controller.assertBuffer(shard2, new ByteSizeValue(4, ByteSizeUnit.MB));
+        controller.simulateIndexing(shard2);
+        // shard2 used up the full 5 mb and is now cleared:
+        controller.assertBuffer(shard2, new ByteSizeValue(0, ByteSizeUnit.MB));
     }
 
     public void testRelativeBufferSizes() {
         MockController controller = new MockController(Settings.builder()
                 .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "50%")
-                .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "0.5%")
                 .build());
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(50, ByteSizeUnit.MB)));
-        assertThat(controller.translogBufferSize(), equalTo(new ByteSizeValue(512, ByteSizeUnit.KB)));
     }
 
 
     public void testMinBufferSizes() {
         MockController controller = new MockController(Settings.builder()
                 .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "0.001%")
-                .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "0.001%")
-                .put(IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING, "6mb")
-                .put(IndexingMemoryController.MIN_TRANSLOG_BUFFER_SIZE_SETTING, "512kb").build());
+                .put(IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING, "6mb").build());
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
-        assertThat(controller.translogBufferSize(), equalTo(new ByteSizeValue(512, ByteSizeUnit.KB)));
     }
 
     public void testMaxBufferSizes() {
         MockController controller = new MockController(Settings.builder()
                 .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "90%")
-                .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "90%")
-                .put(IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING, "6mb")
-                .put(IndexingMemoryController.MAX_TRANSLOG_BUFFER_SIZE_SETTING, "512kb").build());
+                .put(IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING, "6mb").build());
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
-        assertThat(controller.translogBufferSize(), equalTo(new ByteSizeValue(512, ByteSizeUnit.KB)));
     }
-
-    protected void assertTwoActiveShards(MockController controller, ByteSizeValue indexBufferSize, ByteSizeValue translogBufferSize) {
-        final ShardId shard1 = new ShardId("test", 1);
-        controller.simulateIndexing(shard1);
-        final ShardId shard2 = new ShardId("test", 2);
-        controller.simulateIndexing(shard2);
-        controller.assertBuffers(shard1, indexBufferSize, translogBufferSize);
-        controller.assertBuffers(shard2, indexBufferSize, translogBufferSize);
-
-    }
-
 }

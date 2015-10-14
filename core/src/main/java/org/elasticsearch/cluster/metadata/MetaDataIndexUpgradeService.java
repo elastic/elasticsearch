@@ -125,7 +125,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                                     "index.store.throttle.max_bytes_per_sec",
                                     "index.translog.flush_threshold_size",
                                     "index.translog.fs.buffer_size",
-                                    "index.version_map_size"));
+                                    "index.version_map_size",
+                                    "index.buffer_size"));
 
     /** All known time settings for an index. */
     public static final Set<String> INDEX_TIME_SETTINGS = unmodifiableSet(newHashSet(

@@ -361,8 +361,8 @@ public abstract class Engine implements Closeable {
         stats.addIndexWriterMaxMemoryInBytes(0);
     }
 
-    /** How much heap Lucene's IndexWriter is using */
-    abstract public long indexWriterRAMBytesUsed();
+    /** How much heap is used that would be freed by a refresh */
+    abstract public long indexBufferRAMBytesUsed();
 
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
@@ -460,7 +460,7 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Refreshes the engine for new search operations to reflect the latest
+     * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes.
      */
     public abstract void refresh(String source) throws EngineException;

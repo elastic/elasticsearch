@@ -116,18 +116,6 @@ public final class BufferingTranslogWriter extends TranslogWriter {
         }
     }
 
-
-    public void updateBufferSize(int bufferSize) {
-        try (ReleasableLock lock = writeLock.acquire()) {
-            if (this.buffer.length != bufferSize) {
-                flush();
-                this.buffer = new byte[bufferSize];
-            }
-        } catch (IOException e) {
-            throw new TranslogException(shardId, "failed to flush", e);
-        }
-    }
-
     class WrapperOutputStream extends OutputStream {
 
         @Override

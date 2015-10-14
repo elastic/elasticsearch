@@ -101,6 +101,8 @@ public class InternalEngine extends Engine {
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
+    private volatile boolean refreshing;
+
     private final IndexThrottle throttle;
 
     public InternalEngine(EngineConfig engineConfig, boolean skipInitialTranslogRecovery) throws EngineException {
@@ -295,7 +297,6 @@ public class InternalEngine extends Engine {
     private void updateIndexWriterSettings() {
         try {
             final LiveIndexWriterConfig iwc = indexWriter.getConfig();
-            iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
             iwc.setUseCompoundFile(engineConfig.isCompoundOnFlush());
         } catch (AlreadyClosedException ex) {
             // ignore
@@ -346,7 +347,6 @@ public class InternalEngine extends Engine {
             maybeFailEngine("index", t);
             throw new IndexFailedEngineException(shardId, index.type(), index.id(), t);
         }
-        checkVersionMapRefresh();
         return created;
     }
 
@@ -411,33 +411,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    /**
-     * Forces a refresh if the versionMap is using too much RAM
-     */
-    private void checkVersionMapRefresh() {
-        if (versionMap.ramBytesUsedForRefresh() > config().getVersionMapSize().bytes() && versionMapRefreshPending.getAndSet(true) == false) {
-            try {
-                if (isClosed.get()) {
-                    // no point...
-                    return;
-                }
-                // Now refresh to clear versionMap:
-                engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            refresh("version_table_full");
-                        } catch (EngineClosedException ex) {
-                            // ignore
-                        }
-                    }
-                });
-            } catch (EsRejectedExecutionException ex) {
-                // that is fine too.. we might be shutting down
-            }
-        }
-    }
-
     @Override
     public void delete(Delete delete) throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
@@ -450,7 +423,6 @@ public class InternalEngine extends Engine {
         }
 
         maybePruneDeletedTombstones();
-        checkVersionMapRefresh();
     }
 
     private void maybePruneDeletedTombstones() {
@@ -516,6 +488,7 @@ public class InternalEngine extends Engine {
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
+            refreshing = true;
             searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {
             ensureOpen();
@@ -525,6 +498,8 @@ public class InternalEngine extends Engine {
         } catch (Throwable t) {
             failEngine("refresh failed", t);
             throw new RefreshFailedEngineException(shardId, t);
+        } finally {
+            refreshing = false;
         }
 
         // TODO: maybe we should just put a scheduled job in threadPool?
@@ -782,8 +757,12 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public long indexWriterRAMBytesUsed() {
-        return indexWriter.ramBytesUsed();
+    public long indexBufferRAMBytesUsed() {
+        if (refreshing) {
+            return 0;
+        } else {
+            return indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
+        }
     }
 
     @Override
@@ -1098,8 +1077,6 @@ public class InternalEngine extends Engine {
     public void onSettingsChanged() {
         mergeScheduler.refreshConfig();
         updateIndexWriterSettings();
-        // config().getVersionMapSize() may have changed:
-        checkVersionMapRefresh();
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
         maybePruneDeletedTombstones();
     }

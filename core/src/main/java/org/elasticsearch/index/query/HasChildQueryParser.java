@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.search.Filter;
@@ -255,13 +256,14 @@ public class HasChildQueryParser implements QueryParser {
             }
 
             String joinField = ParentFieldMapper.joinField(parentType);
-            IndexReader indexReader = searchContext.searcher().getIndexReader();
+            final DirectoryReader indexReader = searchContext.searcher().getDirectoryReader();
             IndexSearcher indexSearcher = new IndexSearcher(indexReader);
             indexSearcher.setQueryCache(null);
             IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal(indexReader);
             MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);
             return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode, ordinalMap, minChildren, maxChildren);
         }
+
 
         // Even though we only cache rewritten queries it is good to let all queries implement hashCode() and equals():
 

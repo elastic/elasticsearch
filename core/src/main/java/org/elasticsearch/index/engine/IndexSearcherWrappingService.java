@@ -20,11 +20,15 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.engine.Engine.Searcher;
 
+import java.io.IOException;
 import java.util.Set;
 
 /**
@@ -60,35 +64,86 @@ public final class IndexSearcherWrappingService {
 
     /**
      * If there are configured {@link IndexSearcherWrapper} instances, the {@link IndexSearcher} of the provided engine searcher
-     * gets wrapped and a new {@link Searcher} instances is returned, otherwise the provided {@link Searcher} is returned.
+     * gets wrapped and a new {@link Engine.Searcher} instances is returned, otherwise the provided {@link Engine.Searcher} is returned.
      *
-     * This is invoked each time a {@link Searcher} is requested to do an operation. (for example search)
+     * This is invoked each time a {@link Engine.Searcher} is requested to do an operation. (for example search)
      */
-    public Searcher wrap(EngineConfig engineConfig, final Searcher engineSearcher) throws EngineException {
+    public final Engine.Searcher wrap(EngineConfig engineConfig, final Engine.Searcher engineSearcher) throws IOException {
+        final ElasticsearchDirectoryReader elasticsearchDirectoryReader = ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
+        if (elasticsearchDirectoryReader == null) {
+            throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
+        }
         if (wrapper == null) {
             return engineSearcher;
         }
+        NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
+        DirectoryReader reader = wrapper.wrap(nonClosingReaderWrapper);
+        if (reader != nonClosingReaderWrapper) {
+            if (reader.getCoreCacheKey() != elasticsearchDirectoryReader.getCoreCacheKey()) {
+                throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey, wrappers must override this method and delegate" +
+                        " to the original readers core cache key. Wrapped readers can't be used as cache keys since their are used only per request which would lead to subtle bugs");
+            }
+            if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
+                // prevent that somebody wraps with a non-filter reader
+                throw new IllegalStateException("wrapped directory reader hides actual ElasticsearchDirectoryReader but shouldn't");
+            }
+        }
 
-        DirectoryReader reader = wrapper.wrap((DirectoryReader) engineSearcher.reader());
-        IndexSearcher innerIndexSearcher = new IndexSearcher(reader);
+        final IndexSearcher innerIndexSearcher = new IndexSearcher(reader);
         innerIndexSearcher.setQueryCache(engineConfig.getQueryCache());
         innerIndexSearcher.setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());
         innerIndexSearcher.setSimilarity(engineConfig.getSimilarity());
         // TODO: Right now IndexSearcher isn't wrapper friendly, when it becomes wrapper friendly we should revise this extension point
         // For example if IndexSearcher#rewrite() is overwritten than also IndexSearcher#createNormalizedWeight needs to be overwritten
         // This needs to be fixed before we can allow the IndexSearcher from Engine to be wrapped multiple times
-        IndexSearcher indexSearcher = wrapper.wrap(engineConfig, innerIndexSearcher);
-        if (reader == engineSearcher.reader() && indexSearcher == innerIndexSearcher) {
+        final IndexSearcher indexSearcher = wrapper.wrap(engineConfig, innerIndexSearcher);
+        if (reader == nonClosingReaderWrapper && indexSearcher == innerIndexSearcher) {
             return engineSearcher;
         } else {
             return new Engine.Searcher(engineSearcher.source(), indexSearcher) {
-
                 @Override
                 public void close() throws ElasticsearchException {
-                    engineSearcher.close();
+                    try {
+                        reader().close();
+                        // we close the reader to make sure wrappers can release resources if needed....
+                        // our NonClosingReaderWrapper makes sure that our reader is not closed
+                    } catch (IOException e) {
+                        throw new ElasticsearchException("failed to close reader", e);
+                    } finally {
+                        engineSearcher.close();
+                    }
+
                 }
             };
         }
     }
+
+    private static final class NonClosingReaderWrapper extends FilterDirectoryReader {
+
+        private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return reader;
+                }
+            });
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new NonClosingReaderWrapper(in);
+        }
+
+        @Override
+        protected void doClose() throws IOException {
+            // don't close here - mimic the MultiReader#doClose = false behavior that FilterDirectoryReader doesn't have
+        }
+
+        @Override
+        public Object getCoreCacheKey() {
+            return in.getCoreCacheKey();
+        }
+    }
+
 
 }

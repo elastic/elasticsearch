@@ -55,6 +55,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
@@ -66,6 +67,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionBuilder;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.TestSearchContext;
 import org.junit.AfterClass;
@@ -190,7 +192,7 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
         indexWriter.deleteDocuments(new Term("delete", "me"));
         indexWriter.commit();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
+        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId("foo", 1));
         IndexSearcher searcher = new IndexSearcher(indexReader);
         Engine.Searcher engineSearcher = new Engine.Searcher(
                 ChildrenQueryTests.class.getSimpleName(), searcher
@@ -219,7 +221,7 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
                 }
 
                 indexReader.close();
-                indexReader = DirectoryReader.open(indexWriter.w, true);
+                indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter.w, true), new ShardId("foo", 1));
                 searcher = new IndexSearcher(indexReader);
                 engineSearcher = new Engine.Searcher(
                         ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher
@@ -380,7 +382,7 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
 
         writer.commit();
 
-        IndexReader reader = DirectoryReader.open(writer, true);
+        IndexReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", 1));
         IndexSearcher searcher = new IndexSearcher(reader);
 
         // setup to read the parent/child map

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
@@ -231,11 +231,11 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
                              CircuitBreakerService breakerService, MapperService mapperService);
     }
 
-    public static interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
+    interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
 
-        IndexFieldData<FD> loadGlobal(IndexReader indexReader);
+        IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);
 
-        IndexFieldData<FD> localGlobalDirect(IndexReader indexReader) throws Exception;
+        IndexFieldData<FD> localGlobalDirect(DirectoryReader indexReader) throws Exception;
 
     }
 

@@ -30,6 +30,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ExceptionsHelper;
+import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
@@ -68,10 +69,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private Stage currentState = Stage.NA;
 
+    private final Engine.Searcher engineSearcher;
+
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.reader());
         in = searcher.searcher();
         this.searchContext = searchContext;
+        engineSearcher = searcher;
         setSimilarity(searcher.searcher().getSimilarity(true));
     }
 
@@ -85,7 +89,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     /**
      * Adds a query level collector that runs at {@link Stage#MAIN_QUERY}. Note, supports
-     * {@link org.elasticsearch.common.lucene.search.XCollector} allowing for a callback
+     * {@link Collector} allowing for a callback
      * when collection is done.
      */
     public Map<Class<?>, Collector> queryCollectors() {
@@ -213,5 +217,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } finally {
             searchContext.clearReleasables(Lifetime.COLLECTION);
         }
+    }
+
+    public DirectoryReader getDirectoryReader() {
+        return engineSearcher.getDirectoryReader();
     }
 }

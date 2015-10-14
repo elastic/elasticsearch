@@ -394,12 +394,12 @@ public class CacheTests extends ESTestCase {
     // randomly replace some entries, increasing the weight by 1 for each replacement, then count that the cache size
     // is correct
     public void testReplaceRecomputesSize() {
-        class Key {
-            private int key;
+        class Value {
+            private String value;
             private long weight;
 
-            public Key(int key, long weight) {
-                this.key = key;
+            public Value(String value, long weight) {
+                this.value = value;
                 this.weight = weight;
             }
 
@@ -408,20 +408,20 @@ public class CacheTests extends ESTestCase {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
 
-                Key key1 = (Key) o;
+                Value that = (Value) o;
 
-                return key == key1.key;
+                return value == that.value;
 
             }
 
             @Override
             public int hashCode() {
-                return key;
+                return value.hashCode();
             }
         }
-        Cache<Key, String> cache = CacheBuilder.<Key, String>builder().weigher((k, s) -> k.weight).build();
+        Cache<Integer, Value> cache = CacheBuilder.<Integer, Value>builder().weigher((k, s) -> s.weight).build();
         for (int i = 0; i < numberOfEntries; i++) {
-            cache.put(new Key(i, 1), Integer.toString(i));
+            cache.put(i, new Value(Integer.toString(i), 1));
         }
         assertEquals(numberOfEntries, cache.count());
         assertEquals(numberOfEntries, cache.weight());
@@ -429,7 +429,7 @@ public class CacheTests extends ESTestCase {
         for (int i = 0; i < numberOfEntries; i++) {
             if (rarely()) {
                 replaced++;
-                cache.put(new Key(i, 2), Integer.toString(i));
+                cache.put(i, new Value(Integer.toString(i), 2));
             }
         }
         assertEquals(numberOfEntries, cache.count());

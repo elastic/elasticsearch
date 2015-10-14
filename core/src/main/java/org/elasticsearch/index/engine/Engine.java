@@ -596,6 +596,13 @@ public abstract class Engine implements Closeable {
             return searcher.getIndexReader();
         }
 
+        public DirectoryReader getDirectoryReader() {
+            if (reader() instanceof  DirectoryReader) {
+                return (DirectoryReader) reader();
+            }
+            throw new IllegalStateException("Can't use " + reader().getClass() + " as a directory reader");
+        }
+
         public IndexSearcher searcher() {
             return searcher;
         }

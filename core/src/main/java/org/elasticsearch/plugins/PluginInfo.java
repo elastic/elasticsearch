@@ -36,6 +36,7 @@ import java.util.Properties;
 public class PluginInfo implements Streamable, ToXContent {
 
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
+    public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
     static final class Fields {
         static final XContentBuilderString NAME = new XContentBuilderString("name");

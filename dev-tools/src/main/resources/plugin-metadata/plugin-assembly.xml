@@ -5,6 +5,16 @@
         <format>zip</format>
     </formats>
     <includeBaseDirectory>false</includeBaseDirectory>
+    <fileSets>
+        <fileSet>
+            <directory>${project.basedir}/src/main/plugin-metadata</directory>
+            <includes>
+              <include>plugin-security.policy</include>
+            </includes>
+            <outputDirectory></outputDirectory>
+            <filtered>false</filtered>
+        </fileSet>
+    </fileSets>
     <files>
         <file>
             <source>${elasticsearch.tools.directory}/plugin-metadata/plugin-descriptor.properties</source>

@@ -855,7 +855,7 @@ public class ShadowEngineTests extends ESTestCase {
     @Test
     public void testExtractShardId() {
         try (Engine.Searcher test = replicaEngine.acquireSearcher("test")) {
-            ShardId shardId = ShardUtils.extractShardId(test.reader());
+            ShardId shardId = ShardUtils.extractShardId(test.getDirectoryReader());
             assertNotNull(shardId);
             assertEquals(shardId, replicaEngine.config().getShardId());
         }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.engine;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.logging.ESLogger;
@@ -33,7 +34,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 class AssertingSearcher extends Engine.Searcher {
     private final Engine.Searcher wrappedSearcher;
     private final ShardId shardId;
-    private final IndexSearcher indexSearcher;
     private RuntimeException firstReleaseStack;
     private final Object lock = new Object();
     private final int initialRefCount;
@@ -50,7 +50,6 @@ class AssertingSearcher extends Engine.Searcher {
         this.logger = logger;
         this.shardId = shardId;
         initialRefCount = wrappedSearcher.reader().getRefCount();
-        this.indexSearcher = indexSearcher;
         assert initialRefCount > 0 : "IndexReader#getRefCount() was [" + initialRefCount + "] expected a value > [0] - reader is already closed";
     }
 
@@ -80,16 +79,6 @@ class AssertingSearcher extends Engine.Searcher {
                 throw error;
             }
         }
-    }
-
-    @Override
-    public IndexReader reader() {
-        return indexSearcher.getIndexReader();
-    }
-
-    @Override
-    public IndexSearcher searcher() {
-        return indexSearcher;
     }
 
     public ShardId shardId() {

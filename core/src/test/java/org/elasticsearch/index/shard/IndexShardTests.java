@@ -27,6 +27,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -62,13 +63,12 @@ import org.elasticsearch.index.IndexServicesProvider;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
@@ -88,6 +88,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
@@ -897,7 +898,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexService("test");
         IndexShard shard = indexService.getShardOrNull(0);
-        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefresh(randomBoolean()).get();
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefresh(true).get();
         client().prepareIndex("test", "test", "1").setSource("{\"foobar\" : \"bar\"}").setRefresh(true).get();
 
         Engine.GetResult getResult = shard.get(new Engine.Get(false, new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
@@ -928,26 +929,48 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
         IndexServicesProvider newProvider = new IndexServicesProvider(indexServices.getIndicesLifecycle(), indexServices.getThreadPool(), indexServices.getMapperService(), indexServices.getQueryParserService(), indexServices.getIndexCache(), indexServices.getIndicesQueryCache(), indexServices.getCodecService(), indexServices.getTermVectorsService(), indexServices.getIndexFieldDataService(), indexServices.getWarmer(), indexServices.getSimilarityService(), indexServices.getFactory(), indexServices.getBigArrays(), wrapper, indexServices.getIndexingMemoryController());
         IndexShard newShard = new IndexShard(shard.shardId(), shard.indexSettings, shard.shardPath(), shard.store(), newProvider);
+        try {
+            ShardRoutingHelper.reinit(routing);
+            newShard.updateRoutingEntry(routing, false);
+            DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+            assertTrue(newShard.recoverFromStore(routing, localNode));
+            routing = new ShardRouting(routing);
+            ShardRoutingHelper.moveToStarted(routing);
+            newShard.updateRoutingEntry(routing, true);
+            try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
+                TopDocs search = searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10);
+                assertEquals(search.totalHits, 0);
+                search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
+                assertEquals(search.totalHits, 1);
+            }
+            getResult = newShard.get(new Engine.Get(false, new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
+            assertTrue(getResult.exists());
+            assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
+            assertTrue(getResult.searcher().reader() instanceof FieldMaskingReader);
+            getResult.release();
 
-        ShardRoutingHelper.reinit(routing);
-        newShard.updateRoutingEntry(routing, false);
-        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
-        assertTrue(newShard.recoverFromStore(routing, localNode));
-        routing = new ShardRouting(routing);
-        ShardRoutingHelper.moveToStarted(routing);
-        newShard.updateRoutingEntry(routing, true);
-        try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
-            TopDocs search = searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10);
-            assertEquals(search.totalHits, 0);
-            search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
-            assertEquals(search.totalHits, 1);
+            // test global ordinals are evicted
+            MappedFieldType foo = newShard.mapperService().indexName("foo");
+            IndexFieldData.Global ifd = shard.indexFieldDataService().getForField(foo);
+            FieldDataStats before = shard.fieldData().stats("foo");
+            FieldDataStats after = null;
+            try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
+                assumeTrue("we have to have more than one segment", searcher.getDirectoryReader().leaves().size() > 1);
+                IndexFieldData indexFieldData = ifd.loadGlobal(searcher.getDirectoryReader());
+                after = shard.fieldData().stats("foo");
+                assertEquals(after.getEvictions(), before.getEvictions());
+                assertTrue(indexFieldData.toString(), after.getMemorySizeInBytes() > before.getMemorySizeInBytes());
+            }
+            assertEquals(shard.fieldData().stats("foo").getEvictions(), before.getEvictions());
+            assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), after.getMemorySizeInBytes());
+            newShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+            newShard.refresh("test");
+            assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), before.getMemorySizeInBytes());
+            assertEquals(shard.fieldData().stats("foo").getEvictions(), before.getEvictions());
+        } finally {
+            newShard.close("just do it", randomBoolean());
         }
-        getResult = newShard.get(new Engine.Get(false, new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
-        assertTrue(getResult.exists());
-        assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
-        assertTrue(getResult.searcher().reader() instanceof FieldMaskingReader);
-        getResult.release();
-        newShard.close("just do it", randomBoolean());
+
     }
 
     private static class FieldMaskingReader extends FilterDirectoryReader {
@@ -958,17 +981,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 private final String filteredField = field;
                 @Override
                 public LeafReader wrap(LeafReader reader) {
-                    return new FilterLeafReader(reader) {
-                        @Override
-                        public Fields fields() throws IOException {
-                            return new FilterFields(super.fields()) {
-                                @Override
-                                public Terms terms(String field) throws IOException {
-                                    return filteredField.equals(field) ? null : super.terms(field);
-                                }
-                            };
-                        }
-                    };
+                    return new FieldFilterLeafReader(reader, Collections.singleton(field), true);
                 }
             });
             this.field = field;
@@ -978,6 +991,11 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return new FieldMaskingReader(field, in);
+        }
+
+        @Override
+        public Object getCoreCacheKey() {
+            return in.getCoreCacheKey();
         }
     }
 }

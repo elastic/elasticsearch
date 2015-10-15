@@ -365,9 +365,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
         for (IndexMetaData original : latestMetaData) {
             IndexMetaData deserialized = indices.get(original.getIndex());
             assertThat(deserialized, notNullValue());
-            assertThat(deserialized.version(), equalTo(original.version()));
-            assertThat(deserialized.numberOfReplicas(), equalTo(original.numberOfReplicas()));
-            assertThat(deserialized.numberOfShards(), equalTo(original.numberOfShards()));
+            assertThat(deserialized.getVersion(), equalTo(original.getVersion()));
+            assertThat(deserialized.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
+            assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
         }
 
         // now corrupt all the latest ones and make sure we fail to load the state

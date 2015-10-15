@@ -252,9 +252,9 @@ public class OperationRouting extends AbstractComponent {
             hash = hash(hashFunction, routing);
         }
         if (createdVersion.onOrAfter(Version.V_2_0_0_beta1)) {
-            return MathUtils.mod(hash, indexMetaData.numberOfShards());
+            return MathUtils.mod(hash, indexMetaData.getNumberOfShards());
         } else {
-            return Math.abs(hash % indexMetaData.numberOfShards());
+            return Math.abs(hash % indexMetaData.getNumberOfShards());
         }
     }
 

@@ -117,7 +117,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         // make sure it was also written on red node although index is closed
         ImmutableOpenMap<String, IndexMetaData> indicesMetaData = getIndicesMetaDataOnNode(dataNode);
         assertNotNull(((LinkedHashMap) (indicesMetaData.get(index).getMappings().get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
-        assertThat(indicesMetaData.get(index).state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(indicesMetaData.get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
 
         /* Try the same and see if this also works if node was just restarted.
          * Each node holds an array of indices it knows of and checks if it should
@@ -142,12 +142,12 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         // make sure it was also written on red node although index is closed
         indicesMetaData = getIndicesMetaDataOnNode(dataNode);
         assertNotNull(((LinkedHashMap) (indicesMetaData.get(index).getMappings().get("doc").getSourceAsMap().get("properties"))).get("float_field"));
-        assertThat(indicesMetaData.get(index).state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(indicesMetaData.get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
 
         // finally check that meta data is also written of index opened again
         assertAcked(client().admin().indices().prepareOpen(index).get());
         indicesMetaData = getIndicesMetaDataOnNode(dataNode);
-        assertThat(indicesMetaData.get(index).state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(indicesMetaData.get(index).getState(), equalTo(IndexMetaData.State.OPEN));
     }
 
     protected void assertIndexNotInMetaState(String nodeName, String indexName) throws Exception {

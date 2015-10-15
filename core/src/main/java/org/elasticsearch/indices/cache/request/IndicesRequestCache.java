@@ -232,7 +232,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         }
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (!isCacheEnabled(index.settings(), Boolean.FALSE)) {
+            if (!isCacheEnabled(index.getSettings(), Boolean.FALSE)) {
                 return false;
             }
         } else if (!request.requestCache()) {

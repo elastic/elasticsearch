@@ -130,13 +130,13 @@ public class MetaStateService extends AbstractComponent {
      * Writes the index state.
      */
     void writeIndex(String reason, IndexMetaData indexMetaData, @Nullable IndexMetaData previousIndexMetaData) throws Exception {
-        logger.trace("[{}] writing state, reason [{}]", indexMetaData.index(), reason);
+        logger.trace("[{}] writing state, reason [{}]", indexMetaData.getIndex(), reason);
         try {
-            indexStateFormat.write(indexMetaData, indexMetaData.version(),
-                    nodeEnv.indexPaths(new Index(indexMetaData.index())));
+            indexStateFormat.write(indexMetaData, indexMetaData.getVersion(),
+                    nodeEnv.indexPaths(new Index(indexMetaData.getIndex())));
         } catch (Throwable ex) {
-            logger.warn("[{}]: failed to write index state", ex, indexMetaData.index());
-            throw new IOException("failed to write state for [" + indexMetaData.index() + "]", ex);
+            logger.warn("[{}]: failed to write index state", ex, indexMetaData.getIndex());
+            throw new IOException("failed to write state for [" + indexMetaData.getIndex() + "]", ex);
         }
     }
 

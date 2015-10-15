@@ -70,7 +70,7 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
     }
 
     public ClusterIndexHealth(IndexMetaData indexMetaData, IndexRoutingTable indexRoutingTable) {
-        this.index = indexMetaData.index();
+        this.index = indexMetaData.getIndex();
         this.numberOfShards = indexMetaData.getNumberOfShards();
         this.numberOfReplicas = indexMetaData.getNumberOfReplicas();
         this.validationFailures = indexRoutingTable.validate(indexMetaData);

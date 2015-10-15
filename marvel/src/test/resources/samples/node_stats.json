@@ -33,7 +33,10 @@
     },
     "process": {
       "open_file_descriptors": 235,
-      "max_file_descriptors": 4096
+      "max_file_descriptors": 4096,
+      "cpu": {
+        "percent": 47
+      }
     },
     "jvm": {
       "mem": {

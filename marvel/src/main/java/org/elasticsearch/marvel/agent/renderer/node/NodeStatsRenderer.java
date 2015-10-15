@@ -37,6 +37,7 @@ public class NodeStatsRenderer extends AbstractRenderer<NodeStatsMarvelDoc> {
             "node_stats.fs.total.free_in_bytes",
             "node_stats.fs.total.available_in_bytes",
             "node_stats.os.load_average",
+            "node_stats.process.cpu.percent",
             "node_stats.process.max_file_descriptors",
             "node_stats.process.open_file_descriptors",
             "node_stats.jvm.mem.heap_used_in_bytes",

@@ -26,7 +26,7 @@ stats, snapshot/restore status, pending cluster tasks
 `all`:: Any action on an index
 `manage`:: All `monitor` privileges plus index administration (aliases, analyze, cache clear, close, delete, exists,
 flush, mapping, open, optimize, refresh, settings, search shards, templates, validate, warmers)
-`monitor`": All actions, that are required for monitoring and read-only (recovery, segments info, index stats & status)
+`monitor`:: All actions, that are required for monitoring and read-only (recovery, segments info, index stats & status)
 `data_access`:: A shortcut of all of the below privileges
 `crud`:: A shortcut of `read` and `write` privileges
 `read`:: Read only access to actions (count, explain, get, exists, mget, get indexed scripts, more like this, multi

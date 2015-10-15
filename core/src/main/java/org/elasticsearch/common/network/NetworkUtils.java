@@ -154,8 +154,11 @@ public abstract class NetworkUtils {
         List<InetAddress> list = new ArrayList<>();
         for (NetworkInterface intf : getInterfaces()) {
             if (intf.isUp()) {
+                // NOTE: some operating systems (e.g. BSD stack) assign a link local address to the loopback interface
+                // while technically not a loopback address, some of these treat them as one (e.g. OS X "localhost") so we must too,
+                // otherwise things just won't work out of box. So we include all addresses from loopback interfaces.
                 for (InetAddress address : Collections.list(intf.getInetAddresses())) {
-                    if (address.isLoopbackAddress()) {
+                    if (intf.isLoopback() || address.isLoopbackAddress()) {
                         list.add(address);
                     }
                 }

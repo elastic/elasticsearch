@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;

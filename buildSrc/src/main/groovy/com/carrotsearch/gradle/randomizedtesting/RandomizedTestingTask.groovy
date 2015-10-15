@@ -187,13 +187,13 @@ class RandomizedTestingTask extends DefaultTask {
                 pathElement(path: classpath.asPath)
             }
             if (enableAssertions) {
-                jvmarg(line: '-ea')
+                jvmarg(value: '-ea')
             }
             if (enableSystemAssertions) {
-                jvmarg(line: '-esa')
+                jvmarg(value: '-esa')
             }
             for (String arg : jvmArgs) {
-                jvmarg(line: arg)
+                jvmarg(value: arg)
             }
             fileset(dir: testClassesDir) {
                 for (String includePattern : patternSet.getIncludes()) {

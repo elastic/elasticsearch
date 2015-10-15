@@ -78,7 +78,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
 
             IndexMetaData indexMetaData = metaData.index(shard.getIndex());
 
-            NodesAndVersions nodesAndVersions = buildNodesAndVersions(shard, recoverOnAnyNode(indexMetaData.settings()), allocation.getIgnoreNodes(shard.shardId()), shardState);
+            NodesAndVersions nodesAndVersions = buildNodesAndVersions(shard, recoverOnAnyNode(indexMetaData.getSettings()), allocation.getIgnoreNodes(shard.shardId()), shardState);
             logger.debug("[{}][{}] found {} allocations of {}, highest version: [{}]", shard.index(), shard.id(), nodesAndVersions.allocationsFound, shard, nodesAndVersions.highestVersion);
 
             if (isEnoughAllocationsFound(shard, indexMetaData, nodesAndVersions) == false) {
@@ -135,22 +135,22 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
         // if we restore from a repository one copy is more then enough
         if (shard.restoreSource() == null) {
             try {
-                String initialShards = indexMetaData.settings().get(INDEX_RECOVERY_INITIAL_SHARDS, settings.get(INDEX_RECOVERY_INITIAL_SHARDS, this.initialShards));
+                String initialShards = indexMetaData.getSettings().get(INDEX_RECOVERY_INITIAL_SHARDS, settings.get(INDEX_RECOVERY_INITIAL_SHARDS, this.initialShards));
                 if ("quorum".equals(initialShards)) {
-                    if (indexMetaData.numberOfReplicas() > 1) {
-                        requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2) + 1;
+                    if (indexMetaData.getNumberOfReplicas() > 1) {
+                        requiredAllocation = ((1 + indexMetaData.getNumberOfReplicas()) / 2) + 1;
                     }
                 } else if ("quorum-1".equals(initialShards) || "half".equals(initialShards)) {
-                    if (indexMetaData.numberOfReplicas() > 2) {
-                        requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2);
+                    if (indexMetaData.getNumberOfReplicas() > 2) {
+                        requiredAllocation = ((1 + indexMetaData.getNumberOfReplicas()) / 2);
                     }
                 } else if ("one".equals(initialShards)) {
                     requiredAllocation = 1;
                 } else if ("full".equals(initialShards) || "all".equals(initialShards)) {
-                    requiredAllocation = indexMetaData.numberOfReplicas() + 1;
+                    requiredAllocation = indexMetaData.getNumberOfReplicas() + 1;
                 } else if ("full-1".equals(initialShards) || "all-1".equals(initialShards)) {
-                    if (indexMetaData.numberOfReplicas() > 1) {
-                        requiredAllocation = indexMetaData.numberOfReplicas();
+                    if (indexMetaData.getNumberOfReplicas() > 1) {
+                        requiredAllocation = indexMetaData.getNumberOfReplicas();
                     }
                 } else {
                     requiredAllocation = Integer.parseInt(initialShards);

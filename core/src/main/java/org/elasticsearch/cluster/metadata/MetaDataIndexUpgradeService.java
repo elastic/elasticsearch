@@ -142,11 +142,11 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                     upgradeStoreType = storeType;
             }
             if (storeType.equals(upgradeStoreType) == false) {
-                Settings indexSettings = Settings.builder().put(indexMetaData.settings())
+                Settings indexSettings = Settings.builder().put(indexMetaData.getSettings())
                         .put(IndexStoreModule.STORE_TYPE, upgradeStoreType)
                         .build();
                 return IndexMetaData.builder(indexMetaData)
-                        .version(indexMetaData.version())
+                        .version(indexMetaData.getVersion())
                         .settings(indexSettings)
                         .build();
             }
@@ -158,7 +158,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Checks if the index was already opened by this version of Elasticsearch and doesn't require any additional checks.
      */
     private boolean isUpgraded(IndexMetaData indexMetaData) {
-        return indexMetaData.upgradeVersion().onOrAfter(Version.V_2_0_0_beta1);
+        return indexMetaData.getUpgradeVersion().onOrAfter(Version.V_2_0_0_beta1);
     }
 
     /**
@@ -178,7 +178,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Returns true if this index can be supported by the current version of elasticsearch
      */
     private static boolean isSupportedVersion(IndexMetaData indexMetaData) {
-        if (indexMetaData.creationVersion().onOrAfter(Version.V_0_90_0_Beta1)) {
+        if (indexMetaData.getCreationVersion().onOrAfter(Version.V_0_90_0_Beta1)) {
             // The index was created with elasticsearch that was using Lucene 4.0
             return true;
         }
@@ -195,15 +195,15 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * move this old and deprecated node setting to an index setting so that we can keep things backward compatible.
      */
     private IndexMetaData upgradeLegacyRoutingSettings(IndexMetaData indexMetaData) {
-        if (indexMetaData.settings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) == null
+        if (indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) == null
                 && indexMetaData.getCreationVersion().before(Version.V_2_0_0_beta1)) {
             // these settings need an upgrade
-            Settings indexSettings = Settings.builder().put(indexMetaData.settings())
+            Settings indexSettings = Settings.builder().put(indexMetaData.getSettings())
                     .put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, pre20HashFunction)
                     .put(IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE, pre20UseType == null ? false : pre20UseType)
                     .build();
             return IndexMetaData.builder(indexMetaData)
-                    .version(indexMetaData.version())
+                    .version(indexMetaData.getVersion())
                     .settings(indexSettings)
                     .build();
         } else if (indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0_beta1)) {
@@ -262,7 +262,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         if (indexMetaData.getCreationVersion().before(Version.V_2_0_0_beta1)) {
             // TODO: can we somehow only do this *once* for a pre-2.0 index?  Maybe we could stuff a "fake marker setting" here?  Seems hackish...
             // Created lazily if we find any settings that are missing units:
-            Settings settings = indexMetaData.settings();
+            Settings settings = indexMetaData.getSettings();
             Settings.Builder newSettings = null;
             for(String byteSizeSetting : INDEX_BYTES_SIZE_SETTINGS) {
                 String value = settings.get(byteSizeSetting);
@@ -301,7 +301,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             if (newSettings != null) {
                 // At least one setting was changed:
                 return IndexMetaData.builder(indexMetaData)
-                    .version(indexMetaData.version())
+                    .version(indexMetaData.getVersion())
                     .settings(newSettings.build())
                     .build();
             }
@@ -317,7 +317,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      */
     private void checkMappingsCompatibility(IndexMetaData indexMetaData) {
         Index index = new Index(indexMetaData.getIndex());
-        Settings settings = indexMetaData.settings();
+        Settings settings = indexMetaData.getSettings();
         try {
             SimilarityLookupService similarityLookupService = new SimilarityLookupService(index, settings);
             // We cannot instantiate real analysis server at this point because the node might not have
@@ -340,7 +340,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Marks index as upgraded so we don't have to test it again
      */
     private IndexMetaData markAsUpgraded(IndexMetaData indexMetaData) {
-        Settings settings = Settings.builder().put(indexMetaData.settings()).put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build();
+        Settings settings = Settings.builder().put(indexMetaData.getSettings()).put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build();
         return IndexMetaData.builder(indexMetaData).settings(settings).build();
     }
 

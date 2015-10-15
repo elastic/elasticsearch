@@ -128,7 +128,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                 if (metaData != null) {
                     ShardPath shardPath = null;
                     try {
-                        shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, metaData.settings());
+                        shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, metaData.getSettings());
                         if (shardPath == null) {
                             throw new IllegalStateException(shardId + " no shard path found");
                         }

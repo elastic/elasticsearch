@@ -101,7 +101,7 @@ For instance, to install a plugin from your local file system, you could run:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install file:/path/to/plugin.zip
+sudo bin/plugin install file:///path/to/plugin.zip
 -----------------------------------
 
 [[listing-removing]]

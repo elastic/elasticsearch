@@ -312,11 +312,26 @@ public class InternalProfileTree {
      * @return      The integer token of our parent, or null if there is no parent
      */
     private @Nullable Integer getRewrittenParentToken(Query query) {
+        return getRewrittenParentToken(query, -1, 0);
+    }
+
+    private @Nullable Integer getRewrittenParentToken(Query query, int lastToken, int level) {
+
+        // Recursion safeguard, just in case pathological queries are provided.
+        // Returning null will just mess up the hierarchy, all the various
+        // components will still be recorded correctly
+        if (level > 10) {
+            return null;
+        }
 
         // TODO better way to do this?
         for (Map.Entry<RewrittenQuery, Integer> entry : rewriteMap.entrySet()) {
-            if (entry.getKey().rewritten.equals(query)) {
-                return entry.getValue();
+            if (entry.getKey().rewritten.equals(query) && entry.getValue() > lastToken) {
+                // Found a matching query, but we need to check if there is a
+                // "descendant" rewrite that would be more appropriate to embed under
+                Integer descendant = getRewrittenParentToken(entry.getKey().rewritten, entry.getValue(), level + 1);
+
+                return descendant != null ? descendant : entry.getValue();
             }
         }
 

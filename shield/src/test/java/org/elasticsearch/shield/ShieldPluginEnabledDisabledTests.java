@@ -108,7 +108,7 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegTestCase {
         OperationMode mode;
         if (enabled) {
             mode = randomFrom(OperationMode.values());
-            LicensingTests.enableLicensing(LicensingTests.generateLicense(mode));
+            LicensingTests.enableLicensing(mode);
         } else {
             // this is the default right now
             mode = OperationMode.BASIC;

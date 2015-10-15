@@ -169,7 +169,7 @@ public class LicensingTests extends ShieldIntegTestCase {
             assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
-        enableLicensing(LicensingTests.generateLicense(randomFrom(OperationMode.values())));
+        enableLicensing(randomFrom(OperationMode.values()));
 
         IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats().get();
         assertNoFailures(indicesStatsResponse);
@@ -194,7 +194,7 @@ public class LicensingTests extends ShieldIntegTestCase {
 
         // generate a new license with a mode that enables auth
         OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.TRIAL, OperationMode.PLATINUM);
-        enableLicensing(generateLicense(mode));
+        enableLicensing(mode);
         assertThat(httpClient().path("/").execute().getStatusCode(), is(401));
     }
 
@@ -214,7 +214,7 @@ public class LicensingTests extends ShieldIntegTestCase {
 
         // enable a license that enables security
         OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.PLATINUM, OperationMode.TRIAL);
-        enableLicensing(generateLicense(mode));
+        enableLicensing(mode);
 
         try (TransportClient client = TransportClient.builder().settings(builder).addPlugin(ShieldPlugin.class).build()) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
@@ -226,36 +226,23 @@ public class LicensingTests extends ShieldIntegTestCase {
     }
 
     public static void disableLicensing() {
-        disableLicensing(InternalLicenseeRegistry.DUMMY_LICENSE);
+        disableLicensing(OperationMode.BASIC);
     }
 
-    public static void disableLicensing(License license) {
+    public static void disableLicensing(OperationMode operationMode) {
         for (InternalLicenseeRegistry service : internalCluster().getInstances(InternalLicenseeRegistry.class)) {
-            service.disable(license);
+            service.disable(operationMode);
         }
     }
 
     public static void enableLicensing() {
-        enableLicensing(InternalLicenseeRegistry.DUMMY_LICENSE);
+        enableLicensing(OperationMode.BASIC);
     }
 
-    public static void enableLicensing(License license) {
+    public static void enableLicensing(OperationMode operationMode) {
         for (InternalLicenseeRegistry service : internalCluster().getInstances(InternalLicenseeRegistry.class)) {
-            service.enable(license);
+            service.enable(operationMode);
         }
-    }
-
-    public static License generateLicense(OperationMode operationMode) {
-        return License.builder()
-                .expiryDate(System.currentTimeMillis())
-                .issueDate(System.currentTimeMillis())
-                .issuedTo("LicensingTests")
-                .issuer("test")
-                .maxNodes(Integer.MAX_VALUE)
-                .signature("_signature")
-                .type(operationMode.toString().toLowerCase(Locale.ROOT))
-                .uid(String.valueOf(randomLong()) + System.identityHashCode(LicensingTests.class))
-                .build();
     }
 
     public static class InternalLicensePlugin extends Plugin {
@@ -290,38 +277,27 @@ public class LicensingTests extends ShieldIntegTestCase {
 
         private final List<Licensee> licensees = new ArrayList<>();
 
-        static final License DUMMY_LICENSE = License.builder()
-                .expiryDate(System.currentTimeMillis())
-                .issueDate(System.currentTimeMillis())
-                .issuedTo("LicensingTests")
-                .issuer("test")
-                .maxNodes(Integer.MAX_VALUE)
-                .signature("_signature")
-                .type("basic")
-                .uid(String.valueOf(randomLong()) + System.identityHashCode(LicensingTests.class))
-                .build();
-
         @Inject
         public InternalLicenseeRegistry(Settings settings) {
             super(settings);
-            enable(DUMMY_LICENSE);
+            enable(OperationMode.BASIC);
         }
 
         @Override
         public void register(Licensee licensee) {
             licensees.add(licensee);
-            enable(DUMMY_LICENSE);
+            enable(OperationMode.BASIC);
         }
 
-        void enable(License license) {
+        void enable(OperationMode operationMode) {
             for (Licensee licensee : licensees) {
-                licensee.onChange(license, LicenseState.ENABLED);
+                licensee.onChange(new Licensee.Status(operationMode, LicenseState.ENABLED));
             }
         }
 
-        void disable(License license) {
+        void disable(OperationMode operationMode) {
             for (Licensee licensee : licensees) {
-                licensee.onChange(license, LicenseState.DISABLED);
+                licensee.onChange(new Licensee.Status(operationMode, LicenseState.DISABLED));
             }
         }
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
+import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
@@ -39,15 +40,15 @@ public class ClusterInfoCollector extends AbstractCollector<ClusterInfoMarvelDoc
     public static final String TYPE = "cluster_info";
 
     private final ClusterName clusterName;
-    private final MarvelLicensee marvelLicensee;
+    private final LicensesManagerService licensesManagerService;
     private final Client client;
 
     @Inject
     public ClusterInfoCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee marvelLicensee,
-                                ClusterName clusterName, SecuredClient client) {
+                                LicensesManagerService licensesManagerService, ClusterName clusterName, SecuredClient client) {
         super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
         this.clusterName = clusterName;
-        this.marvelLicensee = marvelLicensee;
+        this.licensesManagerService = licensesManagerService;
         this.client = client;
     }
 
@@ -61,7 +62,7 @@ public class ClusterInfoCollector extends AbstractCollector<ClusterInfoMarvelDoc
     protected Collection<MarvelDoc> doCollect() throws Exception {
         List<MarvelDoc> results = new ArrayList<>(1);
 
-        License license = marvelLicensee.getLicense();
+        License license = licensesManagerService.getLicense();
 
         // Retrieves additional cluster stats
         ClusterStatsResponse clusterStats = null;

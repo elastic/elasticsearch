@@ -27,7 +27,7 @@ public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> im
         super(settings, ShieldPlugin.NAME, clientService);
         add(new Listener() {
             @Override
-            public void onChange(License license, Status status) {
+            public void onChange(Status status) {
                 shieldLicenseState.updateStatus(status);
             }
         });

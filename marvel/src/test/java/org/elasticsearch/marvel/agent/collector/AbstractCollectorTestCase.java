@@ -104,7 +104,7 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
 
         final License license = createTestingLicense(issueDate, expiryDate);
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
-            service.onChange(license, LicenseState.ENABLED);
+            service.onChange(license.operationMode(), LicenseState.ENABLED);
         }
         for (LicensesManagerServiceForCollectors service : internalCluster().getInstances(LicensesManagerServiceForCollectors.class)) {
             service.update(license);
@@ -117,7 +117,7 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
 
         final License license = createTestingLicense(issueDate, expiryDate);
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
-            service.onChange(license, LicenseState.GRACE_PERIOD);
+            service.onChange(license.operationMode(), LicenseState.GRACE_PERIOD);
         }
         for (LicensesManagerServiceForCollectors service : internalCluster().getInstances(LicensesManagerServiceForCollectors.class)) {
             service.update(license);
@@ -130,7 +130,7 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
 
         final License license = createTestingLicense(issueDate, expiryDate);
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
-            service.onChange(license, LicenseState.DISABLED);
+            service.onChange(license.operationMode(), LicenseState.DISABLED);
         }
         for (LicensesManagerServiceForCollectors service : internalCluster().getInstances(LicensesManagerServiceForCollectors.class)) {
             service.update(license);
@@ -143,7 +143,7 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
 
         final License license = createTestingLicense(issueDate, expiryDate);
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
-            service.onChange(license, LicenseState.DISABLED);
+            service.onChange(license.operationMode(), LicenseState.DISABLED);
         }
         for (LicensesManagerServiceForCollectors service : internalCluster().getInstances(LicensesManagerServiceForCollectors.class)) {
             service.update(license);
@@ -224,16 +224,16 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
             licensees.add(licensee);
         }
 
-        public void onChange(License license, LicenseState state) {
+        public void onChange(License.OperationMode operationMode, LicenseState state) {
             for (Licensee licensee : licensees) {
-                licensee.onChange(license, state);
+                licensee.onChange(new Licensee.Status(operationMode, state));
             }
         }
     }
 
     public static class LicensesManagerServiceForCollectors implements LicensesManagerService {
 
-        private final Map<String, License> licenses = Collections.synchronizedMap(new HashMap<String, License>());
+        private volatile License license;
 
         @Override
         public void registerLicense(PutLicenseRequest request, ActionListener<LicensesService.LicensesUpdateResponse> listener) {
@@ -250,14 +250,11 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
 
         @Override
         public License getLicense() {
-            // TODO: we only take the first of the licenses that are updated
-            // FIXME
-            Iterator<License> iterator = licenses.values().iterator();
-            return iterator.hasNext() ? iterator.next() : null;
+            return license;
         }
 
-        public void update(License license) {
-            licenses.put(license.uid(), license);
+        public synchronized void update(License license) {
+            this.license = license;
         }
     }
 }

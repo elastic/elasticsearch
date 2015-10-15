@@ -8,6 +8,7 @@ package org.elasticsearch.marvel.agent.collector.cluster;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
@@ -101,6 +102,7 @@ public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId),
+                internalCluster().getInstance(LicensesManagerService.class, nodeId),
                 internalCluster().getInstance(ClusterName.class, nodeId),
                 securedClient(nodeId));
     }

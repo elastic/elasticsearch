@@ -110,17 +110,6 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
 
     public static class MockLicenseService extends AbstractComponent implements LicenseeRegistry {
 
-        static final License DUMMY_LICENSE = License.builder()
-                .expiryDate(System.currentTimeMillis())
-                .issueDate(System.currentTimeMillis())
-                .issuedTo("LicensingTests")
-                .issuer("test")
-                .maxNodes(Integer.MAX_VALUE)
-                .signature("_signature")
-                .type("basic")
-                .uid(String.valueOf(RandomizedTest.systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0)) + System.identityHashCode(LicenseIntegrationTests.class))
-                .build();
-
         private final List<Licensee> licensees = new ArrayList<>();
 
         @Inject
@@ -137,13 +126,13 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
 
         public void enable() {
             for (Licensee licensee : licensees) {
-                licensee.onChange(DUMMY_LICENSE, randomBoolean() ? LicenseState.GRACE_PERIOD : LicenseState.ENABLED);
+                licensee.onChange(new Licensee.Status(License.OperationMode.BASIC, randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
             }
         }
 
         public void disable() {
             for (Licensee licensee : licensees) {
-                licensee.onChange(DUMMY_LICENSE, LicenseState.DISABLED);
+                licensee.onChange(new Licensee.Status(License.OperationMode.BASIC, LicenseState.DISABLED));
             }
         }
     }

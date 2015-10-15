@@ -111,7 +111,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTestCase {
             }
         }
 
-        IndexReader indexReader = DirectoryReader.open(indexWriter.w, false);
+        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter.w, false), new ShardId("foo", 1));
         IndexSearcher searcher = new IndexSearcher(indexReader);
         ((TestSearchContext) SearchContext.current()).setSearcher(
                 new Engine.Searcher(ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher)

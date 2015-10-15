@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
-import java.util.Arrays;
 
 /**
  * Tests for network service... try to keep them safe depending upon configuration
@@ -103,31 +102,17 @@ public class NetworkServiceTests extends ESTestCase {
      * ensure specifying wildcard ipv4 address selects reasonable publish address 
      */
     public void testPublishAnyLocalV4() throws Exception {
-        InetAddress expected[] = null;
-        try {
-            expected = NetworkUtils.getFirstNonLoopbackAddresses();
-        } catch (Exception e) {
-            assumeNoException("test requires up-and-running non-loopback address", e);
-        }
-        NetworkUtils.sortAddresses(Arrays.asList(expected));
-        
         NetworkService service = new NetworkService(Settings.EMPTY);
-        assertEquals(expected[0], service.resolvePublishHostAddresses(new String[] { "0.0.0.0" }));
+        InetAddress address = service.resolvePublishHostAddresses(new String[] { "0.0.0.0" });
+        assertFalse(address.isAnyLocalAddress());
     }
 
     /** 
      * ensure specifying wildcard ipv6 address selects reasonable publish address 
      */
     public void testPublishAnyLocalV6() throws Exception {
-        InetAddress expected[] = null;
-        try {
-            expected = NetworkUtils.getFirstNonLoopbackAddresses();
-        } catch (Exception e) {
-            assumeNoException("test requires up-and-running non-loopback address", e);
-        }
-        NetworkUtils.sortAddresses(Arrays.asList(expected));
-        
         NetworkService service = new NetworkService(Settings.EMPTY);
-        assertEquals(expected[0], service.resolvePublishHostAddresses(new String[] { "::" }));
+        InetAddress address = service.resolvePublishHostAddresses(new String[] { "::" });
+        assertFalse(address.isAnyLocalAddress());
     }
 }

@@ -243,15 +243,6 @@ public class NetworkService extends AbstractComponent {
                     return NetworkUtils.filterIPV4(NetworkUtils.getGlobalAddresses());
                 case "global:ipv6":
                     return NetworkUtils.filterIPV6(NetworkUtils.getGlobalAddresses());
-                case "non_loopback":
-                    logger.warn("use of _non_loopback_ is deprecated, specify an explicit scope, address, or interface instead");
-                    return NetworkUtils.getFirstNonLoopbackAddresses();
-                case "non_loopback:ipv4":
-                    logger.warn("use of _non_loopback_ is deprecated, specify an explicit scope, address, or interface instead");
-                    return NetworkUtils.filterIPV4(NetworkUtils.getFirstNonLoopbackAddresses());
-                case "non_loopback:ipv6":
-                    logger.warn("use of _non_loopback_ is deprecated, specify an explicit scope, address, or interface instead");
-                    return NetworkUtils.filterIPV6(NetworkUtils.getFirstNonLoopbackAddresses());
                 default:
                     /* an interface specification */
                     if (host.endsWith(":ipv4")) {

@@ -8,6 +8,9 @@ configuration, for example, the
 network settings allows to set common settings that will be shared among
 all network based modules (unless explicitly overridden in each module).
 
+Be careful with host configuration! Never expose an unprotected instance
+to the public internet.
+
 The `network.bind_host` setting allows to control the host different network
 components will bind on. By default, the bind host will be `_local_`
 (loopback addresses such as `127.0.0.1`, `::1`).
@@ -30,27 +33,21 @@ in the following table:
 |Logical Host Setting Value |Description
 |`_local_` |Will be resolved to loopback addresses
 
-|`_local:ipv4_` |Will be resolved to loopback IPv4 addresses
+|`_local:ipv4_` |Will be resolved to loopback IPv4 addresses (e.g. 127.0.0.1)
 
-|`_local:ipv6_` |Will be resolved to loopback IPv6 addresses
+|`_local:ipv6_` |Will be resolved to loopback IPv6 addresses (e.g. ::1)
 
 |`_site_` |Will be resolved to site-local addresses ("private network")
 
-|`_site:ipv4_` |Will be resolved to site-local IPv4 addresses
+|`_site:ipv4_` |Will be resolved to site-local IPv4 addresses (e.g. 192.168.0.1)
 
-|`_site:ipv6_` |Will be resolved to site-local IPv6 addresses
+|`_site:ipv6_` |Will be resolved to site-local IPv6 addresses (e.g. fec0::1)
 
 |`_global_` |Will be resolved to globally-scoped addresses ("publicly reachable")
 
-|`_global:ipv4_` |Will be resolved to globally-scoped IPv4 addresses
+|`_global:ipv4_` |Will be resolved to globally-scoped IPv4 addresses (e.g. 8.8.8.8)
 
-|`_global:ipv6_` |Will be resolved to globally-scoped IPv6 addresses
-
-|`_non_loopback_` |Addresses of the first non loopback interface: DEPRECATED
-
-|`_non_loopback:ipv4_` |IPv4 addresses of the first non loopback interface: DEPRECATED
-
-|`_non_loopback:ipv6_` |IPv6 addresses of the first non loopback interface: DEPRECATED
+|`_global:ipv6_` |Will be resolved to globally-scoped IPv6 addresses (e.g. 2001:4860:4860::8888)
 
 |`_[networkInterface]_` |Resolves to the addresses of the provided
 network interface. For example `_en0_`.

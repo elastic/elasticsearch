@@ -23,7 +23,16 @@ esplugin {
 }
 
 dependencies {
+  compile 'org.jruby.joni:joni:2.1.6'
   testCompile 'org.elasticsearch:securemock:1.1'
+}
+
+sourceSets {
+  test {
+    resources {
+      srcDir "src/main/packaging/config"
+    }
+  }
 }
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"

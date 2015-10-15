@@ -22,6 +22,8 @@ package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ingest.Data;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
 
 /**
@@ -48,7 +50,7 @@ public interface Processor {
         /**
          * Builds the processor based on previous set settings.
          */
-        Processor build();
+        Processor build() throws IOException;
 
         /**
          * A factory that creates a processor builder when processor instances for pipelines are being created.
@@ -59,6 +61,11 @@ public interface Processor {
              * Creates the builder.
              */
             Builder create();
+
+            /**
+             */
+            default void setConfigDirectory(Path configDirectory) {
+            }
 
         }
 

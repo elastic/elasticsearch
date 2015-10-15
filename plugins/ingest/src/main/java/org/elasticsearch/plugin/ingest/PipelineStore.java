@@ -29,12 +29,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.*;
 
 public class PipelineStore extends AbstractLifecycleComponent {
@@ -51,12 +53,15 @@ public class PipelineStore extends AbstractLifecycleComponent {
     private volatile Map<String, PipelineReference> pipelines = new HashMap<>();
 
     @Inject
-    public PipelineStore(Settings settings, ThreadPool threadPool, ClusterService clusterService, PipelineStoreClient client, Map<String, Processor.Builder.Factory> processors) {
+    public PipelineStore(Settings settings, ThreadPool threadPool, Environment environment, ClusterService clusterService, PipelineStoreClient client, Map<String, Processor.Builder.Factory> processors) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.pipelineUpdateInterval = settings.getAsTime("ingest.pipeline.store.update.interval", TimeValue.timeValueSeconds(1));
         this.client = client;
+        for (Processor.Builder.Factory factory : processors.values()) {
+            factory.setConfigDirectory(environment.configFile());
+        }
         this.processorFactoryRegistry = Collections.unmodifiableMap(processors);
         clusterService.add(new PipelineStoreListener());
     }
@@ -101,7 +106,7 @@ public class PipelineStore extends AbstractLifecycleComponent {
         return result;
     }
 
-    void updatePipelines() {
+    void updatePipelines() throws IOException {
         // note: this process isn't fast or smart, but the idea is that there will not be many pipelines,
         // so for that reason the goal is to keep the update logic simple.
 

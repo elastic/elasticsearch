@@ -22,6 +22,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ingest.processor.Processor;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -82,7 +83,7 @@ public final class Pipeline {
             this.id = id;
         }
 
-        public void fromMap(Map<String, Object> config, Map<String, Processor.Builder.Factory> processorRegistry) {
+        public void fromMap(Map<String, Object> config, Map<String, Processor.Builder.Factory> processorRegistry) throws IOException {
             description = (String) config.get("description");
             @SuppressWarnings("unchecked")
             List<Map<String, Map<String, Object>>> processors = (List<Map<String, Map<String, Object>>>) config.get("processors");
@@ -105,7 +106,7 @@ public final class Pipeline {
             this.description = description;
         }
 
-        public void addProcessors(Processor.Builder... processors) {
+        public void addProcessors(Processor.Builder... processors) throws IOException {
             for (Processor.Builder processor : processors) {
                 this.processors.add(processor.build());
             }

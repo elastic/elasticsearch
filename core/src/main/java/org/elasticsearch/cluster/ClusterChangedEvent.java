@@ -143,7 +143,7 @@ public class ClusterChangedEvent {
         if (previousMetaData == null) {
             return true;
         }
-        IndexMetaData previousIndexMetaData = previousMetaData.index(current.index());
+        IndexMetaData previousIndexMetaData = previousMetaData.index(current.getIndex());
         // no need to check on version, since disco modules will make sure to use the
         // same instance if its a version match
         if (previousIndexMetaData == current) {

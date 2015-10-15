@@ -33,6 +33,7 @@ import org.junit.Test;
 import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -53,7 +54,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(indices.size(), equalTo(1));
         IndexMetaData index = indices.get("test");
         assertThat(index, notNullValue());
-        assertThat(index.creationDate(), equalTo(4l));
+        assertThat(index.getCreationDate(), equalTo(4l));
     }
 
     @Test
@@ -71,7 +72,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(indices.size(), equalTo(1));
         IndexMetaData index = indices.get("test");
         assertThat(index, notNullValue());
-        assertThat(index.creationDate(), allOf(lessThanOrEqualTo(timeAfterRequest), greaterThanOrEqualTo(timeBeforeRequest)));
+        assertThat(index.getCreationDate(), allOf(lessThanOrEqualTo(timeAfterRequest), greaterThanOrEqualTo(timeBeforeRequest)));
     }
 
     @Test
@@ -149,6 +150,13 @@ public class CreateIndexIT extends ESIntegTestCase {
         } finally {
             setClusterReadOnly(false);
         }
+    }
+
+    @Test
+    public void testCreateIndexWithMetadataBlocks() {
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_METADATA, true)));
+        assertBlocked(client().admin().indices().prepareGetSettings("test"), IndexMetaData.INDEX_METADATA_BLOCK);
+        disableIndexBlock("test", IndexMetaData.SETTING_BLOCKS_METADATA);
     }
 
     @Test

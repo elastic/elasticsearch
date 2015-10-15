@@ -73,6 +73,8 @@ import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityPars
 import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardinality;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsParser;
 import org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidParser;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.max.MaxParser;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
@@ -288,6 +290,7 @@ public class SearchModule extends AbstractModule {
         multibinderAggParser.addBinding().to(ReverseNestedParser.class);
         multibinderAggParser.addBinding().to(TopHitsParser.class);
         multibinderAggParser.addBinding().to(GeoBoundsParser.class);
+        multibinderAggParser.addBinding().to(GeoCentroidParser.class);
         multibinderAggParser.addBinding().to(ScriptedMetricParser.class);
         multibinderAggParser.addBinding().to(ChildrenParser.class);
         for (Class<? extends Aggregator.Parser> parser : aggParsers) {
@@ -357,6 +360,7 @@ public class SearchModule extends AbstractModule {
         InternalHDRPercentileRanks.registerStreams();
         InternalCardinality.registerStreams();
         InternalScriptedMetric.registerStreams();
+        InternalGeoCentroid.registerStreams();
 
         // buckets
         InternalGlobal.registerStreams();

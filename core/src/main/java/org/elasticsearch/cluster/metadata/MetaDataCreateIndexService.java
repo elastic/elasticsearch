@@ -437,16 +437,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     indexService.indicesLifecycle().beforeIndexAddedToCluster(new Index(request.index()),
-                            indexMetaData.settings());
+                            indexMetaData.getSettings());
 
                     MetaData newMetaData = MetaData.builder(currentState.metaData())
                             .put(indexMetaData, false)
                             .build();
 
-                    String maybeShadowIndicator = IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings()) ? "s" : "";
+                    String maybeShadowIndicator = IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) ? "s" : "";
                     logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}{}], mappings {}",
-                            request.index(), request.cause(), templateNames, indexMetaData.numberOfShards(),
-                            indexMetaData.numberOfReplicas(), maybeShadowIndicator, mappings.keySet());
+                            request.index(), request.cause(), templateNames, indexMetaData.getNumberOfShards(),
+                            indexMetaData.getNumberOfReplicas(), maybeShadowIndicator, mappings.keySet());
 
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     if (!request.blocks().isEmpty()) {
@@ -454,9 +454,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             blocks.addIndexBlock(request.index(), block);
                         }
                     }
-                    if (request.state() == State.CLOSE) {
-                        blocks.addIndexBlock(request.index(), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
-                    }
+                    blocks.updateBlocks(indexMetaData);
 
                     ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metaData(newMetaData).build();
 

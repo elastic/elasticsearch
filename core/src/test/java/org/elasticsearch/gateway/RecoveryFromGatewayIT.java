@@ -325,8 +325,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.metaData().index("test").mapping("type2"), notNullValue());
         assertThat(state.metaData().templates().get("template_1").template(), equalTo("te*"));
-        assertThat(state.metaData().index("test").aliases().get("test_alias"), notNullValue());
-        assertThat(state.metaData().index("test").aliases().get("test_alias").filter(), notNullValue());
+        assertThat(state.metaData().index("test").getAliases().get("test_alias"), notNullValue());
+        assertThat(state.metaData().index("test").getAliases().get("test_alias").filter(), notNullValue());
     }
 
     @Test

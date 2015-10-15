@@ -180,7 +180,7 @@ public class RestShardsAction extends AbstractCatAction {
             IndexMetaData indexMeta = state.getState().getMetaData().index(shard.index());
             boolean usesShadowReplicas = false;
             if (indexMeta != null) {
-                usesShadowReplicas = IndexMetaData.isIndexUsingShadowReplicas(indexMeta.settings());
+                usesShadowReplicas = IndexMetaData.isIndexUsingShadowReplicas(indexMeta.getSettings());
             }
             if (shard.primary()) {
                 table.addCell("p");

@@ -511,17 +511,17 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 IndexMetaData.Builder builder = IndexMetaData.builder(part);
                 switch (randomIntBetween(0, 3)) {
                     case 0:
-                        builder.settings(Settings.builder().put(part.settings()).put(randomSettings(Settings.EMPTY)));
+                        builder.settings(Settings.builder().put(part.getSettings()).put(randomSettings(Settings.EMPTY)));
                         break;
                     case 1:
-                        if (randomBoolean() && part.aliases().isEmpty() == false) {
-                            builder.removeAlias(randomFrom(part.aliases().keys().toArray(String.class)));
+                        if (randomBoolean() && part.getAliases().isEmpty() == false) {
+                            builder.removeAlias(randomFrom(part.getAliases().keys().toArray(String.class)));
                         } else {
                             builder.putAlias(AliasMetaData.builder(randomAsciiOfLength(10)));
                         }
                         break;
                     case 2:
-                        builder.settings(Settings.builder().put(part.settings()).put(IndexMetaData.SETTING_INDEX_UUID, Strings.randomBase64UUID()));
+                        builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, Strings.randomBase64UUID()));
                         break;
                     case 3:
                         builder.putCustom(IndexWarmersMetaData.TYPE, randomWarmers());

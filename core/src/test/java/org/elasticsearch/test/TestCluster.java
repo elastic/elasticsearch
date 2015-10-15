@@ -75,7 +75,6 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
      */
     public void wipe(Set<String> excludeTemplates) {
         wipeIndices("_all");
-        wipeTemplates();
         wipeAllTemplates(excludeTemplates);
         wipeRepositories();
     }

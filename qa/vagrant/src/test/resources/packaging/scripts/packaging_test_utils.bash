@@ -164,7 +164,7 @@ assert_file() {
     fi
 
     if [ "x$user" != "x" ]; then
-        realuser=$(ls -ld "$file" | awk '{print $3}')
+        realuser=$(find "$file" -maxdepth 0 -printf "%u")
         [ "$realuser" = "$user" ]
     fi
 

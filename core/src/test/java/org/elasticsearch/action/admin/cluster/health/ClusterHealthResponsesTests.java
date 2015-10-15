@@ -158,9 +158,9 @@ public class ClusterHealthResponsesTests extends ESTestCase {
     }
 
     IndexRoutingTable genIndexRoutingTable(IndexMetaData indexMetaData, ShardCounter counter) {
-        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetaData.index());
-        for (int shard = 0; shard < indexMetaData.numberOfShards(); shard++) {
-            builder.addIndexShard(genShardRoutingTable(indexMetaData.index(), shard, indexMetaData.getNumberOfReplicas(), counter));
+        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetaData.getIndex());
+        for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
+            builder.addIndexShard(genShardRoutingTable(indexMetaData.getIndex(), shard, indexMetaData.getNumberOfReplicas(), counter));
         }
         return builder.build();
     }

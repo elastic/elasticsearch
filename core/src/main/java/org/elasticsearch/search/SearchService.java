@@ -113,7 +113,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
@@ -180,7 +179,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 // once an index is closed we can just clean up all the pending search context information
                 // to release memory and let references to the filesystem go etc.
                 IndexMetaData idxMeta = SearchService.this.clusterService.state().metaData().index(index.getName());
-                if (idxMeta != null && idxMeta.state() == IndexMetaData.State.CLOSE) {
+                if (idxMeta != null && idxMeta.getState() == IndexMetaData.State.CLOSE) {
                     // we need to check if it's really closed
                     // since sometimes due to a relocation we already closed the shard and that causes the index to be closed
                     // if we then close all the contexts we can get some search failures along the way which are not expected.
@@ -969,7 +968,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         @Override
         public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
-            final Loading defaultLoading = Loading.parse(indexMetaData.settings().get(NORMS_LOADING_KEY), Loading.LAZY);
+            final Loading defaultLoading = Loading.parse(indexMetaData.getSettings().get(NORMS_LOADING_KEY), Loading.LAZY);
             final MapperService mapperService = indexShard.mapperService();
             final ObjectSet<String> warmUp = new ObjectHashSet<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
@@ -1139,7 +1138,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         try {
                             final long start = System.nanoTime();
                             IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
-                            ifd.loadGlobal(context.reader());
+                            ifd.loadGlobal(context.getDirectoryReader());
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
                                 indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
                             }
@@ -1188,7 +1187,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         try {
                             long now = System.nanoTime();
                             final IndexService indexService = indicesService.indexServiceSafe(indexShard.shardId().index().name());
-                            ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexMetaData.numberOfShards(),
+                            ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexMetaData
+                                    .getNumberOfShards(),
                                     SearchType.QUERY_THEN_FETCH, entry.source().build(new QueryParseContext(indexService.queryParserService().indicesQueriesRegistry())), entry.types(), entry.requestCache());
                             context = createContext(request, warmerContext.searcher());
                             // if we use sort, we need to do query to sort on

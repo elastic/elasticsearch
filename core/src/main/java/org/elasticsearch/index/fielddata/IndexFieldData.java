@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
@@ -107,12 +108,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
      */
     void clear();
 
-    void clear(IndexReader reader);
-
     // we need this extended source we we have custom comparators to reuse our field data
     // in this case, we need to reduce type that will be used when search results are reduced
     // on another node (we don't have the custom source them...)
-    public abstract class XFieldComparatorSource extends FieldComparatorSource {
+    abstract class XFieldComparatorSource extends FieldComparatorSource {
 
         /**
          * Simple wrapper class around a filter that matches parent documents
@@ -237,11 +236,11 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
                              CircuitBreakerService breakerService, MapperService mapperService);
     }
 
-    public static interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
+    interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
 
-        IndexFieldData<FD> loadGlobal(IndexReader indexReader);
+        IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);
 
-        IndexFieldData<FD> localGlobalDirect(IndexReader indexReader) throws Exception;
+        IndexFieldData<FD> localGlobalDirect(DirectoryReader indexReader) throws Exception;
 
     }
 

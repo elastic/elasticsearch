@@ -241,7 +241,7 @@ public class OperationRouting extends AbstractComponent {
         } else {
             hash = Murmur3HashFunction.hash(routing);
         }
-        return MathUtils.mod(hash, indexMetaData.numberOfShards());
+        return MathUtils.mod(hash, indexMetaData.getNumberOfShards());
     }
 
     private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {

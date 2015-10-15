@@ -36,9 +36,7 @@ import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.*;
 import java.util.*;
 import java.util.stream.StreamSupport;
 import java.util.zip.ZipEntry;
@@ -102,7 +100,7 @@ public class PluginManager {
         this.timeout = timeout;
     }
 
-    public void downloadAndExtract(String name, Terminal terminal) throws IOException {
+    public void downloadAndExtract(String name, Terminal terminal, boolean batch) throws IOException {
         if (name == null && url == null) {
             throw new IllegalArgumentException("plugin name or url must be supplied with install.");
         }
@@ -126,7 +124,7 @@ public class PluginManager {
         }
 
         Path pluginFile = download(pluginHandle, terminal);
-        extract(pluginHandle, terminal, pluginFile);
+        extract(pluginHandle, terminal, pluginFile, batch);
     }
 
     private Path download(PluginHandle pluginHandle, Terminal terminal) throws IOException {
@@ -209,7 +207,7 @@ public class PluginManager {
         return pluginFile;
     }
 
-    private void extract(PluginHandle pluginHandle, Terminal terminal, Path pluginFile) throws IOException {
+    private void extract(PluginHandle pluginHandle, Terminal terminal, Path pluginFile, boolean batch) throws IOException {
         // unzip plugin to a staging temp dir, named for the plugin
         Path tmp = Files.createTempDirectory(environment.tmpFile(), null);
         Path root = tmp.resolve(pluginHandle.name);
@@ -234,6 +232,13 @@ public class PluginManager {
             throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + pluginHandle.name + "' command");
         }
 
+        // read optional security policy (extra permissions)
+        // if it exists, confirm or warn the user
+        Path policy = root.resolve(PluginInfo.ES_PLUGIN_POLICY);
+        if (Files.exists(policy)) {
+            PluginSecurity.readPolicy(policy, terminal, environment, batch);
+        }
+
         // install plugin
         FileSystemUtils.copyDirectoryRecursively(root, extractLocation);
         terminal.println("Installed %s into %s", pluginHandle.name, extractLocation.toAbsolutePath());
@@ -255,7 +260,7 @@ public class PluginManager {
                 copyBinDirectory(sourcePluginBinDirectory, destPluginBinDirectory, pluginHandle.name, terminal);
             } catch (IOException e) {
                 // rollback and remove potentially before installed leftovers
-                terminal.printError("Error copying bin directory [%s] to [%s], cleaning up, reason: %s", sourcePluginBinDirectory, destPluginBinDirectory, e.getMessage());
+                terminal.printError("Error copying bin directory [%s] to [%s], cleaning up, reason: %s", sourcePluginBinDirectory, destPluginBinDirectory, ExceptionsHelper.detailedMessage(e));
                 tryToDeletePath(terminal, extractLocation, pluginHandle.binDir(environment));
                 throw e;
             }
@@ -274,16 +279,70 @@ public class PluginManager {
             try {
                 terminal.println(VERBOSE, "Found config, moving to %s", destConfigDirectory.toAbsolutePath());
                 moveFilesWithoutOverwriting(sourceConfigDirectory, destConfigDirectory, ".new");
+
+                if (Environment.getFileStore(destConfigDirectory).supportsFileAttributeView(PosixFileAttributeView.class)) {
+                    //We copy owner, group and permissions from the parent ES_CONFIG directory, assuming they were properly set depending
+                    // on how es was installed in the first place: can be root:elasticsearch (750) if es was installed from rpm/deb packages
+                    // or most likely elasticsearch:elasticsearch if installed from tar/zip. As for permissions we don't rely on umask.
+                    PosixFileAttributes parentDirAttributes = Files.getFileAttributeView(destConfigDirectory.getParent(), PosixFileAttributeView.class).readAttributes();
+                    //for files though, we make sure not to copy execute permissions from the parent dir and leave them untouched
+                    Set<PosixFilePermission> baseFilePermissions = new HashSet<>();
+                    for (PosixFilePermission posixFilePermission : parentDirAttributes.permissions()) {
+                        switch (posixFilePermission) {
+                            case OWNER_EXECUTE:
+                            case GROUP_EXECUTE:
+                            case OTHERS_EXECUTE:
+                                break;
+                            default:
+                                baseFilePermissions.add(posixFilePermission);
+                        }
+                    }
+                    Files.walkFileTree(destConfigDirectory, new SimpleFileVisitor<Path>() {
+                        @Override
+                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                            if (attrs.isRegularFile()) {
+                                Set<PosixFilePermission> newFilePermissions = new HashSet<>(baseFilePermissions);
+                                Set<PosixFilePermission> currentFilePermissions = Files.getPosixFilePermissions(file);
+                                for (PosixFilePermission posixFilePermission : currentFilePermissions) {
+                                    switch (posixFilePermission) {
+                                        case OWNER_EXECUTE:
+                                        case GROUP_EXECUTE:
+                                        case OTHERS_EXECUTE:
+                                            newFilePermissions.add(posixFilePermission);
+                                    }
+                                }
+                                setPosixFileAttributes(file, parentDirAttributes.owner(), parentDirAttributes.group(), newFilePermissions);
+                            }
+                            return FileVisitResult.CONTINUE;
+                        }
+
+                        @Override
+                        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                            setPosixFileAttributes(dir, parentDirAttributes.owner(), parentDirAttributes.group(), parentDirAttributes.permissions());
+                            return FileVisitResult.CONTINUE;
+                        }
+                    });
+                } else {
+                    terminal.println(VERBOSE, "Skipping posix permissions - filestore doesn't support posix permission");
+                }
+
                 terminal.println(VERBOSE, "Installed %s into %s", pluginHandle.name, destConfigDirectory.toAbsolutePath());
             } catch (IOException e) {
-                terminal.printError("Error copying config directory [%s] to [%s], cleaning up, reason: %s", sourceConfigDirectory, destConfigDirectory, e.getMessage());
+                terminal.printError("Error copying config directory [%s] to [%s], cleaning up, reason: %s", sourceConfigDirectory, destConfigDirectory, ExceptionsHelper.detailedMessage(e));
                 tryToDeletePath(terminal, extractLocation, destPluginBinDirectory, destConfigDirectory);
                 throw e;
             }
         }
     }
 
-    private void tryToDeletePath(Terminal terminal, Path ... paths) {
+    private static void setPosixFileAttributes(Path path, UserPrincipal owner, GroupPrincipal group, Set<PosixFilePermission> permissions) throws IOException {
+        PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(path, PosixFileAttributeView.class);
+        fileAttributeView.setOwner(owner);
+        fileAttributeView.setGroup(group);
+        fileAttributeView.setPermissions(permissions);
+    }
+
+    static void tryToDeletePath(Terminal terminal, Path ... paths) {
         for (Path path : paths) {
             try {
                 IOUtils.rm(path);
@@ -307,23 +366,35 @@ public class PluginManager {
                 throw new IOException("Could not move [" + sourcePluginBinDirectory + "] to [" + destPluginBinDirectory + "]", e);
             }
             if (Environment.getFileStore(destPluginBinDirectory).supportsFileAttributeView(PosixFileAttributeView.class)) {
-                // add read and execute permissions to existing perms, so execution will work.
-                // read should generally be set already, but set it anyway: don't rely on umask...
-                final Set<PosixFilePermission> executePerms = new HashSet<>();
-                executePerms.add(PosixFilePermission.OWNER_READ);
-                executePerms.add(PosixFilePermission.GROUP_READ);
-                executePerms.add(PosixFilePermission.OTHERS_READ);
-                executePerms.add(PosixFilePermission.OWNER_EXECUTE);
-                executePerms.add(PosixFilePermission.GROUP_EXECUTE);
-                executePerms.add(PosixFilePermission.OTHERS_EXECUTE);
+                PosixFileAttributes parentDirAttributes = Files.getFileAttributeView(destPluginBinDirectory.getParent(), PosixFileAttributeView.class).readAttributes();
+                //copy permissions from parent bin directory
+                Set<PosixFilePermission> filePermissions = new HashSet<>();
+                for (PosixFilePermission posixFilePermission : parentDirAttributes.permissions()) {
+                    switch (posixFilePermission) {
+                        case OWNER_EXECUTE:
+                        case GROUP_EXECUTE:
+                        case OTHERS_EXECUTE:
+                            break;
+                        default:
+                            filePermissions.add(posixFilePermission);
+                    }
+                }
+                // add file execute permissions to existing perms, so execution will work.
+                filePermissions.add(PosixFilePermission.OWNER_EXECUTE);
+                filePermissions.add(PosixFilePermission.GROUP_EXECUTE);
+                filePermissions.add(PosixFilePermission.OTHERS_EXECUTE);
                 Files.walkFileTree(destPluginBinDirectory, new SimpleFileVisitor<Path>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                         if (attrs.isRegularFile()) {
-                            Set<PosixFilePermission> perms = Files.getPosixFilePermissions(file);
-                            perms.addAll(executePerms);
-                            Files.setPosixFilePermissions(file, perms);
+                            setPosixFileAttributes(file, parentDirAttributes.owner(), parentDirAttributes.group(), filePermissions);
                         }
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                        setPosixFileAttributes(dir, parentDirAttributes.owner(), parentDirAttributes.group(), parentDirAttributes.permissions());
                         return FileVisitResult.CONTINUE;
                     }
                 });

@@ -566,7 +566,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         routing(metaData.resolveIndexRouting(routing, index));
         // resolve timestamp if provided externally
         if (timestamp != null) {
-            Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).settings());
+            Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).getSettings());
             timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp,
                     mappingMd != null ? mappingMd.timestamp().dateTimeFormatter() : TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER,
                     version);
@@ -592,7 +592,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
                     if (parseContext.shouldParseTimestamp()) {
                         timestamp = parseContext.timestamp();
                         if (timestamp != null) {
-                            Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).settings());
+                            Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).getSettings());
                             timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter(), version);
                         }
                     }
@@ -642,7 +642,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
             if (defaultTimestamp.equals(TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP)) {
                 timestamp = Long.toString(System.currentTimeMillis());
             } else {
-                Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).settings());
+                Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).getSettings());
                 timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter(), version);
             }
         }

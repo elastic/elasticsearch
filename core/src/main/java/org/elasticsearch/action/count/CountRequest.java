@@ -49,7 +49,7 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+    private final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
     /**
      * Constructs a new count request against the provided indices. No indices provided means it will

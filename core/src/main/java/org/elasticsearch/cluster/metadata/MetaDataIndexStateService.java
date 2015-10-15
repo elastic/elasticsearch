@@ -90,7 +90,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                         throw new IndexNotFoundException(index);
                     }
 
-                    if (indexMetaData.state() != IndexMetaData.State.CLOSE) {
+                    if (indexMetaData.getState() != IndexMetaData.State.CLOSE) {
                         IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
                         for (IndexShardRoutingTable shard : indexRoutingTable) {
                             for (ShardRouting shardRouting : shard) {
@@ -151,7 +151,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     if (indexMetaData == null) {
                         throw new IndexNotFoundException(index);
                     }
-                    if (indexMetaData.state() != IndexMetaData.State.OPEN) {
+                    if (indexMetaData.getState() != IndexMetaData.State.OPEN) {
                         indicesToOpen.add(index);
                     }
                 }

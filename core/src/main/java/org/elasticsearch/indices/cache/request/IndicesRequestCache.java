@@ -33,6 +33,7 @@ import org.elasticsearch.common.cache.*;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -46,11 +47,9 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
@@ -209,7 +208,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         }
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (!isCacheEnabled(index.settings(), Boolean.FALSE)) {
+            if (!isCacheEnabled(index.getSettings(), Boolean.FALSE)) {
                 return false;
             }
         } else if (!request.requestCache()) {
@@ -245,7 +244,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
                 if (previous == null) {
-                    context.searcher().getIndexReader().addReaderClosedListener(cleanupKey);
+                    ElasticsearchDirectoryReader.addReaderCloseListener(context.searcher().getDirectoryReader(), cleanupKey);
                 }
             }
         } else {

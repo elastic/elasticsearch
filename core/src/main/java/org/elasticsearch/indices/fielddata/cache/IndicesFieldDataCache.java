@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.fielddata.cache;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -167,12 +169,12 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception {
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader, final IFD indexFieldData) throws Exception {
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
             final Key key = new Key(this, indexReader.getCoreCacheKey(), shardId);
             //noinspection unchecked
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
-                indexReader.addReaderClosedListener(IndexFieldCache.this);
+                ElasticsearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 for (Listener listener : this.listeners) {
                     k.listeners.add(listener);
                 }
@@ -226,12 +228,6 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             // rarely and probably means the user wants to see memory returned as
             // soon as possible
             cache.refresh();
-        }
-
-        @Override
-        public void clear(IndexReader indexReader) {
-            cache.invalidate(new Key(this, indexReader.getCoreCacheKey(), null));
-            // don't call cache.cleanUp here as it would have bad performance implications
         }
     }
 

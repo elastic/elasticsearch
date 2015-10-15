@@ -19,8 +19,10 @@
 
 package org.elasticsearch.common.lucene.uid;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexReader.ReaderClosedListener;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReader.CoreClosedListener;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
@@ -28,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
 /** Utility class to resolve the Lucene doc ID and version for a given uid. */
@@ -41,7 +44,7 @@ public class Versions {
 
     /**
      * used when the document is old and doesn't contain any version information in the index
-     * see {@link PerThreadIDAndVersionLookup#lookup(org.apache.lucene.util.BytesRef)}
+     * see {@link PerThreadIDAndVersionLookup#lookup}
      */
     public static final long NOT_SET = -2L;
 
@@ -52,30 +55,31 @@ public class Versions {
     public static final long MATCH_DELETED = -4L;
 
     // TODO: is there somewhere else we can store these?
-    private static final ConcurrentMap<IndexReader, CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    static final ConcurrentMap<Object, CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     // Evict this reader from lookupStates once it's closed:
-    private static final ReaderClosedListener removeLookupState = new ReaderClosedListener() {
+    private static final CoreClosedListener removeLookupState = new CoreClosedListener() {
         @Override
-        public void onClose(IndexReader reader) {
-            CloseableThreadLocal<PerThreadIDAndVersionLookup> ctl = lookupStates.remove(reader);
+        public void onClose(Object key) {
+            CloseableThreadLocal<PerThreadIDAndVersionLookup> ctl = lookupStates.remove(key);
             if (ctl != null) {
                 ctl.close();
             }
         }
     };
 
-    private static PerThreadIDAndVersionLookup getLookupState(IndexReader reader) throws IOException {
-        CloseableThreadLocal<PerThreadIDAndVersionLookup> ctl = lookupStates.get(reader);
+    private static PerThreadIDAndVersionLookup getLookupState(LeafReader reader) throws IOException {
+        Object key = reader.getCoreCacheKey();
+        CloseableThreadLocal<PerThreadIDAndVersionLookup> ctl = lookupStates.get(key);
         if (ctl == null) {
-            // First time we are seeing this reader; make a
+            // First time we are seeing this reader's core; make a
             // new CTL:
             ctl = new CloseableThreadLocal<>();
-            CloseableThreadLocal<PerThreadIDAndVersionLookup> other = lookupStates.putIfAbsent(reader, ctl);
+            CloseableThreadLocal<PerThreadIDAndVersionLookup> other = lookupStates.putIfAbsent(key, ctl);
             if (other == null) {
                 // Our CTL won, we must remove it when the
-                // reader is closed:
-                reader.addReaderClosedListener(removeLookupState);
+                // core is closed:
+                reader.addCoreClosedListener(removeLookupState);
             } else {
                 // Another thread beat us to it: just use
                 // their CTL:
@@ -116,7 +120,22 @@ public class Versions {
      */
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term) throws IOException {
         assert term.field().equals(UidFieldMapper.NAME);
-        return getLookupState(reader).lookup(term.bytes());
+        List<LeafReaderContext> leaves = reader.leaves();
+        if (leaves.isEmpty()) {
+            return null;
+        }
+        // iterate backwards to optimize for the frequently updated documents
+        // which are likely to be in the last segments
+        for (int i = leaves.size() - 1; i >= 0; i--) {
+            LeafReaderContext context = leaves.get(i);
+            LeafReader leaf = context.reader();
+            PerThreadIDAndVersionLookup lookup = getLookupState(leaf);
+            DocIdAndVersion result = lookup.lookup(term.bytes(), leaf.getLiveDocs(), context);
+            if (result != null) {
+                return result;
+            }
+        }
+        return null;
     }
 
     /**

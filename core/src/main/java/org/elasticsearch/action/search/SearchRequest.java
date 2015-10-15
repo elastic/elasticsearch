@@ -115,6 +115,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * Constructs a new search request against the provided indices with the given search source.
      */
     public SearchRequest(String[] indices, SearchSourceBuilder source) {
+        if (source == null) {
+            throw new IllegalArgumentException("source must not be null");
+        }
         indices(indices);
         this.source = source;
     }
@@ -232,6 +235,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * The source of the search request.
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
+        if (sourceBuilder == null) {
+            throw new IllegalArgumentException("source must not be null");
+        }
         this.source = sourceBuilder;
         return this;
     }
@@ -332,7 +338,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
-        source = SearchSourceBuilder.readSearchSourceFrom(in);
+        if (in.readBoolean()) {
+            source = SearchSourceBuilder.readSearchSourceFrom(in);
+        }
 
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -360,7 +368,12 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        source.writeTo(out);
+        if (source == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            source.writeTo(out);
+        }
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);

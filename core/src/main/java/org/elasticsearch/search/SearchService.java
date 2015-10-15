@@ -1189,7 +1189,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                             long now = System.nanoTime();
                             final IndexService indexService = indicesService.indexServiceSafe(indexShard.shardId().index().name());
                             QueryParseContext queryParseContext = new QueryParseContext(indexService.queryParserService().indicesQueriesRegistry());
-                            // NOCOMMIT get a parseFieldMatcher from somewhere and set it on the queryParseContext
                             queryParseContext.parseFieldMatcher(indexService.queryParserService().parseFieldMatcher());
                             ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexMetaData
                                     .getNumberOfShards(),

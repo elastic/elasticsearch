@@ -30,12 +30,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 /**
  * A query that will return only documents matching specific ids (and a type).
@@ -133,14 +128,14 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected IdsQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        IdsQueryBuilder idsQueryBuilder = new IdsQueryBuilder(in.readOptionalStringArray());
+        IdsQueryBuilder idsQueryBuilder = new IdsQueryBuilder(in.readStringArray());
         idsQueryBuilder.addIds(in.readStringArray());
         return idsQueryBuilder;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalStringArray(types);
+        out.writeStringArray(types);
         out.writeStringArray(ids.toArray(new String[ids.size()]));
     }
 

@@ -28,6 +28,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.test.ESTestCase;
@@ -358,5 +359,17 @@ public class LuceneTests extends ESTestCase {
 
         w.close();
         dir.close();
+    }
+
+    /**
+     * Test that the "unmap hack" is detected as supported by lucene.
+     * This works around the following bug: https://bugs.openjdk.java.net/browse/JDK-4724038
+     * <p>
+     * While not guaranteed, current status is "Critical Internal API": http://openjdk.java.net/jeps/260
+     * Additionally this checks we did not screw up the security logic around the hack.
+     */
+    public void testMMapHackSupported() throws Exception {
+        // add assume's here if needed for certain platforms, but we should know if it does not work.
+        assertTrue(MMapDirectory.UNMAP_SUPPORTED);
     }
 }

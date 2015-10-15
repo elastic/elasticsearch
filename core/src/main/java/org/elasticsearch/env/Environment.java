@@ -304,6 +304,7 @@ public class Environment {
      *       no permissions to the actual mount point are required.
      *   <li>Exception handling has the same semantics as {@link Files#getFileStore(Path)}.
      *   <li>Works around https://bugs.openjdk.java.net/browse/JDK-8034057.
+     *   <li>Gives a better exception when filestore cannot be retrieved from inside a FreeBSD jail.
      * </ul>
      */
     public static FileStore getFileStore(Path path) throws IOException {

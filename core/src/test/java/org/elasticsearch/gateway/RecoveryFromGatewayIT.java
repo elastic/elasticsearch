@@ -116,9 +116,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         for (ObjectCursor<IndexMetaData> cursor : state.metaData().indices().values()) {
             final IndexMetaData indexMetaData = cursor.value;
-            final String index = indexMetaData.index();
+            final String index = indexMetaData.getIndex();
             final int[] previous = previousTerms.get(index);
-            final int[] current = IntStream.range(0, indexMetaData.numberOfShards()).map(indexMetaData::primaryTerm).toArray();
+            final int[] current = IntStream.range(0, indexMetaData.getNumberOfShards()).map(indexMetaData::primaryTerm).toArray();
             if (previous == null) {
                 result.put(index, current);
             } else {

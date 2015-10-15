@@ -494,7 +494,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             version = in.readLong();
             state = State.fromId(in.readByte());
             settings = Settings.readSettingsFromStream(in);
-            primaryTerms = in.readIntArray();
+            primaryTerms = in.readVIntArray();
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, MappingMetaData.PROTO);
             aliases = DiffableUtils.readImmutableOpenMapDiff(in, AliasMetaData.PROTO);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, new DiffableUtils.KeyedReader<Custom>() {
@@ -516,7 +516,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             out.writeLong(version);
             out.writeByte(state.id);
             Settings.writeSettingsToStream(settings, out);
-            out.writeIntArray(primaryTerms);
+            out.writeVIntArray(primaryTerms);
             mappings.writeTo(out);
             aliases.writeTo(out);
             customs.writeTo(out);
@@ -542,7 +542,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         builder.version(in.readLong());
         builder.state(State.fromId(in.readByte()));
         builder.settings(readSettingsFromStream(in));
-        builder.primaryTerms(in.readIntArray());
+        builder.primaryTerms(in.readVIntArray());
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
             MappingMetaData mappingMd = MappingMetaData.PROTO.readFrom(in);
@@ -568,7 +568,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         out.writeLong(version);
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
-        out.writeIntArray(primaryTerms);
+        out.writeVIntArray(primaryTerms);
         out.writeVInt(mappings.size());
         for (ObjectCursor<MappingMetaData> cursor : mappings.values()) {
             cursor.value.writeTo(out);
@@ -911,7 +911,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                             if (token == XContentParser.Token.VALUE_NUMBER) {
                                 list.add(parser.intValue());
                             } else {
-                                throw new IllegalStateException("found a non-numeric value under [primary_terms]");
+                                throw new IllegalStateException("found a non-numeric value under [" + Fields.PRIMARY_TERMS.underscore() + "]");
                             }
                         }
                         builder.primaryTerms(list.toArray());

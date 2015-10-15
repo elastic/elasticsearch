@@ -469,7 +469,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 builder.endArray();
 
                 builder.startObject("primary_terms");
-                for (int shard = 0; shard < indexMetaData.numberOfShards(); shard++) {
+                for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
                     builder.field(Integer.toString(shard), indexMetaData.primaryTerm(shard));
                 }
                 builder.endObject();

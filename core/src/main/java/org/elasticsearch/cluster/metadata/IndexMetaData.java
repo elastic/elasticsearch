@@ -354,11 +354,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     }
 
     public int getNumberOfShards() {
-        return settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1);
+        return this.numberOfShards;
     }
 
     public int getNumberOfReplicas() {
-        return settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1);
+        return this.numberOfReplicas;
     }
 
     public int getTotalNumberOfShards() {

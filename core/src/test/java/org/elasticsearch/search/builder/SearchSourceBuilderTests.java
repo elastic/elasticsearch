@@ -302,7 +302,12 @@ public class SearchSourceBuilderTests extends ESTestCase {
 
     private void assertParseSearchSource(SearchSourceBuilder testBuilder, String builderAsString) throws IOException {
         XContentParser parser = XContentFactory.xContent(builderAsString).createParser(builderAsString);
-        SearchSourceBuilder newBuilder = SearchSourceBuilder.parseSearchSource(parser, createParseContext(parser));
+        QueryParseContext parseContext = createParseContext(parser);
+        parseContext.reset(parser);
+        if (randomBoolean()) {
+            parser.nextToken(); // sometimes we move it on the START_OBJECT to test the embedded case
+        }
+        SearchSourceBuilder newBuilder = SearchSourceBuilder.parseSearchSource(parser, parseContext);
         assertNotSame(testBuilder, newBuilder);
         assertEquals(testBuilder, newBuilder);
         assertEquals(testBuilder.hashCode(), newBuilder.hashCode());

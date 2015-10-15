@@ -29,6 +29,7 @@ import java.security.PermissionCollection;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.security.URIParameter;
+import java.util.Map;
 
 /** custom policy for union of static and dynamic permissions */
 final class ESPolicy extends Policy {
@@ -41,13 +42,15 @@ final class ESPolicy extends Policy {
     final Policy template;
     final Policy untrusted;
     final PermissionCollection dynamic;
+    final Map<String,PermissionCollection> plugins;
 
-    public ESPolicy(PermissionCollection dynamic) throws Exception {
+    public ESPolicy(PermissionCollection dynamic, Map<String,PermissionCollection> plugins) throws Exception {
         URI policyUri = getClass().getResource(POLICY_RESOURCE).toURI();
         URI untrustedUri = getClass().getResource(UNTRUSTED_RESOURCE).toURI();
         this.template = Policy.getInstance("JavaPolicy", new URIParameter(policyUri));
         this.untrusted = Policy.getInstance("JavaPolicy", new URIParameter(untrustedUri));
         this.dynamic = dynamic;
+        this.plugins = plugins;
     }
 
     @Override @SuppressForbidden(reason = "fast equals check is desired")
@@ -65,6 +68,11 @@ final class ESPolicy extends Policy {
             // run scripts with limited permissions
             if (BootstrapInfo.UNTRUSTED_CODEBASE.equals(location.getFile())) {
                 return untrusted.implies(domain, permission);
+            }
+            // check for an additional plugin permission
+            PermissionCollection plugin = plugins.get(location.getFile());
+            if (plugin != null && plugin.implies(permission)) {
+                return true;
             }
         }
 

@@ -84,7 +84,7 @@ public class PluginManagerPermissionTests extends ESTestCase {
             Files.setPosixFilePermissions(binPath, PosixFilePermissions.fromString("---------"));
 
             PluginManager pluginManager = new PluginManager(environment, pluginUrl, PluginManager.OutputMode.VERBOSE, TimeValue.timeValueSeconds(10));
-            pluginManager.downloadAndExtract(pluginName, terminal);
+            pluginManager.downloadAndExtract(pluginName, terminal, true);
 
             fail("Expected IOException but did not happen");
         } catch (IOException e) {
@@ -115,7 +115,7 @@ public class PluginManagerPermissionTests extends ESTestCase {
             Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("---------"));
 
             PluginManager pluginManager = new PluginManager(environment, pluginUrl, PluginManager.OutputMode.VERBOSE, TimeValue.timeValueSeconds(10));
-            pluginManager.downloadAndExtract(pluginName, terminal);
+            pluginManager.downloadAndExtract(pluginName, terminal, true);
 
             fail("Expected IOException but did not happen, terminal output was " + terminal.getTerminalOutput());
         } catch (IOException e) {
@@ -148,7 +148,7 @@ public class PluginManagerPermissionTests extends ESTestCase {
             Files.setPosixFilePermissions(binPath, PosixFilePermissions.fromString("---------"));
 
             PluginManager pluginManager = new PluginManager(environment, pluginUrl, PluginManager.OutputMode.VERBOSE, TimeValue.timeValueSeconds(10));
-            pluginManager.downloadAndExtract(pluginName, terminal);
+            pluginManager.downloadAndExtract(pluginName, terminal, true);
         } finally {
             Files.setPosixFilePermissions(binPath, PosixFilePermissions.fromString("rwxrwxrwx"));
             Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rwxrwxrwx"));
@@ -168,7 +168,7 @@ public class PluginManagerPermissionTests extends ESTestCase {
             Files.setPosixFilePermissions(environment.pluginsFile(), PosixFilePermissions.fromString("---------"));
             PluginManager pluginManager = new PluginManager(environment, pluginUrl, PluginManager.OutputMode.VERBOSE, TimeValue.timeValueSeconds(10));
             try {
-                pluginManager.downloadAndExtract(pluginName, terminal);
+                pluginManager.downloadAndExtract(pluginName, terminal, true);
                 fail("Expected IOException due to read-only plugins/ directory");
             } catch (IOException e) {
                 assertFileNotExists(environment.binFile().resolve(pluginName));
@@ -200,7 +200,7 @@ public class PluginManagerPermissionTests extends ESTestCase {
         try {
             Files.setPosixFilePermissions(backupConfigFile, PosixFilePermissions.fromString("---------"));
 
-            pluginManager.downloadAndExtract(pluginName, terminal);
+            pluginManager.downloadAndExtract(pluginName, terminal, true);
 
             if (pluginContainsExecutables) {
                 assertDirectoryExists(environment.binFile().resolve(pluginName));
@@ -227,7 +227,7 @@ public class PluginManagerPermissionTests extends ESTestCase {
         PluginManager pluginManager = new PluginManager(environment, pluginUrl, PluginManager.OutputMode.VERBOSE, TimeValue.timeValueSeconds(10));
 
         try {
-            pluginManager.downloadAndExtract(pluginName, terminal);
+            pluginManager.downloadAndExtract(pluginName, terminal, true);
             fail("Expected plugin installation to fail, but didnt");
         } catch (IOException e) {
             assertFileExists(environment.configFile().resolve(pluginName));
@@ -246,7 +246,7 @@ public class PluginManagerPermissionTests extends ESTestCase {
         PluginManager pluginManager = new PluginManager(environment, pluginUrl, PluginManager.OutputMode.VERBOSE, TimeValue.timeValueSeconds(10));
 
         try {
-            pluginManager.downloadAndExtract(pluginName, terminal);
+            pluginManager.downloadAndExtract(pluginName, terminal, true);
             fail("Expected plugin installation to fail, but didnt");
         } catch (IOException e) {
             assertFileExists(environment.binFile().resolve(pluginName));
@@ -259,7 +259,7 @@ public class PluginManagerPermissionTests extends ESTestCase {
         assumeTrue("File system does not support permissions, skipping", supportsPermissions);
         URL pluginUrl = createPlugin(false, true);
         PluginManager pluginManager = new PluginManager(environment, pluginUrl, PluginManager.OutputMode.VERBOSE, TimeValue.timeValueSeconds(10));
-        pluginManager.downloadAndExtract(pluginName, terminal);
+        pluginManager.downloadAndExtract(pluginName, terminal, true);
         PosixFileAttributes parentFileAttributes = Files.getFileAttributeView(environment.configFile(), PosixFileAttributeView.class).readAttributes();
         Path configPath = environment.configFile().resolve(pluginName);
         PosixFileAttributes pluginConfigDirAttributes = Files.getFileAttributeView(configPath, PosixFileAttributeView.class).readAttributes();
@@ -288,7 +288,7 @@ public class PluginManagerPermissionTests extends ESTestCase {
         assumeTrue("File system does not support permissions, skipping", supportsPermissions);
         URL pluginUrl = createPlugin(true, false);
         PluginManager pluginManager = new PluginManager(environment, pluginUrl, PluginManager.OutputMode.VERBOSE, TimeValue.timeValueSeconds(10));
-        pluginManager.downloadAndExtract(pluginName, terminal);
+        pluginManager.downloadAndExtract(pluginName, terminal, true);
         PosixFileAttributes parentFileAttributes = Files.getFileAttributeView(environment.binFile(), PosixFileAttributeView.class).readAttributes();
         Path binPath = environment.binFile().resolve(pluginName);
         PosixFileAttributes pluginBinDirAttributes = Files.getFileAttributeView(binPath, PosixFileAttributeView.class).readAttributes();

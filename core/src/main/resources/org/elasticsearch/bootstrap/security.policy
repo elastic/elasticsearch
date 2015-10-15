@@ -44,47 +44,6 @@ grant codeBase "${es.security.jar.twitter.jsr166e}" {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
 };
 
-//// Special plugin permissions:
-//// These are dangerous permissions only needed by special plugins that we don't
-//// want to grant in general. Some may be due to problems in third-party library code,
-//// others may just be more obscure integrations.
-
-grant codeBase "${es.security.plugin.cloud-aws}" {
-  // needed because of problems in aws-sdk
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-grant codeBase "${es.security.plugin.cloud-gce}" {
-  // needed because of problems in cloud-gce
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-grant codeBase "${es.security.plugin.lang-expression}" {
-  // needed to generate runtime classes
-  permission java.lang.RuntimePermission "createClassLoader";
-};
-
-grant codeBase "${es.security.plugin.lang-groovy}" {
-  // needed to generate runtime classes
-  permission java.lang.RuntimePermission "createClassLoader";
-  // needed by groovy engine
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
-  // needed by GroovyScriptEngineService to close its classloader (why?)
-  permission java.lang.RuntimePermission "closeClassLoader";
-  // Allow executing groovy scripts with codesource of /untrusted
-  permission groovy.security.GroovyCodeSourcePermission "/untrusted";
-};
-
-grant codeBase "${es.security.plugin.lang-javascript}" {
-  // needed to generate runtime classes
-  permission java.lang.RuntimePermission "createClassLoader";
-};
-
-grant codeBase "${es.security.plugin.lang-python}" {
-  // needed to generate runtime classes
-  permission java.lang.RuntimePermission "createClassLoader";
-};
-
 //// test framework permissions.
 //// These are mock objects and test management that we allow test framework libs
 //// to provide on our behalf. But tests themselves cannot do this stuff!

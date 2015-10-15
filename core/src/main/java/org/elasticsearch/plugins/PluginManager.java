@@ -98,7 +98,7 @@ public class PluginManager {
         this.timeout = timeout;
     }
 
-    public void downloadAndExtract(String name, Terminal terminal) throws IOException {
+    public void downloadAndExtract(String name, Terminal terminal, boolean batch) throws IOException {
         if (name == null && url == null) {
             throw new IllegalArgumentException("plugin name or url must be supplied with install.");
         }
@@ -122,7 +122,7 @@ public class PluginManager {
         }
 
         Path pluginFile = download(pluginHandle, terminal);
-        extract(pluginHandle, terminal, pluginFile);
+        extract(pluginHandle, terminal, pluginFile, batch);
     }
 
     private Path download(PluginHandle pluginHandle, Terminal terminal) throws IOException {
@@ -205,7 +205,7 @@ public class PluginManager {
         return pluginFile;
     }
 
-    private void extract(PluginHandle pluginHandle, Terminal terminal, Path pluginFile) throws IOException {
+    private void extract(PluginHandle pluginHandle, Terminal terminal, Path pluginFile, boolean batch) throws IOException {
         // unzip plugin to a staging temp dir, named for the plugin
         Path tmp = Files.createTempDirectory(environment.tmpFile(), null);
         Path root = tmp.resolve(pluginHandle.name);
@@ -228,6 +228,13 @@ public class PluginManager {
         final Path extractLocation = pluginHandle.extractedDir(environment);
         if (Files.exists(extractLocation)) {
             throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + pluginHandle.name + "' command");
+        }
+
+        // read optional security policy (extra permissions)
+        // if it exists, confirm or warn the user
+        Path policy = root.resolve(PluginInfo.ES_PLUGIN_POLICY);
+        if (Files.exists(policy)) {
+            PluginSecurity.readPolicy(policy, terminal, environment, batch);
         }
 
         // install plugin
@@ -333,7 +340,7 @@ public class PluginManager {
         fileAttributeView.setPermissions(permissions);
     }
 
-    private void tryToDeletePath(Terminal terminal, Path ... paths) {
+    static void tryToDeletePath(Terminal terminal, Path ... paths) {
         for (Path path : paths) {
             try {
                 IOUtils.rm(path);

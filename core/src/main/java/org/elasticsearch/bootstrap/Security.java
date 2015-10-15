@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.*;
 import java.net.URL;
@@ -30,8 +31,11 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
+import java.security.URIParameter;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -65,7 +69,7 @@ import java.util.regex.Pattern;
  * when they are so dangerous that general code should not be granted the
  * permission, but there are extenuating circumstances.
  * <p>
- * Groovy scripts are assigned no permissions. This does not provide adequate
+ * Scripts (groovy, javascript, python) are assigned minimal permissions. This does not provide adequate
  * sandboxing, as these scripts still have access to ES classes, and could
  * modify members, etc that would cause bad things to happen later on their
  * behalf (no package protections are yet in place, this would need some
@@ -81,7 +85,7 @@ import java.util.regex.Pattern;
  * <h1>Debugging Security</h1>
  * A good place to start when there is a problem is to turn on security debugging:
  * <pre>
- * JAVA_OPTS="-Djava.security.debug=access:failure" bin/elasticsearch
+ * JAVA_OPTS="-Djava.security.debug=access,failure" bin/elasticsearch
  * </pre>
  * See <a href="https://docs.oracle.com/javase/7/docs/technotes/guides/security/troubleshooting-security.html">
  * Troubleshooting Security</a> for information.
@@ -97,11 +101,9 @@ final class Security {
     static void configure(Environment environment) throws Exception {
         // set properties for jar locations
         setCodebaseProperties();
-        // set properties for problematic plugins
-        setPluginCodebaseProperties(environment);
 
-        // enable security policy: union of template and environment-based paths.
-        Policy.setPolicy(new ESPolicy(createPermissions(environment)));
+        // enable security policy: union of template and environment-based paths, and possibly plugin permissions
+        Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment)));
 
         // enable security manager
         System.setSecurityManager(new SecurityManager() {
@@ -158,69 +160,39 @@ final class Security {
         }
     }
 
-    // mapping of plugins to plugin class name. see getPluginClass why we need this.
-    // plugin codebase property is always implicit (es.security.plugin.foobar)
-    // note that this is only read once, when policy is parsed.
-    static final Map<String,String> SPECIAL_PLUGINS;
-    static {
-        Map<String,String> m = new HashMap<>();
-        m.put("cloud-aws",           "org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin");
-        m.put("cloud-gce",           "org.elasticsearch.plugin.cloud.gce.CloudGcePlugin");
-        m.put("lang-expression",     "org.elasticsearch.script.expression.ExpressionPlugin");
-        m.put("lang-groovy",         "org.elasticsearch.script.groovy.GroovyPlugin");
-        m.put("lang-javascript",     "org.elasticsearch.plugin.javascript.JavaScriptPlugin");
-        m.put("lang-python",         "org.elasticsearch.plugin.python.PythonPlugin");
-        SPECIAL_PLUGINS = Collections.unmodifiableMap(m);
-    }
-
-    /**
-     * Returns policy property for plugin, if it has special permissions.
-     * otherwise returns null.
-     */
-    static String getPluginProperty(String pluginName) {
-        if (SPECIAL_PLUGINS.containsKey(pluginName)) {
-            return "es.security.plugin." + pluginName;
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * Returns plugin class name, if it has special permissions.
-     * otherwise returns null.
-     */
-    // this is only here to support the intellij IDE
-    // it sucks to duplicate information, but its worth the tradeoff: sanity
-    // if it gets out of sync, tests will fail.
-    static String getPluginClass(String pluginName) {
-        return SPECIAL_PLUGINS.get(pluginName);
-    }
-
     /**
      * Sets properties (codebase URLs) for policy files.
      * we look for matching plugins and set URLs to fit
      */
     @SuppressForbidden(reason = "proper use of URL")
-    static void setPluginCodebaseProperties(Environment environment) throws IOException {
+    static Map<String,PermissionCollection> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
+        Map<String,PermissionCollection> map = new HashMap<>();
         if (Files.exists(environment.pluginsFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
                 for (Path plugin : stream) {
-                    String prop = getPluginProperty(plugin.getFileName().toString());
-                    if (prop != null) {
-                        if (System.getProperty(prop) != null) {
-                            throw new IllegalStateException("property: " + prop + " is unexpectedly set: " + System.getProperty(prop));
+                    Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
+                    if (Files.exists(policyFile)) {
+                        // parse the plugin's policy file into a set of permissions
+                        Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toUri()));
+                        PermissionCollection permissions = policy.getPermissions(Security.class.getProtectionDomain());
+                        // this method is supported with the specific implementation we use, but just check for safety.
+                        if (permissions == Policy.UNSUPPORTED_EMPTY_COLLECTION) {
+                            throw new UnsupportedOperationException("JavaPolicy implementation does not support retrieving permissions");
                         }
-                        System.setProperty(prop, plugin.toUri().toURL().toString() + "*");
+                        // grant the permissions to each jar in the plugin
+                        try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
+                            for (Path jar : jarStream) {
+                                if (map.put(jar.toUri().toURL().getFile(), permissions) != null) {
+                                    // just be paranoid ok?
+                                    throw new IllegalStateException("per-plugin permissions already granted for jar file: " + jar);
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
-        for (String plugin : SPECIAL_PLUGINS.keySet()) {
-            String prop = getPluginProperty(plugin);
-            if (System.getProperty(prop) == null) {
-                System.setProperty(prop, "file:/dev/null"); // no chance to be interpreted as "all"
-            }
-        }
+        return Collections.unmodifiableMap(map);
     }
 
     /** returns dynamic Permissions to configured paths */

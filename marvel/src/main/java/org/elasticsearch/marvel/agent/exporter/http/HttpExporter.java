@@ -62,10 +62,10 @@ public class HttpExporter extends Exporter {
     public static final String TEMPLATE_CHECK_TIMEOUT_SETTING = "index.template.master_timeout";
 
     public static final String SSL_SETTING = "ssl";
-    public static final String SSL_PROTOCOL_SETTING = SSL_SETTING + ".protocol";
-    public static final String SSL_TRUSTSTORE_SETTING = SSL_SETTING + ".truststore.path";
-    public static final String SSL_TRUSTSTORE_PASSWORD_SETTING = SSL_SETTING + ".truststore.password";
-    public static final String SSL_TRUSTSTORE_ALGORITHM_SETTING = SSL_SETTING + ".truststore.algorithm";
+    public static final String SSL_PROTOCOL_SETTING = "protocol";
+    public static final String SSL_TRUSTSTORE_SETTING = "truststore.path";
+    public static final String SSL_TRUSTSTORE_PASSWORD_SETTING = "truststore.password";
+    public static final String SSL_TRUSTSTORE_ALGORITHM_SETTING = "truststore.algorithm";
     public static final String SSL_HOSTNAME_VERIFICATION_SETTING = SSL_SETTING + ".hostname_verification";
 
     /** Minimum supported version of the remote marvel cluster **/

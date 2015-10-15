@@ -72,7 +72,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     }
 
     @Test
-    public void testNoProcessPrimacyNotAllocatedBefore() {
+    public void testNoProcessPrimaryNotAllocatedBefore() {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, 1, true, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         assertThat(testAllocator.needToFindPrimaryCopy(shard), equalTo(false));
     }

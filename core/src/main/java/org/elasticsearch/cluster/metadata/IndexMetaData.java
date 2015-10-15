@@ -287,7 +287,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
      * The term of the current selected primary. This is a non-negative number incremented when
      * a primary shard is assigned after a full cluster restart or a replica shard is promoted
      * to a primary (see {@link ShardRouting#moveToPrimary()})
-     *
      */
     public int primaryTerm(int shardId) {
         return this.primaryTerms[shardId];
@@ -436,10 +435,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     @Override
     public int hashCode() {
         int result = index.hashCode();
+        result = 31 * result + (int) (version ^ (version >>> 32));
         result = 31 * result + state.hashCode();
         result = 31 * result + aliases.hashCode();
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
+        result = 31 * result + customs.hashCode();
         result = 31 * result + Arrays.hashCode(primaryTerms);
         return result;
     }
@@ -785,21 +786,31 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return new IndexMetaData(index, version, primaryTerms, state, tmpSettings, mappings.build(), tmpAliases.build(), customs.build());
         }
 
+        static final class Fields {
+            static final XContentBuilderString VERSION = new XContentBuilderString("version");
+            static final XContentBuilderString SETTINGS = new XContentBuilderString("settings");
+            static final XContentBuilderString STATE = new XContentBuilderString("state");
+            static final XContentBuilderString MAPPINGS = new XContentBuilderString("mappings");
+            static final XContentBuilderString ALIASES = new XContentBuilderString("aliases");
+            static final XContentBuilderString PRIMARY_TERMS = new XContentBuilderString("primary_terms");
+        }
+
+
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject(indexMetaData.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
-            builder.field("version", indexMetaData.getVersion());
-            builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
+            builder.field(Fields.VERSION, indexMetaData.getVersion());
+            builder.field(Fields.STATE, indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
             boolean binary = params.paramAsBoolean("binary", false);
 
-            builder.startObject("settings");
+            builder.startObject(Fields.SETTINGS);
             for (Map.Entry<String, String> entry : indexMetaData.getSettings().getAsMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject();
 
-            builder.startArray("mappings");
+            builder.startArray(Fields.MAPPINGS);
             for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                 if (binary) {
                     builder.value(cursor.value.source().compressed());
@@ -819,19 +830,24 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 builder.endObject();
             }
 
-            builder.startObject("aliases");
+            builder.startObject(Fields.ALIASES);
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData.Builder.toXContent(cursor.value, builder, params);
             }
             builder.endObject();
 
-            builder.startArray("primary_terms");
+            builder.startArray(Fields.PRIMARY_TERMS);
             for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
                 builder.value(indexMetaData.primaryTerm(i));
             }
             builder.endArray();
 
             builder.endObject();
+        }
+
+        // TODO move it somewhere where it will be useful for other code?
+        private static boolean fieldEquals(XContentBuilderString field, String currentFieldName) {
+            return field.underscore().getValue().equals(currentFieldName);
         }
 
         public static IndexMetaData fromXContent(XContentParser parser) throws IOException {
@@ -849,9 +865,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("settings".equals(currentFieldName)) {
+                    if (fieldEquals(Fields.SETTINGS, currentFieldName)) {
                         builder.settings(Settings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())));
-                    } else if ("mappings".equals(currentFieldName)) {
+                    } else if (fieldEquals(Fields.MAPPINGS, currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
@@ -861,7 +877,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                                 builder.putMapping(new MappingMetaData(mappingType, mappingSource));
                             }
                         }
-                    } else if ("aliases".equals(currentFieldName)) {
+                    } else if (fieldEquals(Fields.ALIASES, currentFieldName)) {
                         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                             builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
                         }
@@ -877,7 +893,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if ("mappings".equals(currentFieldName)) {
+                    if (fieldEquals(Fields.MAPPINGS, currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                                 builder.putMapping(new MappingMetaData(new CompressedXContent(parser.binaryValue())));
@@ -889,7 +905,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                                 }
                             }
                         }
-                    } else if ("primary_terms".equals(currentFieldName)) {
+                    } else if (fieldEquals(Fields.PRIMARY_TERMS, currentFieldName)) {
                         IntArrayList list = new IntArrayList();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -898,15 +914,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                                 throw new IllegalStateException("found a non-numeric value under [primary_terms]");
                             }
                         }
-                        for (int i = 0; i < list.size(); i++) {
-                            builder.primaryTerm(i, list.get(i));
-                        }
                         builder.primaryTerms(list.toArray());
                     }
                 } else if (token.isValue()) {
-                    if ("state".equals(currentFieldName)) {
+                    if (fieldEquals(Fields.STATE, currentFieldName)) {
                         builder.state(State.fromString(parser.text()));
-                    } else if ("version".equals(currentFieldName)) {
+                    } else if (fieldEquals(Fields.VERSION, currentFieldName)) {
                         builder.version(parser.longValue());
                     }
                 }

@@ -331,7 +331,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         }
 
         primary = in.readBoolean();
-        primaryTerm = in.readInt();
+        primaryTerm = in.readVInt();
         state = ShardRoutingState.fromValue(in.readByte());
 
         restoreSource = RestoreSource.readOptionalRestoreSource(in);
@@ -377,7 +377,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         }
 
         out.writeBoolean(primary);
-        out.writeInt(primaryTerm);
+        out.writeVInt(primaryTerm);
         out.writeByte(state.value());
 
         if (restoreSource != null) {

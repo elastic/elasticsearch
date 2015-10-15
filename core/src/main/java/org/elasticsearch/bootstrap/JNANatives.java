@@ -46,6 +46,9 @@ class JNANatives {
     static boolean LOCAL_MLOCKALL = false;
     // Set to true, in case native seccomp call was successful
     static boolean LOCAL_SECCOMP = false;
+    // Set to true, in case policy can be applied to all threads of the process (even existing ones)
+    // otherwise they are only inherited for new threads (ES app threads)
+    static boolean LOCAL_SECCOMP_ALL = false;
 
     static void tryMlockall() {
         int errno = Integer.MIN_VALUE;
@@ -177,8 +180,11 @@ class JNANatives {
 
     static void trySeccomp(Path tmpFile) {
         try {
-            Seccomp.init(tmpFile);
+            int ret = Seccomp.init(tmpFile);
             LOCAL_SECCOMP = true;
+            if (ret == 1) {
+                LOCAL_SECCOMP_ALL = true;
+            }
         } catch (Throwable t) {
             // this is likely to happen unless the kernel is newish, its a best effort at the moment
             // so we log stacktrace at debug for now...

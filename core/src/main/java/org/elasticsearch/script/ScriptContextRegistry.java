@@ -19,10 +19,13 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.ImmutableMap;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
-import java.util.*;
-
+import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 
 /**
@@ -33,7 +36,7 @@ import static java.util.Collections.unmodifiableSet;
 public final class ScriptContextRegistry {
     static final Set<String> RESERVED_SCRIPT_CONTEXTS = reservedScriptContexts();
 
-    private final ImmutableMap<String, ScriptContext> scriptContexts;
+    private final Map<String, ScriptContext> scriptContexts;
 
     public ScriptContextRegistry(Collection<ScriptContext.Plugin> customScriptContexts) {
         Map<String, ScriptContext> scriptContexts = new HashMap<>();
@@ -47,7 +50,7 @@ public final class ScriptContextRegistry {
                 throw new IllegalArgumentException("script context [" + customScriptContext.getKey() + "] cannot be registered twice");
             }
         }
-        this.scriptContexts = ImmutableMap.copyOf(scriptContexts);
+        this.scriptContexts = unmodifiableMap(scriptContexts);
     }
 
     /**

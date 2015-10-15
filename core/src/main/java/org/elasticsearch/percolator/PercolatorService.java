@@ -25,6 +25,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -189,7 +190,7 @@ public class PercolatorService extends AbstractComponent {
                 indexShard.shardId().index().name(),
                 request.indices()
         );
-        Query aliasFilter = percolateIndexService.aliasesService().aliasFilter(filteringAliases);
+        Query aliasFilter = percolateIndexService.aliasFilter(filteringAliases);
 
         SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         final PercolateContext context = new PercolateContext(
@@ -457,21 +458,21 @@ public class PercolatorService extends AbstractComponent {
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested) {
             long count = 0;
-            Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();
             for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
                 try {
+                    Query existsQuery = entry.getValue();
                     if (isNested) {
-                        Lucene.exists(context.docSearcher(), entry.getValue(), Queries.newNonNestedFilter(), collector);
-                    } else {
-                        Lucene.exists(context.docSearcher(), entry.getValue(), collector);
+                        existsQuery = new BooleanQuery.Builder()
+                            .add(existsQuery, Occur.MUST)
+                            .add(Queries.newNonNestedFilter(), Occur.FILTER)
+                            .build();
+                    }
+                    if (Lucene.exists(context.docSearcher(), existsQuery)) {
+                        count ++;
                     }
                 } catch (Throwable e) {
                     logger.debug("[" + entry.getKey() + "] failed to execute query", e);
                     throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
-                }
-
-                if (collector.exists()) {
-                    count++;
                 }
             }
             return new PercolateShardResponse(count, context, request.shardId());
@@ -552,7 +553,6 @@ public class PercolatorService extends AbstractComponent {
             long count = 0;
             List<BytesRef> matches = new ArrayList<>();
             List<Map<String, HighlightField>> hls = new ArrayList<>();
-            Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();
 
             for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
                 if (context.highlight() != null) {
@@ -560,25 +560,26 @@ public class PercolatorService extends AbstractComponent {
                     context.hitContext().cache().clear();
                 }
                 try {
+                    Query existsQuery = entry.getValue();
                     if (isNested) {
-                        Lucene.exists(context.docSearcher(), entry.getValue(), Queries.newNonNestedFilter(), collector);
-                    } else {
-                        Lucene.exists(context.docSearcher(), entry.getValue(), collector);
+                        existsQuery = new BooleanQuery.Builder()
+                            .add(existsQuery, Occur.MUST)
+                            .add(Queries.newNonNestedFilter(), Occur.FILTER)
+                            .build();
+                    }
+                    if (Lucene.exists(context.docSearcher(), existsQuery)) {
+                        if (!context.limit || count < context.size()) {
+                            matches.add(entry.getKey());
+                            if (context.highlight() != null) {
+                                highlightPhase.hitExecute(context, context.hitContext());
+                                hls.add(context.hitContext().hit().getHighlightFields());
+                            }
+                        }
+                        count++;
                     }
                 } catch (Throwable e) {
                     logger.debug("[" + entry.getKey() + "] failed to execute query", e);
                     throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
-                }
-
-                if (collector.exists()) {
-                    if (!context.limit || count < context.size()) {
-                        matches.add(entry.getKey());
-                        if (context.highlight() != null) {
-                            highlightPhase.hitExecute(context, context.hitContext());
-                            hls.add(context.hitContext().hit().getHighlightFields());
-                        }
-                    }
-                    count++;
                 }
             }
 

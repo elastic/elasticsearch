@@ -19,22 +19,15 @@
 
 package org.elasticsearch.action.count;
 
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -62,71 +55,29 @@ public class CountRequestBuilderTests extends ESTestCase {
     @Test
     public void testEmptySourceToString() {
         CountRequestBuilder countRequestBuilder = client.prepareCount();
-        assertThat(countRequestBuilder.toString(), equalTo(new QuerySourceBuilder().toString()));
+        assertThat(countRequestBuilder.toString(), equalTo(new CountRequest().toString()));
     }
 
     @Test
     public void testQueryBuilderQueryToString() {
         CountRequestBuilder countRequestBuilder = client.prepareCount();
         countRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
-        assertThat(countRequestBuilder.toString(), equalTo(new QuerySourceBuilder().setQuery(QueryBuilders.matchAllQuery()).toString()));
+        assertThat(countRequestBuilder.toString(), equalTo(new CountRequest().query(QueryBuilders.matchAllQuery()).toString()));
     }
 
     @Test
     public void testStringQueryToString() {
         CountRequestBuilder countRequestBuilder = client.prepareCount();
-        String query = "{ \"match_all\" : {} }";
-        countRequestBuilder.setQuery(new BytesArray(query));
-        assertThat(countRequestBuilder.toString(), containsString("\"query\":{ \"match_all\" : {} }"));
-    }
-
-    @Test
-    public void testXContentBuilderQueryToString() throws IOException {
-        CountRequestBuilder countRequestBuilder = client.prepareCount();
-        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        xContentBuilder.startObject();
-        xContentBuilder.startObject("match_all");
-        xContentBuilder.endObject();
-        xContentBuilder.endObject();
-        countRequestBuilder.setQuery(xContentBuilder);
-        assertThat(countRequestBuilder.toString(), equalTo(new QuerySourceBuilder().setQuery(xContentBuilder.bytes()).toString()));
-    }
-
-    @Test
-    public void testStringSourceToString() {
-        CountRequestBuilder countRequestBuilder = client.prepareCount();
-        String query = "{ \"query\": { \"match_all\" : {} } }";
-        countRequestBuilder.setSource(new BytesArray(query));
-        assertThat(countRequestBuilder.toString(), equalTo("{ \"query\": { \"match_all\" : {} } }"));
-    }
-
-    @Test
-    public void testXContentBuilderSourceToString() throws IOException {
-        CountRequestBuilder countRequestBuilder = client.prepareCount();
-        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        xContentBuilder.startObject();
-        xContentBuilder.startObject("match_all");
-        xContentBuilder.endObject();
-        xContentBuilder.endObject();
-        countRequestBuilder.setSource(xContentBuilder.bytes());
-        assertThat(countRequestBuilder.toString(), equalTo(XContentHelper.convertToJson(xContentBuilder.bytes(), false, true)));
+        countRequestBuilder.setQuery(new MatchAllQueryBuilder());
+        assertThat(countRequestBuilder.toString(), containsString("match_all"));
     }
 
     @Test
     public void testThatToStringDoesntWipeSource() {
-        String source = "{\n" +
-                "            \"query\" : {\n" +
-                "            \"match\" : {\n" +
-                "                \"field\" : {\n" +
-                "                    \"query\" : \"value\"" +
-                "                }\n" +
-                "            }\n" +
-                "        }\n" +
-                "        }";
-        CountRequestBuilder countRequestBuilder = client.prepareCount().setSource(new BytesArray(source));
-        String preToString = countRequestBuilder.request().source().toUtf8();
-        assertThat(countRequestBuilder.toString(), equalTo(source));
-        String postToString = countRequestBuilder.request().source().toUtf8();
+        CountRequestBuilder countRequestBuilder = client.prepareCount().setQuery(QueryBuilders.termQuery("field", "value"));
+        String preToString = countRequestBuilder.request().toString();
+        assertThat(countRequestBuilder.toString(), equalTo(new CountRequest().query(QueryBuilders.termQuery("field", "value")).toString()));
+        String postToString = countRequestBuilder.request().toString();
         assertThat(preToString, equalTo(postToString));
     }
 }

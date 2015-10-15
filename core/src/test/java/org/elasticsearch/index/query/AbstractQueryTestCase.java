@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
@@ -215,7 +216,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 new IndexSettingsModule(index, indexSettings),
                 new IndexCacheModule(indexSettings),
                 new AnalysisModule(indexSettings, new IndicesAnalysisService(indexSettings)),
-                new SimilarityModule(indexSettings),
+                new SimilarityModule(index, indexSettings),
                 new IndexNameModule(index),
         new AbstractModule() {
                     @Override
@@ -552,7 +553,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Object value;
         switch (fieldName) {
             case STRING_FIELD_NAME:
-                value = rarely() ? randomUnicodeOfLength(10) : randomAsciiOfLengthBetween(1, 10); // unicode in 10% cases
+                if (rarely()) {
+                    // unicode in 10% cases
+                    JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+                    value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
+                } else {
+                    value = randomAsciiOfLengthBetween(1, 10);
+                }
                 break;
             case INT_FIELD_NAME:
                 value = randomIntBetween(0, 10);

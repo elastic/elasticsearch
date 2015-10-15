@@ -76,7 +76,7 @@ public class NetworkService extends AbstractComponent {
         /**
          * Resolves a custom value handling, return <tt>null</tt> if can't handle it.
          */
-        InetAddress[] resolveIfPossible(String value);
+        InetAddress[] resolveIfPossible(String value) throws IOException;
     }
 
     private final List<CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<>();
@@ -201,7 +201,7 @@ public class NetworkService extends AbstractComponent {
     }
     
     /** resolves (and deduplicates) host specification */
-    private InetAddress[] resolveInetAddresses(String hosts[]) throws UnknownHostException, IOException {
+    private InetAddress[] resolveInetAddresses(String hosts[]) throws IOException {
         if (hosts.length == 0) {
             throw new IllegalArgumentException("empty host specification");
         }
@@ -215,7 +215,7 @@ public class NetworkService extends AbstractComponent {
     }
 
     /** resolves a single host specification */
-    private InetAddress[] resolveInternal(String host) throws UnknownHostException, IOException {
+    private InetAddress[] resolveInternal(String host) throws IOException {
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             host = host.substring(1, host.length() - 1);
             // allow custom resolvers to have special names

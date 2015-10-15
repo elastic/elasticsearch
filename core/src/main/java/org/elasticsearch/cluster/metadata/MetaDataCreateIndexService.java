@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import java.nio.charset.StandardCharsets;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -76,6 +76,7 @@ import org.joda.time.DateTimeZone;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -359,9 +360,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     Settings actualIndexSettings = indexSettingsBuilder.build();
 
                     // Set up everything, now locally create the index to see that things are ok, and apply
-
+                    final IndexMetaData tmpImd = IndexMetaData.builder(request.index()).settings(actualIndexSettings).build();
                     // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                    indicesService.createIndex(request.index(), actualIndexSettings, clusterService.localNode().id());
+                    indicesService.createIndex(tmpImd);
                     indexCreated = true;
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index());
@@ -436,16 +437,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     indexService.indicesLifecycle().beforeIndexAddedToCluster(new Index(request.index()),
-                            indexMetaData.settings());
+                            indexMetaData.getSettings());
 
                     MetaData newMetaData = MetaData.builder(currentState.metaData())
                             .put(indexMetaData, false)
                             .build();
 
-                    String maybeShadowIndicator = IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings()) ? "s" : "";
+                    String maybeShadowIndicator = IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) ? "s" : "";
                     logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}{}], mappings {}",
-                            request.index(), request.cause(), templateNames, indexMetaData.numberOfShards(),
-                            indexMetaData.numberOfReplicas(), maybeShadowIndicator, mappings.keySet());
+                            request.index(), request.cause(), templateNames, indexMetaData.getNumberOfShards(),
+                            indexMetaData.getNumberOfReplicas(), maybeShadowIndicator, mappings.keySet());
 
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     if (!request.blocks().isEmpty()) {
@@ -453,16 +454,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             blocks.addIndexBlock(request.index(), block);
                         }
                     }
-                    if (request.state() == State.CLOSE) {
-                        blocks.addIndexBlock(request.index(), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
-                    }
+                    blocks.updateBlocks(indexMetaData);
 
                     ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metaData(newMetaData).build();
 
                     if (request.state() == State.OPEN) {
                         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
                                 .addAsNew(updatedState.metaData().index(request.index()));
-                        RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
+                        RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build());
                         updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
                     removalReason = "cleaning up after validating index on master";

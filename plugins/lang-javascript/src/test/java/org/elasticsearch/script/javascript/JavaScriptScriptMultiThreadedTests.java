@@ -149,7 +149,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
                             long addition = x + y;
                             runtimeVars.put("x", x);
                             runtimeVars.put("y", y);
-                            long result = ((Number) se.execute(new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), runtimeVars)).longValue();
+                            long result = ((Number) se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), runtimeVars).run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
                     } catch (Throwable t) {

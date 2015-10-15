@@ -19,12 +19,21 @@
 
 package org.elasticsearch.index.similarity;
 
-import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.search.similarities.*;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.apache.lucene.search.similarities.Distribution;
+import org.apache.lucene.search.similarities.DistributionLL;
+import org.apache.lucene.search.similarities.DistributionSPL;
+import org.apache.lucene.search.similarities.IBSimilarity;
+import org.apache.lucene.search.similarities.Lambda;
+import org.apache.lucene.search.similarities.LambdaDF;
+import org.apache.lucene.search.similarities.LambdaTTF;
+import org.apache.lucene.search.similarities.Normalization;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * {@link SimilarityProvider} for {@link IBSimilarity}.
@@ -39,25 +48,24 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class IBSimilarityProvider extends AbstractSimilarityProvider {
 
-    private static final ImmutableMap<String, Distribution> DISTRIBUTION_CACHE;
-    private static final ImmutableMap<String, Lambda> LAMBDA_CACHE;
+    private static final Map<String, Distribution> DISTRIBUTIONS;
+    private static final Map<String, Lambda> LAMBDAS;
 
     static {
-        MapBuilder<String, Distribution> distributions = MapBuilder.newMapBuilder();
+        Map<String, Distribution> distributions = new HashMap<>();
         distributions.put("ll", new DistributionLL());
         distributions.put("spl", new DistributionSPL());
-        DISTRIBUTION_CACHE = distributions.immutableMap();
+        DISTRIBUTIONS = unmodifiableMap(distributions);
 
-        MapBuilder<String, Lambda> lamdas = MapBuilder.newMapBuilder();
+        Map<String, Lambda> lamdas = new HashMap<>();
         lamdas.put("df", new LambdaDF());
         lamdas.put("ttf", new LambdaTTF());
-        LAMBDA_CACHE = lamdas.immutableMap();
+        LAMBDAS = unmodifiableMap(lamdas);
     }
 
     private final IBSimilarity similarity;
 
-    @Inject
-    public IBSimilarityProvider(@Assisted String name, @Assisted Settings settings) {
+    public IBSimilarityProvider(String name, Settings settings) {
         super(name);
         Distribution distribution = parseDistribution(settings);
         Lambda lambda = parseLambda(settings);
@@ -73,7 +81,7 @@ public class IBSimilarityProvider extends AbstractSimilarityProvider {
      */
     protected Distribution parseDistribution(Settings settings) {
         String rawDistribution = settings.get("distribution");
-        Distribution distribution = DISTRIBUTION_CACHE.get(rawDistribution);
+        Distribution distribution = DISTRIBUTIONS.get(rawDistribution);
         if (distribution == null) {
             throw new IllegalArgumentException("Unsupported Distribution [" + rawDistribution + "]");
         }
@@ -88,7 +96,7 @@ public class IBSimilarityProvider extends AbstractSimilarityProvider {
      */
     protected Lambda parseLambda(Settings settings) {
         String rawLambda = settings.get("lambda");
-        Lambda lambda = LAMBDA_CACHE.get(rawLambda);
+        Lambda lambda = LAMBDAS.get(rawLambda);
         if (lambda == null) {
             throw new IllegalArgumentException("Unsupported Lambda [" + rawLambda + "]");
         }

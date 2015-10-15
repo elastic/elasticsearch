@@ -20,7 +20,9 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.ModuleTestCase;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -31,26 +33,28 @@ import org.elasticsearch.test.engine.MockEngineFactory;
 public class IndexModuleTests extends ModuleTestCase {
 
     public void testWrapperIsBound() {
-        IndexModule module = new IndexModule();
+        IndexModule module = new IndexModule(IndexMetaData.PROTO);
         assertInstanceBinding(module, IndexSearcherWrapper.class,(x) -> x == null);
         module.indexSearcherWrapper = Wrapper.class;
         assertBinding(module, IndexSearcherWrapper.class, Wrapper.class);
     }
 
     public void testEngineFactoryBound() {
-        IndexModule module = new IndexModule();
+        IndexModule module = new IndexModule(IndexMetaData.PROTO);
         assertBinding(module, EngineFactory.class, InternalEngineFactory.class);
         module.engineFactoryImpl = MockEngineFactory.class;
         assertBinding(module, EngineFactory.class, MockEngineFactory.class);
     }
 
     public void testOtherServiceBound() {
-        IndexModule module = new IndexModule();
+        final IndexMetaData meta = IndexMetaData.builder(IndexMetaData.PROTO).index("foo").build();
+        IndexModule module = new IndexModule(meta);
         assertBinding(module, IndexService.class, IndexService.class);
         assertBinding(module, IndexServicesProvider.class, IndexServicesProvider.class);
+        assertInstanceBinding(module, IndexMetaData.class, (x) -> x == meta);
     }
 
-    public static final class Wrapper implements IndexSearcherWrapper {
+    public static final class Wrapper extends IndexSearcherWrapper {
 
         @Override
         public DirectoryReader wrap(DirectoryReader reader) {

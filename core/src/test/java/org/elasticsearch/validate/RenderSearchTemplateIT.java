@@ -19,7 +19,7 @@
 
 package org.elasticsearch.validate;
 
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateResponse;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -61,7 +61,7 @@ public class RenderSearchTemplateIT extends ESIntegTestCase {
         params.put("value", "bar");
         params.put("size", 20);
         Template template = new Template(TEMPLATE_CONTENTS, ScriptType.INLINE, MustacheScriptEngineService.NAME, XContentType.JSON, params);
-        RenderSearchTemplateResponse response = client().admin().indices().prepareRenderSearchTemplate().template(template).get();
+        RenderSearchTemplateResponse response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
         assertThat(response, notNullValue());
         BytesReference source = response.source();
         assertThat(source, notNullValue());
@@ -75,7 +75,7 @@ public class RenderSearchTemplateIT extends ESIntegTestCase {
         params.put("value", "baz");
         params.put("size", 100);
         template = new Template(TEMPLATE_CONTENTS, ScriptType.INLINE, MustacheScriptEngineService.NAME, XContentType.JSON, params);
-        response = client().admin().indices().prepareRenderSearchTemplate().template(template).get();
+        response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
         assertThat(response, notNullValue());
         source = response.source();
         assertThat(source, notNullValue());
@@ -91,7 +91,7 @@ public class RenderSearchTemplateIT extends ESIntegTestCase {
         params.put("value", "bar");
         params.put("size", 20);
         Template template = new Template("index_template_1", ScriptType.INDEXED, MustacheScriptEngineService.NAME, XContentType.JSON, params);
-        RenderSearchTemplateResponse response = client().admin().indices().prepareRenderSearchTemplate().template(template).get();
+        RenderSearchTemplateResponse response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
         assertThat(response, notNullValue());
         BytesReference source = response.source();
         assertThat(source, notNullValue());
@@ -105,7 +105,7 @@ public class RenderSearchTemplateIT extends ESIntegTestCase {
         params.put("value", "baz");
         params.put("size", 100);
         template = new Template("index_template_1", ScriptType.INDEXED, MustacheScriptEngineService.NAME, XContentType.JSON, params);
-        response = client().admin().indices().prepareRenderSearchTemplate().template(template).get();
+        response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
         assertThat(response, notNullValue());
         source = response.source();
         assertThat(source, notNullValue());
@@ -121,7 +121,7 @@ public class RenderSearchTemplateIT extends ESIntegTestCase {
         params.put("value", "bar");
         params.put("size", 20);
         Template template = new Template("file_template_1", ScriptType.FILE, MustacheScriptEngineService.NAME, XContentType.JSON, params);
-        RenderSearchTemplateResponse response = client().admin().indices().prepareRenderSearchTemplate().template(template).get();
+        RenderSearchTemplateResponse response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
         assertThat(response, notNullValue());
         BytesReference source = response.source();
         assertThat(source, notNullValue());
@@ -135,7 +135,7 @@ public class RenderSearchTemplateIT extends ESIntegTestCase {
         params.put("value", "baz");
         params.put("size", 100);
         template = new Template("file_template_1", ScriptType.FILE, MustacheScriptEngineService.NAME, XContentType.JSON, params);
-        response = client().admin().indices().prepareRenderSearchTemplate().template(template).get();
+        response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
         assertThat(response, notNullValue());
         source = response.source();
         assertThat(source, notNullValue());

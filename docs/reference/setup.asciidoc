@@ -10,6 +10,14 @@ then check the <<setup-installation,installation>> docs.
 NOTE: Elasticsearch can also be installed from our repositories using `apt` or `yum`.
 See <<setup-repositories>>.
 
+[[supported-platforms]]
+[float]
+== Supported platforms
+
+The matrix of officially supported operating systems and JVMs is available here:
+link:/support/matrix[Support Matrix].  Elasticsearch is tested on the listed
+platforms, but it is possible that it will work on other platforms too.
+
 [[setup-installation]]
 [float]
 == Installation

@@ -45,7 +45,7 @@ public class TranslogVersionTests extends ESTestCase {
             assertThat("a version0 stream is returned", reader instanceof LegacyTranslogReader, equalTo(true));
             try (final Translog.Snapshot snapshot = reader.newSnapshot()) {
                 final Translog.Operation operation = snapshot.next();
-                assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.SAVE, equalTo(true));
+                assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.INDEX, equalTo(true));
                 Translog.Index op = (Translog.Index) operation;
                 assertThat(op.id(), equalTo("1"));
                 assertThat(op.type(), equalTo("doc"));
@@ -73,8 +73,8 @@ public class TranslogVersionTests extends ESTestCase {
 
                 Translog.Operation operation = snapshot.next();
 
-                assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.CREATE, equalTo(true));
-                Translog.Create op = (Translog.Create) operation;
+                assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.INDEX, equalTo(true));
+                Translog.Index op = (Translog.Index) operation;
                 assertThat(op.id(), equalTo("Bwiq98KFSb6YjJQGeSpeiw"));
                 assertThat(op.type(), equalTo("doc"));
                 assertThat(op.source().toUtf8(), equalTo("{\"body\": \"foo\"}"));

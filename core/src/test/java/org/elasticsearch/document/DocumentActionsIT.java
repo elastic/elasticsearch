@@ -32,6 +32,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.search.MultiMatchQuery;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -162,13 +164,6 @@ public class DocumentActionsIT extends ESIntegTestCase {
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
-
-            // test failed (simply query that can't be parsed)
-            try {
-                client().count(countRequest("test").source("{ term : { _type : \"type1 } }")).actionGet();
-            } catch(SearchPhaseExecutionException e) {
-                assertThat(e.shardFailures().length, equalTo(numShards.numPrimaries));
-            }
 
             // count with no query is a match all one
             countResponse = client().prepareCount("test").execute().actionGet();

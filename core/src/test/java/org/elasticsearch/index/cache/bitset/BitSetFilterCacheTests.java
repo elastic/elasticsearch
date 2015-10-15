@@ -96,7 +96,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         // now cached
         assertThat(matchCount(filter, reader), equalTo(3));
         // There are 3 segments
-        assertThat(cache.getLoadedFilters().size(), equalTo(3l));
+        assertThat(cache.getLoadedFilters().weight(), equalTo(3L));
 
         writer.forceMerge(1);
         reader.close();
@@ -108,12 +108,12 @@ public class BitSetFilterCacheTests extends ESTestCase {
         // now cached
         assertThat(matchCount(filter, reader), equalTo(3));
         // Only one segment now, so the size must be 1
-        assertThat(cache.getLoadedFilters().size(), equalTo(1l));
+        assertThat(cache.getLoadedFilters().weight(), equalTo(1L));
 
         reader.close();
         writer.close();
         // There is no reference from readers and writer to any segment in the test index, so the size in the fbs cache must be 0
-        assertThat(cache.getLoadedFilters().size(), equalTo(0l));
+        assertThat(cache.getLoadedFilters().weight(), equalTo(0L));
     }
 
     public void testListener() throws IOException {

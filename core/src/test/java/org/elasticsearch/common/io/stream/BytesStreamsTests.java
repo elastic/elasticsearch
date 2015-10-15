@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
@@ -275,8 +276,12 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeDouble(2.2);
         int[] intArray = {1, 2, 3};
         out.writeGenericValue(intArray);
+        int[] vIntArray = {4, 5, 6};
+        out.writeVIntArray(vIntArray);
         long[] longArray = {1, 2, 3};
         out.writeGenericValue(longArray);
+        long[] vLongArray = {4, 5, 6};
+        out.writeVLongArray(vLongArray);
         float[] floatArray = {1.1f, 2.2f, 3.3f};
         out.writeGenericValue(floatArray);
         double[] doubleArray = {1.1, 2.2, 3.3};
@@ -295,7 +300,9 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat((double)in.readFloat(), closeTo(1.1, 0.0001));
         assertThat(in.readDouble(), closeTo(2.2, 0.0001));
         assertThat(in.readGenericValue(), equalTo((Object) intArray));
+        assertThat(in.readVIntArray(), equalTo(vIntArray));
         assertThat(in.readGenericValue(), equalTo((Object)longArray));
+        assertThat(in.readVLongArray(), equalTo(vLongArray));
         assertThat(in.readGenericValue(), equalTo((Object)floatArray));
         assertThat(in.readGenericValue(), equalTo((Object)doubleArray));
         assertThat(in.readString(), equalTo("hello"));
@@ -477,5 +484,24 @@ public class BytesStreamsTests extends ESTestCase {
         byte[] data = new byte[size];
         getRandom().nextBytes(data);
         return data;
+    }
+
+    public void testReadWriteGeoPoint() throws IOException {
+        {
+            BytesStreamOutput out = new BytesStreamOutput();
+            GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
+            out.writeGenericValue(geoPoint);
+            StreamInput wrap = StreamInput.wrap(out.bytes());
+            GeoPoint point = (GeoPoint) wrap.readGenericValue();
+            assertEquals(point, geoPoint);
+        }
+        {
+            BytesStreamOutput out = new BytesStreamOutput();
+            GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
+            out.writeGeoPoint(geoPoint);
+            StreamInput wrap = StreamInput.wrap(out.bytes());
+            GeoPoint point = wrap.readGeoPoint();
+            assertEquals(point, geoPoint);
+        }
     }
 }

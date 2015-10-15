@@ -19,8 +19,6 @@
 
 package org.elasticsearch.http;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -28,18 +26,29 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestFilter;
+import org.elasticsearch.rest.RestFilterChain;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.rest.RestStatus.*;
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
+import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
@@ -204,7 +213,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         final String separator = siteFile.getFileSystem().getSeparator();
         // Convert file separators.
         sitePath = sitePath.replace("/", separator);
-        
+
         Path file = siteFile.resolve(sitePath);
 
         // return not found instead of forbidden to prevent malicious requests to find out if files exist or dont exist
@@ -275,7 +284,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         mimeTypes.put("svg", "image/svg+xml");
         mimeTypes.put("ico", "image/vnd.microsoft.icon");
         mimeTypes.put("mp3", "audio/mpeg");
-        DEFAULT_MIME_TYPES = ImmutableMap.copyOf(mimeTypes);
+        DEFAULT_MIME_TYPES = unmodifiableMap(mimeTypes);
     }
 
     public static final Map<String, String> DEFAULT_MIME_TYPES;

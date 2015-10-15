@@ -77,10 +77,12 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
                 builder.indexedShapePath(indexedShapePath);
             }
         }
-        SpatialStrategy strategy = randomFrom(SpatialStrategy.values());
-        builder.strategy(strategy);
-        if (strategy != SpatialStrategy.TERM) {
-            builder.relation(randomFrom(ShapeRelation.values()));
+        if (randomBoolean()) {
+            SpatialStrategy strategy = randomFrom(SpatialStrategy.values());
+            builder.strategy(strategy);
+            if (strategy != SpatialStrategy.TERM) {
+                builder.relation(randomFrom(ShapeRelation.values()));
+            }
         }
         return builder;
     }
@@ -105,9 +107,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         } catch (IOException ex) {
             throw new ElasticsearchException("boom", ex);
         }
-        GetResponse response = new GetResponse(new GetResult(indexedShapeIndex, indexedShapeType, indexedShapeId, 0, true, new BytesArray(
-                json), null));
-        return response;
+        return new GetResponse(new GetResult(indexedShapeIndex, indexedShapeType, indexedShapeId, 0, true, new BytesArray(json), null));
     }
 
     @After
@@ -149,7 +149,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     @Test
     public void testNoShape() throws IOException {
         try {
-            GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, (ShapeBuilder) null);
+            new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, (ShapeBuilder) null);
             fail("exception expected");
         } catch (IllegalArgumentException e) {
             // expected
@@ -158,12 +158,12 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
 
     @Test(expected = IllegalArgumentException.class)
     public void testNoIndexedShape() throws IOException {
-        new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, (String) null, "type");
+        new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, null, "type");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testNoIndexedShapeType() throws IOException {
-        new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, "id", (String) null);
+        new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, "id", null);
     }
 
     @Test(expected=IllegalArgumentException.class)

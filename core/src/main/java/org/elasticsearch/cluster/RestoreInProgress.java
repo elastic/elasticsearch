@@ -19,9 +19,11 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableMap;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -33,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Meta data about restore processes that are currently executing
@@ -112,7 +113,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
     public static class Entry {
         private final State state;
         private final SnapshotId snapshotId;
-        private final Map<ShardId, ShardRestoreStatus> shards;
+        private final ImmutableOpenMap<ShardId, ShardRestoreStatus> shards;
         private final List<String> indices;
 
         /**
@@ -121,14 +122,14 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
          * @param snapshotId snapshot id
          * @param state      current state of the restore process
          * @param indices    list of indices being restored
-         * @param shards     list of shards being restored and thier current restore status
+         * @param shards     map of shards being restored to their current restore status
          */
-        public Entry(SnapshotId snapshotId, State state, List<String> indices, ImmutableMap<ShardId, ShardRestoreStatus> shards) {
+        public Entry(SnapshotId snapshotId, State state, List<String> indices, ImmutableOpenMap<ShardId, ShardRestoreStatus> shards) {
             this.snapshotId = snapshotId;
             this.state = state;
             this.indices = indices;
             if (shards == null) {
-                this.shards = ImmutableMap.of();
+                this.shards = ImmutableOpenMap.of();
             } else {
                 this.shards = shards;
             }
@@ -148,7 +149,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
          *
          * @return list of shards
          */
-        public Map<ShardId, ShardRestoreStatus> shards() {
+        public ImmutableOpenMap<ShardId, ShardRestoreStatus> shards() {
             return this.shards;
         }
 
@@ -416,7 +417,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
             for (int j = 0; j < indices; j++) {
                 indexBuilder.add(in.readString());
             }
-            ImmutableMap.Builder<ShardId, ShardRestoreStatus> builder = ImmutableMap.<ShardId, ShardRestoreStatus>builder();
+            ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> builder = ImmutableOpenMap.builder();
             int shards = in.readVInt();
             for (int j = 0; j < shards; j++) {
                 ShardId shardId = ShardId.readShardId(in);
@@ -442,9 +443,9 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
                 out.writeString(index);
             }
             out.writeVInt(entry.shards().size());
-            for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards().entrySet()) {
-                shardEntry.getKey().writeTo(out);
-                shardEntry.getValue().writeTo(out);
+            for (ObjectObjectCursor<ShardId, ShardRestoreStatus> shardEntry : entry.shards()) {
+                shardEntry.key.writeTo(out);
+                shardEntry.value.writeTo(out);
             }
         }
     }
@@ -483,9 +484,9 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
         builder.endArray();
         builder.startArray("shards");
         {
-            for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards.entrySet()) {
-                ShardId shardId = shardEntry.getKey();
-                ShardRestoreStatus status = shardEntry.getValue();
+            for (ObjectObjectCursor<ShardId, ShardRestoreStatus> shardEntry : entry.shards) {
+                ShardId shardId = shardEntry.key;
+                ShardRestoreStatus status = shardEntry.value;
                 builder.startObject();
                 {
                     builder.field("index", shardId.getIndex());

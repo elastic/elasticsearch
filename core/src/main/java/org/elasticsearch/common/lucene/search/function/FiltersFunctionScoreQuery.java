@@ -207,19 +207,11 @@ public class FiltersFunctionScoreQuery extends Query {
             }
             // First: Gather explanations for all filters
             List<Explanation> filterExplanations = new ArrayList<>();
-            float weightSum = 0;
             for (int i = 0; i < filterFunctions.length; ++i) {
-                FilterFunction filterFunction = filterFunctions[i];
-
-                if (filterFunction.function instanceof WeightFactorFunction) {
-                    weightSum += ((WeightFactorFunction) filterFunction.function).getWeight();
-                } else {
-                    weightSum++;
-                }
-
                 Bits docSet = Lucene.asSequentialAccessBits(context.reader().maxDoc(),
                         filterWeights[i].scorer(context));
                 if (docSet.get(doc)) {
+                    FilterFunction filterFunction = filterFunctions[i];
                     Explanation functionExplanation = filterFunction.function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);
                     double factor = functionExplanation.getValue();
                     float sc = CombineFunction.toFloat(factor);
@@ -232,44 +224,12 @@ public class FiltersFunctionScoreQuery extends Query {
                 return subQueryExpl;
             }
 
-            // Second: Compute the factor that would have been computed by the
-            // filters
-            double factor = 1.0;
-            switch (scoreMode) {
-            case FIRST:
-                factor = filterExplanations.get(0).getValue();
-                break;
-            case MAX:
-                factor = Double.NEGATIVE_INFINITY;
-                for (Explanation filterExplanation : filterExplanations) {
-                    factor = Math.max(filterExplanation.getValue(), factor);
-                }
-                break;
-            case MIN:
-                factor = Double.POSITIVE_INFINITY;
-                for (Explanation filterExplanation : filterExplanations) {
-                    factor = Math.min(filterExplanation.getValue(), factor);
-                }
-                break;
-            case MULTIPLY:
-                for (Explanation filterExplanation : filterExplanations) {
-                    factor *= filterExplanation.getValue();
-                }
-                break;
-            default:
-                double totalFactor = 0.0f;
-                for (Explanation filterExplanation : filterExplanations) {
-                    totalFactor += filterExplanation.getValue();
-                }
-                if (weightSum != 0) {
-                    factor = totalFactor;
-                    if (scoreMode == ScoreMode.AVG) {
-                        factor /= weightSum;
-                    }
-                }
-            }
+            FiltersFunctionFactorScorer scorer = (FiltersFunctionFactorScorer)scorer(context);
+            int actualDoc = scorer.advance(doc);
+            assert (actualDoc == doc);
+            double score = scorer.computeScore(doc, subQueryExpl.getValue());
             Explanation factorExplanation = Explanation.match(
-                    CombineFunction.toFloat(factor),
+                    CombineFunction.toFloat(score),
                     "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
                     filterExplanations);
             return combineFunction.explain(subQueryExpl, factorExplanation, maxBoost);
@@ -296,11 +256,16 @@ public class FiltersFunctionScoreQuery extends Query {
         @Override
         public float innerScore() throws IOException {
             int docId = scorer.docID();
-            double factor = 1.0f;
             // Even if the weight is created with needsScores=false, it might
             // be costly to call score(), so we explicitly check if scores
             // are needed
             float subQueryScore = needsScores ? scorer.score() : 0f;
+            double factor = computeScore(docId, subQueryScore);
+            return scoreCombiner.combine(subQueryScore, factor, maxBoost);
+        }
+
+        protected double computeScore(int docId, float subQueryScore) {
+            double factor = 1d;
             switch(scoreMode) {
                 case FIRST:
                     for (int i = 0; i < filterFunctions.length; i++) {
@@ -341,14 +306,14 @@ public class FiltersFunctionScoreQuery extends Query {
                     break;
                 default: // Avg / Total
                     double totalFactor = 0.0f;
-                    float weightSum = 0;
+                    double weightSum = 0;
                     for (int i = 0; i < filterFunctions.length; i++) {
                         if (docSets[i].get(docId)) {
                             totalFactor += functions[i].score(docId, subQueryScore);
                             if (filterFunctions[i].function instanceof WeightFactorFunction) {
-                                weightSum+= ((WeightFactorFunction)filterFunctions[i].function).getWeight();
+                                weightSum += ((WeightFactorFunction) filterFunctions[i].function).getWeight();
                             } else {
-                                weightSum++;
+                                weightSum += 1.0;
                             }
                         }
                     }
@@ -360,7 +325,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     }
                     break;
             }
-            return scoreCombiner.combine(subQueryScore, factor, maxBoost);
+            return factor;
         }
     }
 

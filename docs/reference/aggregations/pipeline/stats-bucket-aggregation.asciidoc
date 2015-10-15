@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-stats-bucket-aggregation]]
 === Stats Bucket Aggregation
 
-coming[2.1.0]
-
 experimental[]
 
 A sibling pipeline aggregation which calculates a variety of stats across all bucket of a specified metric in a sibling aggregation.

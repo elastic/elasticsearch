@@ -20,10 +20,15 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.test.ESTestCase;
@@ -321,5 +326,50 @@ public class LuceneTests extends ESTestCase {
         assertEquals(2 + deleteTerms.size(), Lucene.getNumDocs(segmentCommitInfos));
         writer.close();
         dir.close();
+    }
+
+    public void testCount() throws Exception {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(getRandom(), dir);
+
+        try (DirectoryReader reader = w.getReader()) {
+            // match_all does not match anything on an empty index
+            IndexSearcher searcher = newSearcher(reader);
+            assertFalse(Lucene.exists(searcher, new MatchAllDocsQuery()));
+        }
+
+        Document doc = new Document();
+        w.addDocument(doc);
+
+        doc.add(new StringField("foo", "bar", Store.NO));
+        w.addDocument(doc);
+
+        try (DirectoryReader reader = w.getReader()) {
+            IndexSearcher searcher = newSearcher(reader);
+            assertTrue(Lucene.exists(searcher, new MatchAllDocsQuery()));
+            assertFalse(Lucene.exists(searcher, new TermQuery(new Term("baz", "bar"))));
+            assertTrue(Lucene.exists(searcher, new TermQuery(new Term("foo", "bar"))));
+        }
+
+        w.deleteDocuments(new Term("foo", "bar"));
+        try (DirectoryReader reader = w.getReader()) {
+            IndexSearcher searcher = newSearcher(reader);
+            assertFalse(Lucene.exists(searcher, new TermQuery(new Term("foo", "bar"))));
+        }
+
+        w.close();
+        dir.close();
+    }
+
+    /**
+     * Test that the "unmap hack" is detected as supported by lucene.
+     * This works around the following bug: https://bugs.openjdk.java.net/browse/JDK-4724038
+     * <p>
+     * While not guaranteed, current status is "Critical Internal API": http://openjdk.java.net/jeps/260
+     * Additionally this checks we did not screw up the security logic around the hack.
+     */
+    public void testMMapHackSupported() throws Exception {
+        // add assume's here if needed for certain platforms, but we should know if it does not work.
+        assertTrue(MMapDirectory.UNMAP_SUPPORTED);
     }
 }

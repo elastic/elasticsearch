@@ -137,4 +137,10 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
             //all good
         }
     }
+
+    @Test(expected= ParsingException.class) // see #7686.
+    public void testIdsQueryWithInvalidValues() throws Exception {
+        String query = "{ \"ids\": { \"values\": [[1]] } }";
+        parseQuery(query);
+    }
 }

@@ -242,29 +242,12 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
     private class RealTimePercolatorOperationListener extends IndexingOperationListener {
 
         @Override
-        public Engine.Create preCreate(Engine.Create create) {
+        public Engine.Index preIndex(Engine.Index operation) {
             // validate the query here, before we index
-            if (PercolatorService.TYPE_NAME.equals(create.type())) {
-                parsePercolatorDocument(create.id(), create.source());
+            if (PercolatorService.TYPE_NAME.equals(operation.type())) {
+                parsePercolatorDocument(operation.id(), operation.source());
             }
-            return create;
-        }
-
-        @Override
-        public void postCreateUnderLock(Engine.Create create) {
-            // add the query under a doc lock
-            if (PercolatorService.TYPE_NAME.equals(create.type())) {
-                addPercolateQuery(create.id(), create.source());
-            }
-        }
-
-        @Override
-        public Engine.Index preIndex(Engine.Index index) {
-            // validate the query here, before we index
-            if (PercolatorService.TYPE_NAME.equals(index.type())) {
-                parsePercolatorDocument(index.id(), index.source());
-            }
-            return index;
+            return operation;
         }
 
         @Override

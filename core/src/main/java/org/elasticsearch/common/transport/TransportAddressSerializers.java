@@ -19,16 +19,16 @@
 
 package org.elasticsearch.common.transport;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
+import java.util.HashMap;
+import java.util.Map;
 
-import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * A global registry of all different types of {@link org.elasticsearch.common.transport.TransportAddress} allowing
@@ -42,23 +42,25 @@ public abstract class TransportAddressSerializers {
 
     private static final ESLogger logger = Loggers.getLogger(TransportAddressSerializers.class);
 
-    private static ImmutableMap<Short, TransportAddress> ADDRESS_REGISTRY = ImmutableMap.of();
+    private static final Map<Short, TransportAddress> ADDRESS_REGISTRY;
 
     static {
+        Map<Short, TransportAddress> registry = new HashMap<>();
         try {
-            addAddressType(DummyTransportAddress.INSTANCE);
-            addAddressType(InetSocketTransportAddress.PROTO);
-            addAddressType(LocalTransportAddress.PROTO);
+            addAddressType(registry, DummyTransportAddress.INSTANCE);
+            addAddressType(registry, InetSocketTransportAddress.PROTO);
+            addAddressType(registry, LocalTransportAddress.PROTO);
         } catch (Exception e) {
-            logger.warn("Failed to add InetSocketTransportAddress", e);
+            logger.warn("Failed to setup TransportAddresses", e);
         }
+        ADDRESS_REGISTRY = unmodifiableMap(registry);
     }
 
-    public static synchronized void addAddressType(TransportAddress address) throws Exception {
-        if (ADDRESS_REGISTRY.containsKey(address.uniqueAddressTypeId())) {
+    public static synchronized void addAddressType(Map<Short, TransportAddress> registry, TransportAddress address) throws Exception {
+        if (registry.containsKey(address.uniqueAddressTypeId())) {
             throw new IllegalStateException("Address [" + address.uniqueAddressTypeId() + "] already bound");
         }
-        ADDRESS_REGISTRY = newMapBuilder(ADDRESS_REGISTRY).put(address.uniqueAddressTypeId(), address).immutableMap();
+        registry.put(address.uniqueAddressTypeId(), address);
     }
 
     public static TransportAddress addressFromStream(StreamInput input) throws IOException {

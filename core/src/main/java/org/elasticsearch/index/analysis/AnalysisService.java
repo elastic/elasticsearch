@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -37,17 +36,18 @@ import java.io.Closeable;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
+
 /**
  *
  */
 public class AnalysisService extends AbstractIndexComponent implements Closeable {
 
-    private final ImmutableMap<String, NamedAnalyzer> analyzers;
-    private final ImmutableMap<String, TokenizerFactory> tokenizers;
-    private final ImmutableMap<String, CharFilterFactory> charFilters;
-    private final ImmutableMap<String, TokenFilterFactory> tokenFilters;
+    private final Map<String, NamedAnalyzer> analyzers;
+    private final Map<String, TokenizerFactory> tokenizers;
+    private final Map<String, CharFilterFactory> charFilters;
+    private final Map<String, TokenFilterFactory> tokenFilters;
 
-    private final NamedAnalyzer defaultAnalyzer;
     private final NamedAnalyzer defaultIndexAnalyzer;
     private final NamedAnalyzer defaultSearchAnalyzer;
     private final NamedAnalyzer defaultSearchQuoteAnalyzer;
@@ -98,7 +98,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             }
         }
 
-        this.tokenizers = ImmutableMap.copyOf(tokenizers);
+        this.tokenizers = unmodifiableMap(tokenizers);
 
         Map<String, CharFilterFactory> charFilters = new HashMap<>();
         if (charFilterFactoryFactories != null) {
@@ -133,7 +133,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             }
         }
 
-        this.charFilters = ImmutableMap.copyOf(charFilters);
+        this.charFilters = unmodifiableMap(charFilters);
 
         Map<String, TokenFilterFactory> tokenFilters = new HashMap<>();
         if (tokenFilterFactoryFactories != null) {
@@ -168,7 +168,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 }
             }
         }
-        this.tokenFilters = ImmutableMap.copyOf(tokenFilters);
+        this.tokenFilters = unmodifiableMap(tokenFilters);
 
         Map<String, AnalyzerProvider> analyzerProviders = new HashMap<>();
         if (analyzerFactoryFactories != null) {
@@ -262,12 +262,20 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             }
         }
 
-        defaultAnalyzer = analyzers.get("default");
+        NamedAnalyzer defaultAnalyzer = analyzers.get("default");
         if (defaultAnalyzer == null) {
             throw new IllegalArgumentException("no default analyzer configured");
         }
-        defaultIndexAnalyzer = analyzers.containsKey("default_index") ? analyzers.get("default_index") : analyzers.get("default");
-        defaultSearchAnalyzer = analyzers.containsKey("default_search") ? analyzers.get("default_search") : analyzers.get("default");
+        if (analyzers.containsKey("default_index")) {
+            final Version createdVersion = Version.indexCreated(indexSettings);
+            if (createdVersion.onOrAfter(Version.V_3_0_0)) {
+                throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
+            } else {
+                deprecationLogger.deprecated("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] instead for index [{}]", index.getName());
+            }
+        }
+        defaultIndexAnalyzer = analyzers.containsKey("default_index") ? analyzers.get("default_index") : defaultAnalyzer;
+        defaultSearchAnalyzer = analyzers.containsKey("default_search") ? analyzers.get("default_search") : defaultAnalyzer;
         defaultSearchQuoteAnalyzer = analyzers.containsKey("default_search_quote") ? analyzers.get("default_search_quote") : defaultSearchAnalyzer;
 
         for (Map.Entry<String, NamedAnalyzer> analyzer : analyzers.entrySet()) {
@@ -275,7 +283,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        this.analyzers = ImmutableMap.copyOf(analyzers);
+        this.analyzers = unmodifiableMap(analyzers);
     }
 
     @Override
@@ -296,10 +304,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
     public NamedAnalyzer analyzer(String name) {
         return analyzers.get(name);
-    }
-
-    public NamedAnalyzer defaultAnalyzer() {
-        return defaultAnalyzer;
     }
 
     public NamedAnalyzer defaultIndexAnalyzer() {

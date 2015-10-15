@@ -56,7 +56,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.Mapping;
@@ -186,9 +185,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         // on version conflict or document missing, it means
         // that a new change has crept into the replica, and it's fine
         if (cause instanceof VersionConflictEngineException) {
-            return true;
-        }
-        if (cause instanceof DocumentAlreadyExistsException) {
             return true;
         }
         return false;
@@ -744,7 +740,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         if (shard.relocating()) {
                             numberOfPendingShardInstances++;
                         }
-                    } else if (shouldExecuteReplication(indexMetaData.settings()) == false) {
+                    } else if (shouldExecuteReplication(indexMetaData.getSettings()) == false) {
                         // If the replicas use shadow replicas, there is no reason to
                         // perform the action on the replica, so skip it and
                         // immediately return
@@ -774,7 +770,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                             // we have to replicate to the other copy
                             numberOfPendingShardInstances += 1;
                         }
-                    } else if (shouldExecuteReplication(indexMetaData.settings()) == false) {
+                    } else if (shouldExecuteReplication(indexMetaData.getSettings()) == false) {
                         // If the replicas use shadow replicas, there is no reason to
                         // perform the action on the replica, so skip it and
                         // immediately return
@@ -853,7 +849,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     if (shard.relocating()) {
                         performOnReplica(shard, shard.relocatingNodeId());
                     }
-                } else if (shouldExecuteReplication(indexMetaData.settings())) {
+                } else if (shouldExecuteReplication(indexMetaData.getSettings())) {
                     performOnReplica(shard, shard.currentNodeId());
                     if (shard.relocating()) {
                         performOnReplica(shard, shard.relocatingNodeId());
@@ -1036,22 +1032,17 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     /** Utility method to create either an index or a create operation depending
      *  on the {@link OpType} of the request. */
-    private final Engine.IndexingOperation prepareIndexOperationOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) {
+    private final Engine.Index prepareIndexOperationOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) {
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).index(request.index()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
-        if (request.opType() == IndexRequest.OpType.INDEX) {
             return indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
-        } else {
-            assert request.opType() == IndexRequest.OpType.CREATE : request.opType();
-            return indexShard.prepareCreate(sourceToParse,
-                    request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
-        }
+
     }
 
     /** Execute the given {@link IndexRequest} on a primary shard, throwing a
      *  {@link RetryOnPrimaryException} if the operation needs to be re-tried. */
     protected final WriteResult<IndexResponse> executeIndexRequestOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) throws Throwable {
-        Engine.IndexingOperation operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
+        Engine.Index operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         final ShardId shardId = indexShard.shardId();
         if (update != null) {
@@ -1064,7 +1055,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         "Dynamics mappings are not available on the node that holds the primary yet");
             }
         }
-        final boolean created = operation.execute(indexShard);
+        final boolean created = indexShard.index(operation);
 
         // update the version on request so it will happen on the replicas
         final long version = operation.version();

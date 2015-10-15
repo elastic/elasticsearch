@@ -18,9 +18,13 @@
  */
 package org.elasticsearch.test.rest.section;
 
-import com.google.common.collect.ImmutableMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import java.util.*;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Represents a test fragment that contains the information needed to call an api
@@ -41,7 +45,7 @@ public class ApiCallSection {
 
     public Map<String, String> getParams() {
         //make sure we never modify the parameters once returned
-        return ImmutableMap.copyOf(params);
+        return unmodifiableMap(params);
     }
 
     public void addParam(String key, String value) {

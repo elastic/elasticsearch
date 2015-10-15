@@ -83,6 +83,35 @@ else
     }
 fi
 
+@test "[$GROUP] install jvm-example plugin with a custom CONFIG_FILE and check failure" {
+    local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
+    CONF_FILE="$ESCONFIG/elasticsearch.yml" run sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" install "file://$relativePath"
+    # this should fail because CONF_FILE is no longer supported
+    [ $status = 1 ]
+    CONF_FILE="$ESCONFIG/elasticsearch.yml" run sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" remove jvm-example
+    echo "status is $status"
+    [ $status = 1 ]
+}
+
+@test "[$GROUP] start elasticsearch with a custom CONFIG_FILE and check failure" {
+    local CONF_FILE="$ESCONFIG/elasticsearch.yml"
+
+    if is_dpkg; then
+        echo "CONF_FILE=$CONF_FILE" >> /etc/default/elasticsearch;
+    elif is_rpm; then
+        echo "CONF_FILE=$CONF_FILE" >> /etc/sysconfig/elasticsearch;
+    fi
+
+    run_elasticsearch_service 1 -Des.default.config="$CONF_FILE"
+
+    # remove settings again otherwise cleaning up before next testrun will fail
+    if is_dpkg ; then
+        sudo sed -i '/CONF_FILE/d' /etc/default/elasticsearch
+    elif is_rpm; then
+        sudo sed -i '/CONF_FILE/d' /etc/sysconfig/elasticsearch
+    fi
+}
+
 @test "[$GROUP] install jvm-example plugin with a custom path.plugins" {
     # Clean up after the last time this test was run
     rm -rf /tmp/plugins.*
@@ -111,6 +140,9 @@ fi
     move_config
 
     CONF_DIR="$ESCONFIG" install_jvm_example
+    CONF_DIR="$ESCONFIG" start_elasticsearch_service
+    diff  <(curl -s localhost:9200/_cat/configured_example | sed 's/ //g') <(echo "foo")
+    stop_elasticsearch_service
     CONF_DIR="$ESCONFIG" remove_jvm_example
 }
 
@@ -172,7 +204,7 @@ fi
 }
 
 @test "[$GROUP] install gce plugin" {
-    install_and_check_plugin cloud gce google-api-client-*.jar
+    install_and_check_plugin discovery gce google-api-client-*.jar
 }
 
 @test "[$GROUP] install delete by query plugin" {
@@ -276,7 +308,7 @@ fi
 }
 
 @test "[$GROUP] remove gce plugin" {
-    remove_plugin cloud-gce
+    remove_plugin discovery-gce
 }
 
 @test "[$GROUP] remove delete by query plugin" {
@@ -352,3 +384,43 @@ fi
 @test "[$GROUP] stop elasticsearch" {
     stop_elasticsearch_service
 }
+
+@test "[$GROUP] install jvm-example with different logging modes and check output" {
+    local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" install "file://$relativePath" > /tmp/plugin-cli-output
+    local loglines=$(cat /tmp/plugin-cli-output | wc -l)
+    if [ "$GROUP" == "TAR PLUGINS" ]; then
+    # tar extraction does not create the plugins directory so the plugin tool will print an additional line that the directory will be created
+        [ "$loglines" -eq "7" ] || {
+            echo "Expected 7 lines but the output was:"
+            cat /tmp/plugin-cli-output
+            false
+        }
+    else
+        [ "$loglines" -eq "6" ] || {
+            echo "Expected 6 lines but the output was:"
+            cat /tmp/plugin-cli-output
+            false
+        }
+    fi
+    remove_jvm_example
+
+    local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" install "file://$relativePath" -Des.logger.level=DEBUG > /tmp/plugin-cli-output
+    local loglines=$(cat /tmp/plugin-cli-output | wc -l)
+    if [ "$GROUP" == "TAR PLUGINS" ]; then
+        [ "$loglines" -gt "7" ] || {
+            echo "Expected more than 7 lines but the output was:"
+            cat /tmp/plugin-cli-output
+            false
+        }
+    else
+        [ "$loglines" -gt "6" ] || {
+            echo "Expected more than 6 lines but the output was:"
+            cat /tmp/plugin-cli-output
+            false
+        }
+    fi
+    remove_jvm_example
+}
+

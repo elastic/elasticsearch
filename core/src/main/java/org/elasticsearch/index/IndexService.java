@@ -19,18 +19,23 @@
 
 package org.elasticsearch.index;
 
-import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -40,14 +45,21 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShadowIndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
+import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -59,6 +71,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
@@ -66,7 +80,6 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
  */
 public class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard> {
 
-    private final Settings indexSettings;
     private final InternalIndicesLifecycle indicesLifecycle;
     private final AnalysisService analysisService;
     private final IndexFieldDataService indexFieldData;
@@ -76,12 +89,13 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final IndicesService indicesServices;
     private final IndexServicesProvider indexServicesProvider;
     private final IndexStore indexStore;
-    private volatile ImmutableMap<Integer, IndexShard> shards = ImmutableMap.of();
+    private volatile Map<Integer, IndexShard> shards = emptyMap();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
+    private volatile IndexMetaData indexMetaData;
 
     @Inject
-    public IndexService(Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
+    public IndexService(Index index, IndexMetaData indexMetaData, NodeEnvironment nodeEnv,
                         AnalysisService analysisService,
                         IndexSettingsService settingsService,
                         IndexFieldDataService indexFieldData,
@@ -89,8 +103,8 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                         IndicesService indicesServices,
                         IndexServicesProvider indexServicesProvider,
                         IndexStore indexStore) {
-        super(index, indexSettings);
-        this.indexSettings = indexSettings;
+        super(index, settingsService.indexSettings());
+        assert indexMetaData != null;
         this.analysisService = analysisService;
         this.indexFieldData = indexFieldData;
         this.settingsService = settingsService;
@@ -100,6 +114,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.nodeEnv = nodeEnv;
         this.indexServicesProvider = indexServicesProvider;
         this.indexStore = indexStore;
+        this.indexMetaData = indexMetaData;
         indexFieldData.setListener(new FieldDataCacheListener(this));
         bitSetFilterCache.setListener(new BitsetCacheListener(this));
     }
@@ -176,10 +191,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return indexServicesProvider.getSimilarityService();
     }
 
-    public IndexAliasesService aliasesService() {
-        return indexServicesProvider.getIndexAliasesService();
-    }
-
     public synchronized void close(final String reason, boolean delete) {
         if (closed.compareAndSet(false, true)) {
             deleted.compareAndSet(false, delete);
@@ -224,9 +235,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         if (closed.get()) {
             throw new IllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
         }
-        if (indexSettings.get("index.translog.type") != null) { // TODO remove?
-            throw new IllegalStateException("a custom translog type is no longer supported. got [" + indexSettings.get("index.translog.type") + "]");
-        }
+        final Settings indexSettings = settingsService.getSettings();
         final ShardId shardId = new ShardId(index, sShardId);
         ShardLock lock = null;
         boolean success = false;
@@ -313,15 +322,16 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
-        HashMap<Integer, IndexShard> tmpShardsMap = new HashMap<>(shards);
-        indexShard = tmpShardsMap.remove(shardId);
-        shards = ImmutableMap.copyOf(tmpShardsMap);
+        HashMap<Integer, IndexShard> newShards = new HashMap<>(shards);
+        indexShard = newShards.remove(shardId);
+        shards = unmodifiableMap(newShards);
         closeShard(reason, sId, indexShard, indexShard.store());
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }
 
     private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store) {
         final int shardId = sId.id();
+        final Settings indexSettings = settingsService.getSettings();
         try {
             try {
                 indicesLifecycle.beforeIndexShardClosed(sId, indexShard, indexSettings);
@@ -353,6 +363,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     private void onShardClose(ShardLock lock, boolean ownsShard) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted
+            final Settings indexSettings = settingsService.getSettings();
             try {
                 if (ownsShard) {
                     try {
@@ -401,7 +412,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     }
 
     public Settings getIndexSettings() {
-        return indexSettings;
+        return settingsService.getSettings();
     }
 
     private static final class BitsetCacheListener implements BitsetFilterCache.Listener {
@@ -461,4 +472,67 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             }
         }
     }
+    /**
+     * Returns the filter associated with listed filtering aliases.
+     * <p>
+     * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
+     * Returns <tt>null</tt> if no filtering is required.</p>
+     */
+    public Query aliasFilter(String... aliasNames) {
+        if (aliasNames == null || aliasNames.length == 0) {
+            return null;
+        }
+        final IndexQueryParserService indexQueryParser = queryParserService();
+        final ImmutableOpenMap<String, AliasMetaData> aliases = this.indexMetaData.getAliases();
+        if (aliasNames.length == 1) {
+            AliasMetaData alias = aliases.get(aliasNames[0]);
+            if (alias == null) {
+                // This shouldn't happen unless alias disappeared after filteringAliases was called.
+                throw new InvalidAliasNameException(index, aliasNames[0], "Unknown alias name was passed to alias Filter");
+            }
+            return parse(alias, indexQueryParser);
+        } else {
+            // we need to bench here a bit, to see maybe it makes sense to use OrFilter
+            BooleanQuery.Builder combined = new BooleanQuery.Builder();
+            for (String aliasName : aliasNames) {
+                AliasMetaData alias = aliases.get(aliasName);
+                if (alias == null) {
+                    // This shouldn't happen unless alias disappeared after filteringAliases was called.
+                    throw new InvalidAliasNameException(indexQueryParser.index(), aliasNames[0], "Unknown alias name was passed to alias Filter");
+                }
+                Query parsedFilter = parse(alias, indexQueryParser);
+                if (parsedFilter != null) {
+                    combined.add(parsedFilter, BooleanClause.Occur.SHOULD);
+                } else {
+                    // The filter might be null only if filter was removed after filteringAliases was called
+                    return null;
+                }
+            }
+            return combined.build();
+        }
+    }
+
+    private Query parse(AliasMetaData alias, IndexQueryParserService indexQueryParser) {
+        if (alias.filter() == null) {
+            return null;
+        }
+        try {
+            byte[] filterSource = alias.filter().uncompressed();
+            try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
+                ParsedQuery parsedFilter = indexQueryParser.parseInnerFilter(parser);
+                return parsedFilter == null ? null : parsedFilter.query();
+            }
+        } catch (IOException ex) {
+            throw new AliasFilterParsingException(indexQueryParser.index(), alias.getAlias(), "Invalid alias filter", ex);
+        }
+    }
+
+    public IndexMetaData getMetaData() {
+        return indexMetaData;
+    }
+
+    public void updateMetaData(IndexMetaData metadata) {
+        this.indexMetaData = metadata;
+    }
+
 }

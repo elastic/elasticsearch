@@ -125,23 +125,6 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-        PyObject pyVars = Py.java2py(vars);
-        interp.setLocals(pyVars);
-        // eval the script with reduced privileges
-        PyObject ret = evalRestricted((PyCode) compiledScript.compiled());
-        if (ret == null) {
-            return null;
-        }
-        return ret.__tojava__(Object.class);
-    }
-
-    @Override
-    public Object unwrap(Object value) {
-        return unwrapValue(value);
-    }
-
-    @Override
     public void close() {
         interp.cleanup();
     }

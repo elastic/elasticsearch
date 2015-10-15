@@ -18,19 +18,22 @@
  */
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Creates a SnowballAnalyzer initialized with stopwords and Snowball filter. Only
@@ -46,14 +49,17 @@ import org.elasticsearch.index.settings.IndexSettings;
  *
  */
 public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<SnowballAnalyzer> {
+    private static final Map<String, CharArraySet> DEFAULT_LANGUAGE_STOPWORDS;
 
-    private static final ImmutableMap<String, CharArraySet> defaultLanguageStopwords = MapBuilder.<String, CharArraySet>newMapBuilder()
-            .put("English", StopAnalyzer.ENGLISH_STOP_WORDS_SET)
-            .put("Dutch", DutchAnalyzer.getDefaultStopSet())
-            .put("German", GermanAnalyzer.getDefaultStopSet())
-            .put("German2", GermanAnalyzer.getDefaultStopSet())
-            .put("French", FrenchAnalyzer.getDefaultStopSet())
-            .immutableMap();
+    static {
+        Map<String, CharArraySet> defaultLanguageStopwords = new HashMap<>();
+        defaultLanguageStopwords.put("English", StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+        defaultLanguageStopwords.put("Dutch", DutchAnalyzer.getDefaultStopSet());
+        defaultLanguageStopwords.put("German", GermanAnalyzer.getDefaultStopSet());
+        defaultLanguageStopwords.put("German2", GermanAnalyzer.getDefaultStopSet());
+        defaultLanguageStopwords.put("French", FrenchAnalyzer.getDefaultStopSet());
+        DEFAULT_LANGUAGE_STOPWORDS = unmodifiableMap(defaultLanguageStopwords);
+    }
 
     private final SnowballAnalyzer analyzer;
 
@@ -62,7 +68,7 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
         super(index, indexSettings, name, settings);
 
         String language = settings.get("language", settings.get("name", "English"));
-        CharArraySet defaultStopwords = defaultLanguageStopwords.containsKey(language) ? defaultLanguageStopwords.get(language) : CharArraySet.EMPTY_SET;
+        CharArraySet defaultStopwords = DEFAULT_LANGUAGE_STOPWORDS.getOrDefault(language, CharArraySet.EMPTY_SET);
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
 
         analyzer = new SnowballAnalyzer(language, stopWords);

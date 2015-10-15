@@ -20,7 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -28,9 +32,18 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQueryStringBuilder> {
 
@@ -326,5 +339,15 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         query = simpleQueryStringBuilder.toQuery(shardContext);
         assertThat(query, instanceOf(TermQuery.class));
         assertThat(query.getBoost(), equalTo(10f));
+    }
+
+    public void testNegativeFlags() throws IOException {
+        String query = "{\"simple_query_string\": {\"query\": \"foo bar\", \"flags\": -1}}";
+        SimpleQueryStringBuilder builder = new SimpleQueryStringBuilder("foo bar");
+        builder.flags(SimpleQueryStringFlag.ALL);
+        assertParsedQuery(query, builder);
+        SimpleQueryStringBuilder otherBuilder = new SimpleQueryStringBuilder("foo bar");
+        otherBuilder.flags(-1);
+        assertThat(builder, equalTo(otherBuilder));
     }
 }

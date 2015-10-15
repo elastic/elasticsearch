@@ -164,7 +164,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         List<GeoPoint> shell = new ArrayList<>();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            shell.add(GeoPoint.readGeoPointFrom(in));
+            shell.add(in.readGeoPoint());
         }
         GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(fieldName, shell);
         builder.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
@@ -176,7 +176,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         out.writeString(fieldName);
         out.writeVInt(shell.size());
         for (GeoPoint point : shell) {
-            point.writeTo(out);
+            out.writeGeoPoint(point);
         }
         validationMethod.writeTo(out);
     }

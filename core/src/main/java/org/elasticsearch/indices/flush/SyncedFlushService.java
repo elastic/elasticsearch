@@ -48,7 +48,13 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -112,7 +118,7 @@ public class SyncedFlushService extends AbstractComponent {
         int numberOfShards = 0;
         for (String index : concreteIndices) {
             final IndexMetaData indexMetaData = state.metaData().index(index);
-            totalNumberOfShards += indexMetaData.totalNumberOfShards();
+            totalNumberOfShards += indexMetaData.getTotalNumberOfShards();
             numberOfShards += indexMetaData.getNumberOfShards();
             results.put(index, Collections.synchronizedList(new ArrayList<ShardsSyncedFlushResult>()));
 
@@ -174,7 +180,7 @@ public class SyncedFlushService extends AbstractComponent {
     * be written on a primary if no write operation was executed between step 1 and step 3 and sync id will only be written on
     * the replica if it contains the same changes that the primary contains.
     *
-    * Synced flush is a best effort operation. The sync id may be written on all, some or none of the copies. 
+    * Synced flush is a best effort operation. The sync id may be written on all, some or none of the copies.
     **/
     public void attemptSyncedFlush(final ShardId shardId, final ActionListener<ShardsSyncedFlushResult> actionListener) {
         try {
@@ -235,7 +241,7 @@ public class SyncedFlushService extends AbstractComponent {
         final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.index().name());
         if (indexRoutingTable == null) {
             IndexMetaData index = state.getMetaData().index(shardId.index().getName());
-            if (index != null && index.state() == IndexMetaData.State.CLOSE) {
+            if (index != null && index.getState() == IndexMetaData.State.CLOSE) {
                 throw new IndexClosedException(shardId.index());
             }
             throw new IndexNotFoundException(shardId.index().getName());
@@ -341,8 +347,7 @@ public class SyncedFlushService extends AbstractComponent {
     }
 
     private void contDownAndSendResponseIfDone(String syncId, List<ShardRouting> shards, ShardId shardId, int totalShards,
-                                               ActionListener<ShardsSyncedFlushResult> listener, CountDown countDown, Map<ShardRouting,
-            SyncedFlushResponse> results) {
+            ActionListener<ShardsSyncedFlushResult> listener, CountDown countDown, Map<ShardRouting, SyncedFlushResponse> results) {
         if (countDown.countDown()) {
             assert results.size() == shards.size();
             listener.onResponse(new ShardsSyncedFlushResult(shardId, syncId, totalShards, results));

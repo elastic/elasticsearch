@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.cli;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
@@ -29,14 +28,20 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -387,11 +392,11 @@ public class CliToolTests extends CliToolTestCase {
             super(CliToolConfig.config(name, MultiCmdTool.class)
                     .cmds(cmds(commands))
                     .build(), terminal);
-            ImmutableMap.Builder<String, Command> commandByName = ImmutableMap.builder();
+            Map<String, Command> commandByName = new HashMap<>();
             for (int i = 0; i < commands.length; i++) {
                 commandByName.put(commands[i].name, commands[i]);
             }
-            this.commands = commandByName.build();
+            this.commands = unmodifiableMap(commandByName);
         }
 
         @Override

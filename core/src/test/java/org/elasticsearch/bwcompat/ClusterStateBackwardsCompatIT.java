@@ -87,7 +87,7 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
 
                         IndexMetaData indexMetaData = response.getState().getMetaData().getIndices().get("test-blocks");
                         assertNotNull(indexMetaData);
-                        assertTrue(indexMetaData.settings().getAsBoolean(block.getKey(), null));
+                        assertTrue(indexMetaData.getSettings().getAsBoolean(block.getKey(), null));
                     }
                 }
             } finally {

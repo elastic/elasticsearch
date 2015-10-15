@@ -91,6 +91,12 @@ is needed then the `max_children` option shouldn't be defined at all on the `has
 
 === Settings changes ===
 
+==== Analysis settings
+
+The `index.analysis.analyzer.default_index` analyzer is not supported anymore.
+If you wish to change the analyzer to use for indexing, change the
+`index.analysis.analyzer.default` analyzer instead.
+
 ==== Ping timeout settings
 
 Previously, there were three settings for the ping timeout: `discovery.zen.initial_ping_timeout`,
@@ -120,6 +126,25 @@ new object, see usages of `Writeable`. The `ScoreFunctionParser` also needs to d
 function that it supports and it's able to parse. The function object can then transform itself into a lucene
 function through the new `toFunction(QueryShardContext)` method, which returns a lucene function to be executed
 on the data node.
+
+==== Cloud AWS plugin
+
+Cloud AWS plugin has been split in two plugins:
+
+* {plugins}/discovery-ec2.html[Discovery EC2 plugin]
+* {plugins}/repository-s3.html[Repository S3 plugin]
+
+==== Cloud Azure plugin
+
+Cloud Azure plugin has been split in three plugins:
+
+* {plugins}/discovery-azure.html[Discovery Azure plugin]
+* {plugins}/repository-azure.html[Repository Azure plugin]
+* {plugins}/store-smb.html[Store SMB plugin]
+
+==== Cloud GCE plugin
+
+Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
 
 === Java-API
 
@@ -266,3 +291,8 @@ of string values: see `FilterFunctionScoreQuery.ScoreMode` and `CombineFunction`
 
 For simplicity, only one way of adding the ids to the existing list (empty by default)  is left: `addIds(String...)`
 
+==== DocumentAlreadyExistsException removed
+
+`DocumentAlreadyExistsException` is removed and a `VersionConflictException` is thrown instead (with a better
+error description). This will influence code that use the `IndexRequest.opType()` or `IndexRequest.create()`
+to index a document only if it doesn't already exist.

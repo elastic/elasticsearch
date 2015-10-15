@@ -19,13 +19,10 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Iterators;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  * A {@link RoutingNode} represents a cluster node associated with a single {@link DiscoveryNode} including all shards
@@ -51,7 +48,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     @Override
     public Iterator<ShardRouting> iterator() {
-        return Iterators.unmodifiableIterator(shards.iterator());
+        return Collections.unmodifiableCollection(shards).iterator();
     }
 
     Iterator<ShardRouting> mutableIterator() {

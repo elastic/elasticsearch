@@ -19,7 +19,6 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -34,7 +33,6 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.util.Collections;
 import java.util.Map;
@@ -88,29 +86,6 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
         return (new JsonEscapingMustacheFactory()).compile(new FastStringReader(template), "query-template");
     }
 
-    /**
-     * Execute a compiled template object (as retrieved from the compile method)
-     * and fill potential place holders with the variables given.
-     *
-     * @param template
-     *            compiled template object.
-     * @param vars
-     *            map of variables to use during substitution.
-     *
-     * @return the processed string with all given variables substitued.
-     * */
-    @Override
-    public Object execute(CompiledScript template, Map<String, Object> vars) {
-        BytesStreamOutput result = new BytesStreamOutput();
-        try (UTF8StreamWriter writer = utf8StreamWriter().setOutput(result)) {
-            ((Mustache) template.compiled()).execute(writer, vars);
-        } catch (Exception e) {
-            logger.error("Error executing " + template, e);
-            throw new ScriptException("Error executing " + template, e);
-        }
-        return result.bytes();
-    }
-
     @Override
     public String[] types() {
         return new String[] {NAME};
@@ -136,11 +111,6 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
     public SearchScript search(CompiledScript compiledScript, SearchLookup lookup,
             @Nullable Map<String, Object> vars) {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Object unwrap(Object value) {
-        return value;
     }
 
     @Override

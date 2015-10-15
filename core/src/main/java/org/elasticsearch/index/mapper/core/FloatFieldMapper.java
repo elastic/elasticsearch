@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import com.carrotsearch.hppc.FloatArrayList;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
@@ -37,8 +35,6 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -298,17 +294,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            if (useSortedNumericDocValues) {
-                addDocValue(context, fields, floatToSortableInt(value));
-            } else {
-                CustomFloatNumericDocValuesField field = (CustomFloatNumericDocValuesField) context.doc().getByKey(fieldType().names().indexName());
-                if (field != null) {
-                    field.add(value);
-                } else {
-                    field = new CustomFloatNumericDocValuesField(fieldType().names().indexName(), value);
-                    context.doc().addWithKey(fieldType().names().indexName(), field);
-                }
-            }
+            addDocValue(context, fields, floatToSortableInt(value));
         }
     }
 
@@ -356,32 +342,5 @@ public class FloatFieldMapper extends NumberFieldMapper {
         public String numericAsString() {
             return Float.toString(number);
         }
-    }
-
-    public static class CustomFloatNumericDocValuesField extends CustomNumericDocValuesField {
-
-        private final FloatArrayList values;
-
-        public CustomFloatNumericDocValuesField(String  name, float value) {
-            super(name);
-            values = new FloatArrayList();
-            add(value);
-        }
-
-        public void add(float value) {
-            values.add(value);
-        }
-
-        @Override
-        public BytesRef binaryValue() {
-            CollectionUtils.sortAndDedup(values);
-
-            final byte[] bytes = new byte[values.size() * 4];
-            for (int i = 0; i < values.size(); ++i) {
-                ByteUtils.writeFloatLE(values.get(i), bytes, i * 4);
-            }
-            return new BytesRef(bytes);
-        }
-
     }
 }

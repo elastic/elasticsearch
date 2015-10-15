@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -28,6 +27,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Holds the {@link org.elasticsearch.script.ScriptMode}s for each of the different scripting languages available,
@@ -38,7 +39,7 @@ public class ScriptModes {
     static final String SCRIPT_SETTINGS_PREFIX = "script.";
     static final String ENGINE_SETTINGS_PREFIX = "script.engine";
 
-    final ImmutableMap<String, ScriptMode> scriptModes;
+    final Map<String, ScriptMode> scriptModes;
 
     ScriptModes(Map<String, ScriptEngineService> scriptEngines, ScriptContextRegistry scriptContextRegistry, Settings settings) {
         //filter out the native engine as we don't want to apply fine grained settings to it.
@@ -48,7 +49,7 @@ public class ScriptModes {
         this.scriptModes = buildScriptModeSettingsMap(settings, filteredEngines, scriptContextRegistry);
     }
 
-    private static ImmutableMap<String, ScriptMode> buildScriptModeSettingsMap(Settings settings, Map<String, ScriptEngineService> scriptEngines, ScriptContextRegistry scriptContextRegistry) {
+    private static Map<String, ScriptMode> buildScriptModeSettingsMap(Settings settings, Map<String, ScriptEngineService> scriptEngines, ScriptContextRegistry scriptContextRegistry) {
         HashMap<String, ScriptMode> scriptModesMap = new HashMap<>();
 
         //file scripts are enabled by default, for any language
@@ -61,7 +62,7 @@ public class ScriptModes {
         processSourceBasedGlobalSettings(settings, scriptEngines, scriptContextRegistry, scriptModesMap);
         processOperationBasedGlobalSettings(settings, scriptEngines, scriptContextRegistry, scriptModesMap);
         processEngineSpecificSettings(settings, scriptEngines, scriptContextRegistry, scriptModesMap);
-        return ImmutableMap.copyOf(scriptModesMap);
+        return unmodifiableMap(scriptModesMap);
     }
 
     private static void processSourceBasedGlobalSettings(Settings settings, Map<String, ScriptEngineService> scriptEngines, ScriptContextRegistry scriptContextRegistry, Map<String, ScriptMode> scriptModes) {

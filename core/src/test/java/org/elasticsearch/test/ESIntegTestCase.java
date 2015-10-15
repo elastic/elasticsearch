@@ -109,7 +109,6 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
-import org.elasticsearch.indices.flush.IndicesSyncedFlushResult;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.Node;
@@ -1479,18 +1478,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (rarely()) {
             if (rarely()) {
                 client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
-                        new LatchedActionListener<RefreshResponse>(newLatch(inFlightAsyncOperations)));
+                        new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
             } else if (maybeFlush && rarely()) {
                 if (randomBoolean()) {
                     client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
-                            new LatchedActionListener<FlushResponse>(newLatch(inFlightAsyncOperations)));
-                } else {
+                            new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
+                } else if (isInternalCluster()) {
                     internalCluster().getInstance(SyncedFlushService.class).attemptSyncedFlush(indices, IndicesOptions.lenientExpandOpen(),
-                            new LatchedActionListener<IndicesSyncedFlushResult>(newLatch(inFlightAsyncOperations)));
+                            new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
                 }
             } else if (rarely()) {
                 client().admin().indices().prepareOptimize(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).setMaxNumSegments(between(1, 10)).setFlush(maybeFlush && randomBoolean()).execute(
-                        new LatchedActionListener<OptimizeResponse>(newLatch(inFlightAsyncOperations)));
+                        new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
             }
         }
         while (inFlightAsyncOperations.size() > MAX_IN_FLIGHT_ASYNC_INDEXES) {
@@ -1892,8 +1891,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected NumShards getNumShards(String index) {
         MetaData metaData = client().admin().cluster().prepareState().get().getState().metaData();
         assertThat(metaData.hasIndex(index), equalTo(true));
-        int numShards = Integer.valueOf(metaData.index(index).settings().get(SETTING_NUMBER_OF_SHARDS));
-        int numReplicas = Integer.valueOf(metaData.index(index).settings().get(SETTING_NUMBER_OF_REPLICAS));
+        int numShards = Integer.valueOf(metaData.index(index).getSettings().get(SETTING_NUMBER_OF_SHARDS));
+        int numReplicas = Integer.valueOf(metaData.index(index).getSettings().get(SETTING_NUMBER_OF_REPLICAS));
         return new NumShards(numShards, numReplicas);
     }
 

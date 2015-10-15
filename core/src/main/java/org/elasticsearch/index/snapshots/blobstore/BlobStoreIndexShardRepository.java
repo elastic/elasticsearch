@@ -19,7 +19,11 @@
 
 package org.elasticsearch.index.snapshots.blobstore;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -48,7 +52,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.*;
+import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotException;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -64,8 +72,15 @@ import org.elasticsearch.repositories.blobstore.LegacyBlobStoreFormat;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.testBlobPrefix;
 
 /**
@@ -812,7 +827,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
                     fileInfos.put(fileInfo.metadata().name(), fileInfo);
                 }
-                final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(snapshotMetaData, Collections.EMPTY_MAP, 0);
+                final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(unmodifiableMap(snapshotMetaData), emptyMap(), 0);
                 final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryTargetMetadata);
                 for (StoreFileMetaData md : diff.identical) {
                     FileInfo fileInfo = fileInfos.get(md.name());

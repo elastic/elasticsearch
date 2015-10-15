@@ -92,27 +92,27 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                             String filter = aliasAction.filter();
                             if (Strings.hasLength(filter)) {
                                 // parse the filter, in order to validate it
-                                IndexService indexService = indices.get(indexMetaData.index());
+                                IndexService indexService = indices.get(indexMetaData.getIndex());
                                 if (indexService == null) {
-                                    indexService = indicesService.indexService(indexMetaData.index());
+                                    indexService = indicesService.indexService(indexMetaData.getIndex());
                                     if (indexService == null) {
                                         // temporarily create the index and add mappings so we can parse the filter
                                         try {
-                                            indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), clusterService.localNode().id());
-                                            if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                                                indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.mappings().get(MapperService.DEFAULT_MAPPING).source(), false, false);
+                                            indexService = indicesService.createIndex(indexMetaData);
+                                            if (indexMetaData.getMappings().containsKey(MapperService.DEFAULT_MAPPING)) {
+                                                indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.getMappings().get(MapperService.DEFAULT_MAPPING).source(), false, false);
                                             }
-                                            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
+                                            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                                                 MappingMetaData mappingMetaData = cursor.value;
                                                 indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source(), false, false);
                                             }
                                         } catch (Exception e) {
-                                            logger.warn("[{}] failed to temporary create in order to apply alias action", e, indexMetaData.index());
+                                            logger.warn("[{}] failed to temporary create in order to apply alias action", e, indexMetaData.getIndex());
                                             continue;
                                         }
-                                        indicesToClose.add(indexMetaData.index());
+                                        indicesToClose.add(indexMetaData.getIndex());
                                     }
-                                    indices.put(indexMetaData.index(), indexService);
+                                    indices.put(indexMetaData.getIndex(), indexService);
                                 }
 
                                 aliasValidator.validateAliasFilter(aliasAction.alias(), filter, indexService.queryParserService());
@@ -124,14 +124,14 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                     .searchRouting(aliasAction.searchRouting())
                                     .build();
                             // Check if this alias already exists
-                            AliasMetaData aliasMd = indexMetaData.aliases().get(aliasAction.alias());
+                            AliasMetaData aliasMd = indexMetaData.getAliases().get(aliasAction.alias());
                             if (aliasMd != null && aliasMd.equals(newAliasMd)) {
                                 // It's the same alias - ignore it
                                 continue;
                             }
                             indexMetaDataBuilder.putAlias(newAliasMd);
                         } else if (aliasAction.actionType() == AliasAction.Type.REMOVE) {
-                            if (!indexMetaData.aliases().containsKey(aliasAction.alias())) {
+                            if (!indexMetaData.getAliases().containsKey(aliasAction.alias())) {
                                 // This alias doesn't exist - ignore
                                 continue;
                             }

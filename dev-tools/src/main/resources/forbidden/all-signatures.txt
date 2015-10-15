@@ -87,53 +87,9 @@ java.net.InetAddress#getCanonicalHostName()
 
 java.net.InetSocketAddress#getHostName() @ Use getHostString() instead, which avoids a DNS lookup
 
-@defaultMessage avoid adding additional dependencies on Guava
-com.google.common.collect.Lists
-com.google.common.collect.ImmutableList
-com.google.common.base.Objects
-com.google.common.base.Predicate
-com.google.common.base.Predicates
-com.google.common.base.Strings
-com.google.common.base.Throwables
-com.google.common.collect.Maps
-com.google.common.collect.ForwardingSet
-com.google.common.collect.Sets
-com.google.common.base.Preconditions
-com.google.common.collect.ImmutableSortedSet
-com.google.common.collect.Queues
-com.google.common.util.concurrent.ListenableFuture
-com.google.common.util.concurrent.SettableFuture
-com.google.common.util.concurrent.Futures
-com.google.common.util.concurrent.MoreExecutors
-com.google.common.collect.ImmutableSortedMap
-com.google.common.base.Charsets
-com.google.common.base.Function
-com.google.common.collect.Collections2
-com.google.common.cache.LoadingCache
-com.google.common.cache.CacheLoader
-com.google.common.collect.Iterables
-com.google.common.util.concurrent.UncheckedExecutionException
-com.google.common.util.concurrent.AtomicLongMap
-com.google.common.primitives.Longs
-com.google.common.io.ByteStreams
-com.google.common.collect.UnmodifiableIterator
-com.google.common.collect.ObjectArrays
-com.google.common.collect.Multimap
-com.google.common.collect.MultimapBuilder
-com.google.common.math.LongMath
-com.google.common.base.Joiner
-com.google.common.collect.ArrayListMultimap
-com.google.common.collect.HashMultimap
-com.google.common.collect.FluentIterable
-com.google.common.io.Files
-com.google.common.primitives.Ints
-com.google.common.collect.ImmutableSet
-com.google.common.collect.ImmutableSet$Builder
-com.google.common.io.Resources
-com.google.common.hash.HashCode
-com.google.common.hash.HashFunction
-com.google.common.hash.Hashing
-
 @defaultMessage Do not violate java's access system
 java.lang.reflect.AccessibleObject#setAccessible(boolean)
 java.lang.reflect.AccessibleObject#setAccessible(java.lang.reflect.AccessibleObject[], boolean)
+
+@defaultMessage this should not have been added to lucene in the first place
+org.apache.lucene.index.IndexReader#getCombinedCoreAndDeletesKey()

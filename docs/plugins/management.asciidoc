@@ -37,6 +37,7 @@ A number of plugins have been contributed by our community:
 * https://github.com/andrewvc/elastic-hammer[Hammer Plugin] (by Andrew Cholakian)
 * https://github.com/polyfractal/elasticsearch-inquisitor[Inquisitor Plugin] (by Zachary Tong)
 * https://github.com/lmenezes/elasticsearch-kopf[Kopf Plugin] (by lmenezes)
+* https://github.com/timschlechter/swagger-for-elasticsearch[Swagger for Elasticsearch] (by Tim Schlechter)
 
 These community plugins appear to have been abandoned:
 

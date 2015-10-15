@@ -22,10 +22,14 @@ package org.elasticsearch.script.groovy;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -50,7 +54,7 @@ public class GroovySecurityTests extends ESIntegTestCase {
         super.setUp();
         assumeTrue("test requires security manager to be enabled", System.getSecurityManager() != null);
     }
-    
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
@@ -79,7 +83,7 @@ public class GroovySecurityTests extends ESIntegTestCase {
         // Ranges
         assertSuccess("def range = 1..doc['foo'].value; def v = range.get(0)");
         // Maps
-        assertSuccess("def v = doc['foo'].value; def m = [:]; m.put(\\\"value\\\", v)");
+        assertSuccess("def v = doc['foo'].value; def m = [:]; m.put(\"value\", v)");
         // Times
         assertSuccess("def t = Instant.now().getMillis()");
         // GroovyCollections
@@ -87,40 +91,42 @@ public class GroovySecurityTests extends ESIntegTestCase {
 
         // Fail cases:
         // AccessControlException[access denied ("java.io.FilePermission" "<<ALL FILES>>" "execute")]
-        assertFailure("pr = Runtime.getRuntime().exec(\\\"touch /tmp/gotcha\\\"); pr.waitFor()");
+        assertFailure("pr = Runtime.getRuntime().exec(\"touch /tmp/gotcha\"); pr.waitFor()");
 
         // AccessControlException[access denied ("java.lang.RuntimePermission" "accessClassInPackage.sun.reflect")]
-        assertFailure("d = new DateTime(); d.getClass().getDeclaredMethod(\\\"year\\\").setAccessible(true)");
-        assertFailure("d = new DateTime(); d.\\\"${'get' + 'Class'}\\\"()." +
-                        "\\\"${'getDeclared' + 'Method'}\\\"(\\\"year\\\").\\\"${'set' + 'Accessible'}\\\"(false)");
-        assertFailure("Class.forName(\\\"org.joda.time.DateTime\\\").getDeclaredMethod(\\\"year\\\").setAccessible(true)");
+        assertFailure("d = new DateTime(); d.getClass().getDeclaredMethod(\"year\").setAccessible(true)");
+        assertFailure("d = new DateTime(); d.\"${'get' + 'Class'}\"()." +
+                        "\"${'getDeclared' + 'Method'}\"(\"year\").\"${'set' + 'Accessible'}\"(false)");
+        assertFailure("Class.forName(\"org.joda.time.DateTime\").getDeclaredMethod(\"year\").setAccessible(true)");
 
         // AccessControlException[access denied ("groovy.security.GroovyCodeSourcePermission" "/groovy/shell")]
         assertFailure("Eval.me('2 + 2')");
         assertFailure("Eval.x(5, 'x + 2')");
 
         // AccessControlException[access denied ("java.lang.RuntimePermission" "accessDeclaredMembers")]
-        assertFailure("d = new Date(); java.lang.reflect.Field f = Date.class.getDeclaredField(\\\"fastTime\\\");" +
-                " f.setAccessible(true); f.get(\\\"fastTime\\\")");
+        assertFailure("d = new Date(); java.lang.reflect.Field f = Date.class.getDeclaredField(\"fastTime\");" +
+                " f.setAccessible(true); f.get(\"fastTime\")");
 
         // AccessControlException[access denied ("java.io.FilePermission" "<<ALL FILES>>" "execute")]
-        assertFailure("def methodName = 'ex'; Runtime.\\\"${'get' + 'Runtime'}\\\"().\\\"${methodName}ec\\\"(\\\"touch /tmp/gotcha2\\\")");
+        assertFailure("def methodName = 'ex'; Runtime.\"${'get' + 'Runtime'}\"().\"${methodName}ec\"(\"touch /tmp/gotcha2\")");
         
         // test a directory we normally have access to, but the groovy script does not.
         Path dir = createTempDir();
         // TODO: figure out the necessary escaping for windows paths here :)
         if (!Constants.WINDOWS) {
             // access denied ("java.io.FilePermission" ".../tempDir-00N" "read")
-            assertFailure("new File(\\\"" + dir + "\\\").exists()");
+            assertFailure("new File(\"" + dir + "\").exists()");
         }
     }
 
     private void assertSuccess(String script) {
         logger.info("--> script: " + script);
-        SearchResponse resp = client().prepareSearch("test")
-                .setSource(new BytesArray("{\"query\": {\"match_all\": {}}," +
-                        "\"sort\":{\"_script\": {\"script\": \"" + script +
-                        "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}")).get();
+        SearchResponse resp = client()
+                .prepareSearch("test")
+                .setSource(
+                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).sort(
+                                SortBuilders.scriptSort(new Script(script + "; doc['foo'].value + 2", ScriptType.INLINE, "groovy", null),
+                                        "number"))).get();
         assertNoFailures(resp);
         assertEquals(1, resp.getHits().getTotalHits());
         assertThat(resp.getHits().getAt(0).getSortValues(), equalTo(new Object[]{7.0}));
@@ -128,10 +134,12 @@ public class GroovySecurityTests extends ESIntegTestCase {
 
     private void assertFailure(String script) {
         logger.info("--> script: " + script);
-        SearchResponse resp = client().prepareSearch("test")
-                 .setSource(new BytesArray("{\"query\": {\"match_all\": {}}," +
-                         "\"sort\":{\"_script\": {\"script\": \"" + script +
-                         "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}")).get();
+        SearchResponse resp = client()
+                .prepareSearch("test")
+                .setSource(
+                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).sort(
+                                SortBuilders.scriptSort(new Script(script + "; doc['foo'].value + 2", ScriptType.INLINE, "groovy", null),
+                                        "number"))).get();
         assertEquals(0, resp.getHits().getTotalHits());
         ShardSearchFailure fails[] = resp.getShardFailures();
         // TODO: GroovyScriptExecutionException needs work:

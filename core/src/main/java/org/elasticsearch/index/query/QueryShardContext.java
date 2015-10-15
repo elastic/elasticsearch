@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -37,7 +36,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -53,6 +56,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Context object used to create lucene queries on the shard level.
@@ -148,7 +153,7 @@ public class QueryShardContext {
     }
 
     public Similarity searchSimilarity() {
-        return indexQueryParser.similarityService != null ? indexQueryParser.similarityService.similarity() : null;
+        return indexQueryParser.similarityService != null ? indexQueryParser.similarityService.similarity(indexQueryParser.mapperService) : null;
     }
 
     public String defaultField() {
@@ -186,8 +191,9 @@ public class QueryShardContext {
         }
     }
 
-    public ImmutableMap<String, Query> copyNamedQueries() {
-        return ImmutableMap.copyOf(namedQueries);
+    public Map<String, Query> copyNamedQueries() {
+        // This might be a good use case for CopyOnWriteHashMap
+        return unmodifiableMap(new HashMap<>(namedQueries));
     }
 
     public void combineNamedQueries(QueryShardContext context) {

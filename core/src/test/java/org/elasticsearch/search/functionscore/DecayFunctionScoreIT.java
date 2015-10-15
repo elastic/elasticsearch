@@ -27,11 +27,8 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -48,11 +45,23 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.gaussDecayFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.linearDecayFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.lessThan;
 
 
 public class DecayFunctionScoreIT extends ESIntegTestCase {
@@ -433,10 +442,10 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         SearchResponse sr = response.actionGet();
         assertOrderedSearchHits(sr, "2", "1");
     }
-    
+
     @Test
     public void testParseDateMath() throws Exception {
-        
+
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
@@ -457,7 +466,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         assertNoFailures(sr);
         assertOrderedSearchHits(sr, "1", "2");
-        
+
         sr = client().search(
                 searchRequest().source(
                         searchSource().query(
@@ -582,9 +591,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
         for (int i = 0; i < numDocs; i++) {
-            double lat = 100 + (int) (10.0 * (float) (i) / (float) (numDocs));
+            double lat = 100 + (int) (10.0 * (i) / (numDocs));
             double lon = 100;
-            int day = (int) (29.0 * (float) (i) / (float) (numDocs)) + 1;
+            int day = (int) (29.0 * (i) / (numDocs)) + 1;
             String dayString = day < 10 ? "0" + Integer.toString(day) : Integer.toString(day);
             String date = "2013-05-" + dayString;
 
@@ -772,7 +781,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         assertThat(sh.getAt(0).getId(), equalTo("2"));
         assertThat(sh.getAt(1).getId(), equalTo("1"));
-        assertThat((double)(1.0 - sh.getAt(0).getScore()), closeTo((double)((1.0 - sh.getAt(1).getScore())/3.0), 1.e-6d));
+        assertThat(1.0 - sh.getAt(0).getScore(), closeTo((1.0 - sh.getAt(1).getScore())/3.0, 1.e-6d));
         response = client().search(
                 searchRequest().source(
                         searchSource().query(
@@ -780,76 +789,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         sr = response.actionGet();
         assertSearchHits(sr, "1", "2");
         sh = sr.getHits();
-        assertThat((double) (sh.getAt(0).getScore()), closeTo((double) (sh.getAt(1).getScore()), 1.e-6d));
-    }
-
-    @Test
-    public void errorMessageForFaultyFunctionScoreBody() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
-                        .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
-        ensureYellow();
-        client().index(
-                indexRequest("test").type("type").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
-                .actionGet();
-        refresh();
-
-        XContentBuilder query = XContentFactory.jsonBuilder();
-        // query that contains a single function and a functions[] array
-        query.startObject().startObject("function_score").field("weight", "1").startArray("functions").startObject().startObject("script_score").field("script", "3").endObject().endObject().endArray().endObject().endObject();
-        try {
-            client().search(
-                    searchRequest().source(
-                            searchSource().query(query))).actionGet();
-            fail("Search should result in SearchPhaseExecutionException");
-        } catch (SearchPhaseExecutionException e) {
-            logger.info(e.shardFailures()[0].reason());
-            assertThat(e.shardFailures()[0].reason(), containsString("already found [weight], now encountering [functions]."));
-        }
-
-        query = XContentFactory.jsonBuilder();
-        // query that contains a single function (but not boost factor) and a functions[] array
-        query.startObject().startObject("function_score").startObject("random_score").field("seed", 3).endObject().startArray("functions").startObject().startObject("random_score").field("seed", 3).endObject().endObject().endArray().endObject().endObject();
-        try {
-            client().search(
-                    searchRequest().source(
-                            searchSource().query(query))).actionGet();
-            fail("Search should result in SearchPhaseExecutionException");
-        } catch (SearchPhaseExecutionException e) {
-            logger.info(e.shardFailures()[0].reason());
-            assertThat(e.shardFailures()[0].reason(), containsString("already found [random_score], now encountering [functions]"));
-            assertThat(e.shardFailures()[0].reason(), not(containsString("did you mean [boost] instead?")));
-
-        }
-    }
-
-    @Test
-    public void testExplainString() throws IOException, ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
-                        .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
-        ensureYellow();
-
-
-        client().prepareIndex().setType("type1").setId("1").setIndex("test")
-                .setSource(jsonBuilder().startObject().field("test", "value").array("num", 0.5, 0.7).endObject()).get();
-
-        refresh();
-
-        SearchResponse response = client().search(
-                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true)
-                                .query(functionScoreQuery(termQuery("test", "value"), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(gaussDecayFunction("num", 1.0, 5.0, 1.0)),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(linearDecayFunction("num", 1.0, 5.0, 1.0)),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(exponentialDecayFunction("num", 1.0, 5.0, 1.0))
-                                }).boostMode(CombineFunction.REPLACE)))).get();
-        String explanation = response.getHits().getAt(0).getExplanation().toString();
-        assertThat(explanation, containsString(" 1.0 = exp(-0.5*pow(MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)],2.0)/18.033688011112044)"));
-        assertThat(explanation, containsString("1.0 = max(0.0, ((10.0 - MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)])/10.0)"));
-        assertThat(explanation, containsString("1.0 = exp(- MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)] * 0.13862943611198905)"));
-
+        assertThat((double) (sh.getAt(0).getScore()), closeTo((sh.getAt(1).getScore()), 1.e-6d));
     }
 }

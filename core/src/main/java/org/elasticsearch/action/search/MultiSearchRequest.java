@@ -24,22 +24,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
 
 /**
  * A multi search API request.
@@ -66,107 +58,6 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
     public MultiSearchRequest add(SearchRequest request) {
         requests.add(request);
         return this;
-    }
-
-    public MultiSearchRequest add(byte[] data, int from, int length,
-            boolean isTemplateRequest, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType) throws Exception {
-        return add(new BytesArray(data, from, length), isTemplateRequest, indices, types, searchType, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true);
-    }
-
-    public MultiSearchRequest add(BytesReference data, boolean isTemplateRequest, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, IndicesOptions indicesOptions) throws Exception {
-        return add(data, isTemplateRequest, indices, types, searchType, null, indicesOptions, true);
-    }
-
-    public MultiSearchRequest add(BytesReference data, boolean isTemplateRequest, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, @Nullable String routing, IndicesOptions indicesOptions, boolean allowExplicitIndex) throws Exception {
-        XContent xContent = XContentFactory.xContent(data);
-        int from = 0;
-        int length = data.length();
-        byte marker = xContent.streamSeparator();
-        while (true) {
-            int nextMarker = findNextMarker(marker, from, data, length);
-            if (nextMarker == -1) {
-                break;
-            }
-            // support first line with \n
-            if (nextMarker == 0) {
-                from = nextMarker + 1;
-                continue;
-            }
-
-            SearchRequest searchRequest = new SearchRequest();
-            if (indices != null) {
-                searchRequest.indices(indices);
-            }
-            if (indicesOptions != null) {
-                searchRequest.indicesOptions(indicesOptions);
-            }
-            if (types != null && types.length > 0) {
-                searchRequest.types(types);
-            }
-            if (routing != null) {
-                searchRequest.routing(routing);
-            }
-            searchRequest.searchType(searchType);
-
-            IndicesOptions defaultOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
-
-
-            // now parse the action
-            if (nextMarker - from > 0) {
-                try (XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from))) {
-                    Map<String, Object> source = parser.map();
-                    for (Map.Entry<String, Object> entry : source.entrySet()) {
-                        Object value = entry.getValue();
-                        if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
-                            if (!allowExplicitIndex) {
-                                throw new IllegalArgumentException("explicit index in multi percolate is not allowed");
-                            }
-                            searchRequest.indices(nodeStringArrayValue(value));
-                        } else if ("type".equals(entry.getKey()) || "types".equals(entry.getKey())) {
-                            searchRequest.types(nodeStringArrayValue(value));
-                        } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
-                            searchRequest.searchType(nodeStringValue(value, null));
-                        } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
-                            searchRequest.requestCache(nodeBooleanValue(value));
-                        } else if ("preference".equals(entry.getKey())) {
-                            searchRequest.preference(nodeStringValue(value, null));
-                        } else if ("routing".equals(entry.getKey())) {
-                            searchRequest.routing(nodeStringValue(value, null));
-                        }
-                    }
-                    defaultOptions = IndicesOptions.fromMap(source, defaultOptions);
-                }
-            }
-            searchRequest.indicesOptions(defaultOptions);
-
-            // move pointers
-            from = nextMarker + 1;
-            // now for the body
-            nextMarker = findNextMarker(marker, from, data, length);
-            if (nextMarker == -1) {
-                break;
-            }
-            if (isTemplateRequest) {
-                searchRequest.templateSource(data.slice(from,  nextMarker - from));
-            } else {
-                searchRequest.source(data.slice(from, nextMarker - from));
-            }
-            // move pointers
-            from = nextMarker + 1;
-
-            add(searchRequest);
-        }
-
-        return this;
-    }
-
-    private int findNextMarker(byte marker, int from, BytesReference data, int length) {
-        for (int i = from; i < length; i++) {
-            if (data.get(i) == marker) {
-                return i;
-            }
-        }
-        return -1;
     }
 
     public List<SearchRequest> requests() {

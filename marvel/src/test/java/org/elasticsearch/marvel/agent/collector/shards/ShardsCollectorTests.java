@@ -7,7 +7,6 @@ package org.elasticsearch.marvel.agent.collector.shards;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
@@ -19,13 +18,10 @@ import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class ShardsCollectorTests extends AbstractCollectorTestCase {
+
     public void testShardsCollectorNoIndices() throws Exception {
         Collection<MarvelDoc> results = newShardsCollector().doCollect();
         assertThat(results, hasSize(0));
@@ -46,8 +42,8 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         }
 
         waitForRelocation();
-        ensureGreen();
-        refresh();
+        securedEnsureGreen();
+        securedRefresh();
 
         assertHitCount(client().prepareSearch().setSize(0).get(), nbDocs);
 
@@ -90,33 +86,28 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
     public void testShardsCollectorMultipleIndices() throws Exception {
         final String indexPrefix = "test-shards-";
         final int nbIndices = randomIntBetween(1, 3);
-        final int[] nbShardsPerIndex = new int[nbIndices];
-        final int[] nbReplicasPerIndex = new int[nbIndices];
         final int[] nbDocsPerIndex = new int[nbIndices];
 
-        int totalShards = 0;
         for (int i = 0; i < nbIndices; i++) {
-            nbShardsPerIndex[i] = randomIntBetween(1, 3);
-            nbReplicasPerIndex[i] = randomIntBetween(0, Math.min(2, internalCluster().numDataNodes()));
-
-            assertAcked(prepareCreate(indexPrefix + String.valueOf(i)).setSettings(Settings.settingsBuilder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, nbShardsPerIndex[i])
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, nbReplicasPerIndex[i])
-                    .build()));
-
-            totalShards = totalShards + nbShardsPerIndex[i] + (nbShardsPerIndex[i] * nbReplicasPerIndex[i]);
+            String index = indexPrefix + String.valueOf(i);
+            assertAcked(prepareCreate(index));
 
             nbDocsPerIndex[i] = randomIntBetween(1, 20);
             for (int j = 0; j < nbDocsPerIndex[i]; j++) {
-                client().prepareIndex(indexPrefix + String.valueOf(i), "test").setSource("num", i).get();
+                client().prepareIndex(index, "test").setSource("num", i).get();
             }
         }
 
         waitForRelocation();
-        refresh();
+        securedRefresh();
 
+        int totalShards = 0;
         for (int i = 0; i < nbIndices; i++) {
-            assertHitCount(client().prepareSearch(indexPrefix + String.valueOf(i)).setSize(0).get(), nbDocsPerIndex[i]);
+            String index = indexPrefix + String.valueOf(i);
+
+            assertHitCount(client().prepareSearch(index).setSize(0).get(), nbDocsPerIndex[i]);
+            disableAllocation(index);
+            totalShards += getNumShards(index).totalNumShards;
         }
 
         Collection<MarvelDoc> results = newShardsCollector().doCollect();
@@ -148,8 +139,9 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         }
 
         for (int i = 0; i < nbIndices; i++) {
-            int total = getNumShards(indexPrefix + String.valueOf(i)).totalNumShards;
-            assertThat("expecting " + total + " shards marvel documents for index [" + indexPrefix + String.valueOf(i) + "]", shards[i], equalTo(total));
+            String index = indexPrefix + String.valueOf(i);
+            int total = getNumShards(index).totalNumShards;
+            assertThat("expecting " + total + " shards marvel documents for index [" + index + "]", shards[i], equalTo(total));
         }
     }
 

@@ -12,6 +12,19 @@ the user can understand why certain queries are slow, and take steps to improve 
 The output from the Profile API is *very* verbose, especially for complicated queries executed across
 many shards. Pretty-printing the response is recommended to help understand the output
 
+[NOTE]
+---------------------
+The details provided by the Profile API directly expose Lucene class names and concepts, which means
+that complete interpretation of the results require fairly advanced knowledge of Lucene.  This
+page attempts to give a crash-course in how Lucene executes queries so that you can use the Profile API to successfully
+diagnose and debug queries, but it is only an overview.  For complete understanding, please refer
+to Lucene's documentation and, in places, the code.
+
+With that said, a complete understanding is often not required to fix a slow query.  It is usually
+sufficient to see that a particular component of a query is slow, and not necessarily understand why
+the `advance` phase of that query is the cause, for example.
+---------------------
+
 [float]
 === Usage
 
@@ -230,11 +243,14 @@ The meaning of the stats are as follows:
 
     The Lucene method `next_doc` returns Doc ID of the next document matching the query.  This statistic shows
     the time it takes to determine which document is the next match, a process that varies considerably depending
-    on the nature of the query.
+    on the nature of the query.   Next_doc is a specialized form of advance() which is more convenient for many
+    queries in Lucene.  It is equivalent to advance(docId() + 1)
 
 `advance`::
 
-    ???
+    `advance` is the "lower level" version of next_doc: it serves the same purpose of finding the next matching
+    doc, but requires the calling query to perform extra tasks such as identifying and moving past skips, etc.
+    However,  not all queries can use next_doc, so `advance` is also timed for those queries
 
 `matches`::
 
@@ -252,3 +268,306 @@ The meaning of the stats are as follows:
 `score`::
 
     This records the time taken to score a particular document via it's Scorer
+
+=== `collectors` Section
+
+The Collectors portion of the response shows high-level execution details. Lucene works by defining a "Collector"
+which is responsible for coordinating the traversal, scoring and collection of matching documents.  Collectors
+are also how a single query can record aggregation results, execute unscoped "global" queries, execute post-query
+filters, etc.
+
+Looking at the previous example:
+
+[source,js]
+--------------------------------------------------
+"collector": [
+   {
+      "name": "SimpleTopScoreDocCollector",
+      "reason": "search_sorted",
+      "time": "0.1153240000ms",
+      "relative_time": "100.0000000%",
+      "children": []
+   }
+]
+--------------------------------------------------
+
+We see a single collector named `SimpleTopScoreDocCollector`.  This is the default "scoring and sorting" Collector
+used by Elasticsearch.  The `reason` field attempts to give an plain english description of the class name.  The
+`time` and `relative_time` fields are similar to the equivalents in the Query tree: `time` is the wall-clock time
+and `relative_time` is the normalized, relative time inclusive of all children.  Similarly, `children` lists
+all sub-collectors.
+
+It should be noted that Collector times are **independent** from the Query times.  They are calculated, combined
+and normalized independently!  Due to the nature of Lucene's execution, it is impossible to "merge" the times
+from the Collectors into the Query section, so they are displayed in separate portions.
+
+For reference, the various collector reason's are:
+
+[horizontal]
+`search_sorted`::
+
+    A collector that scores and sorts documents.  This is the most common collector and will be seen in most
+    simple searches
+
+`search_count`::
+
+    A collector that only counts the number of documents that match the query, but does not fetch the source.
+    This is seen when `size: 0` or `search_type=count` is specified
+
+`search_terminate_after_count`::
+
+    A collector that terminates search execution after `n` matching documents have been found.  This is seen
+    when the `terminate_after_count` query parameter has been specified
+
+`search_min_score`::
+
+    A collector that only returns matching documents that have a score greater than `n`.  This is seen when
+    the top-level paramenter `min_score` has been specified.
+
+`search_multi`::
+
+    A collector that wraps several other collectors.  This is seen when combinations of search, aggregations,
+    global aggs and post_filters are combined in a single search.
+
+`search_timeout`::
+
+    A collector that halts execution after a specified period of time.  This is seen when a `timeout` top-level
+    parameter has been specified.
+
+`aggregation`::
+
+    A collector that Elasticsearch uses to run aggregations against the query scope.  A single `aggregation`
+    collector is used to collect documents for *all* aggregations, so you will see a list of aggregations
+    in the name rather.
+
+`global_aggregation`::
+
+    A collector that executes an aggregation against the global query scope, rather than the specified query.
+    Because the global scope is necessarily different from the executed query, it must execute it's own
+    match_all query (which you will see added to the Query section) to collect your entire dataset
+
+`general`::
+
+    A generic, catch-all collector with an unknown purpose.  This isn't actually a Lucene (or Elasticsearch)
+    collector, but merely a safety mechanism for the profiler to catch unwrapped Collectors so that they can
+    at least be profiled, even if we aren't sure the reason they exist.  Ideally, you should never see one of
+    these in your results :)
+
+=== A more complex example
+
+To demonstrate a slightly more complex query and the associated results, we can profile the following query:
+
+[source,js]
+--------------------------------------------------
+GET /test/_search
+{
+  "profile": true,
+  "query": {
+    "term": {
+      "message": {
+        "value": "search"
+      }
+    }
+  },
+  "aggs": {
+    "non_global_term": {
+      "terms": {
+        "field": "agg"
+      },
+      "aggs": {
+        "second_term": {
+          "terms": {
+            "field": "sub_agg"
+          }
+        }
+      }
+    },
+    "another_agg": {
+      "cardinality": {
+        "field": "aggB"
+      }
+    },
+    "global_agg": {
+      "global": {},
+      "aggs": {
+        "my_agg2": {
+          "terms": {
+            "field": "globalAgg"
+          }
+        }
+      }
+    },
+      "post_filter": {
+        "term": {
+          "my_field": "foo"
+        }
+      }
+  }
+}
+--------------------------------------------------
+
+This example has:
+
+- A query
+- A scoped aggregation
+- A global aggregation
+- A post_filter
+
+And the response:
+
+
+[source,js]
+--------------------------------------------------
+{
+   "profile": {
+      "shards": [
+         {
+            "shard_id": "ec6BHvadQia4T8N9NSS2Lg",
+            "query": [
+               {
+                  "query_type": "TermQuery",    <1>
+                  "lucene": "message:search",
+                  "time": "0.6883930000ms",
+                  "relative_time": "5.939356688%",
+                  "breakdown": {
+                     "rewrite": 3877,
+                     "weight": 322544,
+                     "build_scorer": 279783,
+                     "next_doc": 69519,
+                     "advance": 0,
+                     "match": 0,
+                     "score": 12670
+                  },
+                  "children": []
+               },
+               {
+                  "query_type": "TermQuery",           <2>
+                  "lucene": "my_field:foo",
+                  "time": "10.75348200ms",
+                  "relative_time": "92.77951001%",
+                  "breakdown": {
+                     "rewrite": 1773,
+                     "weight": 10353006,
+                     "build_scorer": 376408,
+                     "next_doc": 0,
+                     "advance": 22295,
+                     "match": 0,
+                     "score": 0
+                  },
+                  "children": []
+               },
+               {
+                  "query_type": "MatchAllDocsQuery",   <3>
+                  "lucene": "*:*",
+                  "time": "0.1484880000ms",
+                  "relative_time": "1.281133300%",
+                  "breakdown": {
+                     "rewrite": 1725,
+                     "weight": 10817,
+                     "build_scorer": 127178,
+                     "next_doc": 8768,
+                     "advance": 0,
+                     "match": 0,
+                     "score": 0
+                  },
+                  "children": []
+               }
+            ],
+            "collector": [
+               {
+                  "name": "MultiCollector",
+                  "reason": "search_multi",
+                  "time": "5.215436000ms",
+                  "relative_time": "100.0000000%",
+                  "children": [
+                     {
+                        "name": "FilteredCollector",
+                        "reason": "search_post_filter",
+                        "time": "4.299866000ms",
+                        "relative_time": "82.44499597%",
+                        "children": [
+                           {
+                              "name": "SimpleTopScoreDocCollector",
+                              "reason": "search_sorted",
+                              "time": "0.04436900000ms",
+                              "relative_time": "0.8507246566%",
+                              "children": []
+                           }
+                        ]
+                     },
+                     {
+                        "name": "BucketCollector: [[non_global_term, another_agg]]",
+                        "reason": "aggregation",
+                        "time": "0.6659530000ms",
+                        "relative_time": "12.76888452%",
+                        "children": []
+                     },
+                     {
+                        "name": "GlobalAggregator: [global_agg]",
+                        "reason": "aggregation_global",
+                        "time": "0.2311580000ms",
+                        "relative_time": "4.432189370%",
+                        "children": []
+                     }
+                  ]
+               }
+            ]
+         }
+      ]
+   }
+}
+--------------------------------------------------
+
+As you can see, the output is significantly verbose from before.  All the major portions of the query are
+represented:
+
+1. The first `TermQuery` (message:search) represents the main `term` query
+2. The second `TermQuery` (my_field:foo) represents the `post_filter` query
+3. The `MatchAllDocsQuery` (*:*) query is not part of the query specified by the user, but is auto-generated
+by the global aggregation to provide a global query scope
+
+The Collector tree is fairly straightforward, showing how a single MultiCollector wraps a FilteredCollector
+to execute the post_filter (and in turn wraps the normal scoring SimpleCollector), a BucketCollector to run
+all scoped aggregations, and a GlobalAggregator to run the global aggregation.
+
+=== Performance Notes
+
+Like any profiler, the Profile API introduce a non-negligible overhead to query execution.  The act of instrumenting
+low-level method calls such as `advance` and `next_doc` can be fairly expensive, since these methods are called
+in tight loops.  Therefore, profiling should not be enabled in production settings by default, and should not
+be compared against non-profiled query times.  Profiling is just a diagnostic tool.
+
+There are also cases where special Lucene optimizations are disabled, since they are not amenable to profiling.  This
+could cause some queries to report larger relative times than their non-profiled counterparts, but in general should
+not have a drastic effect compared to other components in the profiled query.
+
+=== Limitations
+
+- Profiling statistics are currently not available for suggestions, highlighting, `dfs_query_then_fetch`
+- Detailed breakdown for aggregations is not currently available past the high-level overview provided
+from the Collectors
+- The Profiler is still highly experimental, and uses heuristics in several places to build the profiling tree.
+The Profiler is instrumenting parts of Lucene that were never designed to be exposed in this manner, and so
+all results should be viewed as a best effort to provide detailed diagnostics.  We hope to improve this over time.
+If you find obviously wrong numbers, strange query structures or other bugs, please report them!
+
+=== Understanding MultiTermQuery output
+
+A special note needs to be made about the `MultiTermQuery` class of queries.  This includes wildcards, regex and fuzzy
+queries.  These queries emit very verbose responses, and are not well structured (they do not follow a clean
+tree hierarchy like the other queries).  Work is ongoing to fix the output, but it is unclear if they can be fixed
+in a clean manner due to how they operate.
+
+Essentially, these queries rewrite themselves on a per-segment basis.  If you imagine the wildcard query `b*`, it technically
+can match any token that begins with the letter "b".  It would be impossible to enumerate all possible combinations,
+so Lucene rewrites the query in context of the segment being evaluated.  E.g. one segment may contain the tokens
+`[bar, baz]`, so the query rewrites to a BooleanQuery combination of "bar" and "baz".  Another segment may only have the
+token `[bakery]`, so query rewrites to a single TermQuery for "bakery".
+
+Due to this dynamic, per-segment rewriting, the clean tree structure becomes distorted and no longer follows a clean
+"lineage" showing how one query rewrites into the next.  At present time, all we can do is apologize, and suggest you
+collapse the details for that query's children if it is too confusing.  Luckily, all the timing statistics are correct,
+just not the physical layout in the response, so it is sufficient to just analyze the top-level MultiTermQuery and
+ignore it's children if you find the details too tricky to interpret.
+
+Hopefully this will be fixed in future iterations, but it is a tricky problem to solve and still in-progress :)

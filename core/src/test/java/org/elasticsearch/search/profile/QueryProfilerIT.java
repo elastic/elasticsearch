@@ -19,13 +19,10 @@
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.search.SearchHit;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -516,6 +513,62 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .execute().actionGet();
+
+        assertNotNull("Profile response element should not be null", resp.getProfileResults());
+
+        for (List<ProfileResult> shardResult : resp.getProfileResults().queryProfilesAsCollection()) {
+            for (ProfileResult result : shardResult) {
+                assertNotNull(result.getQueryName());
+                assertNotNull(result.getLuceneDescription());
+                assertThat(result.getRelativeTime(), greaterThan(0.0));
+                assertThat(result.getTime(), greaterThan(0L));
+                assertNotNull(result.getTimeBreakdown());
+            }
+        }
+
+        for (CollectorResult result : resp.getProfileResults().collectorProfilesAsCollection()) {
+            assertThat(result.getName(), not(isEmptyOrNullString()));
+            assertThat(result.getTime(), greaterThan(0L));
+            assertThat(result.getRelativeTime(), greaterThan(0.0));
+        }
+    }
+
+    @Test
+    public void testPhrase() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        int numDocs = randomIntBetween(100, 150);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+                    "field1", English.intToEnglish(i) + " " + English.intToEnglish(i+1),
+                    "field2", i
+            );
+        }
+
+        indexRandom(true, docs);
+
+        refresh();
+
+        QueryBuilder q = QueryBuilders.matchPhraseQuery("field1", "one two");
+
+        logger.info(q.toString());
+
+        SearchResponse resp = client().prepareSearch()
+                .setQuery(q)
+                .setIndices("test")
+                .setTypes("type1")
+                .setProfile(true)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .execute().actionGet();
+
+        if (resp.getShardFailures().length > 0) {
+            for (ShardSearchFailure f : resp.getShardFailures()) {
+                logger.error(f.toString());
+            }
+            fail();
+        }
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 

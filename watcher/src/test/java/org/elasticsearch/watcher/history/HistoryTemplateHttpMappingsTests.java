@@ -99,8 +99,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(searchSource()
                 .aggregation(terms("input_result_path").field("result.input.http.request.path"))
                 .aggregation(terms("input_result_host").field("result.input.http.request.host"))
-                .aggregation(terms("webhook_path").field("result.actions.webhook.request.path"))
-                .buildAsBytes())
+                .aggregation(terms("webhook_path").field("result.actions.webhook.request.path")))
                 .get();
 
         assertThat(response, notNullValue());

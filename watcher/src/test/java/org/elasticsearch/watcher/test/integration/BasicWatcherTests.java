@@ -10,11 +10,12 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
@@ -22,7 +23,6 @@ import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
-import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
@@ -36,7 +36,11 @@ import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -50,8 +54,14 @@ import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.newInputSearchRequest;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.xContentSource;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.watcher.trigger.schedule.Schedules.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.daily;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.hourly;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.monthly;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.weekly;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
@@ -312,12 +322,10 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .get();
         refresh();
 
-        BytesReference templateSource = jsonBuilder()
-                .value(TextTemplate.indexed("my-template").build())
-                .bytes();
+        Template template = new Template("my-template", ScriptType.INDEXED, null, null, null);
         SearchRequest searchRequest = newInputSearchRequest("events");
         // TODO (2.0 upgrade): move back to BytesReference instead of coverting to a string
-        searchRequest.templateSource(templateSource.toUtf8());
+        searchRequest.template(template);
         testConditionSearch(searchRequest);
     }
 

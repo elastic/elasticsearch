@@ -9,22 +9,29 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.Template;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.formatDate;
@@ -64,62 +71,67 @@ public final class WatcherUtils {
         // Due the inconsistency with templates in ES 1.x, we maintain our own template format.
         // This template format we use now, will become the template structure in ES 2.0
         Map<String, Object> watcherContextParams = Variables.createCtxModel(ctx, payload);
-        if (Strings.hasLength(requestPrototype.source())) {
+        if (requestPrototype.source() != null) {
             // Here we convert a watch search request body into an inline search template,
             // this way if any Watcher related context variables are used, they will get resolved,
             // by ES search template support
             XContentBuilder builder = jsonBuilder();
-            builder.startObject();
-            XContentHelper.writeRawField("template", requestPrototype.source(), builder, ToXContent.EMPTY_PARAMS);
-            builder.field("params", watcherContextParams);
-            builder.endObject();
+            requestPrototype.source().toXContent(builder, ToXContent.EMPTY_PARAMS);
+            Template template = new Template(builder.string(), ScriptType.INLINE, null, builder.contentType(), watcherContextParams);
             // Unfortunately because of SearchRequest#templateSource(BytesReference, boolean) has been removed in 1.6 and
             // SearchRequest#templateSource(BytesReference) doesn't exist in 1.5, we are forced to use SearchRequest#templateSource(String)
             // that exist in both 1.5 and 1.6
             // TODO (2.0 upgrade): move back to BytesReference
-            request.templateSource(builder.string());
-        } else if (Strings.hasLength(requestPrototype.templateSource())) {
+            request.template(template);
+        } else if (requestPrototype.template() != null) {
             // Here we convert watcher template into a ES core templates. Due to the different format we use, we
             // convert to the template format used in ES core
-            BytesReference templateSource = requestPrototype.templateSource();
-            try (XContentParser sourceParser = XContentFactory.xContent(templateSource).createParser(templateSource)) {
-                sourceParser.nextToken();
-                TextTemplate template = TextTemplate.parse(sourceParser);
+            // BytesReference templateSource =
+            // requestPrototype.templateSource();
+            // try (XContentParser sourceParser =
+            // XContentFactory.xContent(templateSource).createParser(templateSource))
+            // {
+            // sourceParser.nextToken();
+            // TextTemplate template = TextTemplate.parse(sourceParser);
 
                 // Convert to the ES template format:
-                XContentBuilder builder = jsonBuilder();
-                builder.startObject();
-                switch (template.getType()) {
-                    case INDEXED:
-                        builder.startObject("template");
-                        builder.field("id", template.getTemplate());
-                        builder.endObject();
-                        break;
-                    case FILE:
-                        builder.startObject("template");
-                        builder.field("file", template.getTemplate());
-                        builder.endObject();
-                        break;
-                    case INLINE:
-                        XContentHelper.writeRawField("template", new BytesArray(template.getTemplate()), builder, ToXContent.EMPTY_PARAMS);
-                        break;
-                }
-                Map<String, Object> params = new HashMap<>();
-                params.putAll(watcherContextParams);
-                params.putAll(template.getParams());
-                builder.field("params", params);
-                builder.endObject();
+            // XContentBuilder builder = jsonBuilder();
+            // builder.startObject();
+            // switch (template.getType()) {
+            // case INDEXED:
+            // builder.startObject("template");
+            // builder.field("id", template.getTemplate());
+            // builder.endObject();
+            // break;
+            // case FILE:
+            // builder.startObject("template");
+            // builder.field("file", template.getTemplate());
+            // builder.endObject();
+            // break;
+            // case INLINE:
+            // XContentHelper.writeRawField("template", new
+            // BytesArray(template.getTemplate()), builder,
+            // ToXContent.EMPTY_PARAMS);
+            // break;
+            // }
+            // Map<String, Object> params = new HashMap<>();
+            // params.putAll(watcherContextParams);
+            // params.putAll(template.getParams());
+            // builder.field("params", params);
+            // builder.endObject();
                 // Unfortunately because of SearchRequest#templateSource(BytesReference, boolean) has been removed in 1.6 and
                 // SearchRequest#templateSource(BytesReference) doesn't exist in 1.5, we are forced to use SearchRequest#templateSource(String)
                 // that exist in both 1.5 and 1.6
                 // TODO (2.0 upgrade): move back to BytesReference
-                request.templateSource(builder.string());
-            }
-        } else if (requestPrototype.templateName() != null) {
-            // In Watcher templates on all places can be defined in one format
-            // Can only be set via the Java api
-            throw Exceptions.illegalArgument("SearchRequest's templateName isn't supported, templates should be defined in the request body");
+            request.template(requestPrototype.template());
+            // }
         }
+        // else if (requestPrototype.templateName() != null) {
+        // // In Watcher templates on all places can be defined in one format
+        // // Can only be set via the Java api
+        // throw
+        // Exceptions.illegalArgument("SearchRequest's templateName isn't supported, templates should be defined in the request body");
+        // }
         // falling back to an empty body
         return request;
     }
@@ -128,9 +140,10 @@ public final class WatcherUtils {
     /**
      * Reads a new search request instance for the specified parser.
      */
-    public static SearchRequest readSearchRequest(XContentParser parser, SearchType searchType) throws IOException {
-        BytesReference searchBody = null;
-        String templateBody = null;
+    public static SearchRequest readSearchRequest(XContentParser parser, SearchType searchType, QueryParseContext context)
+            throws IOException {
+        // BytesReference searchBody = null;
+        // String templateBody = null;
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         SearchRequest searchRequest = new SearchRequest();
 
@@ -165,9 +178,11 @@ public final class WatcherUtils {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, BODY_FIELD)) {
-                    XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
-                    builder.copyCurrentStructure(parser);
-                    searchBody = builder.bytes();
+                    // XContentBuilder builder =
+                    // XContentBuilder.builder(parser.contentType().xContent());
+                    // builder.copyCurrentStructure(parser);
+                    // searchBody = builder.bytes();
+                    searchRequest.source(SearchSourceBuilder.parseSearchSource(parser, context));
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_OPTIONS_FIELD)) {
                     boolean expandOpen = DEFAULT_INDICES_OPTIONS.expandWildcardsOpen();
                     boolean expandClosed = DEFAULT_INDICES_OPTIONS.expandWildcardsClosed();
@@ -213,7 +228,8 @@ public final class WatcherUtils {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TEMPLATE_FIELD)) {
                     XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
                     builder.copyCurrentStructure(parser);
-                    templateBody = builder.string();
+                    String templateBody = builder.string();
+                    searchRequest.template(new Template(templateBody, ScriptType.INLINE, null, builder.contentType(), null));
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected object field [" + currentFieldName + "]");
                 }
@@ -239,17 +255,20 @@ public final class WatcherUtils {
         }
         searchRequest.searchType(searchType);
         searchRequest.indicesOptions(indicesOptions);
-        if (searchBody != null) {
-            assert searchBody.hasArray();
-            searchRequest.source(searchBody);
-        }
-        if (templateBody != null) {
-            // Unfortunately because of SearchRequest#templateSource(BytesReference, boolean) has been removed in 1.6 and
-            // SearchRequest#templateSource(BytesReference) doesn't exist in 1.5, we are forced to use SearchRequest#templateSource(String)
-            // that exist in both 1.5 and 1.6
-            // TODO (2.0 upgrade): move back to BytesReference
-            searchRequest.templateSource(templateBody);
-        }
+        // if (searchBody != null) {
+        // assert searchBody.hasArray();
+        // searchRequest.source(searchBody);
+        // }
+        // if (templateBody != null) {
+        // // Unfortunately because of
+        // SearchRequest#templateSource(BytesReference, boolean) has been
+        // removed in 1.6 and
+        // // SearchRequest#templateSource(BytesReference) doesn't exist in 1.5,
+        // we are forced to use SearchRequest#templateSource(String)
+        // // that exist in both 1.5 and 1.6
+        // // TODO (2.0 upgrade): move back to BytesReference
+        // searchRequest.templateSource(templateBody);
+        // }
         return searchRequest;
     }
 
@@ -272,11 +291,11 @@ public final class WatcherUtils {
         if (searchRequest.types() != null) {
             builder.array(TYPES_FIELD.getPreferredName(), searchRequest.types());
         }
-        if (Strings.hasLength(searchRequest.source())) {
-            XContentHelper.writeRawField(BODY_FIELD.getPreferredName(), searchRequest.source(), builder, params);
+        if (searchRequest.source() != null) {
+            builder.field(BODY_FIELD.getPreferredName(), searchRequest.source());
         }
-        if (Strings.hasLength(searchRequest.templateSource())) {
-            XContentHelper.writeRawField(TEMPLATE_FIELD.getPreferredName(), searchRequest.templateSource(), builder, params);
+        if (searchRequest.template() != null) {
+            builder.field(TEMPLATE_FIELD.getPreferredName(), searchRequest.template());
         }
 
         if (searchRequest.indicesOptions() != DEFAULT_INDICES_OPTIONS) {

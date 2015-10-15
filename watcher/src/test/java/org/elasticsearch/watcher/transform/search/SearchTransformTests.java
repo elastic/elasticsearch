@@ -16,8 +16,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -63,7 +68,6 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.parseDate;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.areJsonEquivalent;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.simplePayload;
@@ -72,7 +76,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
 import static org.joda.time.DateTimeZone.UTC;
 
 /**
@@ -131,11 +134,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         ensureGreen("idx");
         refresh();
 
-        SearchRequest request = Requests.searchRequest("idx").source(jsonBuilder().startObject()
-                .startObject("query")
-                .startObject("match_all").endObject()
-                .endObject()
-                .endObject().bytes());
+        SearchRequest request = Requests.searchRequest("idx").source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null);
 
@@ -168,11 +167,9 @@ public class SearchTransformTests extends ESIntegTestCase {
         refresh();
 
         // create a bad request
-        SearchRequest request = Requests.searchRequest("idx").source(jsonBuilder().startObject()
-                .startObject("query")
-                .startObject("_unknown_query_").endObject()
-                .endObject()
-                .endObject().bytes());
+        SearchRequest request = Requests.searchRequest("idx").source(
+                new SearchSourceBuilder().query(QueryBuilders.wrapperQuery(jsonBuilder().startObject().startObject("query")
+                        .startObject("_unknown_query_").endObject().endObject().endObject().bytes())));
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null);
 
@@ -183,7 +180,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(result.type(), is(SearchTransform.TYPE));
         assertThat(result.status(), is(Transform.Result.Status.FAILURE));
         assertThat(result.reason(), notNullValue());
-        assertThat(result.executedRequest().templateSource().toUtf8(), containsString("_unknown_query_"));
+        assertThat(result.executedRequest().template().getScript(), containsString("_unknown_query_"));
     }
 
     @Test
@@ -293,7 +290,8 @@ public class SearchTransformTests extends ESIntegTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, ClientProxy.of(client()));
+        IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);
+        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, ClientProxy.of(client()), indicesQueryRegistry);
         ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());
@@ -306,9 +304,10 @@ public class SearchTransformTests extends ESIntegTestCase {
             assertThat(executable.transform().getRequest().searchType(), is(searchType));
         }
         if (templateName != null) {
-            assertThat(executable.transform().getRequest().templateSource().toUtf8(), equalTo("{\"file\":\"template1\"}"));
+            assertThat(executable.transform().getRequest().template(),
+                    equalTo(new Template("template1", ScriptType.FILE, null, null, null)));
         }
-        assertThat(executable.transform().getRequest().source().toBytes(), equalTo(source.toBytes()));
+        assertThat(executable.transform().getRequest().source(), equalTo(source));
         assertThat(executable.transform().getTimeout(), equalTo(readTimeout));
     }
 
@@ -321,30 +320,37 @@ public class SearchTransformTests extends ESIntegTestCase {
                 "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
                 "\"include_lower\":true,\"include_upper\":true}}}]}}}";
 
-        final String expectedQuery = "{\"template\":{\"query\":{\"bool\":{\"must\":[{\"match\":{\"event_type\":{\"query\":\"a\"," +
-                "\"type\":\"boolean\"}}},{\"range\":{\"_timestamp\":" +
-                "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
-                "\"include_lower\":true,\"include_upper\":true}}}]}}},\"params\":{\"seconds_param\":\"30s\",\"ctx\":{" +
-                "\"id\":\"" + ctx.id().value() + "\",\"metadata\":null,\"vars\":{},\"watch_id\":\"test-watch\",\"payload\":{}," +
-                "\"trigger\":{\"triggered_time\":\"1970-01-01T00:01:00.000Z\",\"scheduled_time\":\"1970-01-01T00:01:00.000Z\"}," +
-                "\"execution_time\":\"1970-01-01T00:01:00.000Z\"}}}";
+        final String expectedTemplateString = "{\"query\":{\"bool\":{\"must\":[{\"match\":{\"event_type\":{\"query\":\"a\","
+                + "\"type\":\"boolean\"}}},{\"range\":{\"_timestamp\":"
+                + "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\","
+                + "\"include_lower\":true,\"include_upper\":true}}}]}}}";
+
+        Map<String, Object> triggerParams = new HashMap<String, Object>();
+        triggerParams.put("triggered_time", "1970-01-01T00:01:00.000Z");
+        triggerParams.put("scheduled_time", "1970-01-01T00:01:00.000Z");
+        Map<String, Object> ctxParams = new HashMap<String, Object>();
+        ctxParams.put("id", ctx.id().value());
+        ctxParams.put("metadata", null);
+        ctxParams.put("vars", new HashMap<String, Object>());
+        ctxParams.put("watch_id", "test-watch");
+        ctxParams.put("payload", new HashMap<String, Object>());
+        ctxParams.put("trigger", triggerParams);
+        ctxParams.put("execution_time", "1970-01-01T00:01:00.000Z");
+        Map<String, Object> expectedParams = new HashMap<String, Object>();
+        expectedParams.put("seconds_param", "30s");
+        expectedParams.put("ctx", ctxParams);
+        Template expectedTemplate = new Template(expectedTemplateString, ScriptType.INLINE, null, XContentType.JSON, expectedParams);
 
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        BytesReference templateSource = jsonBuilder()
-                .value(TextTemplate.inline(templateQuery).params(params).build())
-                .bytes();
-        SearchRequest request = client()
-                .prepareSearch()
-                .setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
-                .setIndices("test-search-index")
-                .setTemplateSource(templateSource)
-                .request();
+        Template template = new Template(templateQuery, ScriptType.INLINE, null, XContentType.JSON, params);
+        SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
+                .setIndices("test-search-index").setTemplate(template).request();
 
         SearchTransform.Result executedResult = executeSearchTransform(request, ctx);
 
-        assertThat(areJsonEquivalent(executedResult.executedRequest().templateSource().toUtf8(), expectedQuery), is(true));
+        assertThat(executedResult.executedRequest().template(), equalTo(expectedTemplate));
     }
 
     @Test
@@ -365,16 +371,21 @@ public class SearchTransformTests extends ESIntegTestCase {
         BytesReference templateSource = jsonBuilder()
                 .value(TextTemplate.indexed("test-script").params(params).build())
                 .bytes();
+        Template template = new Template("test-script", ScriptType.INDEXED, null, null, null);
+
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
                 .setIndices("test-search-index")
-                .setTemplateSource(templateSource)
+.setTemplate(template)
                 .request();
 
         SearchTransform.Result result = executeSearchTransform(request, ctx);
         assertNotNull(result.executedRequest());
-        assertThat(result.executedRequest().templateSource().toUtf8(), startsWith("{\"template\":{\"id\":\"test-script\""));
+        Template resultTemplate = result.executedRequest().template();
+        assertThat(resultTemplate, notNullValue());
+        assertThat(resultTemplate.getScript(), equalTo("test-script"));
+        assertThat(resultTemplate.getType(), equalTo(ScriptType.INDEXED));
     }
 
     @Test
@@ -384,19 +395,16 @@ public class SearchTransformTests extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        BytesReference templateSource = jsonBuilder()
-                .value(TextTemplate.file("test_disk_template").params(params).build())
-                .bytes();
-        SearchRequest request = client()
-                .prepareSearch()
-                .setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
-                .setIndices("test-search-index")
-                .setTemplateSource(templateSource)
-                .request();
+        Template template = new Template("test_disk_template", ScriptType.FILE, null, null, null);
+        SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
+                .setIndices("test-search-index").setTemplate(template).request();
 
         SearchTransform.Result result = executeSearchTransform(request, ctx);
         assertNotNull(result.executedRequest());
-        assertThat(result.executedRequest().templateSource().toUtf8(), startsWith("{\"template\":{\"file\":\"test_disk_template\""));
+        Template resultTemplate = result.executedRequest().template();
+        assertThat(resultTemplate, notNullValue());
+        assertThat(resultTemplate.getScript(), equalTo("test_disk_template"));
+        assertThat(resultTemplate.getType(), equalTo(ScriptType.FILE));
     }
 
 

@@ -117,7 +117,7 @@ public final class WatcherTestUtils {
 
     public static SearchRequest matchAllRequest(IndicesOptions indicesOptions) {
         SearchRequest request = new SearchRequest(Strings.EMPTY_ARRAY)
-                .source(SearchSourceBuilder.searchSource().query(matchAllQuery()).buildAsBytes(XContentType.JSON));
+                .source(SearchSourceBuilder.searchSource().query(matchAllQuery()));
         if (indicesOptions != null) {
             request.indicesOptions(indicesOptions);
         }

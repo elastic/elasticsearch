@@ -8,14 +8,17 @@ package org.elasticsearch.watcher.input.search;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -55,11 +58,10 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.areJsonEquivalent;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.joda.time.DateTimeZone.UTC;
 
 /**
@@ -140,26 +142,36 @@ public class SearchInputTests extends ESIntegTestCase {
     public void testSearch_InlineTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
 
-        final String expectedQuery = "{\"template\":{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
+        final String expectedTemplateString = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\","
+                +
                 "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
                 "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
-                "\"include_lower\":true,\"include_upper\":true}}}}}},\"params\":{\"seconds_param\":\"30s\",\"ctx\":{\"id\":\"" + ctx.id().value() + "\",\"metadata\":null,\"vars\":{},\"watch_id\":\"test-watch\",\"trigger\":{\"triggered_time\":\"1970-01-01T00:01:00.000Z\",\"scheduled_time\":\"1970-01-01T00:01:00.000Z\"},\"execution_time\":\"1970-01-01T00:01:00.000Z\"}}}";
+ "\"include_lower\":true,\"include_upper\":true}}}}}}";
 
+        Map<String, Object> triggerParams = new HashMap<String, Object>();
+        triggerParams.put("triggered_time", "1970-01-01T00:01:00.000Z");
+        triggerParams.put("scheduled_time", "1970-01-01T00:01:00.000Z");
+        Map<String, Object> ctxParams = new HashMap<String, Object>();
+        ctxParams.put("id", ctx.id().value());
+        ctxParams.put("metadata", null);
+        ctxParams.put("vars", new HashMap<String, Object>());
+        ctxParams.put("watch_id", "test-watch");
+        ctxParams.put("trigger", triggerParams);
+        ctxParams.put("execution_time", "1970-01-01T00:01:00.000Z");
+        Map<String, Object> expectedParams = new HashMap<String, Object>();
+        expectedParams.put("seconds_param", "30s");
+        expectedParams.put("ctx", ctxParams);
+        Template expectedTemplate = new Template(expectedTemplateString, ScriptType.INLINE, null, XContentType.JSON, expectedParams);
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        BytesReference templateSource = jsonBuilder()
-                .value(TextTemplate.inline(TEMPLATE_QUERY).params(params).build())
-                .bytes();
-        SearchRequest request = client()
-                .prepareSearch()
-                .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
-                .setIndices("test-search-index")
-                .setTemplateSource(templateSource)
-                .request();
+        Template template = new Template(TEMPLATE_QUERY, ScriptType.INLINE, null, XContentType.JSON, params);
+
+        SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
+                .setIndices("test-search-index").setTemplate(template).request();
 
         SearchInput.Result executedResult = executeSearchInput(request, ctx);
-        assertThat(areJsonEquivalent(executedResult.executedRequest().templateSource().toUtf8(), expectedQuery), is(true));
+        assertThat(executedResult.executedRequest().template(), equalTo(expectedTemplate));
     }
 
     @Test
@@ -172,18 +184,17 @@ public class SearchInputTests extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        BytesReference templateSource = jsonBuilder()
-                .value(TextTemplate.indexed("test-template").params(params).build())
-                .bytes();
-        SearchRequest request = client()
-                .prepareSearch()
-                .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
-                .setIndices("test-search-index")
-                .setTemplateSource(templateSource)
-                .request();
+        Template template = new Template("test-template", ScriptType.INDEXED, null, null, params);
+
+        jsonBuilder().value(TextTemplate.indexed("test-template").params(params).build()).bytes();
+        SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
+                .setIndices("test-search-index").setTemplate(template).request();
 
         SearchInput.Result executedResult = executeSearchInput(request, ctx);
-        assertThat(executedResult.executedRequest().templateSource().toUtf8(), startsWith("{\"template\":{\"id\":\"test-template\""));
+        Template resultTemplate = executedResult.executedRequest().template();
+        assertThat(resultTemplate, notNullValue());
+        assertThat(resultTemplate.getScript(), equalTo("test-template"));
+        assertThat(resultTemplate.getType(), equalTo(ScriptType.INDEXED));
     }
 
     @Test
@@ -193,18 +204,15 @@ public class SearchInputTests extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        BytesReference templateSource = jsonBuilder()
-                .value(TextTemplate.file("test_disk_template").params(params).build())
-                .bytes();
-        SearchRequest request = client()
-                .prepareSearch()
-                .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
-                .setIndices("test-search-index")
-                .setTemplateSource(templateSource)
-                .request();
+        Template template = new Template("test_disk_template", ScriptType.FILE, null, null, params);
+        SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
+                .setIndices("test-search-index").setTemplate(template).request();
 
         SearchInput.Result executedResult = executeSearchInput(request, ctx);
-        assertThat(executedResult.executedRequest().templateSource().toUtf8(), startsWith("{\"template\":{\"file\":\"test_disk_template\""));
+        Template resultTemplate = executedResult.executedRequest().template();
+        assertThat(resultTemplate, notNullValue());
+        assertThat(resultTemplate.getScript(), equalTo("test_disk_template"));
+        assertThat(resultTemplate.getType(), equalTo(ScriptType.FILE));
     }
 
     @Test
@@ -256,7 +264,8 @@ public class SearchInputTests extends ESIntegTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, ClientProxy.of(client()));
+        IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);
+        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, ClientProxy.of(client()), indicesQueryRegistry);
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());

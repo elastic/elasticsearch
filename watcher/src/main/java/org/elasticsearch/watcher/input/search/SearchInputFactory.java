@@ -10,6 +10,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.watcher.input.InputFactory;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -23,11 +25,13 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
 
     private final ClientProxy client;
     private final TimeValue defaultTimeout;
+    private IndicesQueriesRegistry queryRegistry;
 
     @Inject
-    public SearchInputFactory(Settings settings, ClientProxy client) {
+    public SearchInputFactory(Settings settings, ClientProxy client, IndicesQueriesRegistry queryRegistry) {
         super(Loggers.getLogger(ExecutableSimpleInput.class, settings));
         this.client = client;
+        this.queryRegistry = queryRegistry;
         this.defaultTimeout = settings.getAsTime("watcher.input.search.default_timeout", null);
     }
 
@@ -38,7 +42,9 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
 
     @Override
     public SearchInput parseInput(String watchId, XContentParser parser) throws IOException {
-        return SearchInput.parse(watchId, parser);
+        QueryParseContext context = new QueryParseContext(queryRegistry);
+        context.reset(parser);
+        return SearchInput.parse(watchId, parser, context);
     }
 
     @Override

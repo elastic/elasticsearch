@@ -32,8 +32,15 @@ import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.TestCluster;
-import org.elasticsearch.watcher.*;
-import org.elasticsearch.watcher.actions.email.service.*;
+import org.elasticsearch.watcher.WatcherLifeCycleService;
+import org.elasticsearch.watcher.WatcherModule;
+import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.watcher.WatcherService;
+import org.elasticsearch.watcher.WatcherState;
+import org.elasticsearch.watcher.actions.email.service.Authentication;
+import org.elasticsearch.watcher.actions.email.service.Email;
+import org.elasticsearch.watcher.actions.email.service.EmailService;
+import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.execution.ExecutionState;
@@ -60,14 +67,25 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.elasticsearch.watcher.WatcherModule.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.watcher.WatcherModule.HISTORY_TEMPLATE_NAME;
+import static org.elasticsearch.watcher.WatcherModule.TRIGGERED_TEMPLATE_NAME;
+import static org.elasticsearch.watcher.WatcherModule.WATCHES_TEMPLATE_NAME;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 
@@ -258,7 +276,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected long docCount(String index, String type, SearchSourceBuilder source) {
         SearchRequestBuilder builder = client().prepareSearch(index)
-                .internalBuilder(source).setSize(0);
+.setSource(source).setSize(0);
         if (type != null) {
             builder.setTypes(type);
         }
@@ -266,7 +284,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected SearchResponse searchHistory(SearchSourceBuilder builder) {
-        return client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(builder.buildAsBytes()).get();
+        return client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(builder).get();
     }
 
     protected <T> T getInstanceFromMaster(Class<T> type) {

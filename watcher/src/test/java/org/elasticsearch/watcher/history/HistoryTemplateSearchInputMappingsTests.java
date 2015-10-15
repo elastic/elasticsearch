@@ -72,8 +72,7 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
                 .aggregation(terms("input_search_type").field("result.input.search.request.search_type"))
                 .aggregation(terms("input_indices").field("result.input.search.request.indices"))
                 .aggregation(terms("input_types").field("result.input.search.request.types"))
-                .aggregation(terms("input_body").field("result.input.search.request.body"))
-                .buildAsBytes())
+                .aggregation(terms("input_body").field("result.input.search.request.body")))
                 .get();
 
         assertThat(response, notNullValue());

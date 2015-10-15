@@ -7,12 +7,15 @@ package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.MatchAllQueryParser;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.ActionRegistry;
@@ -347,7 +350,8 @@ public class WatchTests extends ESTestCase {
         Map<String, InputFactory> parsers = new HashMap<>();
         switch (input.type()) {
             case SearchInput.TYPE:
-                parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client));
+                IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY, Collections.singleton(new MatchAllQueryParser()), new NamedWriteableRegistry());
+                parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry));
                 return new InputRegistry(parsers);
             default:
                 parsers.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
@@ -406,11 +410,12 @@ public class WatchTests extends ESTestCase {
     }
 
     private TransformRegistry transformRegistry() {
+        IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY, Collections.singleton(new MatchAllQueryParser()), new NamedWriteableRegistry());
         Map<String, TransformFactory> factories = new HashMap<>();
         ChainTransformFactory parser = new ChainTransformFactory();
         factories.put(ChainTransform.TYPE, parser);
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
-        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client));
+        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, queryRegistry));
         TransformRegistry registry = new TransformRegistry(unmodifiableMap(factories));
         parser.init(registry);
         return registry;

@@ -103,8 +103,7 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
                 .aggregation(terms("to").field("result.actions.email.message.to"))
                 .aggregation(terms("cc").field("result.actions.email.message.cc"))
                 .aggregation(terms("bcc").field("result.actions.email.message.bcc"))
-                .aggregation(terms("reply_to").field("result.actions.email.message.reply_to"))
-                .buildAsBytes())
+                .aggregation(terms("reply_to").field("result.actions.email.message.reply_to")))
                 .get();
 
         assertThat(response, notNullValue());

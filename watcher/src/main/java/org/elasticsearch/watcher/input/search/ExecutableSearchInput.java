@@ -9,9 +9,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,6 +43,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         this.timeout = input.getTimeout() != null ? input.getTimeout() : defaultTimeout;
     }
 
+    @Override
     public SearchInput.Result execute(WatchExecutionContext ctx) {
         SearchRequest request = null;
         try {
@@ -56,8 +57,8 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
     SearchInput.Result doExecute(WatchExecutionContext ctx, SearchRequest request) throws Exception {
         if (logger.isTraceEnabled()) {
-            BytesReference source = request.source() != null ? request.source() : request.templateSource();
-            logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), XContentHelper.convertToJson(source, false, true));
+            ToXContent source = request.source() != null ? request.source() : request.template();
+            logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), XContentHelper.toString(source));
         }
 
         SearchResponse response = client.search(request, timeout);

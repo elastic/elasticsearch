@@ -49,7 +49,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("local-ipv4"));
         }
@@ -68,7 +68,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("public-ipv4"));
         }
@@ -87,7 +87,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("local-ipv4"));
         }
@@ -106,7 +106,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("local-ipv4"));
         }
@@ -125,7 +125,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("local-hostname"));
         }
@@ -144,7 +144,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("public-ipv4"));
         }
@@ -163,7 +163,7 @@ public class Ec2NetworkTests extends ESTestCase {
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
-            networkService.resolveBindHostAddress(null);
+            networkService.resolveBindHostAddresses(null);
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("public-hostname"));
         }
@@ -181,7 +181,7 @@ public class Ec2NetworkTests extends ESTestCase {
 
         NetworkService networkService = new NetworkService(nodeSettings);
         networkService.addCustomNameResolver(new Ec2NameResolver(nodeSettings));
-        InetAddress[] addresses = networkService.resolveBindHostAddress(null);
-        assertThat(addresses, arrayContaining(networkService.resolveBindHostAddress("_local_")));
+        InetAddress[] addresses = networkService.resolveBindHostAddresses(null);
+        assertThat(addresses, arrayContaining(networkService.resolveBindHostAddresses(new String[] { "_local_" })));
     }
 }

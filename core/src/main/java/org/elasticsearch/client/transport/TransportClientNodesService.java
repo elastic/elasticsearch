@@ -20,6 +20,7 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -58,6 +59,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -95,7 +97,7 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private volatile ScheduledFuture nodesSamplerFuture;
 
-    private final AtomicInteger randomNodeGenerator = new AtomicInteger();
+    private final AtomicInteger randomNodeGenerator = new AtomicInteger(ThreadLocalRandom.current().nextInt());
 
     private final boolean ignoreClusterName;
 

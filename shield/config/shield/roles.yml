@@ -57,6 +57,8 @@ marvel_user:
   indices:
     '.marvel-es-*':
       privileges: read
+    '.kibana':
+      privileges: indices:admin/exists, indices:admin/mappings/fields/get, indices:admin/validate/query, indices:data/read/get, indices:data/read/mget, indices:data/read/search
 
 # Marvel remote agent role. Assign to the agent user on the remote marvel cluster
 # to which the marvel agent will export all its data

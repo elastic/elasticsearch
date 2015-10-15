@@ -79,7 +79,7 @@ public class WatchStore extends AbstractComponent {
         IndexMetaData watchesIndexMetaData = state.getMetaData().index(INDEX);
         if (watchesIndexMetaData != null) {
             try {
-                int count = loadWatches(watchesIndexMetaData.numberOfShards());
+                int count = loadWatches(watchesIndexMetaData.getNumberOfShards());
                 logger.debug("loaded [{}] watches from the watches index [{}]", count, INDEX);
                 started.set(true);
             } catch (Exception e) {

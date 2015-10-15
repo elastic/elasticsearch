@@ -239,10 +239,10 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
                 //complicated to support those options with aliases pointing to multiple indices...
                 return true;
             }
-            if (indexMetaData.state() == IndexMetaData.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
+            if (indexMetaData.getState() == IndexMetaData.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
                 return true;
             }
-            if (indexMetaData.state() == IndexMetaData.State.OPEN && indicesOptions.expandWildcardsOpen()) {
+            if (indexMetaData.getState() == IndexMetaData.State.OPEN && indicesOptions.expandWildcardsOpen()) {
                 return true;
             }
         }

@@ -236,7 +236,7 @@ public class TriggeredWatchStore extends AbstractComponent {
         if (!state.routingTable().index(INDEX_NAME).allPrimaryShardsActive()) {
             throw illegalState("not all primary shards of the [{}] index are started.", INDEX_NAME);
         } else {
-            numPrimaryShards = indexMetaData.numberOfShards();
+            numPrimaryShards = indexMetaData.getNumberOfShards();
         }
         RefreshResponse refreshResponse = client.refresh(new RefreshRequest(INDEX_NAME));
         if (refreshResponse.getSuccessfulShards() < numPrimaryShards) {

@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -112,11 +113,13 @@ public class RestActions {
         return queryBuilder;
     }
 
-    public static SearchSourceBuilder getRestSearchSource(BytesReference sourceBytes, IndicesQueriesRegistry queryRegistry)
+    public static SearchSourceBuilder getRestSearchSource(BytesReference sourceBytes, IndicesQueriesRegistry queryRegistry,
+            ParseFieldMatcher parseFieldMatcher)
             throws IOException {
         XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes);
         QueryParseContext queryParseContext = new QueryParseContext(queryRegistry);
         queryParseContext.reset(parser);
+        queryParseContext.parseFieldMatcher(parseFieldMatcher);
         SearchSourceBuilder source = SearchSourceBuilder.parseSearchSource(parser, queryParseContext);
         return source;
     }
@@ -142,7 +145,11 @@ public class RestActions {
 
     public static QueryBuilder<?> getQueryContent(BytesReference source, QueryParseContext context) {
         try (XContentParser requestParser = XContentFactory.xContent(source).createParser(source)) {
+            // Save the parseFieldMatcher because its about to be trashed in the
+            // QueryParseContext
+            ParseFieldMatcher parseFieldMatcher = context.parseFieldMatcher();
             context.reset(requestParser);
+            context.parseFieldMatcher(parseFieldMatcher);
             return context.parseInnerQueryBuilder();
         } catch (IOException e) {
             throw new ElasticsearchException("failed to parse source", e);

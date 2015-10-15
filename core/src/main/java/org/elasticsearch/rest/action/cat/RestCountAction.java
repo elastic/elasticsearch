@@ -70,6 +70,7 @@ public class RestCountAction extends AbstractCatAction {
         String source = request.param("source");
         if (source != null) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+            context.parseFieldMatcher(parseFieldMatcher);
             countRequest.query(RestActions.getQueryContent(new BytesArray(source), context));
         } else {
             QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);

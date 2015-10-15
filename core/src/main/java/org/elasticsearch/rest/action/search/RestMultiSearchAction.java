@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -90,7 +91,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String path = request.path();
         boolean isTemplateRequest = isTemplateRequest(path);
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, multiSearchRequest.indicesOptions());
-        parseRequest(multiSearchRequest, RestActions.getRestContent(request), isTemplateRequest, indices, types, request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex, indicesQueriesRegistry);
+        parseRequest(multiSearchRequest, RestActions.getRestContent(request), isTemplateRequest, indices, types,
+                request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex, indicesQueriesRegistry,
+                parseFieldMatcher);
         client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
     }
 
@@ -104,7 +107,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
                                                    @Nullable String searchType,
                                                    @Nullable String routing,
                                                    IndicesOptions indicesOptions,
-                                                   boolean allowExplicitIndex, IndicesQueriesRegistry indicesQueriesRegistry) throws Exception {
+                                                   boolean allowExplicitIndex, IndicesQueriesRegistry indicesQueriesRegistry,
+                                                   ParseFieldMatcher parseFieldMatcher) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -178,6 +182,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             if (isTemplateRequest) {
                 try (XContentParser parser = XContentFactory.xContent(slice).createParser(slice)) {
                     queryParseContext.reset(parser);
+                    queryParseContext.parseFieldMatcher(parseFieldMatcher);
                     Template template = TemplateQueryParser.parse(parser, queryParseContext.parseFieldMatcher(), "params", "template");
                     searchRequest.template(template);
                 }

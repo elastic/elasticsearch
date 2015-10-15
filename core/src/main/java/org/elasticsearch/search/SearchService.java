@@ -578,6 +578,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
                     QueryParseContext queryParseContext = new QueryParseContext(indexService.queryParserService().indicesQueriesRegistry());
                     queryParseContext.reset(parser);
+                    queryParseContext.parseFieldMatcher(parseFieldMatcher);
                     parseSource(context, SearchSourceBuilder.parseSearchSource(parser, queryParseContext));
                 }
             }
@@ -673,8 +674,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private void parseSource(SearchContext context, SearchSourceBuilder source) throws SearchParseException {
         // nothing to parse...
         if (source == null) {
-                return;
-            }
+            return;
+        }
 
         context.from(source.from());
         context.size(source.size());
@@ -686,10 +687,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
         }
         if (source.query() != null) {
-            context.parsedQuery(context.queryParserService().parse(source.query()));
+            context.parsedQuery(context.queryParserService().toQuery(source.query()));
         }
         if (source.postFilter() != null) {
-            context.parsedPostFilter(context.queryParserService().parse(source.postFilter()));
+            context.parsedPostFilter(context.queryParserService().toQuery(source.postFilter()));
         }
         if (source.sorts() != null) {
             XContentParser completeSortParser = null;
@@ -775,7 +776,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
         if (source.rescores() != null) {
             XContentParser completeRescoreParser = null;
-                    try {
+            try {
                 XContentBuilder completeRescoreBuilder = XContentFactory.jsonBuilder();
                 completeRescoreBuilder.startObject();
                 completeRescoreBuilder.startArray("rescore");
@@ -783,7 +784,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     XContentParser parser = XContentFactory.xContent(rescore).createParser(rescore);
                     parser.nextToken();
                     completeRescoreBuilder.copyCurrentStructure(parser);
-                    }
+                }
                 completeRescoreBuilder.endArray();
                 completeRescoreBuilder.endObject();
                 BytesReference completeRescoreBytes = completeRescoreBuilder.bytes();
@@ -794,7 +795,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 this.elementParsers.get("rescore").parse(completeRescoreParser, context);
             } catch (Exception e) {
                 String sSource = "_na_";
-                        try {
+                try {
                     sSource = source.toString();
                 } catch (Throwable e1) {
                     // ignore
@@ -802,23 +803,23 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 XContentLocation location = completeRescoreParser != null ? completeRescoreParser.getTokenLocation() : null;
                 throw new SearchParseException(context, "failed to parse rescore source [" + sSource + "]", location, e);
             }
-                            }
+        }
         if (source.fields() != null) {
             context.fieldNames().addAll(source.fields());
-                        }
+        }
         if (source.explain() != null) {
             context.explain(source.explain());
-                    }
+        }
         if (source.fetchSource() != null) {
             context.fetchSourceContext(source.fetchSource());
-                }
+        }
         if (source.fieldDataFields() != null) {
             FieldDataFieldsContext fieldDataFieldsContext = context.getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
             for (String field : source.fieldDataFields()) {
                 fieldDataFieldsContext.add(new FieldDataField(field));
             }
             fieldDataFieldsContext.setHitExecutionNeeded(true);
-            }
+        }
         if (source.highlighter() != null) {
             XContentParser highlighterParser = null;
             try {
@@ -830,10 +831,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     sSource = source.toString();
                 } catch (Throwable e1) {
                     // ignore
-        }
+                }
                 XContentLocation location = highlighterParser != null ? highlighterParser.getTokenLocation() : null;
                 throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
-    }
+            }
         }
         if (source.innerHits() != null) {
             XContentParser innerHitsParser = null;
@@ -843,7 +844,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 this.elementParsers.get("inner_hits").parse(innerHitsParser, context);
             } catch (Exception e) {
                 String sSource = "_na_";
-        try {
+                try {
                     sSource = source.toString();
                 } catch (Throwable e1) {
                     // ignore
@@ -857,7 +858,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH);
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
-            }
+        }
         if (source.ext() != null) {
             XContentParser extParser = null;
             try {
@@ -865,32 +866,32 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 XContentParser.Token token = extParser.nextToken();
                 String currentFieldName = null;
                 while ((token = extParser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = extParser.currentName();
-                } else {
+                    } else {
                         SearchParseElement parseElement = this.elementParsers.get(currentFieldName);
                         if (parseElement == null) {
                             throw new SearchParseException(context, "Unknown element [" + currentFieldName + "] in [ext]",
                                     extParser.getTokenLocation());
-                    } else {
+                        } else {
                             parseElement.parse(extParser, context);
+                        }
                     }
                 }
-            }
             } catch (Exception e) {
-            String sSource = "_na_";
-            try {
+                String sSource = "_na_";
+                try {
                     sSource = source.toString();
-            } catch (Throwable e1) {
-                // ignore
-            }
+                } catch (Throwable e1) {
+                    // ignore
+                }
                 XContentLocation location = extParser != null ? extParser.getTokenLocation() : null;
                 throw new SearchParseException(context, "failed to parse ext source [" + sSource + "]", location, e);
             }
         }
         if (source.version() != null) {
             context.version(source.version());
-            }
+        }
         if (source.stats() != null) {
             context.groupStats(source.stats());
         }
@@ -1187,9 +1188,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         try {
                             long now = System.nanoTime();
                             final IndexService indexService = indicesService.indexServiceSafe(indexShard.shardId().index().name());
+                            QueryParseContext queryParseContext = new QueryParseContext(indexService.queryParserService().indicesQueriesRegistry());
+                            // NOCOMMIT get a parseFieldMatcher from somewhere and set it on the queryParseContext
+                            queryParseContext.parseFieldMatcher(indexService.queryParserService().parseFieldMatcher());
                             ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexMetaData
                                     .getNumberOfShards(),
-                                    SearchType.QUERY_THEN_FETCH, entry.source().build(new QueryParseContext(indexService.queryParserService().indicesQueriesRegistry())), entry.types(), entry.requestCache());
+                                    SearchType.QUERY_THEN_FETCH, entry.source().build(queryParseContext), entry.types(), entry.requestCache());
                             context = createContext(request, warmerContext.searcher());
                             // if we use sort, we need to do query to sort on
                             // it and load relevant field data

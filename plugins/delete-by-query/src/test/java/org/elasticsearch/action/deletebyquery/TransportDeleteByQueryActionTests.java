@@ -197,7 +197,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setScroll(TimeValue.timeValueSeconds(10))
                 .setQuery(boolQuery().must(rangeQuery("num").lte(limit)))
-                .addFields("_routing", "_parent")
+                .fields("_routing", "_parent")
                 .setFetchSource(false)
                 .setVersion(true)
                 .get();

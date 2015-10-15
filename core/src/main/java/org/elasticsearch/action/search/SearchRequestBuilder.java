@@ -353,10 +353,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Adds the fields to load and return as part of the search request. If none are specified,
-     * the source of the document will be returned.
+     * Sets the fields to load and return as part of the search request. If none
+     * are specified, the source of the document will be returned.
      */
-    public SearchRequestBuilder addFields(String... fields) {
+    public SearchRequestBuilder fields(String... fields) {
         sourceBuilder().fields(Arrays.asList(fields));
         return this;
     }

@@ -110,12 +110,13 @@ public class RestSearchAction extends BaseRestHandler {
             if (isTemplateRequest) {
                 try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                     context.reset(parser);
+                    context.parseFieldMatcher(parseFieldMatcher);
                     Template template = TemplateQueryParser.parse(parser, context.parseFieldMatcher(), "params", "template");
                     searchRequest.template(template);
                 }
                 builder = null;
             } else {
-                builder = RestActions.getRestSearchSource(restContent, indicesQueriesRegistry);
+                builder = RestActions.getRestSearchSource(restContent, indicesQueriesRegistry, parseFieldMatcher);
             }
         } else {
             builder = null;
@@ -155,7 +156,7 @@ public class RestSearchAction extends BaseRestHandler {
         return searchRequest;
     }
 
-    public static boolean parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request) {
+    private static boolean parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request) {
 
         boolean modified = false;
         QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);

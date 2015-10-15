@@ -71,6 +71,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             XContentParser requestParser = XContentFactory.xContent(request.content()).createParser(request.content());
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
             context.reset(requestParser);
+            context.parseFieldMatcher(parseFieldMatcher);
             final QueryBuilder<?> builder = context.parseInnerQueryBuilder();
             delete.query(builder);
         } else {

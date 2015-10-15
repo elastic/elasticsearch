@@ -100,6 +100,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      */
     public SearchRequest(ActionRequest request) {
         super(request);
+        this.source = new SearchSourceBuilder();
     }
 
     /**
@@ -107,7 +108,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * will run against all indices.
      */
     public SearchRequest(String... indices) {
-        indices(indices);
+        this(indices, new SearchSourceBuilder());
     }
 
     /**
@@ -331,9 +332,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
-        if (in.readBoolean()) {
-            source = SearchSourceBuilder.readSearchSourceFrom(in);
-        }
+        source = SearchSourceBuilder.readSearchSourceFrom(in);
 
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -361,12 +360,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        if (source == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            source.writeTo(out);
-        }
+        source.writeTo(out);
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);

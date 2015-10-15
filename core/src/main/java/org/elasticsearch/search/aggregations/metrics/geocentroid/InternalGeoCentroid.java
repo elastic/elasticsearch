@@ -63,6 +63,7 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
             pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.centroid = centroid;
+        assert count >= 0;
         this.count = count;
     }
 
@@ -127,8 +128,10 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
         count = in.readVLong();
-        if (count > 0) {
+        if (in.readBoolean()) {
             centroid = GeoPoint.fromIndexLong(in.readLong());
+        } else {
+            centroid = null;
         }
     }
 
@@ -136,7 +139,10 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
         if (centroid != null) {
+            out.writeBoolean(true);
             out.writeLong(XGeoUtils.mortonHash(centroid.lon(), centroid.lat()));
+        } else {
+            out.writeBoolean(false);
         }
     }
 

@@ -161,8 +161,7 @@ public class IndexActionTests extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch("test-index")
                 .setTypes("test-type")
-                .addSort("foo", SortOrder.ASC)
-                .setSource(searchSource()
+                .setSource(searchSource().sort("foo", SortOrder.ASC)
                         .query(matchAllQuery())
                         .aggregation(terms("timestamps").field(customTimestampField ? timestampField : "_timestamp")))
                 .get();

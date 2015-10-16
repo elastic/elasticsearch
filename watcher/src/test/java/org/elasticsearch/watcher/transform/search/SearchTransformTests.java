@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.watcher.transform.search;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -60,23 +60,12 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.parseDate;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.simplePayload;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.*;
+import static org.hamcrest.Matchers.*;
 import static org.joda.time.DateTimeZone.UTC;
 
 /**
@@ -160,7 +149,6 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(resultData, equalTo(expectedData));
     }
 
-    @AwaitsFix(bugUrl = "Need to find out a way of testing a bad query following the search request refactoring")
     @Test
     public void testExecute_Failure() throws Exception {
 
@@ -182,7 +170,26 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(result.type(), is(SearchTransform.TYPE));
         assertThat(result.status(), is(Transform.Result.Status.FAILURE));
         assertThat(result.reason(), notNullValue());
-        assertThat(result.executedRequest().template().getScript(), containsString("_unknown_query_"));
+        assertThat(result.reason(), containsString("No query registered for [_unknown_query_]"));
+
+        // extract the base64 encoded query from the template script, path is: query -> wrapper -> query
+        String jsonQuery = result.executedRequest().template().getScript();
+        Map<String, Object> map = XContentFactory.xContent(jsonQuery).createParser(jsonQuery).map();
+
+        assertThat(map, hasKey("query"));
+        assertThat(map.get("query"), instanceOf(Map.class));
+
+        map = (Map<String, Object>) map.get("query");
+        assertThat(map, hasKey("wrapper"));
+        assertThat(map.get("wrapper"), instanceOf(Map.class));
+
+        map = (Map<String, Object>) map.get("wrapper");
+        assertThat(map, hasKey("query"));
+        assertThat(map.get("query"), instanceOf(String.class));
+
+        String queryAsBase64 = (String) map.get("query");
+        String decodedQuery = new String(Base64.decode(queryAsBase64), Charsets.UTF_8);
+        assertThat(decodedQuery, containsString("_unknown_query_"));
     }
 
     @Test
@@ -267,8 +274,6 @@ public class SearchTransformTests extends ESIntegTestCase {
             builder.field("template", template);
         }
 
-        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
-
         builder.startObject("body")
                 .startObject("query")
                 .startObject("match_all")
@@ -303,6 +308,7 @@ public class SearchTransformTests extends ESIntegTestCase {
             assertThat(executable.transform().getRequest().template(),
                     equalTo(new Template("template1", ScriptType.FILE, null, null, null)));
         }
+        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
         assertThat(executable.transform().getRequest().source(), equalTo(source));
         assertThat(executable.transform().getTimeout(), equalTo(readTimeout));
     }

@@ -108,6 +108,9 @@ public final class WatcherUtils {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, BODY_FIELD)) {
+                    searchRequest.source(SearchSourceBuilder.parseSearchSource(parser, context));
+                }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_FIELD)) {
                     List<String> indices = new ArrayList<>();
@@ -133,9 +136,7 @@ public final class WatcherUtils {
                     throw new ElasticsearchParseException("could not read search request. unexpected array field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, BODY_FIELD)) {
-                    searchRequest.source(SearchSourceBuilder.parseSearchSource(parser, context));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_OPTIONS_FIELD)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_OPTIONS_FIELD)) {
                     boolean expandOpen = DEFAULT_INDICES_OPTIONS.expandWildcardsOpen();
                     boolean expandClosed = DEFAULT_INDICES_OPTIONS.expandWildcardsClosed();
                     boolean allowNoIndices = DEFAULT_INDICES_OPTIONS.allowNoIndices();

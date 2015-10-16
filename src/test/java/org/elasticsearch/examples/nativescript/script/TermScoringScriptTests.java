@@ -22,10 +22,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -47,11 +44,11 @@ import org.junit.Test;
  */
 public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
 
-    final static String[] searchTerms = {"foo", "bar"};
+    final static List<String> searchTerms = Arrays.asList("foo", "bar");
     final static String field = "field";
     final static String wordCountField = field + ".word_count";
     final static String placeholder = "placeholder";
-    final static Double[] weights = {1.0, 1.0};
+    final static List<Double> weights = Arrays.asList(1.0, 1.0);
     final static int numDocs = 100;
 
     @Test

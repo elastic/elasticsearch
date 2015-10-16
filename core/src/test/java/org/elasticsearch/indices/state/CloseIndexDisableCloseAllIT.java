@@ -21,7 +21,9 @@ package org.elasticsearch.indices.state;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -86,6 +88,20 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
         CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test3", "test2").execute().actionGet();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsClosed("test2", "test3");
+
+        // disable closing
+        Client client = client();
+        createIndex("test_no_close");
+        healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(TransportCloseIndexAction.SETTING_CLUSTER_INDICES_CLOSE_ENABLE, false)).get();
+
+        try {
+            client.admin().indices().prepareClose("test_no_close").execute().actionGet();
+            fail("exception expected");
+        } catch (IllegalStateException ex) {
+            assertEquals(ex.getMessage(), "closing indices is disabled - set [cluster.indices.close.enable: true] to enable it. NOTE: closed indices consume a significant amount of diskspace");
+        }
     }
 
     private void assertIndexIsClosed(String... indices) {

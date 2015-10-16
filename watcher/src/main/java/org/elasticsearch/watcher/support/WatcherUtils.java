@@ -67,7 +67,6 @@ public final class WatcherUtils {
                 .indices(requestPrototype.indices())
                 .types(requestPrototype.types());
 
-        // TODO: Revise this search template conversion code once search templates in core have been refactored once ES 2.0 is released.
         // Due the inconsistency with templates in ES 1.x, we maintain our own template format.
         // This template format we use now, will become the template structure in ES 2.0
         Map<String, Object> watcherContextParams = Variables.createCtxModel(ctx, payload);
@@ -78,60 +77,18 @@ public final class WatcherUtils {
             XContentBuilder builder = jsonBuilder();
             requestPrototype.source().toXContent(builder, ToXContent.EMPTY_PARAMS);
             Template template = new Template(builder.string(), ScriptType.INLINE, null, builder.contentType(), watcherContextParams);
-            // Unfortunately because of SearchRequest#templateSource(BytesReference, boolean) has been removed in 1.6 and
-            // SearchRequest#templateSource(BytesReference) doesn't exist in 1.5, we are forced to use SearchRequest#templateSource(String)
-            // that exist in both 1.5 and 1.6
-            // TODO (2.0 upgrade): move back to BytesReference
             request.template(template);
         } else if (requestPrototype.template() != null) {
             // Here we convert watcher template into a ES core templates. Due to the different format we use, we
             // convert to the template format used in ES core
-            // BytesReference templateSource =
-            // requestPrototype.templateSource();
-            // try (XContentParser sourceParser =
-            // XContentFactory.xContent(templateSource).createParser(templateSource))
-            // {
-            // sourceParser.nextToken();
-            // TextTemplate template = TextTemplate.parse(sourceParser);
-
-                // Convert to the ES template format:
-            // XContentBuilder builder = jsonBuilder();
-            // builder.startObject();
-            // switch (template.getType()) {
-            // case INDEXED:
-            // builder.startObject("template");
-            // builder.field("id", template.getTemplate());
-            // builder.endObject();
-            // break;
-            // case FILE:
-            // builder.startObject("template");
-            // builder.field("file", template.getTemplate());
-            // builder.endObject();
-            // break;
-            // case INLINE:
-            // XContentHelper.writeRawField("template", new
-            // BytesArray(template.getTemplate()), builder,
-            // ToXContent.EMPTY_PARAMS);
-            // break;
-            // }
-            // Map<String, Object> params = new HashMap<>();
-            // params.putAll(watcherContextParams);
-            // params.putAll(template.getParams());
-            // builder.field("params", params);
-            // builder.endObject();
-                // Unfortunately because of SearchRequest#templateSource(BytesReference, boolean) has been removed in 1.6 and
-                // SearchRequest#templateSource(BytesReference) doesn't exist in 1.5, we are forced to use SearchRequest#templateSource(String)
-                // that exist in both 1.5 and 1.6
-                // TODO (2.0 upgrade): move back to BytesReference
-            request.template(requestPrototype.template());
+            Template template = requestPrototype.template();
+            Map<String, Object> params = new HashMap<>();
+            params.putAll(watcherContextParams);
+            params.putAll(template.getParams());
+            template = new Template(template.getScript(), template.getType(), template.getLang(), template.getContentType(), params);
+            request.template(template);
             // }
         }
-        // else if (requestPrototype.templateName() != null) {
-        // // In Watcher templates on all places can be defined in one format
-        // // Can only be set via the Java api
-        // throw
-        // Exceptions.illegalArgument("SearchRequest's templateName isn't supported, templates should be defined in the request body");
-        // }
         // falling back to an empty body
         return request;
     }
@@ -142,8 +99,6 @@ public final class WatcherUtils {
      */
     public static SearchRequest readSearchRequest(XContentParser parser, SearchType searchType, QueryParseContext context)
             throws IOException {
-        // BytesReference searchBody = null;
-        // String templateBody = null;
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         SearchRequest searchRequest = new SearchRequest();
 
@@ -178,10 +133,6 @@ public final class WatcherUtils {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, BODY_FIELD)) {
-                    // XContentBuilder builder =
-                    // XContentBuilder.builder(parser.contentType().xContent());
-                    // builder.copyCurrentStructure(parser);
-                    // searchBody = builder.bytes();
                     searchRequest.source(SearchSourceBuilder.parseSearchSource(parser, context));
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_OPTIONS_FIELD)) {
                     boolean expandOpen = DEFAULT_INDICES_OPTIONS.expandWildcardsOpen();
@@ -255,20 +206,6 @@ public final class WatcherUtils {
         }
         searchRequest.searchType(searchType);
         searchRequest.indicesOptions(indicesOptions);
-        // if (searchBody != null) {
-        // assert searchBody.hasArray();
-        // searchRequest.source(searchBody);
-        // }
-        // if (templateBody != null) {
-        // // Unfortunately because of
-        // SearchRequest#templateSource(BytesReference, boolean) has been
-        // removed in 1.6 and
-        // // SearchRequest#templateSource(BytesReference) doesn't exist in 1.5,
-        // we are forced to use SearchRequest#templateSource(String)
-        // // that exist in both 1.5 and 1.6
-        // // TODO (2.0 upgrade): move back to BytesReference
-        // searchRequest.templateSource(templateBody);
-        // }
         return searchRequest;
     }
 

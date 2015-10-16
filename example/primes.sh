@@ -25,10 +25,7 @@ curl -s -XPOST "http://localhost:9200/test/_refresh"
 echo
 curl -s "localhost:9200/test/type1/_search?pretty=true" -d '{
     "query": {
-        "filtered": {
-            "query": {
-                "match_all": {}
-            },
+        "bool": {
             "filter": {
                 "script": {
                     "script": "is_prime",

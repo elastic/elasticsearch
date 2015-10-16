@@ -64,12 +64,14 @@ curl -s -XGET "localhost:9200/test/city/_search?pretty=true" -d '{
     "fields": ["city", "state"],
     "script_fields": {
         "state_info": {
-            "script": "lookup",
-            "lang": "native",
-            "params": {
-                "lookup_index": "test",
-                "lookup_type": "state",
-                "field": "state"
+            "script": {
+                "inline": "lookup",
+                "lang": "native",
+                "params": {
+                    "lookup_index": "test",
+                    "lookup_type": "state",
+                    "field": "state"
+                }
             }
         }
     },

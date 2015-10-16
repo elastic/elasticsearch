@@ -584,7 +584,7 @@ public class GeoFilterIT extends ESIntegTestCase {
             RecursivePrefixTreeStrategy strategy = new RecursivePrefixTreeStrategy(tree, "area");
             Shape shape = SpatialContext.GEO.makePoint(0, 0);
             SpatialArgs args = new SpatialArgs(relation, shape);
-            strategy.makeFilter(args);
+            strategy.makeQuery(args);
             return true;
         } catch (UnsupportedSpatialOperation e) {
             e.printStackTrace();

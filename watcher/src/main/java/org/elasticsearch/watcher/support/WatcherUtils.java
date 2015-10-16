@@ -177,10 +177,8 @@ public final class WatcherUtils {
                     }
                     indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed, DEFAULT_INDICES_OPTIONS);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TEMPLATE_FIELD)) {
-                    XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
-                    builder.copyCurrentStructure(parser);
-                    String templateBody = builder.string();
-                    searchRequest.template(new Template(templateBody, ScriptType.INLINE, null, builder.contentType(), null));
+                    Template template = Template.parse(parser, ParseFieldMatcher.STRICT);
+                    searchRequest.template(template);
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected object field [" + currentFieldName + "]");
                 }

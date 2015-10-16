@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.MatchAllQueryParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -32,7 +33,11 @@ import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -117,12 +122,12 @@ public class WatcherUtilsTests extends ESTestCase {
                 }
             }
             String text = randomAsciiOfLengthBetween(1, 5);
-            TextTemplate template = randomFrom(
-                    TextTemplate.inline(text).params(params).build(),
-                    TextTemplate.file(text).params(params).build(),
-                    TextTemplate.indexed(text).params(params).build()
+            Template template = randomFrom(
+                    new Template(text, ScriptType.INLINE, null, null, params),
+                    new Template(text, ScriptType.FILE, null, null, params),
+                    new Template(text, ScriptType.INDEXED, null, null, params)
             );
-            expectedRequest.template(new Template(template.getTemplate(), template.getType(), null, template.getContentType(), template.getParams()));
+            expectedRequest.template(template);
         }
 
         XContentBuilder builder = jsonBuilder();

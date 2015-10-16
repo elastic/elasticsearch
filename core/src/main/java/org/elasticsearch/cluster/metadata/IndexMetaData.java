@@ -435,7 +435,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     @Override
     public int hashCode() {
         int result = index.hashCode();
-        result = 31 * result + (int) (version ^ (version >>> 32));
+        result = 31 * result + Long.hashCode(version);
         result = 31 * result + state.hashCode();
         result = 31 * result + aliases.hashCode();
         result = 31 * result + settings.hashCode();

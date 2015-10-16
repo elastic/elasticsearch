@@ -12,6 +12,6 @@ include::configuring-clients-integrations/hadoop.asciidoc[]
 
 include::configuring-clients-integrations/logstash.asciidoc[]
 
-include::configuring-clients-integrations/marvel.asciidoc[]
-
 include::configuring-clients-integrations/kibana.asciidoc[]
+
+include::configuring-clients-integrations/marvel.asciidoc[]

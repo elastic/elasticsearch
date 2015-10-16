@@ -96,16 +96,6 @@ kibana3_monitoring:
   - "cn=Jack Nicholson,dc=example,dc=com"
 --------------------------------------------------------------------------------
 
-** If you are using a PKI realm, you assign roles on a per user basis in the role mapping file.
-For example, the following snippet assigns the `kibana3_monitoring` role to the users named `Jack Nicholson` and `Robert De Niro. 
-+
-[source,yaml]
---------------------------------------------------------------------------------
-kibana3_monitoring:
-  - "cn=Jack Nicholson,ou=example,o=com"
-  - "cn=Robert De Niro,ou=example,o=com"
---------------------------------------------------------------------------------
-
 . If you have <<ssl-tls, enabled SSL encryption>> in Shield and are using your own Certificate Authority (CA) to sign certificates for your nodes, configure your browser or operating system to trust your CA. When you access Kibana, your browser verifies that the certificate received from the Elasticsearch node is trusted before sending a request to the node. Establishing this trust requires that either your browser or operating system trust the CA that signed the node's certificate. Consult your local IT professional for information about the recommended procedure for adding trusted CAs in your organization. 
 
 . Access Kibana 3 from your browser and verify that you can sign in as a user. For example, you could log in as the `jacknich` user created in step 4.
@@ -215,16 +205,6 @@ esusers useradd jacknich -r kibana4_monitoring -p password
 kibana4_monitoring:
   - "cn=admins,dc=example,dc=com"
   - "cn=Jack Nicholson,dc=example,dc=com"
---------------------------------------------------------------------------------
-
-** If you are using a PKI realm, you assign roles on a per user basis in the role mapping file.
-For example, the following snippet assigns the `kibana4_monitoring` role to the users named `Jack Nicholson` and `Robert De Niro`. 
-+
-[source,yaml]
---------------------------------------------------------------------------------
-kibana4_monitoring:
-  - "cn=Jack Nicholson,ou=example,o=com"
-  - "cn=Robert De Niro,ou=example,o=com"
 --------------------------------------------------------------------------------
 
 . If you have enabled SSL encryption in Shield, configure Kibana 4 to connect to Elasticsearch via HTTPS. To do this:

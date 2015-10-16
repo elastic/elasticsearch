@@ -1,124 +1,115 @@
 [[marvel]]
 === Using Marvel with Shield
 
-Marvel consists of a user interface over a data exporter known as the _agent_. The agent runs on each node and accesses 
-that node's monitoring API. The agent can store this collected data locally, on the cluster, or send the data to an 
-external monitoring cluster. Users can view and analyze the collected data with the Marvel UI.
+https://www.elastic.co/guide/en/marvel/current/introduction.html[Marvel] consists of two 
+components: a Marvel agent that you install on on each node in your cluster, and a Marvel application you install in https://www.elastic.co/guide/en/kibana/current/introduction.html[Kibana]. The Marvel agent collects and indexes metrics from Elasticsearch and you visualize the data through the Marvel dashboards in Kibana. The agent can index data on the same cluster, or send it to an external monitoring cluster.
 
-To work with the Shield plugin, Marvel's configuration needs to be adapted for the _production_ cluster, which is the 
-cluster being monitored, as well as the _monitoring_ cluster, where the monitoring data is stored. For clusters that 
-store their own monitoring data, apply both sets of settings to the single, production cluster.
-
-You will configure at least two users to work with Marvel.  These users have to exist on the monitoring cluster.
-
-* The Agent needs to be assigned a user with the correct <<roles,privileges>> to write data to the Marvel indices
-  named `.marvel-*`, check the Marvel index template, and upload the Marvel index template. You need only one agent user.
-* Marvel UI users must authenticate and have privileges to read data from the Marvel indices. These users also 
-  need to able to call the Nodes Info API in order to get the monitoring cluster's Elasticsearch version.  
-  This version check allows Marvel to be compatible with many versions of Elasticsearch. You can have as many of 
-  these end users configured as you would like.
-
-The default `roles.yml` file includes definitions for these two roles.  The steps below show you how to create these
-users on the monitoring cluster.
+To use Marvel with Shield enabled, you need to <<kibana, set up Kibana to work with Shield>> and create at least one user for the Marvel app. If you are using an external monitoring cluster, you also need to configure a user for the Marvel agent and configure the agent to use the appropriate
+credentials when communicating with the monitoring cluster.
 
 [float]
-[[monitoring-cluster]]
-==== Monitoring Cluster Settings
+[[marvel-app-users]]
+==== Setting Up Marvel App Users
 
-The monitoring cluster is used to both store and view the Marvel data. When configuring Shield, you need to perform the
-following actions:
+When Shield is enabled, Kibana users are prompted to log in when they access the UI. To use
+the Marvel app, a user must have access to the Kibana indices and permission to read from the 
+Marvel indices. 
 
-* Make sure there is a user created with the `marvel_agent` role. Marvel uses this to export the data.
-* Make sure there is a user created with the `marvel_user` role. You use this to view the Marvel UI and get  license information.
-* When using Marvel on a production server, you must enter your Marvel License. This license is stored in the
-  monitoring cluster. This step needs to be performed once, by a user with permissions to write to the `.marvel-kibana` 
-  index.  The .marvel-kibana index is used to store Marvel UI settings (for example, set custom warning levels) and 
-  therefore write permission for `.marvel-kibana` is required for UI customizations. Both storing license and storing 
-  settings can be done by any user added to the marvel_user role.
+You set up Marvel app users on the cluster where the monitoring data is being stored. To grant 
+all of the necessary permissions, assign user the `kibana_user` and `marvel_user` roles defined 
+in `roles.yml`:
 
-This is in the default `roles.yml`
+* If you're using the default `esusers` realm, you can assign roles when you <<esusers-add, add a 
+user>>, or modify the role assignments with the <<esusers-roles, `roles`>> command. For example, 
+the following command creates a user named `jacknich` and assigns the `marvel_user` role:
++
+[source,console]
+--------------------------------------------------------------------------------
+esusers useradd jacknich -r kibana_user,marvel_user -p password
+--------------------------------------------------------------------------------    
 
+* If you are using an LDAP or Active Directory realm, you can either assign roles on a per user 
+basis, or assign roles to groups of users. By default, role mappings are configured in 
+<<mapping-roles, `config/shield/role_mapping.yml`>>. For example, the following snippet assigns 
+the user named Jack Nicholson to the `kibana_user` and `marvel_user` roles:
++
+[source,yaml]
+--------------------------------------------------------------------------------
+kibana_user:
+  - "cn=Jack Nicholson,dc=example,dc=com"
+marvel_user:
+  - "cn=Jack Nicholson,dc=example,dc=com"  
+--------------------------------------------------------------------------------
+
+[float]
+[[configuring-marvel-agent-shield]]
+==== Configuring Marvel Agent to Communicate with a Shield-Enabled Monitoring Cluster
+
+To configure the Marvel agent to communicate with a secured monitoring cluster:
+
+. Configure a user on the monitoring cluster who has the `marvel_agent` role, which is defined in
+`roles.yml`. For example:
++
+[source,console]
+--------------------------------------------------------------------------------
+esusers useradd agent-user -r marvel_agent -p password
+--------------------------------------------------------------------------------   
++
+.Marvel Agent Role
 [source,yaml]
 --------------------------------------------------
 marvel_agent:
   cluster: indices:admin/template/get, indices:admin/template/put
   indices:
     '.marvel-*': indices:data/write/bulk, create_index
-
-marvel_user:
-  cluster: cluster:monitor/nodes/info, cluster:admin/plugin/license/get
-  indices:
-    '.marvel-*': all
 --------------------------------------------------
 
-Once the roles are configured, create a user for the agent:
+. On each node in the cluster being monitored, configure a Marvel HTTP exporter 
+in `elasticsearch.yml` and resart Elasticsearch. In the exporter configuration,
+you need to:
++
+--
+.. Set the `type` to `http`.
+.. Specify the location of the monitoring cluster in the `host` setting.
+.. Provide the agent user credentials with the `username` and `password` settings.
 
-[source,shell]
---------------------------------------------------
-bin/shield/esusers useradd marvel_export -p strongpassword -r marvel_agent
---------------------------------------------------
-
-Then create one or more users for the Marvel UI:
-
-[source,shell]
---------------------------------------------------
-bin/shield/esusers useradd USER -p strongerpassword -r marvel_user
---------------------------------------------------
-
-[float]
-==== Production Cluster Settings
-
-The Marvel agent is installed on every node in the production cluster. The agent collects monitoring data from the
-production cluster and stores the data on the monitoring cluster. The agent's configuration specifies a list of 
-hostname and port combinations for access to the monitoring cluster.
-
-When the monitoring cluster uses the Shield plugin and is configured to accept only HTTPS requests, you must configure the agent
-on the production cluster to use HTTPS instead of the default HTTP protocol.  
-
-Authentication and protocol configuration are both controlled by the `marvel.agent.exporter.es.hosts` setting in the
-node's `elasticsearch.yml` file. The setting accepts a list of monitoring cluster servers to serve as a fallback 
-in case a server is unavailable. Each of these servers must be properly configured, as in the following example:
-
-Example `marvel.agent.exporter.es.hosts` setting
-[source,yaml]
--------------------------------------------------------------------------------------------------------------------
-marvel.agent.exporter.es.hosts: [ "https<1>://USER:PASSWORD<2>@node01:9200", "https://USER:PASSWORD@node02:9200"]
--------------------------------------------------------------------------------------------------------------------
-
-<1> Indicates to use HTTPS.
-<2> Username and password. The user needs to be configured on the Monitoring Cluster as described in the next section.
-
-When the monitoring cluster uses HTTPS, the Marvel agent will attempt to validate the certificate of the Elasticsearch 
-node in the monitoring cluster.  If you are using your own CA you should specify a trust store that has the signing 
-certificate of the CA.  Here is an example config for the `marvel.agent.exporter.es.truststore.*` settings:
+For example:
 
 [source,yaml]
--------------------------------------------------------------------------------------------------------------
-marvel.agent.exporter.es.hosts: [ "https://USER:PASSWORD@node01:9200", "https://USER:PASSWORD@node02:9200"]
-marvel.agent.exporter.es.ssl.truststore.path: FULL_FILE_PATH
-marvel.agent.exporter.es.ssl.truststore.password: PASSWORD
--------------------------------------------------------------------------------------------------------------
+--------------------------------------------------
+marvel.agent.exporters:
+  id1:                              
+    type: http
+    host: [http://es-mon1:9200, http://es-mon2:9200]
+    auth:
+      username: agent-user
+      password: password
+--------------------------------------------------
 
-See the http://www.elastic.co/guide/en/marvel/current/configuration.html[Marvel documentation] for more details about
-other SSL related settings.
+If SSL/TLS is enabled on the monitoring cluster:
 
-NOTE: The 1.3.0 release of Marvel adds HTTPS support.
+.. Specify the HTTPS protocol when setting the monitoring server host.
+.. Specify a truststore that contains the CA certificate to use to verify the identities of the 
+nodes in the monitoring cluster. You need to set the `truststore.path` and 
+`truststore.password`.
 
-[float]
-==== Marvel user interface & Sense
+For example:
 
-The Marvel UI supports SSL without the need for any additional configuration. You can change URL access scheme for Marvel to 
-HTTPS.
+[source,yaml]
+--------------------------------------------------
+marvel.agent.exporters:
+  id1:                              
+    type: http
+    host: [ https://es-mon1:9200, https://es-mon2:9200]
 
-Users attempting to access the Marvel UI with the URL `https://HOST:9200/_plugin/marvel` must provide valid 
-credentials. See <<monitoring-cluster,Monitoring Cluster settings>> for information on the required user configuration.
+    auth:
+      username: agent-user
+      password: password
 
-Sense also supports HTTPS access. Users that access Sense over URLs of the form 
-`https://host:9200/_plugin/marvel/sense/index.html` must provide valid credentials if they have not already 
-authenticated to a dashboard.
-
-Users connecting to the production cluster with Sense must provide valid credentials. Clusters must be configured to
-enable cross-origin requests to enable users to connect with Sense. See the <<cors, CORS>> documentation for details.
-
-NOTE: Providing user credentials to Sense in order to access another cluster is only supported in releases 1.3.0 and 
-later of Marvel.
+    ssl:                                   
+      truststore.path: /path/to/file  
+      truststore.password: password
+  id2:
+    type: local
+--------------------------------------------------
+--

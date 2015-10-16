@@ -1,109 +1,114 @@
 [[license-management]]
-== Managing Shield Licenses
+== Managing Your License
 
-When installing Shield for the first time, having the license plugin installed is the minimum required for Shield to work.
-You can just start up the node and everything will just work as expected. The first time you start up the node, a 30 days
-trial license will automatically be created which will enable Shield to be fully operational. Within these 30 days, you
-will be able to replace the trial license with another one that will be provided to you up on purchase. 
+When you initially install Shield, a 30 day trial license is installed that allows access to all features. At the end of the trial period, you can https://www.elastic.co/subscriptions/shield[purchase a subscription] to keep using the full functionality of Shield along with Marvel and Watcher. 
+
+IMPORTANT:  When your license expires, Shield operates in a degraded mode where access to the Elasticsearch cluster health, cluster stats, and index stats APIs is blocked. Shield keeps on protecting your cluster, but you won't be able to monitor its operation until you update your license. For more information, see  <<license-expiration, License Expiration>>.
 
 [float]
 [[installing-license]]
-=== Updating Your Shield License
-Updating the
-license can be done at runtime (no need to shutdown the nodes) using a dedicated API.
+=== Updating Your License
 
-IMPORTANT:  With a valid license, Shield will be fully operational. Upon license expiry, Shield will operate in a
-            degraded mode, where cluster health, cluster stats, and index stats APIs will be blocked. All other operations will
-            continue operating normally. Find out more about <<license-expiration, Shield license expiration>>.
+You can update your license at runtime without shutting down your nodes. License updates take 
+effect immediately. The license is provided as a _JSON_ file that you install with the `license` 
+API. You need cluster admin privileges to install the license.
 
+To update your license:
 
-The license itself is a _JSON_ file containing all information about the license (e.g. feature name, expiry date, etc...).
-To install or update the license use the following REST API:
-
+. Send a request to the `license` API and specify the file that contains your new license: 
++
 [source,shell]
 -----------------------------------------------------------------------
 curl -XPUT -u admin 'http://<host>:<port>/_license' -d @license.json
 -----------------------------------------------------------------------
-
++
 Where:
-
++
 * `<host>` is the hostname of the Elasticsearch node (`localhost` if executing locally)
 * `<port>` is the http port (defaults to `9200`)
-* `license.json` is the license json file
+* `license.json` is the license JSON file
 
-NOTE: The put license API is protected under the cluster admin privilege, therefore it has to be executed
-      by a user with the appropriate permissions.
+. If the license you are installing does not support all of the features available with your
+previous license, you will be notified in the response. To complete the license installation, 
+you must resubmit the license update request and set the `acknowledge` parameter to `true` to 
+indicate that you are aware of the changes.
++
+[source,shell]
+-----------------------------------------------------------------------
+curl -XPUT -u admin 'http://<host>:<port>/_license?acknowledge=true' -d @license.json
+-----------------------------------------------------------------------
 
 [float]
 [[listing-licenses]]
-=== Listing Installed Licenses
+=== Viewing the Installed License
 
-You can list all currently installed licenses by executing the following REST API:
+You can also use the `license` API to retrieve the currently installed license:
 
 [source,shell]
 -----------------------------------------------------
 curl -XGET -u admin:password 'http://<host>:<port>/_license'
------------------------------------------------------
-
-The response of this command will be a JSON listing all available licenses. In the case of Shield, the following
-entry will be shown:
-
-[source,json]
---------------------------------------------
 {
-  licenses: [
-    ...
-    {
-      status: "active",
-      uid: "sample_uid",
-      type: "sample_type",
-      subscription_type: "sample_subscription_type",
-      "issue_date" : "2015-01-26T00:00:00.000Z",
-      "issue_date_in_millis" : 1422230400000,
-      feature: "shield",
-      "expiry_date" : "2015-04-26T23:59:59.999Z",
-      "expiry_date_in_millis" : 1430092799999,
-      max_nodes: 1,
-      issued_to: "sample customer",
-      issuer: "elasticsearch"
-    }
-    ...
-  ]
+  "license" : {
+    "status" : "active",
+    "uid" : "0a98411f-73f4-4c67-954c-724874ed5488",
+    "type" : "trial",
+    "issue_date" : "2015-10-13T18:18:20.709Z",
+    "issue_date_in_millis" : 1444760300709,
+    "expiry_date" : "2015-11-12T18:18:20.709Z",
+    "expiry_date_in_millis" : 1447352300709,
+    "max_nodes" : 1000,
+    "issued_to" : "elasticsearch",
+    "issuer" : "elasticsearch"
+  }
 }
 --------------------------------------------
 
-NOTE: The get license API is protected under the cluster admin privilege, therefore it has to be executed
-      by a user with the appropriate permissions.
+NOTE: You need cluster admin privileges to retrieve the license.
 
 [float]
 [[license-expiration]]
 === License Expiration
 
-License expiration should never be a surprise. Beginning 30 days from license expiration, Shield will begin logging daily messages
-containing the license expiration date and a brief description of unlicensed behavior. Beginning 7 days from license expiration,
-Shield will begin logging error messages every 10 minutes with the same information. After expiration, Shield will continue to 
-log error messages informing you that the license has expired. These messages will also be generated at node startup, to ensure 
-that there are no surprises. Here is an example message: 
+License expiration should never be a surprise. If you're using Marvel, a license expiration
+warning is displayed prominently if your license expires within 30 days. Warnings are 
+also displayed on startup and written to the Elasticsearch log starting 30  days from the expiration date. These error messages tell you when the license expires and what features will be disabled if 
+you fail to update it:
 
 [source,sh]
----------------------------------------------------------------------------------------------------------------------------------
-[ERROR][shield.license] Shield license will expire on 1/1/1970. Cluster health, cluster stats and indices stats operations are
-blocked on Shield license expiration. All data operations (read and write) continue to work. If you have a new license, please
-update it. Otherwise, please reach out to your support contact.
----------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------
+# License will expire on [Thursday, November 12, 2015]. If you have a new license, please update it.
+# Otherwise, please reach out to your support contact.
+# 
+# Commercial plugins operate with reduced functionality on license expiration:
+# - marvel
+#  - The agent will stop collecting cluster and indices metrics
+# - shield
+#  - Cluster health, cluster stats and indices stats operations are blocked
+#  - All data operations (read and write) continue to work
+--------------------------------------------
 
-When the license for Shield is expired, Shield will block requests to the cluster health, cluster stats, and index stats APIs.
-Calls to these APIs will fail with a LicenseExpiredException, and will return HTTP status code 401. By disabling only these APIs,
-any automated cluster monitoring should detect the license failure, while users of the cluster should not be immediately impacted.
-It is not recommended to run for any length of time with a disabled Shield license; cluster health and stats APIs are critical
-for monitoring and management of an Elasticsearch cluster.
+Once the license expires, calls to the cluster health, cluster stats, and index stats APIs 
+fail with a `ElasticsearchSecurityException` and return a 401 HTTP status code: 
 
-Example error response the clients will receive when license is expired and cluster health, cluster stats or index stats APIs are called:
+[source,sh]
+--------------------------------------------
+{
+  "error": {
+    "root_cause": [{
+      "type": "security_exception",
+      "reason": "current license is non-compliant for [shield]",
+      "license.expired.feature": "shield"
+    }],
+    "type": "security_exception",
+    "reason": "current license is non-compliant for [shield]",
+    "license.expired.feature": "shield"
+  },
+  "status": 401
+}
+--------------------------------------------
 
-[source,json]
-----------------------------------------------------------------------------------------------------------------------------------------------
-{"error":"LicenseExpiredException[license expired for feature [shield]]","status":401}
-----------------------------------------------------------------------------------------------------------------------------------------------
+This enables  automatic monitoring systems to easily detect the license failure without immediately impacting other users. 
 
-If you receive a new license file and <<installing-license, install it>>, it will take effect immediately and the health and
-stats APIs will be available. 
+IMPORTANT: You should update your license as soon as possible. You're essentially flying blind when running with an expired license. Access to the cluster health and stats APIs is critical
+for monitoring and managing an Elasticsearch cluster.
+

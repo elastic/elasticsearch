@@ -794,7 +794,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
         SearchResponse response = getClient().prepareSearch(resolveIndexName())
                 .setTypes(IndexAuditTrail.DOC_TYPE)
-                .addFields(fieldList())
+                .fields(fieldList())
                 .execute().actionGet();
 
         assertEquals(1, response.getHits().getTotalHits());

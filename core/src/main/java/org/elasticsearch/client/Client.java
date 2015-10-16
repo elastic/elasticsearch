@@ -343,7 +343,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @param request The count request
      * @return The result future
      * @see Requests#countRequest(String...)
+     * @deprecated use {@link #search(SearchRequest)} instead and set size to 0
      */
+    @Deprecated
     ActionFuture<CountResponse> count(CountRequest request);
 
     /**
@@ -352,12 +354,16 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @param request  The count request
      * @param listener A listener to be notified of the result
      * @see Requests#countRequest(String...)
+     * @deprecated use {@link #search(SearchRequest, ActionListener)} instead and set size to 0
      */
+    @Deprecated
     void count(CountRequest request, ActionListener<CountResponse> listener);
 
     /**
      * A count of all the documents matching a specific query.
-     */
+     * @deprecated use {@link #prepareSearch(String...)} instead and set size to 0
+      */
+    @Deprecated
     CountRequestBuilder prepareCount(String... indices);
 
     /**

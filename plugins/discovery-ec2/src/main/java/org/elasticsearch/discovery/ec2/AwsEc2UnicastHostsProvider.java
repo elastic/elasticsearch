@@ -31,6 +31,8 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
@@ -64,6 +66,8 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final HostType hostType;
 
+    private final DiscoNodesCache discoNodes;
+
     @Inject
     public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service, Version version) {
         super(settings);
@@ -73,6 +77,9 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
         this.hostType = HostType.valueOf(settings.get(DISCOVERY_EC2.HOST_TYPE, "private_ip")
                 .toUpperCase(Locale.ROOT));
+
+        this.discoNodes = new DiscoNodesCache(this.settings.getAsTime(DISCOVERY_EC2.NODE_CACHE_TIME,
+                                              TimeValue.timeValueMillis(10_000L)));
 
         this.bindAnyGroup = settings.getAsBoolean(DISCOVERY_EC2.ANY_GROUP, true);
         this.groups = new HashSet<>();
@@ -94,6 +101,11 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     @Override
     public List<DiscoveryNode> buildDynamicNodes() {
+        return discoNodes.getOrRefresh();
+    }
+
+    protected List<DiscoveryNode> fetchDynamicNodes() {
+
         List<DiscoveryNode> discoNodes = new ArrayList<>();
 
         DescribeInstancesResult descInstances;
@@ -198,5 +210,26 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
         }
 
         return describeInstancesRequest;
+    }
+
+    private final class DiscoNodesCache extends SingleObjectCache<List<DiscoveryNode>> {
+
+        private boolean empty = true;
+
+        protected DiscoNodesCache(TimeValue refreshInterval) {
+            super(refreshInterval,  new ArrayList<>());
+        }
+
+        @Override
+        protected boolean needsRefresh() {
+            return (empty || super.needsRefresh());
+        }
+
+        @Override
+        protected List<DiscoveryNode> refresh() {
+            List<DiscoveryNode> nodes = fetchDynamicNodes();
+            empty = nodes.isEmpty();
+            return nodes;
+        }
     }
 }

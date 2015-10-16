@@ -15,7 +15,7 @@
 package org.elasticsearch.examples.nativescript.script;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.lucene.search.Scorer;
@@ -43,7 +43,7 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
     // http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/mapping-core-types.html)
     String docLengthField;
     // terms that are used for scoring
-    ArrayList<String> terms;
+    List<String> terms;
     // lambda parameter
     float lambda;
 
@@ -85,7 +85,7 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
     private LanguageModelScoreScript(Map<String, Object> params) {
         params.entrySet();
         // get the terms
-        terms = (ArrayList<String>) params.get("terms");
+        terms = (List<String>) params.get("terms");
         // get the field
         field = (String) params.get("field");
         // get the field holding the document length

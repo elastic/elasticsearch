@@ -15,7 +15,8 @@
 package org.elasticsearch.examples.nativescript.script;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.List;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.lucene.search.Scorer;
@@ -39,7 +40,7 @@ public class TFIDFScoreScript extends AbstractSearchScript {
     // in constructor from parameters.
     String field = null;
     // terms that are used for scoring
-    ArrayList<String> terms = null;
+    List<String> terms = null;
 
     final static public String SCRIPT_NAME = "tfidf_script_score";
 
@@ -82,7 +83,7 @@ public class TFIDFScoreScript extends AbstractSearchScript {
     private TFIDFScoreScript(Map<String, Object> params) {
         params.entrySet();
         // get the terms
-        terms = (ArrayList<String>) params.get("terms");
+        terms = (List<String>) params.get("terms");
         // get the field
         field = (String) params.get("field");
         if (field == null || terms == null) {

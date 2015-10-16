@@ -15,7 +15,7 @@
 package org.elasticsearch.examples.nativescript.script;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import org.elasticsearch.script.ScriptException;
@@ -39,10 +39,10 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
     // in constructor from parameters.
     String field = null;
     // terms that are used for scoring, must be unique
-    ArrayList<String> terms = null;
+    List<String> terms = null;
     // weights, in case we want to put emphasis on a specific term. In the most
     // simple case, 1.0 for every term.
-    ArrayList<Double> weights = null;
+    List<Double> weights = null;
 
     final static public String SCRIPT_NAME = "cosine_sim_script_score";
 
@@ -85,8 +85,8 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
     private CosineSimilarityScoreScript(Map<String, Object> params) throws ScriptException {
         params.entrySet();
         // get the terms
-        terms = (ArrayList<String>) params.get("terms");
-        weights = (ArrayList<Double>) params.get("weights");
+        terms = (List<String>) params.get("terms");
+        weights = (List<Double>) params.get("weights");
         // get the field
         field = (String) params.get("field");
         if (field == null || terms == null || weights == null) {

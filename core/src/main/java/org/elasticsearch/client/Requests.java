@@ -52,7 +52,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.exists.ExistsRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -122,18 +121,6 @@ public class Requests {
      */
     public static GetRequest getRequest(String index) {
         return new GetRequest(index);
-    }
-
-    /**
-     * Creates a count request which counts the hits matched against a query. Note, the query itself must be set
-     * either using the JSON source of the query, or using a {@link org.elasticsearch.index.query.QueryBuilder} (using {@link org.elasticsearch.index.query.QueryBuilders}).
-     *
-     * @param indices The indices to count matched documents against a query. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @return The count request
-     * @see org.elasticsearch.client.Client#count(org.elasticsearch.action.count.CountRequest)
-     */
-    public static CountRequest countRequest(String... indices) {
-        return new CountRequest(indices);
     }
 
     /**

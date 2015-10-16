@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
@@ -84,10 +84,10 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
         }
         indexRandom(true, buildersBefore);
         indexRandom(true, buildersAfter);
-        assertThat(client().prepareCount(indices).get().getCount(), equalTo((long) (buildersBefore.length + buildersAfter.length)));
+        assertThat(client().prepareSearch(indices).setSize(0).get().getHits().totalHits(), equalTo((long) (buildersBefore.length + buildersAfter.length)));
         long[] counts = new long[indices.length];
         for (int i = 0; i < indices.length; i++) {
-            counts[i] = client().prepareCount(indices[i]).get().getCount();
+            counts[i] = client().prepareSearch(indices[i]).setSize(0).get().getHits().totalHits();
         }
 
         logger.info("--> snapshot subset of indices before upgrage");
@@ -106,8 +106,8 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
             client().prepareDelete(request.index(), request.type(), request.id()).get();
         }
         refresh();
-        final long numDocs = client().prepareCount(indices).get().getCount();
-        assertThat(client().prepareCount(indices).get().getCount(), lessThan((long) (buildersBefore.length + buildersAfter.length)));
+        final long numDocs = client().prepareSearch(indices).setSize(0).get().getHits().totalHits();
+        assertThat(client().prepareSearch(indices).setSize(0).get().getHits().totalHits(), lessThan((long) (buildersBefore.length + buildersAfter.length)));
 
 
         disableAllocation(indices);
@@ -116,11 +116,11 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
         boolean upgraded;
         do {
             logClusterState();
-            CountResponse countResponse = client().prepareCount().get();
+            SearchResponse countResponse = client().prepareSearch().setSize(0).get();
             assertHitCount(countResponse, numDocs);
             upgraded = backwardsCluster().upgradeOneNode();
             ensureYellow();
-            countResponse = client().prepareCount().get();
+            countResponse = client().prepareSearch().setSize(0).get();
             assertHitCount(countResponse, numDocs);
         } while (upgraded);
         enableAllocation(indices);
@@ -136,9 +136,9 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureYellow();
-        assertThat(client().prepareCount(indices).get().getCount(), equalTo((long) (buildersBefore.length + buildersAfter.length)));
+        assertThat(client().prepareSearch(indices).setSize(0).get().getHits().totalHits(), equalTo((long) (buildersBefore.length + buildersAfter.length)));
         for (int i = 0; i < indices.length; i++) {
-            assertThat(counts[i], equalTo(client().prepareCount(indices[i]).get().getCount()));
+            assertThat(counts[i], equalTo(client().prepareSearch(indices[i]).setSize(0).get().getHits().totalHits()));
         }
 
         logger.info("--> snapshot subset of indices after upgrade");
@@ -154,9 +154,9 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
         restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setWaitForCompletion(true).setIndices(index).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureYellow();
-        assertThat(client().prepareCount(indices).get().getCount(), equalTo((long) (buildersBefore.length + buildersAfter.length)));
+        assertThat(client().prepareSearch(indices).setSize(0).get().getHits().totalHits(), equalTo((long) (buildersBefore.length + buildersAfter.length)));
         for (int i = 0; i < indices.length; i++) {
-            assertThat(counts[i], equalTo(client().prepareCount(indices[i]).get().getCount()));
+            assertThat(counts[i], equalTo(client().prepareSearch(indices[i]).setSize(0).get().getHits().totalHits()));
         }
     }
 
@@ -206,11 +206,11 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
             boolean upgraded;
             do {
                 logClusterState();
-                CountResponse countResponse = client().prepareCount().get();
+                SearchResponse countResponse = client().prepareSearch().setSize(0).get();
                 assertHitCount(countResponse, numDocs);
                 upgraded = backwardsCluster().upgradeOneNode();
                 ensureYellow();
-                countResponse = client().prepareCount().get();
+                countResponse = client().prepareSearch().setSize(0).get();
                 assertHitCount(countResponse, numDocs);
             } while (upgraded);
             enableAllocation("test");

@@ -228,10 +228,6 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountAction;
-import org.elasticsearch.action.count.CountRequest;
-import org.elasticsearch.action.count.CountRequestBuilder;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
@@ -603,33 +599,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public MultiSearchRequestBuilder prepareMultiSearch() {
         return new MultiSearchRequestBuilder(this, MultiSearchAction.INSTANCE);
-    }
-
-    @Override
-    public ActionFuture<CountResponse> count(final CountRequest request) {
-        AdapterActionFuture<CountResponse, SearchResponse> actionFuture = new AdapterActionFuture<CountResponse, SearchResponse>() {
-            @Override
-            protected CountResponse convert(SearchResponse listenerResponse) {
-                return new CountResponse(listenerResponse);
-            }
-        };
-        execute(SearchAction.INSTANCE, request.toSearchRequest(), actionFuture);
-        return actionFuture;
-    }
-
-    @Override
-    public void count(final CountRequest request, final ActionListener<CountResponse> listener) {
-        execute(SearchAction.INSTANCE, request.toSearchRequest(), new DelegatingActionListener<SearchResponse, CountResponse>(listener) {
-            @Override
-            protected CountResponse getDelegatedFromInstigator(SearchResponse response) {
-                return new CountResponse(response);
-            }
-        });
-    }
-
-    @Override
-    public CountRequestBuilder prepareCount(String... indices) {
-        return new CountRequestBuilder(this, CountAction.INSTANCE).setIndices(indices);
     }
 
     @Override

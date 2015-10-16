@@ -981,7 +981,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         assertSuggestions("b");
-        assertThat(2l, equalTo(client().prepareCount(INDEX).get().getCount()));
+        assertThat(2l, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().totalHits()));
         for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.getShards();
             for (ShardSegments shardSegments : shards) {

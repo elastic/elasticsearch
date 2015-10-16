@@ -114,7 +114,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count");
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareCount("test").execute().actionGet().getCount(), equalTo(20l));
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().totalHits(), equalTo(20l));
 
         logger.info("--> start another node");
         final String node_2 = internalCluster().startNode();
@@ -133,7 +133,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count again...");
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareCount("test").execute().actionGet().getCount(), equalTo(20l));
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().totalHits(), equalTo(20l));
     }
 
     @Test

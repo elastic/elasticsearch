@@ -160,7 +160,7 @@ public class GlobalOrdinalsBenchmark {
                 .get();
 
         client.admin().indices().prepareRefresh(INDEX_NAME).execute().actionGet();
-        COUNT = client.prepareCount(INDEX_NAME).setQuery(matchAllQuery()).execute().actionGet().getCount();
+        COUNT = client.prepareSearch(INDEX_NAME).setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits();
         System.out.println("--> Number of docs in index: " + COUNT);
 
         List<StatsResult> stats = new ArrayList<>();

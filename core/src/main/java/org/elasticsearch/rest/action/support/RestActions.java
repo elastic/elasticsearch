@@ -120,8 +120,7 @@ public class RestActions {
         QueryParseContext queryParseContext = new QueryParseContext(queryRegistry);
         queryParseContext.reset(parser);
         queryParseContext.parseFieldMatcher(parseFieldMatcher);
-        SearchSourceBuilder source = SearchSourceBuilder.parseSearchSource(parser, queryParseContext);
-        return source;
+        return SearchSourceBuilder.parseSearchSource(parser, queryParseContext);
     }
 
     /**

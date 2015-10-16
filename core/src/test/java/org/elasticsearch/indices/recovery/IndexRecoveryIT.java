@@ -516,7 +516,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         indexRandom(true, docs);
         flush();
-        assertThat(client().prepareCount(INDEX_NAME).get().getCount(), equalTo((long) numDocs));
+        assertThat(client().prepareSearch(INDEX_NAME).setSize(0).get().getHits().totalHits(), equalTo((long) numDocs));
         return client().admin().indices().prepareStats(INDEX_NAME).execute().actionGet();
     }
 

@@ -725,7 +725,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request The count request
      * @return The result future
-     * @see Requests#countRequest(String...)
      */
     ActionFuture<ValidateQueryResponse> validateQuery(ValidateQueryRequest request);
 
@@ -734,7 +733,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request  The count request
      * @param listener A listener to be notified of the result
-     * @see Requests#countRequest(String...)
      */
     void validateQuery(ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener);
 

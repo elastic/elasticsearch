@@ -113,7 +113,7 @@ public class QueryFilterAggregationSearchBenchmark {
             }
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
-        if (client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() != COUNT) {
+        if (client.prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits() != COUNT) {
             throw new Error();
         }
         System.out.println("--> Number of docs in index: " + COUNT);

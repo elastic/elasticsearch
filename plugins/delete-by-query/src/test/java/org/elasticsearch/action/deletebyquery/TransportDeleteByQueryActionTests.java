@@ -67,7 +67,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
             client().prepareIndex("test", "type").setSource("num", i).get();
         }
         client().admin().indices().prepareRefresh("test").get();
-        assertHitCount(client().prepareCount("test").get(), numDocs);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), numDocs);
 
         final long limit = randomIntBetween(0, numDocs);
         DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).query(boolQuery().must(rangeQuery("num").lte(limit)));
@@ -115,7 +115,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
             client().prepareIndex("test", "type").setSource("num", i).get();
         }
         client().admin().indices().prepareRefresh("test").get();
-        assertHitCount(client().prepareCount("test").get(), numDocs);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), numDocs);
 
         SearchResponse searchResponse = client().prepareSearch("test").setScroll(TimeValue.timeValueSeconds(10)).get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocs));
@@ -190,7 +190,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
             client().prepareIndex("test", "type").setSource("num", i).get();
         }
         client().admin().indices().prepareRefresh("test").get();
-        assertHitCount(client().prepareCount("test").get(), numDocs);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), numDocs);
 
         final long limit = randomIntBetween(0, numDocs);
 

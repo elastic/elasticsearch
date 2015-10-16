@@ -21,7 +21,7 @@ package org.elasticsearch.percolator;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
@@ -118,7 +118,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getCount(), equalTo(1l));
+        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(1l));
 
         PercolateResponse percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -135,7 +135,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        CountResponse countResponse = client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get();
         assertHitCount(countResponse, 1l);
 
         DeleteIndexResponse actionGet = client().admin().indices().prepareDelete("test").get();
@@ -144,7 +144,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getCount(), equalTo(0l));
+        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(0l));
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -164,7 +164,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getCount(), equalTo(1l));
+        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(1l));
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")

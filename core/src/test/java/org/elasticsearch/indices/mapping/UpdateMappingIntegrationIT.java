@@ -22,7 +22,7 @@ package org.elasticsearch.indices.mapping;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -75,8 +75,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         logger.info("checking all the documents are there");
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
-        CountResponse response = client().prepareCount("test").execute().actionGet();
-        assertThat(response.getCount(), equalTo((long) recCount));
+        SearchResponse response = client().prepareSearch("test").setSize(0).execute().actionGet();
+        assertThat(response.getHits().totalHits(), equalTo((long) recCount));
 
         logger.info("checking all the fields are in the mappings");
 

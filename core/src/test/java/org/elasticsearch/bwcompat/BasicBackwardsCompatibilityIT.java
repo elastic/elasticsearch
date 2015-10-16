@@ -28,7 +28,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.*;
@@ -162,7 +162,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             docs[i] = client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(i));
         }
         indexRandom(true, docs);
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
         if (randomBoolean()) {
@@ -223,11 +223,11 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             backwardsCluster().startNewNode();
         }
         assertAllShardsOnNodes("test", backwardsCluster().newNodePattern());
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
         final int numIters = randomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {
-            countResponse = client().prepareCount().get();
+            countResponse = client().prepareSearch().setSize(0).get();
             assertHitCount(countResponse, numDocs);
             assertSimpleSort("num_double", "num_int");
         }
@@ -283,7 +283,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertAllShardsOnNodes("test", backwardsCluster().backwardsNodePattern());
         disableAllocation("test");
         backwardsCluster().allowOnAllNodes("test");
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
         backwardsCluster().upgradeOneNode();
         ensureYellow();
@@ -297,7 +297,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         ensureYellow();
         final int numIters = randomIntBetween(1, 20);
         for (int i = 0; i < numIters; i++) {
-            assertHitCount(client().prepareCount().get(), numDocs);
+            assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
             assertSimpleSort("num_double", "num_int");
         }
         assertVersionCreated(compatibilityVersion(), "test");
@@ -332,12 +332,12 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         boolean upgraded;
         do {
             logClusterState();
-            CountResponse countResponse = client().prepareCount().get();
+            SearchResponse countResponse = client().prepareSearch().setSize(0).get();
             assertHitCount(countResponse, numDocs);
             assertSimpleSort("num_double", "num_int");
             upgraded = backwardsCluster().upgradeOneNode();
             ensureYellow();
-            countResponse = client().prepareCount().get();
+            countResponse = client().prepareSearch().setSize(0).get();
             assertHitCount(countResponse, numDocs);
             for (int i = 0; i < numDocs; i++) {
                 docs[i] = client().prepareIndex(indexForDoc[i], "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
@@ -346,7 +346,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         } while (upgraded);
         enableAllocation(indices);
         ensureYellow();
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
         assertSimpleSort("num_double", "num_int");
 
@@ -414,47 +414,47 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
                     client().prepareIndex(indexName, "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
                     client().prepareIndex(indexName, "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
 
-            CountResponse countResponse = client().prepareCount().setQuery(existsQuery("field1")).get();
+            SearchResponse countResponse = client().prepareSearch().setSize(0).setQuery(existsQuery("field1")).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(constantScoreQuery(existsQuery("field1"))).get();
+            countResponse = client().prepareSearch().setSize(0).setQuery(constantScoreQuery(existsQuery("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(queryStringQuery("_exists_:field1")).get();
+            countResponse = client().prepareSearch().setSize(0).setQuery(queryStringQuery("_exists_:field1")).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(existsQuery("field2")).get();
+            countResponse = client().prepareSearch().setSize(0).setQuery(existsQuery("field2")).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(existsQuery("field3")).get();
+            countResponse = client().prepareSearch().setSize(0).setQuery(existsQuery("field3")).get();
             assertHitCount(countResponse, 1l);
 
             // wildcard check
-            countResponse = client().prepareCount().setQuery(existsQuery("x*")).get();
+            countResponse = client().prepareSearch().setSize(0).setQuery(existsQuery("x*")).get();
             assertHitCount(countResponse, 2l);
 
             // object check
-            countResponse = client().prepareCount().setQuery(existsQuery("obj1")).get();
+            countResponse = client().prepareSearch().setSize(0).setQuery(existsQuery("obj1")).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(missingQuery("field1")).get();
+            countResponse = client().prepareSearch().setSize(0).setQuery(missingQuery("field1")).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(missingQuery("field1")).get();
+            countResponse = client().prepareSearch().setSize(0).setQuery(missingQuery("field1")).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(constantScoreQuery(missingQuery("field1"))).get();
+            countResponse = client().prepareSearch().setSize(0).setQuery(constantScoreQuery(missingQuery("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(queryStringQuery("_missing_:field1")).get();
+            countResponse = client().prepareSearch().setSize(0).setQuery(queryStringQuery("_missing_:field1")).get();
             assertHitCount(countResponse, 2l);
 
             // wildcard check
-            countResponse = client().prepareCount().setQuery(missingQuery("x*")).get();
+            countResponse = client().prepareSearch().setSize(0).setQuery(missingQuery("x*")).get();
             assertHitCount(countResponse, 2l);
 
             // object check
-            countResponse = client().prepareCount().setQuery(missingQuery("obj1")).get();
+            countResponse = client().prepareSearch().setSize(0).setQuery(missingQuery("obj1")).get();
             assertHitCount(countResponse, 2l);
             if (!backwardsCluster().upgradeOneNode()) {
                 break;

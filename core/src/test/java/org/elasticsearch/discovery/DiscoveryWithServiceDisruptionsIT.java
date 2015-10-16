@@ -969,7 +969,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // wait for relocation to finish
         endRelocationLatch.await();
         // now search for the documents and see if we get a reply
-        assertThat(client().prepareCount().get().getCount(), equalTo(100l));
+        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo(100l));
     }
 
     @Test

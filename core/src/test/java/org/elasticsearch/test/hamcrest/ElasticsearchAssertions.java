@@ -36,7 +36,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
@@ -206,17 +205,6 @@ public class ElasticsearchAssertions {
         return msg;
     }
 
-    /*
-     * assertions
-     */
-    public static void assertHitCount(SearchResponse searchResponse, long expectedHitCount) {
-        if (searchResponse.getHits().totalHits() != expectedHitCount) {
-            fail("Hit count is " + searchResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. "
-                    + formatShardStatus(searchResponse));
-        }
-        assertVersionSerializable(searchResponse);
-    }
-
     public static void assertNoSearchHits(SearchResponse searchResponse) {
         assertEquals(0, searchResponse.getHits().getHits().length);
     }
@@ -256,9 +244,9 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(searchResponse);
     }
 
-    public static void assertHitCount(CountResponse countResponse, long expectedHitCount) {
-        if (countResponse.getCount() != expectedHitCount) {
-            fail("Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
+    public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
+        if (countResponse.getHits().totalHits() != expectedHitCount) {
+            fail("Count is " + countResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
         assertVersionSerializable(countResponse);
     }

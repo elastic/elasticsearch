@@ -29,7 +29,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
@@ -162,7 +162,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
         final int numShards = numShards("test");
@@ -267,7 +267,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
         ShardRouting shardRouting = corruptRandomPrimaryFile();
@@ -413,7 +413,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
         final boolean truncate = randomBoolean();
         for (NodeStats dataNode : dataNodeStats) {
@@ -495,7 +495,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
         ShardRouting shardRouting = corruptRandomPrimaryFile(false);
@@ -551,7 +551,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
         final Map<String, List<Path>> filesToCorrupt = findFilesToCorruptForReplica();

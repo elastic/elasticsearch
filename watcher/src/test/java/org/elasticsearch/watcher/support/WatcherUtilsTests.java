@@ -191,8 +191,9 @@ public class WatcherUtilsTests extends ESTestCase {
         }
 
         BytesReference source = null;
+        SearchSourceBuilder searchSourceBuilder = null;
         if (randomBoolean()) {
-            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
+            searchSourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
             XContentBuilder searchSourceJsonBuilder = jsonBuilder();
             searchSourceBuilder.toXContent(searchSourceJsonBuilder, ToXContent.EMPTY_PARAMS);
             source = searchSourceBuilder.buildAsBytes(XContentType.JSON);
@@ -228,7 +229,7 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(result.types(), arrayContainingInAnyOrder(types));
         assertThat(result.indicesOptions(), equalTo(indicesOptions));
         assertThat(result.searchType(), equalTo(searchType));
-        assertThat(result.source(), equalTo(source));
+        assertThat(result.source(), equalTo(searchSourceBuilder));
         assertThat(result.template(), equalTo(templateSource));
     }
 

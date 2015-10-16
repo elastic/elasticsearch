@@ -91,7 +91,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
             });
         } catch (IndexNotFoundException ex) {
             logger.debug("failed to put mappings on indices [{}], type [{}]", ex, request.indices(), request.type());
-            listener.onFailure(ex);
+            throw ex;
         }
     }
 }

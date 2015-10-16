@@ -27,6 +27,8 @@ include::example-watches.asciidoc[]
 
 include::reference.asciidoc[]
 
+include::managing-watcher-licenses.asciidoc[]
+
 include::troubleshooting.asciidoc[]
 
 include::release-notes.asciidoc[]

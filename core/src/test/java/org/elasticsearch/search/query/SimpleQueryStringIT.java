@@ -109,7 +109,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 client().prepareIndex("test", "type1", "3").setSource("body", "foo bar"),
                 client().prepareIndex("test", "type1", "4").setSource("body", "foo baz bar"));
 
-
         logger.info("--> query 1");
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").minimumShouldMatch("2")).get();
         assertHitCount(searchResponse, 2l);
@@ -120,7 +119,13 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "3", "4");
 
-        logger.info("--> query 3");
+        logger.info("--> query 3"); // test case from #13884
+        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo")
+                .field("body").field("body2").field("body3").minimumShouldMatch("-50%")).get();
+        assertHitCount(searchResponse, 3l);
+        assertSearchHits(searchResponse, "1", "3", "4");
+
+        logger.info("--> query 4");
         searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body").field("body2").minimumShouldMatch("70%")).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "3", "4");
@@ -131,17 +136,17 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 client().prepareIndex("test", "type1", "7").setSource("body2", "foo bar", "other", "foo"),
                 client().prepareIndex("test", "type1", "8").setSource("body2", "foo baz bar", "other", "foo"));
 
-        logger.info("--> query 4");
+        logger.info("--> query 5");
         searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").field("body").field("body2").minimumShouldMatch("2")).get();
         assertHitCount(searchResponse, 4l);
         assertSearchHits(searchResponse, "3", "4", "7", "8");
 
-        logger.info("--> query 5");
+        logger.info("--> query 6");
         searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").minimumShouldMatch("2")).get();
         assertHitCount(searchResponse, 5l);
         assertSearchHits(searchResponse, "3", "4", "6", "7", "8");
 
-        logger.info("--> query 6");
+        logger.info("--> query 7");
         searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body2").field("other").minimumShouldMatch("70%")).get();
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "6", "7", "8");

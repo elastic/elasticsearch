@@ -19,18 +19,28 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Test;
 
 import java.util.HashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -107,8 +117,8 @@ public class CreateIndexIT extends ESIntegTestCase {
     public void testInvalidShardCountSettings() throws Exception {
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(-10, 0))
-                .build())
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(-10, 0))
+                    .build())
             .get();
             fail("should have thrown an exception about the primary shard count");
         } catch (IllegalArgumentException e) {
@@ -118,8 +128,8 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
-                .build())
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
+                    .build())
                     .get();
             fail("should have thrown an exception about the replica shard count");
         } catch (IllegalArgumentException e) {
@@ -129,9 +139,9 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(-10, 0))
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
-                .build())
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(-10, 0))
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
+                    .build())
                     .get();
             fail("should have thrown an exception about the shard count");
         } catch (IllegalArgumentException e) {
@@ -194,6 +204,61 @@ public class CreateIndexIT extends ESIntegTestCase {
             assertThat("message contains error about shard count: " + e.getMessage(),
                 e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
         }
+    }
+
+    public void testCreateAndDeleteIndexConcurrently() throws InterruptedException {
+        createIndex("test");
+        final AtomicInteger indexDeleteAction = new AtomicInteger(0);
+        final CountDownLatch latch = new CountDownLatch(1);
+        int numDocs = randomIntBetween(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "test").setSource("index_version", indexDeleteAction.get()).get();
+        }
+        synchronized (indexDeleteAction) { // not necessarily needed here
+            indexDeleteAction.incrementAndGet();
+        }
+        client().admin().indices().prepareDelete("test").execute(new ActionListener<DeleteIndexResponse>() { // this happens async!!!
+                @Override
+                public void onResponse(DeleteIndexResponse deleteIndexResponse) {
+                    Thread thread = new Thread() {
+                     public void run() {
+                         try {
+                             client().prepareIndex("test", "test").setSource("index_version", indexDeleteAction.get()).get(); // recreate that index
+                             synchronized (indexDeleteAction) {
+                                 indexDeleteAction.incrementAndGet();
+                             }
+                             client().admin().indices().prepareDelete("test").get(); // from here on all docs with index_version == 0|1 must be gone!!!! only 2 are ok;
+                         } finally {
+                             latch.countDown();
+                         }
+                     }
+                    };
+                    thread.start();
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                 ExceptionsHelper.reThrowIfNotNull(e);
+                }
+            }
+        );
+        numDocs = randomIntBetween(100, 200);
+        for (int i = 0; i < numDocs; i++) {
+            try {
+                synchronized (indexDeleteAction) {
+                    client().prepareIndex("test", "test").setSource("index_version", indexDeleteAction.get()).get();
+                }
+            } catch (IndexNotFoundException inf) {
+                // fine
+            }
+        }
+        latch.await();
+        refresh();
+        SearchResponse expected = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(new RangeQueryBuilder("index_version").from(indexDeleteAction.get(), true)).get();
+        SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits(), all.getHits().getTotalHits()
+        );
+        logger.info("total: {}", expected.getHits().getTotalHits());
     }
 
 }

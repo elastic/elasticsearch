@@ -77,12 +77,9 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null,
-                null,
                 Version.CURRENT,
                 null,
                 new HashSet<>(),
-                null,
                 null
         );
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService, null);

@@ -34,7 +34,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 
 /**
  * A count action request builder.
+ *
+ * @deprecated use {@link org.elasticsearch.action.search.SearchRequestBuilder} instead and set size to 0
  */
+@Deprecated
 public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountRequest, CountResponse, CountRequestBuilder> {
 
     private QuerySourceBuilder sourceBuilder;

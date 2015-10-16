@@ -30,7 +30,10 @@ import java.util.Arrays;
 
 /**
  * The response of the count action.
+ *
+ * @deprecated use the search api with size 0 rather than the count api, namely {@link SearchResponse} instead.
  */
+@Deprecated
 public class CountResponse extends BroadcastResponse {
 
     private final boolean terminatedEarly;

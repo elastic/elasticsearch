@@ -25,7 +25,9 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Action that shortcuts to the search api with size set to 0. It doesn't have a corresponding
  * transport action, it just runs the search api internally.
+ * @deprecated use the search api with size 0 rather than the count api, namely {@link org.elasticsearch.action.search.SearchAction} instead.
  */
+@Deprecated
 public class CountAction extends Action<CountRequest, CountResponse, CountRequestBuilder> {
 
     public static final CountAction INSTANCE = new CountAction();

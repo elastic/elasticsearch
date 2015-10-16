@@ -131,7 +131,9 @@ public class Requests {
      * @param indices The indices to count matched documents against a query. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The count request
      * @see org.elasticsearch.client.Client#count(org.elasticsearch.action.count.CountRequest)
+     * @deprecated use {@link #searchRequest(String...)} instead and set size to 0
      */
+    @Deprecated
     public static CountRequest countRequest(String... indices) {
         return new CountRequest(indices);
     }

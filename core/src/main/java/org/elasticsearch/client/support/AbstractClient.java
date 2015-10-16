@@ -613,12 +613,14 @@ public abstract class AbstractClient extends AbstractComponent implements Client
                 return new CountResponse(listenerResponse);
             }
         };
+        deprecationLogger.deprecated("the count api is deprecated and will be removed from the java api in the next major version");
         execute(SearchAction.INSTANCE, request.toSearchRequest(), actionFuture);
         return actionFuture;
     }
 
     @Override
     public void count(final CountRequest request, final ActionListener<CountResponse> listener) {
+        deprecationLogger.deprecated("the count api is deprecated and will be removed from the java api in the next major version");
         execute(SearchAction.INSTANCE, request.toSearchRequest(), new DelegatingActionListener<SearchResponse, CountResponse>(listener) {
             @Override
             protected CountResponse getDelegatedFromInstigator(SearchResponse response) {
@@ -629,6 +631,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
     @Override
     public CountRequestBuilder prepareCount(String... indices) {
+        deprecationLogger.deprecated("the count api is deprecated and will be removed from the java api in the next major version");
         return new CountRequestBuilder(this, CountAction.INSTANCE).setIndices(indices);
     }
 

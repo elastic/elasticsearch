@@ -51,7 +51,10 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
  * @see CountResponse
  * @see org.elasticsearch.client.Client#count(CountRequest)
  * @see org.elasticsearch.client.Requests#countRequest(String...)
+ *
+ * @deprecated use {@link SearchRequest} instead and set the size to 0
  */
+@Deprecated
 public class CountRequest extends BroadcastRequest<CountRequest> {
 
     public static final float DEFAULT_MIN_SCORE = -1f;

@@ -1,6 +1,8 @@
 [[count]]
 == Count API
 
+deprecated[2.1.0, Use the `search` api instead and set `size` to `0`]
+
 The count API is very similar to the
 {java}/count.html[Java count API]. The Groovy
 extension allows to provide the query to execute as a `Closure` (similar

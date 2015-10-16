@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.count;
 
 import org.elasticsearch.action.count.CountRequest;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
@@ -33,10 +33,10 @@ import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.action.count.CountRequest.DEFAULT_MIN_SCORE;
-import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 /**
  *
@@ -77,15 +77,16 @@ public class RestCountAction extends BaseRestHandler {
         } else if (terminateAfter > 0) {
             countRequest.terminateAfter(terminateAfter);
         }
-        client.count(countRequest, new RestBuilderListener<CountResponse>(channel) {
+        client.search(countRequest.toSearchRequest(), new RestBuilderListener<SearchResponse>(channel) {
             @Override
-            public RestResponse buildResponse(CountResponse response, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(SearchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
-                    builder.field("terminated_early", response.terminatedEarly());
+                    builder.field("terminated_early", response.isTerminatedEarly());
                 }
-                builder.field("count", response.getCount());
-                buildBroadcastShardsHeader(builder, request, response);
+                builder.field("count", response.getHits().totalHits());
+                buildBroadcastShardsHeader(builder, request, response.getTotalShards(), response.getSuccessfulShards(),
+                        response.getFailedShards(), response.getShardFailures());
 
                 builder.endObject();
                 return new BytesRestResponse(response.status(), builder);

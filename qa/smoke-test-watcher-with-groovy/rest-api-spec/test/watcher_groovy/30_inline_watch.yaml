@@ -29,8 +29,8 @@
                     "indices" : [ "logstash*" ],
                     "body" : {
                       "query" : {
-                        "filtered": {
-                          "query": {
+                        "bool" : {
+                          "must": {
                             "match": {
                               "response": 404
                             }

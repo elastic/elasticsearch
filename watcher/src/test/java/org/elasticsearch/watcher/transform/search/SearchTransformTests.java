@@ -44,6 +44,7 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
+import org.joda.time.chrono.ISOChronology;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -266,13 +267,7 @@ public class SearchTransformTests extends ESIntegTestCase {
             builder.field("template", template);
         }
 
-        XContentBuilder sourceBuilder = jsonBuilder().startObject()
-                    .startObject("query")
-                        .startObject("match_all")
-                        .endObject()
-                    .endObject()
-                .endObject();
-        BytesReference source = sourceBuilder.bytes();
+        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
 
         builder.startObject("body")
                 .startObject("query")
@@ -327,8 +322,8 @@ public class SearchTransformTests extends ESIntegTestCase {
                 + "\"include_lower\":true,\"include_upper\":true}}}]}}}";
 
         Map<String, Object> triggerParams = new HashMap<String, Object>();
-        triggerParams.put("triggered_time", "1970-01-01T00:01:00.000Z");
-        triggerParams.put("scheduled_time", "1970-01-01T00:01:00.000Z");
+        triggerParams.put("triggered_time", new DateTime(1970, 01, 01, 00, 01, 00, 000, ISOChronology.getInstanceUTC()));
+        triggerParams.put("scheduled_time", new DateTime(1970, 01, 01, 00, 01, 00, 000, ISOChronology.getInstanceUTC()));
         Map<String, Object> ctxParams = new HashMap<String, Object>();
         ctxParams.put("id", ctx.id().value());
         ctxParams.put("metadata", null);
@@ -336,7 +331,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         ctxParams.put("watch_id", "test-watch");
         ctxParams.put("payload", new HashMap<String, Object>());
         ctxParams.put("trigger", triggerParams);
-        ctxParams.put("execution_time", "1970-01-01T00:01:00.000Z");
+        ctxParams.put("execution_time", new DateTime(1970, 01, 01, 00, 01, 00, 000, ISOChronology.getInstanceUTC()));
         Map<String, Object> expectedParams = new HashMap<String, Object>();
         expectedParams.put("seconds_param", "30s");
         expectedParams.put("ctx", ctxParams);

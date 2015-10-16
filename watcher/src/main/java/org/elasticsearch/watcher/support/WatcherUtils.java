@@ -82,10 +82,11 @@ public final class WatcherUtils {
             // Here we convert watcher template into a ES core templates. Due to the different format we use, we
             // convert to the template format used in ES core
             Template template = requestPrototype.template();
-            Map<String, Object> params = new HashMap<>();
-            params.putAll(watcherContextParams);
-            params.putAll(template.getParams());
-            template = new Template(template.getScript(), template.getType(), template.getLang(), template.getContentType(), params);
+            if (template.getParams() != null) {
+                watcherContextParams.putAll(template.getParams());
+            }
+            template = new Template(template.getScript(), template.getType(), template.getLang(), template.getContentType(),
+                    watcherContextParams);
             request.template(template);
             // }
         }

@@ -142,6 +142,16 @@ if [ -z "$daemonized" ] ; then
 else
     exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
           org.elasticsearch.bootstrap.Elasticsearch start "$@" <&- &
+    retval=$?
+    pid=$!
+    [ $retval -eq 0 ] || exit $retval
+    if [ ! -z "$ES_STARTUP_SLEEP_TIME" ]; then
+      sleep $ES_STARTUP_SLEEP_TIME
+    fi
+    if ! ps -p $pid > /dev/null ; then
+      exit 1
+    fi
+    exit 0
 fi
 
 exit $?

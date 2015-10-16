@@ -2009,8 +2009,8 @@ public class SearchQueryIT extends ESIntegTestCase {
                 client().prepareIndex("test", "type", "3").setSource("field", -999999999999L));
 
 
-        assertHitCount(client().prepareCount("test").setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 2);
-        assertHitCount(client().prepareCount("test").setQuery(rangeQuery("field").lte(-999999999999L)).get(), 3);
+        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 2);
+        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-999999999999L)).get(), 3);
     }
 
     @Test

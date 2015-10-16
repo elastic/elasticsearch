@@ -123,7 +123,7 @@ public class ChildSearchShortCircuitBenchmark {
             }
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
-        System.out.println("--> Number of docs in index: " + client.prepareCount(indexName).setQuery(matchAllQuery()).execute().actionGet().getCount());
+        System.out.println("--> Number of docs in index: " + client.prepareSearch(indexName).setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits());
 
         System.out.println("--> Running just child query");
         // run just the child query, warm up first

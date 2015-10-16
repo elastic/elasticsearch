@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -328,10 +328,10 @@ public class PercolatorIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         refresh();
-        CountResponse countResponse = client().prepareCount()
+        SearchResponse countResponse = client().prepareSearch().setSize(0)
                 .setQuery(matchAllQuery()).setTypes(PercolatorService.TYPE_NAME)
                 .execute().actionGet();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        assertThat(countResponse.getHits().totalHits(), equalTo(1l));
 
 
         for (int i = 0; i < 10; i++) {
@@ -357,7 +357,7 @@ public class PercolatorIT extends ESIntegTestCase {
         logger.info("--> delete the index");
         client().admin().indices().prepareDelete("test").execute().actionGet();
         logger.info("--> make sure percolated queries for it have been deleted as well");
-        countResponse = client().prepareCount()
+        countResponse = client().prepareSearch().setSize(0)
                 .setQuery(matchAllQuery()).setTypes(PercolatorService.TYPE_NAME)
                 .execute().actionGet();
         assertHitCount(countResponse, 0l);

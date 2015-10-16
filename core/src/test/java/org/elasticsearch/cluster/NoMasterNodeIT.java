@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -127,11 +126,11 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(client().prepareCount("test"),
+        assertThrows(client().prepareSearch("test").setSize(0),
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(client().prepareCount("no_index"),
+        assertThrows(client().prepareSearch("no_index").setSize(0),
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
@@ -248,13 +247,13 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         GetResponse getResponse = client().prepareGet("test1", "type1", "1").get();
         assertExists(getResponse);
 
-        CountResponse countResponse = client().prepareCount("test1").get();
+        SearchResponse countResponse = client().prepareSearch("test1").setSize(0).get();
         assertHitCount(countResponse, 1l);
 
         SearchResponse searchResponse = client().prepareSearch("test1").get();
         assertHitCount(searchResponse, 1l);
 
-        countResponse = client().prepareCount("test2").get();
+        countResponse = client().prepareSearch("test2").setSize(0).get();
         assertThat(countResponse.getTotalShards(), equalTo(2));
         assertThat(countResponse.getSuccessfulShards(), equalTo(1));
 

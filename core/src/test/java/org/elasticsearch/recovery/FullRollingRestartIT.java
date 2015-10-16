@@ -88,7 +88,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> refreshing and checking data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000l);
         }
 
         // now start shutting nodes down
@@ -106,7 +106,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> stopped two nodes, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000l);
         }
 
         // closing the 3rd node
@@ -124,7 +124,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> one node left, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000l);
         }
     }
 }

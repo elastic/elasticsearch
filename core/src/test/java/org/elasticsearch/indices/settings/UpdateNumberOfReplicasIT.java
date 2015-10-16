@@ -21,7 +21,7 @@ package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -70,7 +70,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         refresh();
 
         for (int i = 0; i < 10; i++) {
-            CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).get();
+            SearchResponse countResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
             assertHitCount(countResponse, 10l);
         }
 
@@ -100,7 +100,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 3));
 
         for (int i = 0; i < 10; i++) {
-            CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).get();
+            SearchResponse countResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
             assertHitCount(countResponse, 10l);
         }
 

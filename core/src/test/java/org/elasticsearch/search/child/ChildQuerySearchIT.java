@@ -21,7 +21,7 @@ package org.elasticsearch.search.child;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -558,19 +558,19 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         client().prepareIndex("test", "child", "c1").setSource("c_field", "1").setParent(parentId).get();
         refresh();
 
-        CountResponse countResponse = client().prepareCount("test").setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreMode(ScoreMode.Max))
+        SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreMode(ScoreMode.Max))
                 .get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(hasParentQuery("parent", termQuery("p_field", "1")).score(true))
+        countResponse = client().prepareSearch("test").setSize(0).setQuery(hasParentQuery("parent", termQuery("p_field", "1")).score(true))
                 .get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "1"))))
+        countResponse = client().prepareSearch("test").setSize(0).setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "1"))))
                 .get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(hasParentQuery("parent", termQuery("p_field", "1"))))
+        countResponse = client().prepareSearch("test").setSize(0).setQuery(constantScoreQuery(hasParentQuery("parent", termQuery("p_field", "1"))))
                 .get();
         assertHitCount(countResponse, 1l);
     }

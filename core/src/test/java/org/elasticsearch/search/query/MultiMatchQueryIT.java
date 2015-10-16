@@ -19,15 +19,12 @@
 package org.elasticsearch.search.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.search.SearchHit;
@@ -39,9 +36,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -278,8 +273,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
     @Test
     public void testCutoffFreq() throws ExecutionException, InterruptedException {
-        final long numDocs = client().prepareCount("test")
-                .setQuery(matchAllQuery()).get().getCount();
+        final long numDocs = client().prepareSearch("test").setSize(0)
+                .setQuery(matchAllQuery()).get().getHits().totalHits();
         MatchQuery.Type type = randomBoolean() ? MatchQueryBuilder.DEFAULT_TYPE : MatchQuery.Type.BOOLEAN;
         Float cutoffFrequency = randomBoolean() ? Math.min(1, numDocs * 1.f / between(10, 20)) : 1.f / between(10, 20);
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -340,8 +335,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
     @Test
     public void testEquivalence() {
 
-        final int numDocs = (int) client().prepareCount("test")
-                .setQuery(matchAllQuery()).get().getCount();
+        final int numDocs = (int) client().prepareSearch("test").setSize(0)
+                .setQuery(matchAllQuery()).get().getHits().totalHits();
         int numIters = scaledRandomIntBetween(5, 10);
         for (int i = 0; i < numIters; i++) {
             {

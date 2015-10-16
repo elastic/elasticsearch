@@ -169,7 +169,7 @@ public class PercentilesAggregationSearchBenchmark {
         System.out.println("## Precision");
         for (Distribution d : Distribution.values()) {
             System.out.println("#### " + d);
-            final long count = client.prepareCount(d.indexName()).setQuery(matchAllQuery()).execute().actionGet().getCount();
+            final long count = client.prepareSearch(d.indexName()).setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits();
             if (count != NUM_DOCS + 1) {
                 throw new Error("Expected " + NUM_DOCS + " documents, got " + (count - 1));
             }

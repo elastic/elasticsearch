@@ -37,7 +37,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequestBuilder;
-import org.elasticsearch.action.count.CountRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
@@ -75,7 +74,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         // Verify defaults
         verify(search("test1", "test2"), true);
         verify(msearch(null, "test1", "test2"), true);
-        verify(count("test1", "test2"), true);
         verify(clearCache("test1", "test2"), true);
         verify(_flush("test1", "test2"),true);
         verify(segments("test1", "test2"), true);
@@ -97,7 +95,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         IndicesOptions options = IndicesOptions.strictExpandOpen();
         verify(search("test1", "test2").setIndicesOptions(options), true);
         verify(msearch(options, "test1", "test2"), true);
-        verify(count("test1", "test2").setIndicesOptions(options), true);
         verify(clearCache("test1", "test2").setIndicesOptions(options), true);
         verify(_flush("test1", "test2").setIndicesOptions(options),true);
         verify(segments("test1", "test2").setIndicesOptions(options), true);
@@ -119,7 +116,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         options = IndicesOptions.lenientExpandOpen();
         verify(search("test1", "test2").setIndicesOptions(options), false);
         verify(msearch(options, "test1", "test2").setIndicesOptions(options), false);
-        verify(count("test1", "test2").setIndicesOptions(options), false);
         verify(clearCache("test1", "test2").setIndicesOptions(options), false);
         verify(_flush("test1", "test2").setIndicesOptions(options), false);
         verify(segments("test1", "test2").setIndicesOptions(options), false);
@@ -143,7 +139,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         ensureYellow();
         verify(search("test1", "test2").setIndicesOptions(options), false);
         verify(msearch(options, "test1", "test2").setIndicesOptions(options), false);
-        verify(count("test1", "test2").setIndicesOptions(options), false);
         verify(clearCache("test1", "test2").setIndicesOptions(options), false);
         verify(_flush("test1", "test2").setIndicesOptions(options),false);
         verify(segments("test1", "test2").setIndicesOptions(options), false);
@@ -176,7 +171,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         IndicesOptions options = IndicesOptions.strictExpandOpenAndForbidClosed();
         verify(search("test1").setIndicesOptions(options), true);
         verify(msearch(options, "test1"), true);
-        verify(count("test1").setIndicesOptions(options), true);
         verify(clearCache("test1").setIndicesOptions(options), true);
         verify(_flush("test1").setIndicesOptions(options),true);
         verify(segments("test1").setIndicesOptions(options), true);
@@ -198,7 +192,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
         verify(search("test1").setIndicesOptions(options), false);
         verify(msearch(options, "test1"), false);
-        verify(count("test1").setIndicesOptions(options), false);
         verify(clearCache("test1").setIndicesOptions(options), false);
         verify(_flush("test1").setIndicesOptions(options),false);
         verify(segments("test1").setIndicesOptions(options), false);
@@ -223,7 +216,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         options = IndicesOptions.strictExpandOpenAndForbidClosed();
         verify(search("test1").setIndicesOptions(options), false);
         verify(msearch(options, "test1"), false);
-        verify(count("test1").setIndicesOptions(options), false);
         verify(clearCache("test1").setIndicesOptions(options), false);
         verify(_flush("test1").setIndicesOptions(options),false);
         verify(segments("test1").setIndicesOptions(options), false);
@@ -248,7 +240,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         IndicesOptions options = IndicesOptions.strictExpandOpenAndForbidClosed();
         verify(search("test1").setIndicesOptions(options), true);
         verify(msearch(options, "test1"), true);
-        verify(count("test1").setIndicesOptions(options), true);
         verify(clearCache("test1").setIndicesOptions(options), true);
         verify(_flush("test1").setIndicesOptions(options),true);
         verify(segments("test1").setIndicesOptions(options), true);
@@ -269,7 +260,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
         verify(search("test1").setIndicesOptions(options), false);
         verify(msearch(options, "test1"), false);
-        verify(count("test1").setIndicesOptions(options), false);
         verify(clearCache("test1").setIndicesOptions(options), false);
         verify(_flush("test1").setIndicesOptions(options),false);
         verify(segments("test1").setIndicesOptions(options), false);
@@ -293,7 +283,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         options = IndicesOptions.strictExpandOpenAndForbidClosed();
         verify(search("test1").setIndicesOptions(options), false);
         verify(msearch(options, "test1"), false);
-        verify(count("test1").setIndicesOptions(options), false);
         verify(clearCache("test1").setIndicesOptions(options), false);
         verify(_flush("test1").setIndicesOptions(options),false);
         verify(segments("test1").setIndicesOptions(options), false);
@@ -349,7 +338,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         String[] indices = Strings.EMPTY_ARRAY;
         verify(search(indices), false);
         verify(msearch(null, indices), false);
-        verify(count(indices), false);
         verify(clearCache(indices), false);
         verify(_flush(indices),false);
         verify(segments(indices), false);
@@ -372,7 +360,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         IndicesOptions options = IndicesOptions.fromOptions(false, true, true, false);
         verify(search(indices).setIndicesOptions(options), false);
         verify(msearch(options, indices).setIndicesOptions(options), false);
-        verify(count(indices).setIndicesOptions(options), false);
         verify(clearCache(indices).setIndicesOptions(options), false);
         verify(_flush(indices).setIndicesOptions(options),false);
         verify(segments(indices).setIndicesOptions(options), false);
@@ -398,7 +385,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         indices = new String[]{"foo*"};
         verify(search(indices), false, 1);
         verify(msearch(null, indices), false, 1);
-        verify(count(indices), false, 1);
         verify(clearCache(indices), false);
         verify(_flush(indices),false);
         verify(segments(indices), false);
@@ -421,7 +407,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         indices = new String[]{"foo*", "bar*"};
         verify(search(indices), false, 1);
         verify(msearch(null, indices), false, 1);
-        verify(count(indices), false, 1);
         verify(clearCache(indices), false);
         verify(_flush(indices),false);
         verify(segments(indices), false);
@@ -444,7 +429,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         options = IndicesOptions.fromOptions(false, true, true, false);
         verify(search(indices).setIndicesOptions(options), false, 1);
         verify(msearch(options, indices).setIndicesOptions(options), false, 1);
-        verify(count(indices).setIndicesOptions(options), false, 1);
         verify(clearCache(indices).setIndicesOptions(options), false);
         verify(_flush(indices).setIndicesOptions(options),false);
         verify(segments(indices).setIndicesOptions(options), false);
@@ -549,21 +533,16 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         createIndex("test1", "test2");
         ensureGreen();
         verify(search("test1", "test2"), false);
-        verify(count("test1", "test2"), false);
         assertAcked(client().admin().indices().prepareClose("test2").get());
 
         verify(search("test1", "test2"), true);
-        verify(count("test1", "test2"), true);
 
         IndicesOptions options = IndicesOptions.fromOptions(true, true, true, false, IndicesOptions.strictExpandOpenAndForbidClosed());
         verify(search("test1", "test2").setIndicesOptions(options), false);
-        verify(count("test1", "test2").setIndicesOptions(options), false);
 
         verify(search(), false);
-        verify(count(), false);
 
         verify(search("t*"), false);
-        verify(count("t*"), false);
     }
 
     @Test
@@ -793,10 +772,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         return multiSearchRequestBuilder.add(client().prepareSearch(indices).setQuery(matchAllQuery()));
     }
 
-    private static CountRequestBuilder count(String... indices) {
-        return client().prepareCount(indices).setQuery(matchAllQuery());
-    }
-
     private static ClearIndicesCacheRequestBuilder clearCache(String... indices) {
         return client().admin().indices().prepareClearCache(indices);
     }
@@ -902,9 +877,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
             if (requestBuilder instanceof SearchRequestBuilder) {
                 SearchRequestBuilder searchRequestBuilder = (SearchRequestBuilder) requestBuilder;
                 assertHitCount(searchRequestBuilder.get(), expectedCount);
-            } else if (requestBuilder instanceof CountRequestBuilder) {
-                CountRequestBuilder countRequestBuilder = (CountRequestBuilder) requestBuilder;
-                assertHitCount(countRequestBuilder.get(), expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
                 assertThat(multiSearchResponse.getResponses().length, equalTo(1));

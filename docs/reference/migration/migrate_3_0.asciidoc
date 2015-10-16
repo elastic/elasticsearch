@@ -148,6 +148,22 @@ Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE 
 
 === Java-API
 
+==== Count api has been removed
+
+The deprecated count api has been removed from the Java api, use the search api instead and set size to 0.
+
+The following call
+
+```
+client.prepareCount(indices).setQuery(query).get();
+```
+
+can be replaced with
+
+```
+client.prepareSearch(indices).setSource(new SearchSourceBuilder().size(0).query(query)).get();
+```
+
 ==== BoostingQueryBuilder
 
 Removed setters for mandatory positive/negative query. Both arguments now have

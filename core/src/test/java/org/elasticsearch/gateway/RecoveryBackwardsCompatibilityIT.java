@@ -19,8 +19,8 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
@@ -83,7 +83,7 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
         logger.info("--> upgrade cluster");
         logClusterState();
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")).execute().actionGet();
@@ -91,7 +91,7 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")).execute().actionGet();
         ensureGreen();
 
-        countResponse = client().prepareCount().get();
+        countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").setDetailed(true).get();

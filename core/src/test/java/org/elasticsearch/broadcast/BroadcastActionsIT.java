@@ -19,9 +19,7 @@
 
 package org.elasticsearch.broadcast;
 
-import java.nio.charset.StandardCharsets;
-import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -29,7 +27,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.client.Requests.countRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -60,10 +57,10 @@ public class BroadcastActionsIT extends ESIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            CountResponse countResponse = client().prepareCount("test")
+            SearchResponse countResponse = client().prepareSearch("test").setSize(0)
                     .setQuery(termQuery("_type", "type1"))
                     .get();
-            assertThat(countResponse.getCount(), equalTo(2l));
+            assertThat(countResponse.getHits().totalHits(), equalTo(2l));
             assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));

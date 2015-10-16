@@ -25,7 +25,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -407,7 +407,7 @@ public class BulkTests extends ESIntegTestCase {
 
         refresh();
 
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
     }
 

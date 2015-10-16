@@ -103,7 +103,7 @@ public class SuggestSearchBenchMark {
             System.out.println("Indexing took " + stopWatch.totalTime());
 
             client.admin().indices().prepareRefresh().execute().actionGet();
-            System.out.println("Count: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount());
+            System.out.println("Count: " + client.prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits());
         } catch (Exception e) {
             System.out.println("--> Index already exists, ignoring indexing phase, waiting for green");
             ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
@@ -111,7 +111,7 @@ public class SuggestSearchBenchMark {
                 System.err.println("--> Timed out waiting for cluster health");
             }
             client.admin().indices().prepareRefresh().execute().actionGet();
-            System.out.println("Count: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount());
+            System.out.println("Count: " + client.prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits());
         }
 
 

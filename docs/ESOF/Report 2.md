@@ -33,7 +33,7 @@ Since its inception, the project has admirably met its myriad requirements, whic
 
 Use Cases
 ---------
-![First use case](use_case_1.png "Use Case 1")
+![First use case](use_case_1.PNG "Use Case 1")
 
 
 

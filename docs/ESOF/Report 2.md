@@ -15,7 +15,7 @@ Functional Requirements:
 * Able to handle geolocation data - many applications use and store geolocation data; to be able to efficiently handle it out-of-the-box is highly valued
 * Highlighted Search - many applications require that the segments of the documents that matched a search be highlighted for the user
 * *Search-as-you-type* functionality - interactive searches improve the end-user experience 
-* *Did-you-mean* and *More-like-this* suggestions - these kinds of suggestions enable the users of an application to other data that they might be interested in
+* *Did-you-mean* and *More-like-this* suggestions - these kinds of suggestions enable the users of an application to be redirected to other data they might be interested in
 * RESTful API - a familiar and cross-language API allows for developers to quickly and easily start developing their applications
 * Discovery - connected nodes should be able to automatically discover eachother
 

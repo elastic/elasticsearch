@@ -33,10 +33,10 @@ Since its inception, the project has admirably met its myriad requirements, whic
 
 Use Cases
 ---------
-![Developer Use Cases](use_case_1.PNG "Developer Use Cases")
-![User Use Cases](use_case_2.PNG "User Use Cases")
+![Developer Use Cases](images/use_case_1.PNG "Developer Use Cases")
+![User Use Cases](images/use_case_2.PNG "User Use Cases")
 
 Domain Model
 ------------
-![Elasticsearch domain model](domain_model.PNG "Elasticsearch domain model")
+![Elasticsearch domain model](images/domain_model.PNG "Elasticsearch domain model")
 

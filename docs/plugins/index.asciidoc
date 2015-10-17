@@ -20,8 +20,8 @@ The open-source plugins provided for Elasticsearch 1.x are:
 * https://github.com/elastic/elasticsearch-cloud-aws[elasticsearch-cloud-aws] - AWS Cloud Discovery and Repository
 * https://github.com/elastic/elasticsearch-cloud-azure[elasticsearch-cloud-azure] - Azure Cloud Discovery and Repository
 * https://github.com/elastic/elasticsearch-cloud-gce[elasticsearch-cloud-gce] - Google Compute Engine Cloud Discovery
-* https://github.com/elastic/elasticsearch-lang-js[elasticsearch-lang-js] - Javascript Support
-* https://github.com/elastic/elasticsearch-lang-js[elasticsearch-lang-js] - Python Support
+* https://github.com/elastic/elasticsearch-lang-javascript[elasticsearch-lang-javascript] - Javascript Support
+* https://github.com/elastic/elasticsearch-lang-python[elasticsearch-lang-python] - Python Support
 * https://github.com/elastic/elasticsearch-mapper-attachments[elasticsearch-mapper-attachments] - Tika support
 * https://github.com/elastic/elasticsearch-transport-memcached[elasticsearch-transport-memcached] - Memcached transport
 * https://github.com/elastic/elasticsearch-transport-thrift[elasticsearch-transport-thrift] - Thrift Transport

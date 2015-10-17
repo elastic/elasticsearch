@@ -1095,7 +1095,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
                 try {
                     Translog translog = engine.getTranslog();
                     return translog.totalOperations() > flushThresholdOperations || translog.sizeInBytes() > flushThresholdSize.bytes();
-                } catch (AlreadyClosedException ex) {
+                } catch (AlreadyClosedException | EngineClosedException ex) {
                     // that's fine we are already close - no need to flush
                 }
             }

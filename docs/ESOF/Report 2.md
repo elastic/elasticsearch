@@ -20,7 +20,7 @@ Functional Requirements:
 * Discovery - connected nodes should be able to automatically discover each other
 
 Non-Functional Requirements
-* High Availability - the system must endure the inevitable failures in the potentially many nodes that host the data
+* High Availability - the system must endure the inevitable failures in the potentially many nodes that host the data and continue being operational
 * High Throughput/Real Time Performance - fast response times and overall efficiency are highly valued, especially in highly saturated services/applications
 * High Flexibility in queries/data - the schema-less, document-oriented model as well as the querying system must be flexible enough to effortlessly model any domain 
 * Reliability - the data in the system must be kept through failures in the nodes that host the data

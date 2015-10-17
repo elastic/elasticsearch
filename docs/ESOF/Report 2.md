@@ -12,7 +12,7 @@ Functional Requirements:
 * Analytics - the data must be queryable for aggregations and statistics 
 * Full Text Search - the ability for fuzzy/exact matching on both partial and entire data fields 
 * Able to handle human language - consideration of the syntax/semantics of natural language provides more meaningful and useful results
-* Able to handle geolocation data - many applications use and store geolocation data, to be able to efficiently handle it out-of-the-box is highly valued
+* Able to handle geolocation data - many applications use and store geolocation data; to be able to efficiently handle it out-of-the-box is highly valued
 * Highlighted Search - many applications require that the segments of the documents that matched a search be highlighted for the user
 * *Search-as-you-type* functionality - faster and more interactive searches need the searches 
 * *Did-you-mean* and *More-like-this* suggestions - these kinds of suggestions enable the users of an application to other data that they might be interested in

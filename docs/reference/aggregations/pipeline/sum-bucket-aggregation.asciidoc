@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-sum-bucket-aggregation]]
 === Sum Bucket Aggregation
 
-coming[2.0.0-beta1]
-
 experimental[]
 
 A sibling pipeline aggregation which calculates the sum across all bucket of a specified metric in a sibling aggregation. 

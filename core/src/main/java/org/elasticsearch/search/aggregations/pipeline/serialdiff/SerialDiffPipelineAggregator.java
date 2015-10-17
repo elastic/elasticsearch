@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline.serialdiff;
 
-import com.google.common.collect.EvictingQueue;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -86,7 +86,7 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         InternalHistogram.Factory<? extends InternalHistogram.Bucket> factory = histo.getFactory();
 
         List newBuckets = new ArrayList<>();
-        EvictingQueue<Double> lagWindow = EvictingQueue.create(lag);
+        EvictingQueue<Double> lagWindow = new EvictingQueue<>(lag);
         int counter = 0;
 
         for (InternalHistogram.Bucket bucket : buckets) {

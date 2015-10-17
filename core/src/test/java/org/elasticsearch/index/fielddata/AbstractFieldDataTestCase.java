@@ -26,6 +26,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.After;
@@ -52,7 +54,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
     protected MapperService mapperService;
     protected IndexWriter writer;
     protected LeafReaderContext readerContext;
-    protected IndexReader topLevelReader;
+    protected DirectoryReader topLevelReader;
     protected IndicesFieldDataCache indicesFieldDataCache;
     protected abstract FieldDataType getFieldDataType();
 
@@ -102,7 +104,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put("index.fielddata.cache", "none").build();
         indexService = createIndex("test", settings);
         mapperService = indexService.mapperService();
-        indicesFieldDataCache = indexService.injector().getInstance(IndicesFieldDataCache.class);
+        indicesFieldDataCache = getInstanceFromNode(IndicesFieldDataCache.class);
         ifdService = indexService.fieldData();
         // LogByteSizeMP to preserve doc ID order
         writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy()));
@@ -112,7 +114,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         if (readerContext != null) {
             readerContext.reader().close();
         }
-        topLevelReader = DirectoryReader.open(writer, true);
+        topLevelReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", 1));
         LeafReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader);
         readerContext = reader.getContext();
         return readerContext;

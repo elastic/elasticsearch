@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.routing.DjbHashFunction;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.math.MathUtils;
@@ -43,6 +43,6 @@ public class MetaDataService extends AbstractComponent {
     }
 
     public Semaphore indexMetaDataLock(String index) {
-        return indexMdLocks[MathUtils.mod(DjbHashFunction.DJB_HASH(index), indexMdLocks.length)];
+        return indexMdLocks[MathUtils.mod(Murmur3HashFunction.hash(index), indexMdLocks.length)];
     }
 }

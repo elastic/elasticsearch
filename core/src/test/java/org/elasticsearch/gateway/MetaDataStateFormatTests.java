@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.Iterators;
-
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -59,6 +57,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -365,9 +364,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
         for (IndexMetaData original : latestMetaData) {
             IndexMetaData deserialized = indices.get(original.getIndex());
             assertThat(deserialized, notNullValue());
-            assertThat(deserialized.version(), equalTo(original.version()));
-            assertThat(deserialized.numberOfReplicas(), equalTo(original.numberOfReplicas()));
-            assertThat(deserialized.numberOfShards(), equalTo(original.numberOfShards()));
+            assertThat(deserialized.getVersion(), equalTo(original.getVersion()));
+            assertThat(deserialized.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
+            assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
         }
 
         // now corrupt all the latest ones and make sure we fail to load the state
@@ -535,7 +534,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
     public Path[] content(String glob, Path dir) throws IOException {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, glob)) {
-            return Iterators.toArray(stream.iterator(), Path.class);
+            return StreamSupport.stream(stream.spliterator(), false).toArray(length -> new Path[length]);
         }
     }
 

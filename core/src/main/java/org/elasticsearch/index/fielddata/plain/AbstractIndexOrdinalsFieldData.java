@@ -59,7 +59,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global
             return this;
@@ -76,7 +76,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger);
     }
 

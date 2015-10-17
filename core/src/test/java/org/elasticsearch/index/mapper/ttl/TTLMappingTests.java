@@ -310,6 +310,21 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         assertNull(docMapper.parse("test", "type", "1", doc.bytes()).rootDoc().get("_ttl"));
     }
 
+    public void testIncludeInObjectNotAllowed() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_ttl").field("enabled", true).endObject()
+            .endObject().endObject().string();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        try {
+            docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().field("_ttl", "2d").endObject().bytes());
+            fail("Expected failure to parse metadata field");
+        } catch (MapperParsingException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("Field [_ttl] is a metadata field and cannot be added inside a document"));
+        }
+    }
+
     private org.elasticsearch.common.xcontent.XContentBuilder getMappingWithTtlEnabled() throws IOException {
         return getMappingWithTtlEnabled(null);
     }

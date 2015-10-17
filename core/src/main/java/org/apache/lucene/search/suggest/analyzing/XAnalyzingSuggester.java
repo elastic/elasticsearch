@@ -453,7 +453,7 @@ public long ramBytesUsed() {
   @Override
   public void build(InputIterator iterator) throws IOException {
     String prefix = getClass().getSimpleName();
-    Path directory = OfflineSorter.defaultTempDir();
+    Path directory = OfflineSorter.getDefaultTempDir();
     Path tempInput = Files.createTempFile(directory, prefix, ".input");
     Path tempSorted = Files.createTempFile(directory, prefix, ".sorted");
 
@@ -959,11 +959,9 @@ public long ramBytesUsed() {
       // TODO: is there a Reader from a CharSequence?
       // Turn tokenstream into automaton:
       Automaton automaton = null;
-      TokenStream ts = queryAnalyzer.tokenStream("", key.toString());
-      try {
+      
+      try (TokenStream ts = queryAnalyzer.tokenStream("", key.toString())) {
           automaton = getTokenStreamToAutomaton().toAutomaton(ts);
-      } finally {
-          IOUtils.closeWhileHandlingException(ts);
       }
 
       automaton = replaceSep(automaton);

@@ -74,7 +74,7 @@ public class AckIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("refresh_interval", 9999, TimeUnit.MILLISECONDS)));
 
         for (Client client : clients()) {
-            String refreshInterval = getLocalClusterState(client).metaData().index("test").settings().get("index.refresh_interval");
+            String refreshInterval = getLocalClusterState(client).metaData().index("test").getSettings().get("index.refresh_interval");
             assertThat(refreshInterval, equalTo("9999ms"));
         }
     }

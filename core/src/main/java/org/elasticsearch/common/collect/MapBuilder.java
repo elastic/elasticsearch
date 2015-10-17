@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.collect;
 
-import com.google.common.collect.ImmutableMap;
-
 import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -83,7 +83,12 @@ public class MapBuilder<K, V> {
         return this.map;
     }
 
-    public ImmutableMap<K, V> immutableMap() {
-        return ImmutableMap.copyOf(map);
+    /**
+     * Build an immutable copy of the map under construction. Always copies the map under construction. Prefer building
+     * a HashMap by hand and wrapping it in an unmodifiableMap
+     */
+    public Map<K, V> immutableMap() {
+        // TODO: follow the directions in the Javadoc for this method
+        return unmodifiableMap(new HashMap<>(map));
     }
 }

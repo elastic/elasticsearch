@@ -45,25 +45,20 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 
 /**
  *
@@ -83,7 +78,6 @@ public abstract class Engine implements Closeable {
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
-
     protected volatile Throwable failedEngine = null;
 
     protected Engine(EngineConfig engineConfig) {
@@ -148,7 +142,8 @@ public abstract class Engine implements Closeable {
         return new MergeStats();
     }
 
-    /** A throttling class that can be activated, causing the
+    /**
+     * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
      * is enabled
      */
@@ -207,20 +202,15 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract void create(Create create) throws EngineException;
-
-    public abstract boolean index(Index index) throws EngineException;
+    public abstract boolean index(Index operation) throws EngineException;
 
     public abstract void delete(Delete delete) throws EngineException;
-
-    /** @deprecated This was removed, but we keep this API so translog can replay any DBQs on upgrade. */
-    @Deprecated
-    public abstract void delete(DeleteByQuery delete) throws EngineException;
 
     /**
      * Attempts to do a special commit where the given syncID is put into the commit data. The attempt
      * succeeds if there are not pending writes in lucene and the current point is equal to the expected one.
-     * @param syncId id of this sync
+     *
+     * @param syncId           id of this sync
      * @param expectedCommitId the expected value of
      * @return true if the sync commit was made, false o.w.
      */
@@ -232,8 +222,8 @@ public abstract class Engine implements Closeable {
         PENDING_OPERATIONS
     }
 
-    final protected GetResult getFromSearcher(Get get) throws EngineException {
-        final Searcher searcher = acquireSearcher("get");
+    final protected GetResult getFromSearcher(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
+        final Searcher searcher = searcherFactory.apply("get");
         final Versions.DocIdAndVersion docIdAndVersion;
         try {
             docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
@@ -247,7 +237,8 @@ public abstract class Engine implements Closeable {
             if (get.versionType().isVersionConflictForReads(docIdAndVersion.version, get.version())) {
                 Releasables.close(searcher);
                 Uid uid = Uid.createUid(get.uid().text());
-                throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), docIdAndVersion.version, get.version());
+                throw new VersionConflictEngineException(shardId, uid.type(), uid.id(),
+                        get.versionType().explainConflictForReads(docIdAndVersion.version, get.version()));
             }
         }
 
@@ -261,7 +252,11 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract GetResult get(Get get) throws EngineException;
+    public final GetResult get(Get get) throws EngineException {
+        return get(get, this::acquireSearcher);
+    }
+
+    public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException;
 
     /**
      * Returns a new searcher instance. The consumer of this
@@ -284,7 +279,7 @@ public abstract class Engine implements Closeable {
             try {
                 final Searcher retVal = newSearcher(source, searcher, manager);
                 success = true;
-                return config().getWrappingService().wrap(engineConfig, retVal);
+                return retVal;
             } finally {
                 if (!success) {
                     manager.release(searcher);
@@ -328,7 +323,7 @@ public abstract class Engine implements Closeable {
         } catch (IOException e) {
             // Fall back to reading from the store if reading from the commit fails
             try {
-                return store. readLastCommittedSegmentsInfo();
+                return store.readLastCommittedSegmentsInfo();
             } catch (IOException e2) {
                 e2.addSuppressed(e);
                 throw e2;
@@ -365,6 +360,9 @@ public abstract class Engine implements Closeable {
         stats.addIndexWriterMemoryInBytes(0);
         stats.addIndexWriterMaxMemoryInBytes(0);
     }
+
+    /** How much heap Lucene's IndexWriter is using */
+    abstract public long indexWriterRAMBytesUsed();
 
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
@@ -469,7 +467,8 @@ public abstract class Engine implements Closeable {
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory.
-     * @param force if <code>true</code> a lucene commit is executed even if no changes need to be committed.
+     *
+     * @param force         if <code>true</code> a lucene commit is executed even if no changes need to be committed.
      * @param waitIfOngoing if <code>true</code> this call will block until all currently running flushes have finished.
      *                      Otherwise this call will return without blocking.
      * @return the commit Id for the resulting commit
@@ -597,6 +596,13 @@ public abstract class Engine implements Closeable {
             return searcher.getIndexReader();
         }
 
+        public DirectoryReader getDirectoryReader() {
+            if (reader() instanceof  DirectoryReader) {
+                return (DirectoryReader) reader();
+            }
+            throw new IllegalStateException("Can't use " + reader().getClass() + " as a directory reader");
+        }
+
         public IndexSearcher searcher() {
             return searcher;
         }
@@ -607,62 +613,95 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static interface Operation {
-        static enum Type {
-            CREATE,
-            INDEX,
-            DELETE
+    public static abstract class Operation {
+        private final Term uid;
+        private long version;
+        private final VersionType versionType;
+        private final Origin origin;
+        private Translog.Location location;
+        private final long startTime;
+        private long endTime;
+
+        public Operation(Term uid, long version, VersionType versionType, Origin origin, long startTime) {
+            this.uid = uid;
+            this.version = version;
+            this.versionType = versionType;
+            this.origin = origin;
+            this.startTime = startTime;
         }
 
-        static enum Origin {
+        public static enum Origin {
             PRIMARY,
             REPLICA,
             RECOVERY
         }
 
-        Type opType();
-
-        Origin origin();
-    }
-
-    public static abstract class IndexingOperation implements Operation {
-
-        private final Term uid;
-        private final ParsedDocument doc;
-        private long version;
-        private final VersionType versionType;
-        private final Origin origin;
-        private final boolean canHaveDuplicates;
-        private Translog.Location location;
-
-        private final long startTime;
-        private long endTime;
-
-        public IndexingOperation(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime, boolean canHaveDuplicates) {
-            this.uid = uid;
-            this.doc = doc;
-            this.version = version;
-            this.versionType = versionType;
-            this.origin = origin;
-            this.startTime = startTime;
-            this.canHaveDuplicates = canHaveDuplicates;
-        }
-
-        public IndexingOperation(Term uid, ParsedDocument doc) {
-            this(uid, doc, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime(), true);
-        }
-
-        @Override
         public Origin origin() {
             return this.origin;
         }
 
-        public ParsedDocument parsedDoc() {
-            return this.doc;
-        }
-
         public Term uid() {
             return this.uid;
+        }
+
+        public long version() {
+            return this.version;
+        }
+
+        public void updateVersion(long version) {
+            this.version = version;
+        }
+
+        public void setTranslogLocation(Translog.Location location) {
+            this.location = location;
+        }
+
+        public Translog.Location getTranslogLocation() {
+            return this.location;
+        }
+
+        public VersionType versionType() {
+            return this.versionType;
+        }
+
+        /**
+         * Returns operation start time in nanoseconds.
+         */
+        public long startTime() {
+            return this.startTime;
+        }
+
+        public void endTime(long endTime) {
+            this.endTime = endTime;
+        }
+
+        /**
+         * Returns operation end time in nanoseconds.
+         */
+        public long endTime() {
+            return this.endTime;
+        }
+    }
+
+    public static class Index extends Operation {
+
+        private final ParsedDocument doc;
+
+        public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime) {
+            super(uid, version, versionType, origin, startTime);
+            this.doc = doc;
+        }
+
+        public Index(Term uid, ParsedDocument doc) {
+            this(uid, doc, Versions.MATCH_ANY);
+        }
+
+        public Index(Term uid, ParsedDocument doc, long version) {
+            this(uid, doc, version, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+        }
+
+        public ParsedDocument parsedDoc() {
+            return this.doc;
         }
 
         public String type() {
@@ -685,29 +724,10 @@ public abstract class Engine implements Closeable {
             return this.doc.ttl();
         }
 
-        public long version() {
-            return this.version;
-        }
-
+        @Override
         public void updateVersion(long version) {
-            this.version = version;
+            super.updateVersion(version);
             this.doc.version().setLongValue(version);
-        }
-
-        public void setTranslogLocation(Translog.Location location) {
-            this.location = location;
-        }
-
-        public Translog.Location getTranslogLocation() {
-            return this.location;
-        }
-
-        public VersionType versionType() {
-            return this.versionType;
-        }
-
-        public boolean canHaveDuplicates() {
-            return this.canHaveDuplicates;
         }
 
         public String parent() {
@@ -721,112 +741,17 @@ public abstract class Engine implements Closeable {
         public BytesReference source() {
             return this.doc.source();
         }
-
-        /**
-         * Returns operation start time in nanoseconds.
-         */
-        public long startTime() {
-            return this.startTime;
-        }
-
-        public void endTime(long endTime) {
-            this.endTime = endTime;
-        }
-
-        /**
-         * Returns operation end time in nanoseconds.
-         */
-        public long endTime() {
-            return this.endTime;
-        }
-
-        /**
-         * Execute this operation against the provided {@link IndexShard} and
-         * return whether the document was created.
-         */
-        public abstract boolean execute(IndexShard shard);
     }
 
-    public static final class Create extends IndexingOperation {
-        private final boolean autoGeneratedId;
-
-        public Create(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime, boolean canHaveDuplicates, boolean autoGeneratedId) {
-            super(uid, doc, version, versionType, origin, startTime, canHaveDuplicates);
-            this.autoGeneratedId = autoGeneratedId;
-        }
-
-        public Create(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime) {
-            this(uid, doc, version, versionType, origin, startTime, true, false);
-        }
-
-        public Create(Term uid, ParsedDocument doc) {
-            super(uid, doc);
-            autoGeneratedId = false;
-        }
-
-        @Override
-        public Type opType() {
-            return Type.CREATE;
-        }
-
-
-        public boolean autoGeneratedId() {
-            return this.autoGeneratedId;
-        }
-
-        @Override
-        public boolean execute(IndexShard shard) {
-            shard.create(this);
-            return true;
-        }
-    }
-
-    public static final class Index extends IndexingOperation {
-
-        public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime, boolean canHaveDuplicates) {
-            super(uid, doc, version, versionType, origin, startTime, canHaveDuplicates);
-        }
-
-        public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime) {
-            super(uid, doc, version, versionType, origin, startTime, true);
-        }
-
-        public Index(Term uid, ParsedDocument doc) {
-            super(uid, doc);
-        }
-
-        @Override
-        public Type opType() {
-            return Type.INDEX;
-        }
-
-        @Override
-        public boolean execute(IndexShard shard) {
-            return shard.index(this);
-        }
-    }
-
-    public static class Delete implements Operation {
+    public static class Delete extends Operation {
         private final String type;
         private final String id;
-        private final Term uid;
-        private long version;
-        private final VersionType versionType;
-        private final Origin origin;
         private boolean found;
 
-        private final long startTime;
-        private long endTime;
-        private Translog.Location location;
-
         public Delete(String type, String id, Term uid, long version, VersionType versionType, Origin origin, long startTime, boolean found) {
+            super(uid, version, versionType, origin, startTime);
             this.type = type;
             this.id = id;
-            this.uid = uid;
-            this.version = version;
-            this.versionType = versionType;
-            this.origin = origin;
-            this.startTime = startTime;
             this.found = found;
         }
 
@@ -838,16 +763,6 @@ public abstract class Engine implements Closeable {
             this(template.type(), template.id(), template.uid(), template.version(), versionType, template.origin(), template.startTime(), template.found());
         }
 
-        @Override
-        public Type opType() {
-            return Type.DELETE;
-        }
-
-        @Override
-        public Origin origin() {
-            return this.origin;
-        }
-
         public String type() {
             return this.type;
         }
@@ -856,54 +771,13 @@ public abstract class Engine implements Closeable {
             return this.id;
         }
 
-        public Term uid() {
-            return this.uid;
-        }
-
         public void updateVersion(long version, boolean found) {
-            this.version = version;
+            updateVersion(version);
             this.found = found;
-        }
-
-        /**
-         * before delete execution this is the version to be deleted. After this is the version of the "delete" transaction record.
-         */
-        public long version() {
-            return this.version;
-        }
-
-        public VersionType versionType() {
-            return this.versionType;
         }
 
         public boolean found() {
             return this.found;
-        }
-
-        /**
-         * Returns operation start time in nanoseconds.
-         */
-        public long startTime() {
-            return this.startTime;
-        }
-
-        public void endTime(long endTime) {
-            this.endTime = endTime;
-        }
-
-        /**
-         * Returns operation end time in nanoseconds.
-         */
-        public long endTime() {
-            return this.endTime;
-        }
-
-        public void setTranslogLocation(Translog.Location location) {
-            this.location = location;
-        }
-
-        public Translog.Location getTranslogLocation() {
-            return this.location;
         }
     }
 
@@ -1157,12 +1031,18 @@ public abstract class Engine implements Closeable {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             CommitId commitId = (CommitId) o;
 
-            if (!Arrays.equals(id, commitId.id)) return false;
+            if (!Arrays.equals(id, commitId.id)) {
+                return false;
+            }
 
             return true;
         }
@@ -1173,5 +1053,6 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public void onSettingsChanged() {}
+    public void onSettingsChanged() {
+    }
 }

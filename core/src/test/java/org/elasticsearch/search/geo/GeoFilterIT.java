@@ -57,7 +57,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -517,52 +516,30 @@ public class GeoFilterIT extends ESIntegTestCase {
 
         expectedCounts.put(geoHashCellQuery("pin", point).neighbors(true).precision(precision), 1L + neighbors.size());
 
-        logger.info("random testing of setting");
 
         List<GeohashCellQuery.Builder> filterBuilders = new ArrayList<>(expectedCounts.keySet());
-        for (int j = filterBuilders.size() * 2 * randomIntBetween(1, 5); j > 0; j--) {
-            Collections.shuffle(filterBuilders, getRandom());
-            for (GeohashCellQuery.Builder builder : filterBuilders) {
-                try {
-                    long expectedCount = expectedCounts.get(builder);
-                    SearchResponse response = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery())
-                            .setPostFilter(builder).setSize((int) expectedCount).get();
-                    assertHitCount(response, expectedCount);
-                    String[] expectedIds = expectedResults.get(builder);
-                    if (expectedIds == null) {
-                        ArrayList<String> ids = new ArrayList<>();
-                        for (SearchHit hit : response.getHits()) {
-                            ids.add(hit.id());
-                        }
-                        expectedResults.put(builder, ids.toArray(Strings.EMPTY_ARRAY));
-                        continue;
+        for (GeohashCellQuery.Builder builder : filterBuilders) {
+            try {
+                long expectedCount = expectedCounts.get(builder);
+                SearchResponse response = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery())
+                        .setPostFilter(builder).setSize((int) expectedCount).get();
+                assertHitCount(response, expectedCount);
+                String[] expectedIds = expectedResults.get(builder);
+                if (expectedIds == null) {
+                    ArrayList<String> ids = new ArrayList<>();
+                    for (SearchHit hit : response.getHits()) {
+                        ids.add(hit.id());
                     }
-
-                    assertSearchHits(response, expectedIds);
-
-                } catch (AssertionError error) {
-                    throw new AssertionError(error.getMessage() + "\n geohash_cell filter:" + builder, error);
+                    expectedResults.put(builder, ids.toArray(Strings.EMPTY_ARRAY));
+                    continue;
                 }
 
+                assertSearchHits(response, expectedIds);
 
+            } catch (AssertionError error) {
+                throw new AssertionError(error.getMessage() + "\n geohash_cell filter:" + builder, error);
             }
         }
-
-        logger.info("Testing lat/lon format");
-        String pointTest1 = "{\"geohash_cell\": {\"pin\": {\"lat\": " + point.lat() + ",\"lon\": " + point.lon() + "},\"precision\": " + precision + ",\"neighbors\": true}}";
-        SearchResponse results3 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(pointTest1).execute().actionGet();
-        assertHitCount(results3, neighbors.size() + 1);
-
-
-        logger.info("Testing String format");
-        String pointTest2 = "{\"geohash_cell\": {\"pin\": \"" + point.lat() + "," + point.lon() + "\",\"precision\": " + precision + ",\"neighbors\": true}}";
-        SearchResponse results4 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(pointTest2).execute().actionGet();
-        assertHitCount(results4, neighbors.size() + 1);
-
-        logger.info("Testing Array format");
-        String pointTest3 = "{\"geohash_cell\": {\"pin\": [" + point.lon() + "," + point.lat() + "],\"precision\": " + precision + ",\"neighbors\": true}}";
-        SearchResponse results5 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(pointTest3).execute().actionGet();
-        assertHitCount(results5, neighbors.size() + 1);
     }
 
     @Test
@@ -607,7 +584,7 @@ public class GeoFilterIT extends ESIntegTestCase {
             RecursivePrefixTreeStrategy strategy = new RecursivePrefixTreeStrategy(tree, "area");
             Shape shape = SpatialContext.GEO.makePoint(0, 0);
             SpatialArgs args = new SpatialArgs(relation, shape);
-            strategy.makeFilter(args);
+            strategy.makeQuery(args);
             return true;
         } catch (UnsupportedSpatialOperation e) {
             e.printStackTrace();

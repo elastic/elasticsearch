@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -27,7 +28,11 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
@@ -35,9 +40,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -246,11 +251,11 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         final int minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - treshold)));
         final int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + treshold)));
 
-        for (String index : nodes.getRoutingTable().indicesRouting().keySet()) {
+        for (ObjectCursor<String> index : nodes.getRoutingTable().indicesRouting().keys()) {
             for (RoutingNode node : nodes) {
 //              logger.info(node.nodeId() +":"+index+ ": " + node.shardsWithState(index, INITIALIZING, STARTED).size() + " shards ("+minAvgNumberOfShards+" to "+maxAvgNumberOfShards+")");
-                assertThat(node.shardsWithState(index, STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
-                assertThat(node.shardsWithState(index, STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
+                assertThat(node.shardsWithState(index.value, STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
+                assertThat(node.shardsWithState(index.value, STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
             }
         }
     }
@@ -262,10 +267,10 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         final int minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - treshold)));
         final int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + treshold)));
 
-        for (String index : nodes.getRoutingTable().indicesRouting().keySet()) {
+        for (ObjectCursor<String> index : nodes.getRoutingTable().indicesRouting().keys()) {
             for (RoutingNode node : nodes) {
                 int primaries = 0;
-                for (ShardRouting shard : node.shardsWithState(index, STARTED)) {
+                for (ShardRouting shard : node.shardsWithState(index.value, STARTED)) {
                     primaries += shard.primary() ? 1 : 0;
                 }
 //                logger.info(node.nodeId() + ": " + primaries + " primaries ("+minAvgNumberOfShards+" to "+maxAvgNumberOfShards+")");

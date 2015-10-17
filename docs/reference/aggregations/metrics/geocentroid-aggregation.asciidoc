@@ -1,0 +1,104 @@
+[[search-aggregations-metrics-geocentroid-aggregation]]
+=== Geo Centroid Aggregation
+
+A metric aggregation that computes the weighted centroid from all coordinate values for a <<geo-point>> field.
+
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+        "match" : { "crime" : "burglary" }
+    },
+    "aggs" : {
+        "centroid" : {
+            "geo_centroid" : {
+                "field" : "location" <1>
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> The `geo_centroid` aggregation specifies the field to use for computing the centroid. (NOTE: field must be a <<geo-point>> type)
+
+The above aggregation demonstrates how one would compute the centroid of the location field for all documents with a crime type of burglary
+
+The response for the above aggregation:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "centroid": {
+            "location": {
+                "lat": 80.45,
+                "lon": -160.22
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+
+The `geo_centroid` aggregation is more interesting when combined as a sub-aggregation to other bucket aggregations.
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+        "match" : { "crime" : "burglary" }
+    },
+    "aggs" : {
+        "towns" : {
+            "terms" : { "field" : "town" },
+            "aggs" : {
+                "centroid" : {
+                    "geo_centroid" : { "field" : "location" }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The above example uses `geo_centroid` as a sub-aggregation to a <<search-aggregations-bucket-terms-aggregation, terms>> bucket aggregation
+for finding the central location for all crimes of type burglary in each town.
+
+The response for the above aggregation:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "buckets": [
+       {
+           "key": "Los Altos",
+           "doc_count": 113,
+           "centroid": {
+              "location": {
+                 "lat": 37.3924582824111,
+                 "lon": -122.12104808539152
+              }
+           }
+       },
+       {
+           "key": "Mountain View",
+           "doc_count": 92,
+           "centroid": {
+              "location": {
+                 "lat": 37.382152481004596,
+                 "lon": -122.08116559311748
+              }
+           }
+        }
+    ]
+}
+--------------------------------------------------

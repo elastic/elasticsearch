@@ -19,12 +19,9 @@
 
 package org.elasticsearch.search.fetch.source;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -34,20 +31,16 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+
 /**
  */
 public class FetchSourceSubPhase implements FetchSubPhase {
-
-    @Inject
-    public FetchSourceSubPhase() {
-
-    }
+    private static final Map<String, SearchParseElement> PARSE_ELEMENTS = singletonMap("_source", new FetchSourceParseElement());
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
-        parseElements.put("_source", new FetchSourceParseElement());
-        return parseElements.build();
+        return PARSE_ELEMENTS;
     }
 
     @Override

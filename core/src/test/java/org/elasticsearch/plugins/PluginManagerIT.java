@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.plugins;
 
-import java.nio.charset.StandardCharsets;
-import com.google.common.hash.Hashing;
-
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -28,6 +25,7 @@ import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase.CaptureOutputTerminal;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -46,16 +44,15 @@ import org.jboss.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import org.jboss.netty.handler.ssl.util.SelfSignedCertificate;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
-
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -109,7 +106,7 @@ public class PluginManagerIT extends ESIntegTestCase {
     }
 
     private void writeSha1(Path file, boolean corrupt) throws IOException {
-        String sha1Hex = Hashing.sha1().hashBytes(Files.readAllBytes(file)).toString();
+        String sha1Hex = MessageDigests.toHexString(MessageDigests.sha1().digest(Files.readAllBytes(file)));
         try (BufferedWriter out = Files.newBufferedWriter(file.resolveSibling(file.getFileName() + ".sha1"), StandardCharsets.UTF_8)) {
             out.write(sha1Hex);
             if (corrupt) {
@@ -119,7 +116,7 @@ public class PluginManagerIT extends ESIntegTestCase {
     }
 
     private void writeMd5(Path file, boolean corrupt) throws IOException {
-        String md5Hex = Hashing.md5().hashBytes(Files.readAllBytes(file)).toString();
+        String md5Hex = MessageDigests.toHexString(MessageDigests.md5().digest(Files.readAllBytes(file)));
         try (BufferedWriter out = Files.newBufferedWriter(file.resolveSibling(file.getFileName() + ".md5"), StandardCharsets.UTF_8)) {
             out.write(md5Hex);
             if (corrupt) {
@@ -590,7 +587,6 @@ public class PluginManagerIT extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("analysis-phonetic");
         PluginManager.checkForOfficialPlugins("analysis-smartcn");
         PluginManager.checkForOfficialPlugins("analysis-stempel");
-        PluginManager.checkForOfficialPlugins("cloud-gce");
         PluginManager.checkForOfficialPlugins("delete-by-query");
         PluginManager.checkForOfficialPlugins("lang-expression");
         PluginManager.checkForOfficialPlugins("lang-groovy");
@@ -601,6 +597,7 @@ public class PluginManagerIT extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("discovery-multicast");
         PluginManager.checkForOfficialPlugins("discovery-azure");
         PluginManager.checkForOfficialPlugins("discovery-ec2");
+        PluginManager.checkForOfficialPlugins("discovery-gce");
         PluginManager.checkForOfficialPlugins("repository-azure");
         PluginManager.checkForOfficialPlugins("repository-s3");
         PluginManager.checkForOfficialPlugins("store-smb");

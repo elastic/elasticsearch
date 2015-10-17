@@ -42,7 +42,8 @@ import org.junit.Test;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
 
@@ -59,20 +60,6 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testExecuteScanFailsOnMalformedQuery() {
-        createIndex("test");
-
-        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).source("{...}");
-        TestActionListener listener = new TestActionListener();
-
-        newAsyncAction(delete, listener).executeScan();
-        waitForCompletion("scan request should fail on malformed query", listener);
-
-        assertFailure(listener, "all shards failed");
-        assertSearchContextsClosed();
-    }
-
-    @Test
     public void testExecuteScan() {
         createIndex("test");
         final int numDocs = randomIntBetween(1, 200);
@@ -83,7 +70,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareCount("test").get(), numDocs);
 
         final long limit = randomIntBetween(0, numDocs);
-        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).source(boolQuery().must(rangeQuery("num").lte(limit)).buildAsBytes());
+        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).query(boolQuery().must(rangeQuery("num").lte(limit)));
         TestActionListener listener = new TestActionListener();
 
         newAsyncAction(delete, listener).executeScan();
@@ -210,7 +197,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setScroll(TimeValue.timeValueSeconds(10))
                 .setQuery(boolQuery().must(rangeQuery("num").lte(limit)))
-                .addFields("_routing", "_parent")
+                .fields("_routing", "_parent")
                 .setFetchSource(false)
                 .setVersion(true)
                 .get();
@@ -219,7 +206,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertTrue(Strings.hasText(scrollId));
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(limit));
 
-        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).size(100).source(boolQuery().must(rangeQuery("num").lte(limit)).buildAsBytes());
+        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).size(100).query(boolQuery().must(rangeQuery("num").lte(limit)));
         TestActionListener listener = new TestActionListener();
 
         newAsyncAction(delete, listener).executeScroll(searchResponse.getScrollId());

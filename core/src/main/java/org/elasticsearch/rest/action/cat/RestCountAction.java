@@ -25,9 +25,16 @@ import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -40,11 +47,14 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCountAction extends AbstractCatAction {
 
+    private final IndicesQueriesRegistry indicesQueriesRegistry;
+
     @Inject
-    public RestCountAction(Settings settings, RestController restController, RestController controller, Client client) {
+    public RestCountAction(Settings settings, RestController restController, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
         super(settings, controller, client);
         restController.registerHandler(GET, "/_cat/count", this);
         restController.registerHandler(GET, "/_cat/count/{index}", this);
+        this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
 
     @Override
@@ -59,14 +69,17 @@ public class RestCountAction extends AbstractCatAction {
         CountRequest countRequest = new CountRequest(indices);
         String source = request.param("source");
         if (source != null) {
-            countRequest.source(source);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+            context.parseFieldMatcher(parseFieldMatcher);
+            countRequest.query(RestActions.getQueryContent(new BytesArray(source), context));
         } else {
-            QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-            if (querySourceBuilder != null) {
-                countRequest.source(querySourceBuilder);
+            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+            if (queryBuilder != null) {
+                QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
+                querySourceBuilder.setQuery(queryBuilder);
+                countRequest.query(queryBuilder);
             }
         }
-
         client.count(countRequest, new RestResponseListener<CountResponse>(channel) {
             @Override
             public RestResponse buildResponse(CountResponse countResponse) throws Exception {

@@ -29,18 +29,23 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.GeohashCellQuery;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.client.Requests.clusterHealthRequest;
+import static org.elasticsearch.client.Requests.refreshRequest;
+import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TransportSearchFailuresIT extends ESIntegTestCase {
 
@@ -66,7 +71,9 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         for (int i = 0; i < 5; i++) {
             try {
-                SearchResponse searchResponse = client().search(searchRequest("test").source(new BytesArray("{ xxx }"))).actionGet();
+                SearchResponse searchResponse = client().search(
+                        searchRequest("test").source(new SearchSourceBuilder().query(new GeohashCellQuery.Builder("foo", "biz"))))
+                        .actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
@@ -78,11 +85,15 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         }
 
         allowNodes("test", 2);
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes(">=2").execute().actionGet().isTimedOut(), equalTo(false));
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes(">=2").execute()
+                .actionGet().isTimedOut(), equalTo(false));
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest("test")
-                .waitForYellowStatus().waitForRelocatingShards(0).waitForActiveShards(test.totalNumShards)).actionGet();
+        ClusterHealthResponse clusterHealth = client()
+                .admin()
+                .cluster()
+                .health(clusterHealthRequest("test").waitForYellowStatus().waitForRelocatingShards(0)
+                        .waitForActiveShards(test.totalNumShards)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), anyOf(equalTo(ClusterHealthStatus.YELLOW), equalTo(ClusterHealthStatus.GREEN)));
@@ -95,7 +106,9 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             try {
-                SearchResponse searchResponse = client().search(searchRequest("test").source(new BytesArray("{ xxx }"))).actionGet();
+                SearchResponse searchResponse = client().search(
+                        searchRequest("test").source(new SearchSourceBuilder().query(new GeohashCellQuery.Builder("foo", "biz"))))
+                        .actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));

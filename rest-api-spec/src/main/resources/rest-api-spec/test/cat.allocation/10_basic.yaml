@@ -6,14 +6,15 @@
 
   - match:
       $body: |
-               /^  shards           .+   \n
-                   disk.used        .+   \n
-                   disk.avail       .+   \n
-                   disk.total       .+   \n
-                   disk.percent     .+   \n
-                   host             .+   \n
-                   ip               .+   \n
-                   node             .+   \n
+               /^  shards            .+   \n
+                   disk.indices      .+   \n
+                   disk.used         .+   \n
+                   disk.avail        .+   \n
+                   disk.total        .+   \n
+                   disk.percent      .+   \n
+                   host              .+   \n
+                   ip                .+   \n
+                   node              .+   \n
                $/
 
 ---
@@ -26,6 +27,7 @@
       $body: |
             /^
               ( 0                      \s+
+                0b                     \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b    \s+)?  #no value from client nodes
                 (\d+(\.\d+)?[kmgt]b    \s+)?  #no value from client nodes
@@ -56,6 +58,7 @@
             /^
               ( \s*                          #allow leading spaces to account for right-justified text
                 \d+                    \s+
+                \d+(\.\d+)?b           \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
@@ -84,6 +87,7 @@
       $body: |
             /^
               ( 0                      \s+
+                0b                     \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
@@ -117,6 +121,7 @@
              /^
                ( \s*                          #allow leading spaces to account for right-justified text
                  \d+                    \s+
+                 \d+(\.\d+)?b           \s+
                  \d+(\.\d+)?[kmgt]?b    \s+
                  (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
                  (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
@@ -144,6 +149,7 @@
 
       $body: |
            /^  shards                  \s+
+               disk.indices            \s+
                disk.used               \s+
                disk.avail              \s+
                disk.total              \s+
@@ -155,6 +161,7 @@
 
               ( \s*                          #allow leading spaces to account for right-justified text
                 0                      \s+
+                0b                     \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
@@ -214,6 +221,7 @@
       $body: |
             /^
               ( 0                   \s+
+                0                   \s+
                 \d+                 \s+
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default

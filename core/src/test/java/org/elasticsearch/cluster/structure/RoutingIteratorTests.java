@@ -19,28 +19,43 @@
 
 package org.elasticsearch.cluster.structure;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
+import org.elasticsearch.cluster.routing.RotationShardShuffler;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardShuffler;
+import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class RoutingIteratorTests extends ESAllocationTestCase {
 
@@ -231,9 +246,15 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
 
+        Map<String, String> node1Attributes = new HashMap<>();
+        node1Attributes.put("rack_id", "rack_1");
+        node1Attributes.put("zone", "zone1");
+        Map<String, String> node2Attributes = new HashMap<>();
+        node2Attributes.put("rack_id", "rack_2");
+        node2Attributes.put("zone", "zone2");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node1", ImmutableMap.of("rack_id", "rack_1", "zone", "zone1")))
-                .put(newNode("node2", ImmutableMap.of("rack_id", "rack_2", "zone", "zone2")))
+                .put(newNode("node1", unmodifiableMap(node1Attributes)))
+                .put(newNode("node2", unmodifiableMap(node2Attributes)))
                 .localNodeId("node1")
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -281,8 +302,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                        .put(newNode("fred","node1", ImmutableMap.of("disk", "ebs")))
-                        .put(newNode("barney","node2", ImmutableMap.of("disk", "ephemeral")))
+                        .put(newNode("fred","node1", singletonMap("disk", "ebs")))
+                        .put(newNode("barney","node2", singletonMap("disk", "ephemeral")))
                         .localNodeId("node1")
         ).build();
 
@@ -314,7 +335,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         } catch (IllegalArgumentException illegal) {
             //expected exception
         }
-        
+
         shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("fred",clusterState.nodes());
         assertThat(shardsIterator.size(), equalTo(1));
         assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node1"));

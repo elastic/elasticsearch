@@ -118,7 +118,14 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        Query innerQuery = query.toQuery(context);
+        Query innerQuery;
+        String[] previousTypes = QueryShardContext.setTypesWithPrevious(type);
+        try {
+            innerQuery = query.toQuery(context);
+        } finally {
+            QueryShardContext.setTypes(previousTypes);
+        }
+
         if (innerQuery == null) {
             return null;
         }

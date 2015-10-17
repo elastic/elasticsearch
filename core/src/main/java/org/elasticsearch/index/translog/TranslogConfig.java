@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.TranslogGeneration;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
@@ -42,7 +43,6 @@ public final class TranslogConfig {
     public static final String INDEX_TRANSLOG_FS_TYPE = "index.translog.fs.type";
     public static final String INDEX_TRANSLOG_BUFFER_SIZE = "index.translog.fs.buffer_size";
     public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
-    public static final ByteSizeValue INACTIVE_SHARD_TRANSLOG_BUFFER = ByteSizeValue.parseBytesSizeValue("1kb", "INACTIVE_SHARD_TRANSLOG_BUFFER");
 
     private final TimeValue syncInterval;
     private final BigArrays bigArrays;
@@ -73,7 +73,7 @@ public final class TranslogConfig {
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
         this.type = TranslogWriter.Type.fromString(indexSettings.get(INDEX_TRANSLOG_FS_TYPE, TranslogWriter.Type.BUFFERED.name()));
-        this.bufferSize = (int) indexSettings.getAsBytesSize(INDEX_TRANSLOG_BUFFER_SIZE, ByteSizeValue.parseBytesSizeValue("64k", INDEX_TRANSLOG_BUFFER_SIZE)).bytes(); // Not really interesting, updated by IndexingMemoryController...
+        this.bufferSize = (int) indexSettings.getAsBytesSize(INDEX_TRANSLOG_BUFFER_SIZE, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER).bytes(); // Not really interesting, updated by IndexingMemoryController...
 
         syncInterval = indexSettings.getAsTime(INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
         if (syncInterval.millis() > 0 && threadPool != null) {

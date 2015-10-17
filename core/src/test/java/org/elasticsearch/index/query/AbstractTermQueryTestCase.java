@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -45,7 +47,8 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
                     value = randomAsciiOfLengthBetween(1, 10);
                 } else {
                     // generate unicode string in 10% of cases
-                    value = randomUnicodeOfLength(10);
+                    JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+                    value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
                 }
                 break;
             case 2:
@@ -99,7 +102,13 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
         QB tempQuery = createTestQueryBuilder();
         QB testQuery = createQueryBuilder(tempQuery.fieldName(), tempQuery.value());
         boolean isString = testQuery.value() instanceof String;
-        String value = (isString ? "\"" : "") + testQuery.value() + (isString ? "\"" : "");
+        Object value;
+        if (isString) {
+            JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+            value = "\"" + new String(encoder.quoteAsString((String) testQuery.value())) + "\"";
+        } else {
+            value = testQuery.value();
+        }
         String contentString = "{\n" +
                 "    \"" + testQuery.getName() + "\" : {\n" +
                 "        \"" + testQuery.fieldName() + "\" : " + value + "\n" +

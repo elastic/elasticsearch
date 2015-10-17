@@ -18,10 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.rounding.TimeZoneRounding;
@@ -34,7 +31,12 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
+
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -45,27 +47,27 @@ public class DateHistogramParser implements Aggregator.Parser {
     static final ParseField OFFSET = new ParseField("offset");
     static final ParseField INTERVAL = new ParseField("interval");
 
-    public static final ImmutableMap<String, DateTimeUnit> DATE_FIELD_UNITS;
+    public static final Map<String, DateTimeUnit> DATE_FIELD_UNITS;
 
     static {
-        DATE_FIELD_UNITS = MapBuilder.<String, DateTimeUnit>newMapBuilder()
-                .put("year", DateTimeUnit.YEAR_OF_CENTURY)
-                .put("1y", DateTimeUnit.YEAR_OF_CENTURY)
-                .put("quarter", DateTimeUnit.QUARTER)
-                .put("1q", DateTimeUnit.QUARTER)
-                .put("month", DateTimeUnit.MONTH_OF_YEAR)
-                .put("1M", DateTimeUnit.MONTH_OF_YEAR)
-                .put("week", DateTimeUnit.WEEK_OF_WEEKYEAR)
-                .put("1w", DateTimeUnit.WEEK_OF_WEEKYEAR)
-                .put("day", DateTimeUnit.DAY_OF_MONTH)
-                .put("1d", DateTimeUnit.DAY_OF_MONTH)
-                .put("hour", DateTimeUnit.HOUR_OF_DAY)
-                .put("1h", DateTimeUnit.HOUR_OF_DAY)
-                .put("minute", DateTimeUnit.MINUTES_OF_HOUR)
-                .put("1m", DateTimeUnit.MINUTES_OF_HOUR)
-                .put("second", DateTimeUnit.SECOND_OF_MINUTE)
-                .put("1s", DateTimeUnit.SECOND_OF_MINUTE)
-                .immutableMap();
+        Map<String, DateTimeUnit> dateFieldUnits = new HashMap<>();
+        dateFieldUnits.put("year", DateTimeUnit.YEAR_OF_CENTURY);
+        dateFieldUnits.put("1y", DateTimeUnit.YEAR_OF_CENTURY);
+        dateFieldUnits.put("quarter", DateTimeUnit.QUARTER);
+        dateFieldUnits.put("1q", DateTimeUnit.QUARTER);
+        dateFieldUnits.put("month", DateTimeUnit.MONTH_OF_YEAR);
+        dateFieldUnits.put("1M", DateTimeUnit.MONTH_OF_YEAR);
+        dateFieldUnits.put("week", DateTimeUnit.WEEK_OF_WEEKYEAR);
+        dateFieldUnits.put("1w", DateTimeUnit.WEEK_OF_WEEKYEAR);
+        dateFieldUnits.put("day", DateTimeUnit.DAY_OF_MONTH);
+        dateFieldUnits.put("1d", DateTimeUnit.DAY_OF_MONTH);
+        dateFieldUnits.put("hour", DateTimeUnit.HOUR_OF_DAY);
+        dateFieldUnits.put("1h", DateTimeUnit.HOUR_OF_DAY);
+        dateFieldUnits.put("minute", DateTimeUnit.MINUTES_OF_HOUR);
+        dateFieldUnits.put("1m", DateTimeUnit.MINUTES_OF_HOUR);
+        dateFieldUnits.put("second", DateTimeUnit.SECOND_OF_MINUTE);
+        dateFieldUnits.put("1s", DateTimeUnit.SECOND_OF_MINUTE);
+        DATE_FIELD_UNITS = unmodifiableMap(dateFieldUnits);
     }
 
     @Override

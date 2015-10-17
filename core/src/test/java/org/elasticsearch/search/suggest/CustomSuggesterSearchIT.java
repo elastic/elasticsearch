@@ -20,13 +20,12 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -35,7 +34,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -59,11 +57,12 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                 .endObject())
                 .setRefresh(true).execute().actionGet();
         ensureYellow();
-        
+
         String randomText = randomAsciiOfLength(10);
         String randomField = randomAsciiOfLength(10);
         String randomSuffix = randomAsciiOfLength(10);
-        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setTypes("test").setFrom(0).setSize(1).addSuggestion(
+        SuggestBuilder suggestBuilder = new SuggestBuilder();
+        suggestBuilder.addSuggestion(
                 new SuggestBuilder.SuggestionBuilder<SuggestBuilder.SuggestionBuilder>("someName", "custom") {
                     @Override
                     protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
@@ -73,6 +72,8 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                     }
                 }.text(randomText)
         );
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setTypes("test").setFrom(0).setSize(1)
+                .suggest(suggestBuilder);
 
         SearchResponse searchResponse = searchRequestBuilder.execute().actionGet();
 

@@ -1,8 +1,6 @@
 [[mapping-ttl-field]]
 === `_ttl` field
 
-deprecated[2.0.0,The current `_ttl` implementation is deprecated and will be replaced with a different implementation in a future version]
-
 Some types of documents, such as session data or special offers, come with an
 expiration date. The `_ttl` field allows you to specify the minimum time a
 document should live, after which time the document is deleted automatically.

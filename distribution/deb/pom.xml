@@ -76,6 +76,7 @@
                                         <include>bin/elasticsearch</include>
                                         <include>bin/elasticsearch.in.sh</include>
                                         <include>bin/plugin</include>
+                                        <include>bin/elasticsearch-systemd-pre-exec</include>
                                     </includes>
                                 </resource>
                             </resources>
@@ -110,13 +111,26 @@
                                 <data>
                                     <src>${project.build.directory}/generated-packaging/deb/bin</src>
                                     <type>directory</type>
-                                    <includes>elasticsearch,elasticsearch.in.sh,plugin</includes>
+                                    <includes>elasticsearch,elasticsearch.in.sh,plugin,elasticsearch-systemd-pre-exec</includes>
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>${packaging.elasticsearch.bin.dir}</prefix>
                                         <filemode>755</filemode>
                                         <user>root</user>
                                         <group>root</group>
+                                    </mapper>
+                                </data>
+                                <!-- create the conf dir manually so it gets proper permissions -->
+                                <data>
+                                    <type>template</type>
+                                    <paths>
+                                        <path>${packaging.elasticsearch.conf.dir}</path>
+                                    </paths>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <filemode>750</filemode>
+                                        <user>root</user>
+                                        <group>elasticsearch</group>
                                     </mapper>
                                 </data>
                                 <!-- Add configuration files -->
@@ -127,8 +141,9 @@
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>${packaging.elasticsearch.conf.dir}</prefix>
+                                        <filemode>750</filemode>
                                         <user>root</user>
-                                        <group>root</group>
+                                        <group>elasticsearch</group>
                                     </mapper>
                                 </data>
                                 <data>
@@ -136,6 +151,12 @@
                                     <paths>
                                         <path>${packaging.elasticsearch.conf.dir}/scripts</path>
                                     </paths>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <filemode>750</filemode>
+                                        <user>root</user>
+                                        <group>elasticsearch</group>
+                                    </mapper>
                                 </data>
                                 <!-- Add environment vars file -->
                                 <data>

@@ -66,24 +66,10 @@ public class JvmExamplePlugin extends Plugin {
     }
 
     @Override
-    public Collection<Module> indexModules(Settings indexSettings) {
-        return Collections.emptyList();
-    }
+    public Collection<Module> indexModules(Settings indexSettings) { return Collections.emptyList();}
 
     @Override
-    public Collection<Class<? extends Closeable>> indexServices() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<Module> shardModules(Settings indexSettings) {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<Class<? extends Closeable>> shardServices() {
-        return Collections.emptyList();
-    }
+    public Collection<Class<? extends Closeable>> indexServices() { return Collections.emptyList();}
 
     @Override
     public Settings additionalSettings() {

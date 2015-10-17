@@ -131,6 +131,8 @@ Plugins can be removed manually, by deleting the appropriate directory under
 sudo bin/plugin remove [pluginname]
 -----------------------------------
 
+After a Java plugin has been removed, you will need to restart the node to complete the removal process.
+
 === Other command line parameters
 
 The `plugin` scripts supports a number of other command line parameters:

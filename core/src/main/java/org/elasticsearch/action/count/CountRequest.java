@@ -19,34 +19,21 @@
 
 package org.elasticsearch.action.count;
 
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
-
-import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 /**
  * A request to count the number of documents matching a specific query. Best created with
  * {@link org.elasticsearch.client.Requests#countRequest(String...)}.
- * <p>
- * The request requires the query source to be set either using {@link #source(QuerySourceBuilder)},
- * or {@link #source(byte[])}.
  *
  * @see CountResponse
  * @see org.elasticsearch.client.Client#count(CountRequest)
@@ -54,21 +41,15 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
  */
 public class CountRequest extends BroadcastRequest<CountRequest> {
 
-    public static final float DEFAULT_MIN_SCORE = -1f;
-
-    private float minScore = DEFAULT_MIN_SCORE;
-
     @Nullable
     protected String routing;
 
     @Nullable
     private String preference;
 
-    private BytesReference source;
-
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private int terminateAfter = DEFAULT_TERMINATE_AFTER;
+    private final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
     /**
      * Constructs a new count request against the provided indices. No indices provided means it will
@@ -76,13 +57,14 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
      */
     public CountRequest(String... indices) {
         super(indices);
+        searchSourceBuilder.size(0);
     }
 
     /**
      * The minimum score of the documents to include in the count.
      */
-    public float minScore() {
-        return minScore;
+    public Float minScore() {
+        return searchSourceBuilder.minScore();
     }
 
     /**
@@ -90,69 +72,16 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
      * documents will be included in the count.
      */
     public CountRequest minScore(float minScore) {
-        this.minScore = minScore;
+        this.searchSourceBuilder.minScore(minScore);
         return this;
     }
 
-    /**
-     * The source to execute.
-     */
-    public BytesReference source() {
-        return source;
-    }
 
     /**
-     * The source to execute.
+     * The query to execute
      */
-    public CountRequest source(QuerySourceBuilder sourceBuilder) {
-        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        return this;
-    }
-
-    /**
-     * The source to execute in the form of a map.
-     */
-    @SuppressWarnings("unchecked")
-    public CountRequest source(Map querySource) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(querySource);
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + querySource + "]", e);
-        }
-    }
-
-    public CountRequest source(XContentBuilder builder) {
-        this.source = builder.bytes();
-        return this;
-    }
-
-    /**
-     * The source to execute. It is preferable to use either {@link #source(byte[])}
-     * or {@link #source(QuerySourceBuilder)}.
-     */
-    public CountRequest source(String querySource) {
-        this.source = new BytesArray(querySource);
-        return this;
-    }
-
-    /**
-     * The source to execute.
-     */
-    public CountRequest source(byte[] querySource) {
-        return source(querySource, 0, querySource.length);
-    }
-
-    /**
-     * The source to execute.
-     */
-    public CountRequest source(byte[] querySource, int offset, int length) {
-        return source(new BytesArray(querySource, offset, length));
-    }
-
-    public CountRequest source(BytesReference querySource) {
-        this.source = querySource;
+    public CountRequest query(QueryBuilder<?> queryBuilder) {
+        this.searchSourceBuilder.query(queryBuilder);
         return this;
     }
 
@@ -207,15 +136,12 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
      * Upon reaching <code>terminateAfter</code> counts, the count request will early terminate
      */
     public CountRequest terminateAfter(int terminateAfterCount) {
-        if (terminateAfterCount <= 0) {
-            throw new IllegalArgumentException("terminateAfter must be > 0");
-        }
-        this.terminateAfter = terminateAfterCount;
+        this.searchSourceBuilder.terminateAfter(terminateAfterCount);
         return this;
     }
 
     public int terminateAfter() {
-        return this.terminateAfter;
+        return this.searchSourceBuilder.terminateAfter();
     }
 
     @Override
@@ -230,31 +156,20 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
 
     @Override
     public String toString() {
-        String sSource = "_na_";
-        try {
-            sSource = XContentHelper.convertToJson(source, false);
-        } catch (Exception e) {
-            // ignore
-        }
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", source[" + sSource + "]";
+        return "count request indices:" + Arrays.toString(indices) +
+                ", types:" + Arrays.toString(types) +
+                ", routing: " + routing +
+                ", preference: " + preference +
+                ", source:" + searchSourceBuilder.toString();
     }
 
     public SearchRequest toSearchRequest() {
         SearchRequest searchRequest = new SearchRequest(indices());
+        searchRequest.source(searchSourceBuilder);
         searchRequest.indicesOptions(indicesOptions());
         searchRequest.types(types());
         searchRequest.routing(routing());
         searchRequest.preference(preference());
-        searchRequest.source(source());
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.size(0);
-        if (minScore() != DEFAULT_MIN_SCORE) {
-            searchSourceBuilder.minScore(minScore());
-        }
-        if (terminateAfter() != DEFAULT_TERMINATE_AFTER) {
-            searchSourceBuilder.terminateAfter(terminateAfter());
-        }
-        searchRequest.extraSource(searchSourceBuilder);
         return searchRequest;
     }
 }

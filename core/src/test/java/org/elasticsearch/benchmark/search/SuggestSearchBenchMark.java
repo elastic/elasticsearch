@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 
 import java.io.IOException;
@@ -41,7 +42,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
@@ -118,7 +121,9 @@ public class SuggestSearchBenchMark {
             String term = "prefix" + startChar;
             SearchResponse response = client.prepareSearch()
                     .setQuery(prefixQuery("field", term))
-                    .addSuggestion(SuggestBuilders.termSuggestion("field").field("field").text(term).suggestMode("always"))
+                    .suggest(
+                            new SuggestBuilder().addSuggestion(SuggestBuilders.termSuggestion("field").field("field").text(term)
+                                    .suggestMode("always")))
                     .execute().actionGet();
             if (response.getHits().totalHits() == 0) {
                 System.err.println("No hits");
@@ -135,7 +140,9 @@ public class SuggestSearchBenchMark {
             String term = "prefix" + startChar;
             SearchResponse response = client.prepareSearch()
                     .setQuery(matchQuery("field", term))
-                    .addSuggestion(SuggestBuilders.termSuggestion("field").text(term).field("field").suggestMode("always"))
+                    .suggest(
+                            new SuggestBuilder().addSuggestion(SuggestBuilders.termSuggestion("field").text(term).field("field")
+                                    .suggestMode("always")))
                     .execute().actionGet();
             timeTaken += response.getTookInMillis();
             if (response.getSuggest() == null) {

@@ -21,11 +21,12 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -34,8 +35,17 @@ import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -242,11 +252,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 
-        // Sending a negative 'flags' value is the same as SimpleQueryStringFlag.ALL
-        searchResponse = client().prepareSearch().setQuery("{\"simple_query_string\": {\"query\": \"foo bar\", \"flags\": -1}}").get();
-        assertHitCount(searchResponse, 3l);
-        assertSearchHits(searchResponse, "1", "2", "3");
-
         searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("foo | bar")
                         .defaultOperator(Operator.AND)
@@ -267,21 +272,18 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                         .flags(SimpleQueryStringFlag.NONE)).get();
         assertHitCount(searchResponse, 0l);
 
-        searchResponse = client().prepareSearch().setSource(new BytesArray("{\n" +
-                "  \"query\": {\n" +
-                "    \"simple_query_string\": {\n" +
-                "      \"query\": \"foo|bar\",\n" +
-                "      \"default_operator\": \"AND\"," +
-                "      \"flags\": \"NONE\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}")).get();
+        searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().query(QueryBuilders.simpleQueryStringQuery("foo|bar").defaultOperator(Operator.AND)
+                                .flags(SimpleQueryStringFlag.NONE))).get();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryStringQuery("baz | egg*")
-                        .defaultOperator(Operator.AND)
-                        .flags(SimpleQueryStringFlag.WHITESPACE, SimpleQueryStringFlag.PREFIX)).get();
+        searchResponse = client()
+                .prepareSearch()
+                .setQuery(
+                        simpleQueryStringQuery("baz | egg*").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.WHITESPACE,
+                                SimpleQueryStringFlag.PREFIX)).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("4"));
     }

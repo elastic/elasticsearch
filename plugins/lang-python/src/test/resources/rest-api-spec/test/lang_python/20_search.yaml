@@ -33,8 +33,9 @@
                             lang: python
                 script_fields:
                     sNum1:
-                        lang: python
-                        script: "doc['num1'].value"
+                        script: 
+                            inline: "doc['num1'].value"
+                            lang: python
                 sort:
                     num1:
                         order: asc
@@ -57,8 +58,9 @@
 
                 script_fields:
                     sNum1:
-                        lang: python
-                        script: "doc['num1'].value"
+                        script: 
+                            inline: "doc['num1'].value"
+                            lang: python
                 sort:
                     num1:
                         order: asc
@@ -81,8 +83,9 @@
 
                 script_fields:
                     sNum1:
-                        lang: python
-                        script: "doc['num1'].value"
+                        script: 
+                            inline: "doc['num1'].value"
+                            lang: python
                 sort:
                     num1:
                         order: asc
@@ -118,17 +121,21 @@
             body:
                 script_fields:
                     s_obj1:
-                        lang: python
-                        script: "_source['obj1']"
+                        script: 
+                            inline: "_source['obj1']"
+                            lang: python
                     s_obj1_test:
-                        lang: python
-                        script: "_source['obj1']['test']"
+                        script: 
+                            inline: "_source['obj1']['test']"
+                            lang: python
                     s_obj2:
-                        lang: python
-                        script: "_source['obj2']"
+                        script: 
+                            inline: "_source['obj2']"
+                            lang: python
                     s_obj2_arr2:
-                        lang: python
-                        script: "_source['obj2']['arr2']"
+                        script: 
+                            inline: "_source['obj2']['arr2']"
+                            lang: python
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0.fields.s_obj1.0.test: something }

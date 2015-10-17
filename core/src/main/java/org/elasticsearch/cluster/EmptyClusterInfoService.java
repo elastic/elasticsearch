@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 

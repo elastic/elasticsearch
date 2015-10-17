@@ -70,7 +70,7 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "all concurrent rebalances are allowed");
         }
         if (allocation.routingNodes().getRelocatingShardCount() >= clusterConcurrentRebalance) {
-            return allocation.decision(Decision.NO, NAME, "too man concurrent rebalances [%d], limit: [%d]",
+            return allocation.decision(Decision.NO, NAME, "too many concurrent rebalances [%d], limit: [%d]",
                     allocation.routingNodes().getRelocatingShardCount(), clusterConcurrentRebalance);
         }
         return allocation.decision(Decision.YES, NAME, "below threshold [%d] for concurrent rebalances", clusterConcurrentRebalance);

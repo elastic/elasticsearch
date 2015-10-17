@@ -24,9 +24,35 @@ import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50SegmentInfoFormat;
 import org.apache.lucene.codecs.lucene53.Lucene53Codec;
-import org.apache.lucene.document.*;
-import org.apache.lucene.index.*;
-import org.apache.lucene.store.*;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexNotFoundException;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.NoDeletionPolicy;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.BaseDirectoryWrapper;
+import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
@@ -55,14 +81,30 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Adler32;
 
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class StoreTests extends ESTestCase {
 
@@ -149,14 +191,89 @@ public class StoreTests extends ESTestCase {
             }
         }
         Store.verify(verifyingOutput);
-        verifyingOutput.writeByte((byte) 0x0);
+        try {
+            appendRandomData(verifyingOutput);
+            fail("should be a corrupted index");
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            // ok
+        }
         try {
             Store.verify(verifyingOutput);
             fail("should be a corrupted index");
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             // ok
         }
+
         IOUtils.close(indexInput, verifyingOutput, dir);
+    }
+
+    public void testChecksumCorrupted() throws IOException {
+        Directory dir = newDirectory();
+        IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT);
+        int iters = scaledRandomIntBetween(10, 100);
+        for (int i = 0; i < iters; i++) {
+            BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
+            output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        }
+        output.writeInt(CodecUtil.FOOTER_MAGIC);
+        output.writeInt(0);
+        String checksum = Store.digestToString(output.getChecksum());
+        output.writeLong(output.getChecksum() + 1); // write a wrong checksum to the file
+        output.close();
+
+        IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);
+        indexInput.seek(0);
+        BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
+        long length = indexInput.length();
+        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, checksum), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+        length -= 8; // we write the checksum in the try / catch block below
+        while (length > 0) {
+            if (random().nextInt(10) == 0) {
+                verifyingOutput.writeByte(indexInput.readByte());
+                length--;
+            } else {
+                int min = (int) Math.min(length, ref.bytes.length);
+                indexInput.readBytes(ref.bytes, ref.offset, min);
+                verifyingOutput.writeBytes(ref.bytes, ref.offset, min);
+                length -= min;
+            }
+        }
+
+        try {
+            BytesRef checksumBytes = new BytesRef(8);
+            checksumBytes.length = 8;
+            indexInput.readBytes(checksumBytes.bytes, checksumBytes.offset, checksumBytes.length);
+            if (randomBoolean()) {
+                verifyingOutput.writeBytes(checksumBytes.bytes, checksumBytes.offset, checksumBytes.length);
+            } else {
+                for (int i = 0; i < checksumBytes.length; i++) {
+                    verifyingOutput.writeByte(checksumBytes.bytes[i]);
+                }
+            }
+            fail("should be a corrupted index");
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            // ok
+        }
+        IOUtils.close(indexInput, verifyingOutput, dir);
+    }
+
+    private void appendRandomData(IndexOutput output) throws IOException {
+        int numBytes = randomIntBetween(1, 1024);
+        final BytesRef ref = new BytesRef(scaledRandomIntBetween(1, numBytes));
+        ref.length = ref.bytes.length;
+        while (numBytes > 0) {
+            if (random().nextInt(10) == 0) {
+                output.writeByte(randomByte());
+                numBytes--;
+            } else {
+                for (int i = 0; i<ref.length; i++) {
+                    ref.bytes[i] = randomByte();
+                }
+                final int min = Math.min(numBytes, ref.bytes.length);
+                output.writeBytes(ref.bytes, ref.offset, min);
+                numBytes -= min;
+            }
+        }
     }
 
     @Test
@@ -731,9 +848,9 @@ public class StoreTests extends ESTestCase {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
         metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[]{1})));
         metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
-        Store.MetadataSnapshot first = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP, 0);
+        Store.MetadataSnapshot first = new Store.MetadataSnapshot(unmodifiableMap(new HashMap<>(metaDataMap)), emptyMap(), 0);
 
-        Store.MetadataSnapshot second = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP, 0);
+        Store.MetadataSnapshot second = new Store.MetadataSnapshot(unmodifiableMap(new HashMap<>(metaDataMap)), emptyMap(), 0);
         Store.RecoveryDiff recoveryDiff = first.recoveryDiff(second);
         assertEquals(recoveryDiff.toString(), recoveryDiff.different.size(), 2);
     }
@@ -999,7 +1116,7 @@ public class StoreTests extends ESTestCase {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
         metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[]{1})));
         metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
-        Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP, 0);
+        Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(unmodifiableMap(metaDataMap), emptyMap(), 0);
 
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
@@ -1133,7 +1250,7 @@ public class StoreTests extends ESTestCase {
         Map<String, String> commitUserData = new HashMap<>();
         commitUserData.put("userdata_1", "test");
         commitUserData.put("userdata_2", "test");
-        return new Store.MetadataSnapshot(storeFileMetaDataMap, commitUserData, 0);
+        return new Store.MetadataSnapshot(unmodifiableMap(storeFileMetaDataMap), unmodifiableMap(commitUserData), 0);
     }
 
     @Test

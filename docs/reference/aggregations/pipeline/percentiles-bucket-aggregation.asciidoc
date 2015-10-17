@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-percentiles-bucket-aggregation]]
 === Percentiles Bucket Aggregation
 
-coming[2.1.0]
-
 experimental[]
 
 A sibling pipeline aggregation which calculates percentiles across all bucket of a specified metric in a sibling aggregation.

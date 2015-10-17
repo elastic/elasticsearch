@@ -19,13 +19,18 @@
 
 package org.elasticsearch.index.snapshots.blobstore;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
@@ -47,7 +52,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.*;
+import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotException;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -63,8 +72,15 @@ import org.elasticsearch.repositories.blobstore.LegacyBlobStoreFormat;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.testBlobPrefix;
 
 /**
@@ -92,6 +108,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
     private RateLimiterListener rateLimiterListener;
 
     private RateLimitingInputStream.Listener snapshotThrottleListener;
+
+    private RateLimitingInputStream.Listener restoreThrottleListener;
 
     private boolean compress;
 
@@ -147,6 +165,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         this.restoreRateLimiter = restoreRateLimiter;
         this.rateLimiterListener = rateLimiterListener;
         this.snapshotThrottleListener = nanos -> rateLimiterListener.onSnapshotPause(nanos);
+        this.restoreThrottleListener = nanos -> rateLimiterListener.onRestorePause(nanos);
         this.compress = compress;
         indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT, BlobStoreIndexShardSnapshot.PROTO, parseFieldMatcher, isCompress());
         indexShardSnapshotLegacyFormat = new LegacyBlobStoreFormat<>(LEGACY_SNAPSHOT_NAME_FORMAT, BlobStoreIndexShardSnapshot.PROTO, parseFieldMatcher);
@@ -486,7 +505,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         public SnapshotContext(SnapshotId snapshotId, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
             super(snapshotId, Version.CURRENT, shardId);
             IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            store = indexService.shard(shardId.id()).store();
+            store = indexService.getShardOrNull(shardId.id()).store();
             this.snapshotStatus = snapshotStatus;
 
         }
@@ -624,13 +643,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         private void snapshotFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
             final String file = fileInfo.physicalName();
-            final byte[] buffer = new byte[BUFFER_SIZE];
             try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())) {
                 for (int i = 0; i < fileInfo.numberOfParts(); i++) {
-                    final InputStreamIndexInput inputStreamIndexInput = new InputStreamIndexInput(indexInput, fileInfo.partBytes());
+                    final long partBytes = fileInfo.partBytes(i);
+
+                    final InputStreamIndexInput inputStreamIndexInput = new InputStreamIndexInput(indexInput, partBytes);
                     InputStream inputStream = snapshotRateLimiter == null ? inputStreamIndexInput : new RateLimitingInputStream(inputStreamIndexInput, snapshotRateLimiter, snapshotThrottleListener);
                     inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
-                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, fileInfo.partBytes());
+                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, partBytes);
                 }
                 Store.verify(indexInput);
                 snapshotStatus.addProcessedFile(fileInfo.length());
@@ -769,7 +789,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public RestoreContext(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
             super(snapshotId, version, shardId, snapshotShardId);
-            store = indicesService.indexServiceSafe(shardId.getIndex()).shard(shardId.id()).store();
+            store = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id()).store();
             this.recoveryState = recoveryState;
         }
 
@@ -807,7 +827,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
                     fileInfos.put(fileInfo.metadata().name(), fileInfo);
                 }
-                final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(snapshotMetaData, Collections.EMPTY_MAP, 0);
+                final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(unmodifiableMap(snapshotMetaData), emptyMap(), 0);
                 final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryTargetMetadata);
                 for (StoreFileMetaData md : diff.identical) {
                     FileInfo fileInfo = fileInfos.get(md.name());
@@ -890,16 +910,20 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         private void restoreFile(final FileInfo fileInfo) throws IOException {
             boolean success = false;
-            try (InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
+
+            try (InputStream partSliceStream = new PartSliceStream(blobContainer, fileInfo)) {
+                final InputStream stream;
+                if (restoreRateLimiter == null) {
+                    stream = partSliceStream;
+                } else {
+                    stream = new RateLimitingInputStream(partSliceStream, restoreRateLimiter, restoreThrottleListener);
+                }
                 try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                     final byte[] buffer = new byte[BUFFER_SIZE];
                     int length;
                     while ((length = stream.read(buffer)) > 0) {
                         indexOutput.writeBytes(buffer, 0, length);
                         recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.name(), length);
-                        if (restoreRateLimiter != null) {
-                            rateLimiterListener.onRestorePause(restoreRateLimiter.pause(length));
-                        }
                     }
                     Store.verify(indexOutput);
                     indexOutput.close();

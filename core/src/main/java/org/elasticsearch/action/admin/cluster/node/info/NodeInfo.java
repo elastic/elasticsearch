@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -36,7 +35,10 @@ import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Node information (static, does not change over time).
@@ -75,7 +77,7 @@ public class NodeInfo extends BaseNodeResponse {
     NodeInfo() {
     }
 
-    public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
+    public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable Map<String, String> serviceAttributes, @Nullable Settings settings,
                     @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool,
                     @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsInfo plugins) {
         super(node);
@@ -186,12 +188,12 @@ public class NodeInfo extends BaseNodeResponse {
         version = Version.readVersion(in);
         build = Build.readBuild(in);
         if (in.readBoolean()) {
-            ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+            Map<String, String> builder = new HashMap<>();
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 builder.put(in.readString(), in.readString());
             }
-            serviceAttributes = builder.build();
+            serviceAttributes = unmodifiableMap(builder);
         }
         if (in.readBoolean()) {
             settings = Settings.readSettingsFromStream(in);

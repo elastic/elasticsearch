@@ -19,22 +19,27 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -52,14 +57,14 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetaData> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-        // using MapBuilder and not ImmutableMap.Builder as it seems like File#listFiles might return duplicate files!
-        MapBuilder<String, BlobMetaData> builder = MapBuilder.newMapBuilder();
+    public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+        // If we get duplicate files we should just take the last entry
+        Map<String, BlobMetaData> builder = new HashMap<>();
 
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, blobNamePrefix + "*")) {
@@ -70,7 +75,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 }
             }
         }
-        return builder.immutableMap();
+        return unmodifiableMap(builder);
     }
 
     @Override

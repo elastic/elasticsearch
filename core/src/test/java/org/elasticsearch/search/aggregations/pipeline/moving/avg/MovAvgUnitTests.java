@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
-import com.google.common.collect.EvictingQueue;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.*;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
@@ -39,7 +39,7 @@ public class MovAvgUnitTests extends ESTestCase {
         int numValues = randomIntBetween(1, 100);
         int windowSize = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < numValues; i++) {
 
             double randValue = randomDouble();
@@ -68,7 +68,7 @@ public class MovAvgUnitTests extends ESTestCase {
         int windowSize = randomIntBetween(1, 50);
         int numPredictions = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -94,7 +94,7 @@ public class MovAvgUnitTests extends ESTestCase {
         int numValues = randomIntBetween(1, 100);
         int windowSize = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < numValues; i++) {
             double randValue = randomDouble();
 
@@ -126,7 +126,7 @@ public class MovAvgUnitTests extends ESTestCase {
         int windowSize = randomIntBetween(1, 50);
         int numPredictions = randomIntBetween(1,50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -158,7 +158,7 @@ public class MovAvgUnitTests extends ESTestCase {
         int numValues = randomIntBetween(1, 100);
         int windowSize = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < numValues; i++) {
             double randValue = randomDouble();
 
@@ -193,7 +193,7 @@ public class MovAvgUnitTests extends ESTestCase {
         int windowSize = randomIntBetween(1, 50);
         int numPredictions = randomIntBetween(1,50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -227,7 +227,7 @@ public class MovAvgUnitTests extends ESTestCase {
         int numValues = randomIntBetween(1, 100);
         int windowSize = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < numValues; i++) {
             double randValue = randomDouble();
 
@@ -276,7 +276,7 @@ public class MovAvgUnitTests extends ESTestCase {
         int windowSize = randomIntBetween(1, 50);
         int numPredictions = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -323,7 +323,7 @@ public class MovAvgUnitTests extends ESTestCase {
 
         int windowSize = randomIntBetween(period * 2, 50); // HW requires at least two periods of data
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -392,7 +392,7 @@ public class MovAvgUnitTests extends ESTestCase {
         int windowSize = randomIntBetween(period * 2, 50); // HW requires at least two periods of data
         int numPredictions = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -465,7 +465,7 @@ public class MovAvgUnitTests extends ESTestCase {
 
         int windowSize = randomIntBetween(period * 2, 50); // HW requires at least two periods of data
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -533,7 +533,7 @@ public class MovAvgUnitTests extends ESTestCase {
         int windowSize = randomIntBetween(period * 2, 50); // HW requires at least two periods of data
         int numPredictions = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }

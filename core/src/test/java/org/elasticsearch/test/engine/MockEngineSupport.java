@@ -169,11 +169,6 @@ public final class MockEngineSupport {
             return in.getCoreCacheKey();
         }
 
-        @Override
-        public Object getCombinedCoreAndDeletesKey() {
-            return in.getCombinedCoreAndDeletesKey();
-        }
-
     }
 
     public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher, IndexSearcher searcher, SearcherManager manager) {

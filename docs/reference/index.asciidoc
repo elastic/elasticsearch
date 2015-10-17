@@ -1,11 +1,12 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:   2.0.0-beta1
-:branch:    2.0
-:jdk:       1.8.0_25
-:defguide:  https://www.elastic.co/guide/en/elasticsearch/guide/current
-:plugins:   https://www.elastic.co/guide/en/elasticsearch/plugins/master
+:version:       3.0.0-beta1
+:major-version: 3.x
+:branch:        3.0
+:jdk:           1.8.0_25
+:defguide:      https://www.elastic.co/guide/en/elasticsearch/guide/current
+:plugins:       https://www.elastic.co/guide/en/elasticsearch/plugins/master
 
 include::getting-started.asciidoc[]
 

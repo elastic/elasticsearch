@@ -73,7 +73,7 @@ public class InternalSettingsPreparer {
      * and then replacing all property placeholders. If a {@link Terminal} is provided and configuration settings are loaded,
      * settings with a value of <code>${prompt.text}</code> or <code>${prompt.secret}</code> will result in a prompt for
      * the setting to the user.
-     * @param input The initial settings to use
+     * @param input The custom settings to use. These are not overwritten by settings in the configuration file.
      * @param terminal the Terminal to use for input/output
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
@@ -83,42 +83,20 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, true);
         Environment environment = new Environment(output.build());
 
-        // TODO: can we simplify all of this and have a single filename, which is looked up in the config dir?
-        boolean loadFromEnv = true;
-        if (useSystemProperties(input)) {
-            // if its default, then load it, but also load form env
-            if (Strings.hasText(System.getProperty("es.default.config"))) {
-                // TODO: we don't allow multiple config files, but having loadFromEnv true here allows just that
-                loadFromEnv = true;
-                output.loadFromPath(environment.configFile().resolve(System.getProperty("es.default.config")));
-            }
-            // TODO: these should be elseifs so that multiple files cannot be loaded
-            // if explicit, just load it and don't load from env
-            if (Strings.hasText(System.getProperty("es.config"))) {
-                loadFromEnv = false;
-                output.loadFromPath(environment.configFile().resolve(System.getProperty("es.config")));
-            }
-            if (Strings.hasText(System.getProperty("elasticsearch.config"))) {
-                loadFromEnv = false;
-                output.loadFromPath(environment.configFile().resolve(System.getProperty("elasticsearch.config")));
+        boolean settingsFileFound = false;
+        Set<String> foundSuffixes = new HashSet<>();
+        for (String allowedSuffix : ALLOWED_SUFFIXES) {
+            Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
+            if (Files.exists(path)) {
+                if (!settingsFileFound) {
+                    output.loadFromPath(path);
+                }
+                settingsFileFound = true;
+                foundSuffixes.add(allowedSuffix);
             }
         }
-        if (loadFromEnv) {
-            boolean settingsFileFound = false;
-            Set<String> foundSuffixes = new HashSet<>();
-            for (String allowedSuffix : ALLOWED_SUFFIXES) {
-                Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
-                if (Files.exists(path)) {
-                    if (!settingsFileFound) {
-                        output.loadFromPath(path);
-                    }
-                    settingsFileFound = true;
-                    foundSuffixes.add(allowedSuffix);
-                }
-            }
-            if (foundSuffixes.size() > 1) {
-                throw new SettingsException("multiple settings files found with suffixes: " + Strings.collectionToDelimitedString(foundSuffixes, ","));
-            }
+        if (foundSuffixes.size() > 1) {
+            throw new SettingsException("multiple settings files found with suffixes: " + Strings.collectionToDelimitedString(foundSuffixes, ","));
         }
 
         // re-initialize settings now that the config file has been loaded

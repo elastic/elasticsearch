@@ -75,7 +75,7 @@ public class TransportOptimizeAction extends TransportBroadcastByNodeAction<Opti
 
     @Override
     protected EmptyResult shardOperation(OptimizeRequest request, ShardRouting shardRouting) throws IOException {
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex()).shardSafe(shardRouting.shardId().id());
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex()).getShard(shardRouting.shardId().id());
         indexShard.optimize(request);
         return EmptyResult.INSTANCE;
     }

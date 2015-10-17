@@ -253,7 +253,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 // Shouldn't happen
                 throw new IndexNotFoundException(index);
             }
-            AliasMetaData aliasMetaData = indexMetaData.aliases().get(alias);
+            AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias);
             boolean filteringRequired = aliasMetaData != null && aliasMetaData.filteringRequired();
             if (!filteringRequired) {
                 return null;
@@ -272,7 +272,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 throw new IndexNotFoundException(index);
             }
 
-            AliasMetaData aliasMetaData = indexMetaData.aliases().get(alias);
+            AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias);
             // Check that this is an alias for the current index
             // Otherwise - skip it
             if (aliasMetaData != null) {

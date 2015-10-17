@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -89,7 +90,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         routingTableBuilder.add(currentState.routingTable().getIndicesRouting().get(filteredIndex));
                     }
                 }
-                builder.routingTable(routingTableBuilder);
+                builder.routingTable(routingTableBuilder.build());
             } else {
                 builder.routingTable(currentState.routingTable());
             }

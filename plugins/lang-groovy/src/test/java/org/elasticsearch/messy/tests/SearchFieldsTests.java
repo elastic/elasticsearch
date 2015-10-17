@@ -19,9 +19,7 @@
 
 package org.elasticsearch.messy.tests;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Base64;
@@ -33,6 +31,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
@@ -40,6 +39,7 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
@@ -80,7 +80,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Test
     public void testStoredFields() throws Exception {
         createIndex("test");
@@ -529,20 +529,11 @@ public class SearchFieldsTests extends ESIntegTestCase {
         createIndex("test");
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": \"test_field\"}"))).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(
+                new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).fieldDataField("test_field")).get();
         assertHitCount(searchResponse, 1);
         Map<String,SearchHitField> fields = searchResponse.getHits().getHits()[0].getFields();
         assertThat((String)fields.get("test_field").value(), equalTo("foobar"));
-    }
-
-    @Test(expected = SearchPhaseExecutionException.class)
-    public void testInvalidFieldDataField() throws ExecutionException, InterruptedException {
-        createIndex("test");
-        if (randomBoolean()) {
-            client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": {}}"))).get();
-        } else {
-            client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": 1.0}"))).get();
-        }
     }
 
     @Test

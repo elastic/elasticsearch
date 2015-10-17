@@ -19,12 +19,10 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
-
-import com.google.common.collect.EvictingQueue;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
@@ -42,11 +40,7 @@ import org.junit.Test;
 import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.movingAvg;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -170,7 +164,7 @@ public class MovAvgIT extends ESIntegTestCase {
      */
     private void setupExpected(MovAvgType type, MetricTarget target, int windowSize) {
         ArrayList<Double> values = new ArrayList<>(numBuckets);
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
 
         for (PipelineAggregationHelperTests.MockBucket mockBucket : mockHisto) {
             double metricValue;

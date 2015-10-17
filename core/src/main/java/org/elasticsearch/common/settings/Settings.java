@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.settings;
 
-import java.nio.charset.StandardCharsets;
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -30,20 +28,40 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
-import org.elasticsearch.common.unit.*;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.Strings.toCamelCase;
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
@@ -70,8 +88,8 @@ public final class Settings implements ToXContent {
         return settingsRequireUnits;
     }
 
+    private final Map<String, String> forcedUnderscoreSettings;
     private SortedMap<String, String> settings;
-    private final ImmutableMap<String, String> forcedUnderscoreSettings;
 
     Settings(Map<String, String> settings) {
         // we use a sorted map for consistent serialization when using getAsMap()
@@ -86,7 +104,7 @@ public final class Settings implements ToXContent {
                 forcedUnderscoreSettings.put(toUnderscoreCase, entry.getValue());
             }
         }
-        this.forcedUnderscoreSettings = forcedUnderscoreSettings == null ? ImmutableMap.<String, String>of() : ImmutableMap.copyOf(forcedUnderscoreSettings);
+        this.forcedUnderscoreSettings = forcedUnderscoreSettings == null ? emptyMap() : unmodifiableMap(forcedUnderscoreSettings);
     }
 
     /**

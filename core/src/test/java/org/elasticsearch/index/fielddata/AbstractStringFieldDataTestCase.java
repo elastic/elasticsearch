@@ -601,10 +601,10 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));
         // 3 b/c 1 segment level caches and 1 top level cache
         // in case of doc values, we don't cache atomic FD, so only the top-level cache is there
-        assertThat(indicesFieldDataCache.getCache().size(), equalTo(hasDocValues() ? 1L : 4L));
+        assertThat(indicesFieldDataCache.getCache().weight(), equalTo(hasDocValues() ? 1L : 4L));
 
         IndexOrdinalsFieldData cachedInstance = null;
-        for (Accountable ramUsage : indicesFieldDataCache.getCache().asMap().values()) {
+        for (Accountable ramUsage : indicesFieldDataCache.getCache().values()) {
             if (ramUsage instanceof IndexOrdinalsFieldData) {
                 cachedInstance = (IndexOrdinalsFieldData) ramUsage;
                 break;
@@ -613,12 +613,12 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(cachedInstance, sameInstance(globalOrdinals));
         topLevelReader.close();
         // Now only 3 segment level entries, only the toplevel reader has been closed, but the segment readers are still used by IW
-        assertThat(indicesFieldDataCache.getCache().size(), equalTo(hasDocValues() ? 0L : 3L));
+        assertThat(indicesFieldDataCache.getCache().weight(), equalTo(hasDocValues() ? 0L : 3L));
 
         refreshReader();
         assertThat(ifd.loadGlobal(topLevelReader), not(sameInstance(globalOrdinals)));
 
         ifdService.clear();
-        assertThat(indicesFieldDataCache.getCache().size(), equalTo(0l));
+        assertThat(indicesFieldDataCache.getCache().weight(), equalTo(0l));
     }
 }

@@ -19,14 +19,10 @@
 
 package org.elasticsearch.script.groovy;
 
-import java.nio.charset.StandardCharsets;
-
-import com.google.common.hash.Hashing;
-
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
+import groovy.lang.GroovyCodeSource;
 import groovy.lang.Script;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
@@ -41,9 +37,10 @@ import org.codehaus.groovy.control.SourceUnit;
 import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -53,6 +50,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.HashMap;
@@ -172,7 +170,15 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             if (sm != null) {
                 sm.checkPermission(new SpecialPermission());
             }
-            return loader.parseClass(script, Hashing.sha1().hashString(script, StandardCharsets.UTF_8).toString());
+            String fake = MessageDigests.toHexString(MessageDigests.sha1().digest(script.getBytes(StandardCharsets.UTF_8)));
+            // same logic as GroovyClassLoader.parseClass() but with a different codesource string:
+            GroovyCodeSource gcs = AccessController.doPrivileged(new PrivilegedAction<GroovyCodeSource>() {
+                public GroovyCodeSource run() {
+                    return new GroovyCodeSource(script, fake, BootstrapInfo.UNTRUSTED_CODEBASE);
+                }
+            });
+            gcs.setCachable(false);
+            return loader.parseClass(gcs);
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {
                 logger.trace("exception compiling Groovy script:", e);
@@ -236,25 +242,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 return true;
             }
         };
-    }
-
-    @Override
-    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-        try {
-            Map<String, Object> allVars = new HashMap<>();
-            if (vars != null) {
-                allVars.putAll(vars);
-            }
-            Script scriptObject = createScript(compiledScript.compiled(), allVars);
-            return scriptObject.run();
-        } catch (Exception e) {
-            throw new ScriptException("failed to execute " + compiledScript, e);
-        }
-    }
-
-    @Override
-    public Object unwrap(Object value) {
-        return value;
     }
 
     public static final class GroovyScript implements ExecutableScript, LeafSearchScript {

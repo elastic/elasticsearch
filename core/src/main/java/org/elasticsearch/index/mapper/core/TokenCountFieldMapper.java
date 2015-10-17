@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
@@ -145,7 +146,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             if (valueAndBoost.value() == null) {
                 count = fieldType().nullValue();
             } else {
-                count = countPositions(analyzer.analyzer().tokenStream(simpleName(), valueAndBoost.value()));
+                count = countPositions(analyzer, simpleName(), valueAndBoost.value());
             }
             addIntegerFields(context, fields, count, valueAndBoost.boost());
         }
@@ -156,12 +157,14 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
 
     /**
      * Count position increments in a token stream.  Package private for testing.
-     * @param tokenStream token stream to count
+     * @param analyzer analyzer to create token stream
+     * @param fieldName field name to pass to analyzer
+     * @param fieldValue field value to pass to analyzer
      * @return number of position increments in a token stream
      * @throws IOException if tokenStream throws it
      */
-    static int countPositions(TokenStream tokenStream) throws IOException {
-        try {
+    static int countPositions(Analyzer analyzer, String fieldName, String fieldValue) throws IOException {
+        try (TokenStream tokenStream = analyzer.tokenStream(fieldName, fieldValue)) {
             int count = 0;
             PositionIncrementAttribute position = tokenStream.addAttribute(PositionIncrementAttribute.class);
             tokenStream.reset();
@@ -171,8 +174,6 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             tokenStream.end();
             count += position.getPositionIncrement();
             return count;
-        } finally {
-            tokenStream.close();
         }
     }
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.internal;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
-import com.google.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,6 +29,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -156,7 +156,7 @@ public class InternalSearchHits implements SearchHits {
 
     @Override
     public Iterator<SearchHit> iterator() {
-        return Iterators.forArray(hits());
+        return Arrays.stream(hits()).iterator();
     }
 
     public InternalSearchHit[] internalHits() {

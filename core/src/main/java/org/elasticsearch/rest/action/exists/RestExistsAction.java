@@ -27,7 +27,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
@@ -51,9 +58,11 @@ public class RestExistsAction extends BaseRestHandler {
         if (RestActions.hasBodyContent(request)) {
             existsRequest.source(RestActions.getRestContent(request));
         } else {
-            QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-            if (querySourceBuilder != null) {
-                existsRequest.source(querySourceBuilder);
+            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+            if (queryBuilder != null) {
+                QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
+                querySourceBuilder.setQuery(queryBuilder);
+                existsRequest.source(querySourceBuilder.buildAsBytes());
             }
         }
         existsRequest.routing(request.param("routing"));

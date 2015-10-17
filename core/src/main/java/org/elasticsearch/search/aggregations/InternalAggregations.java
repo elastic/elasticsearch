@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,6 +36,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 /**
  * An internal implementation of {@link Aggregations}.
  */
@@ -46,7 +48,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
 
     private List<InternalAggregation> aggregations = Collections.emptyList();
 
-    private Map<String, InternalAggregation> aggregationsAsMap;
+    private Map<String, Aggregation> aggregationsAsMap;
 
     private InternalAggregations() {
     }
@@ -88,13 +90,13 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     @Override
     public Map<String, Aggregation> getAsMap() {
         if (aggregationsAsMap == null) {
-            Map<String, InternalAggregation> aggregationsAsMap = new HashMap<>();
+            Map<String, InternalAggregation> newAggregationsAsMap = new HashMap<>();
             for (InternalAggregation aggregation : aggregations) {
-                aggregationsAsMap.put(aggregation.getName(), aggregation);
+                newAggregationsAsMap.put(aggregation.getName(), aggregation);
             }
-            this.aggregationsAsMap = aggregationsAsMap;
+            this.aggregationsAsMap = unmodifiableMap(newAggregationsAsMap);
         }
-        return new HashMap<>(aggregationsAsMap);
+        return aggregationsAsMap;
     }
 
     /**
@@ -200,7 +202,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         int size = in.readVInt();
         if (size == 0) {
             aggregations = Collections.emptyList();
-            aggregationsAsMap = ImmutableMap.of();
+            aggregationsAsMap = emptyMap();
         } else {
             aggregations = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {

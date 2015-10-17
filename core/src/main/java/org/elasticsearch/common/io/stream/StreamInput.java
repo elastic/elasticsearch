@@ -31,6 +31,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -336,19 +337,6 @@ public abstract class StreamInput extends InputStream {
     @Override
     public abstract void close() throws IOException;
 
-//    // IS
-//
-//    @Override public int read() throws IOException {
-//        return readByte();
-//    }
-//
-//    // Here, we assume that we always can read the full byte array
-//
-//    @Override public int read(byte[] b, int off, int len) throws IOException {
-//        readBytes(b, off, len);
-//        return len;
-//    }
-
     public String[] readStringArray() throws IOException {
         int size = readVInt();
         if (size == 0) {
@@ -449,9 +437,18 @@ public abstract class StreamInput extends InputStream {
                 return readDoubleArray();
             case 21:
                 return readBytesRef();
+            case 22:
+                return readGeoPoint();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
+    }
+
+    /**
+     * Reads a {@link GeoPoint} from this stream input
+     */
+    public GeoPoint readGeoPoint() throws IOException {
+        return new GeoPoint(readDouble(), readDouble());
     }
 
     public int[] readIntArray() throws IOException {
@@ -463,11 +460,29 @@ public abstract class StreamInput extends InputStream {
         return values;
     }
 
+    public int[] readVIntArray() throws IOException {
+        int length = readVInt();
+        int[] values = new int[length];
+        for (int i = 0; i < length; i++) {
+            values[i] = readVInt();
+        }
+        return values;
+    }
+
     public long[] readLongArray() throws IOException {
         int length = readVInt();
         long[] values = new long[length];
         for (int i = 0; i < length; i++) {
             values[i] = readLong();
+        }
+        return values;
+    }
+
+    public long[] readVLongArray() throws IOException {
+        int length = readVInt();
+        long[] values = new long[length];
+        for (int i = 0; i < length; i++) {
+            values[i] = readVLong();
         }
         return values;
     }

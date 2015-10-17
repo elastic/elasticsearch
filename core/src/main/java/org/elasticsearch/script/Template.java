@@ -46,7 +46,7 @@ public class Template extends Script {
     /**
      * Constructor for simple inline template. The template will have no lang,
      * content type or params set.
-     * 
+     *
      * @param template
      *            The inline template.
      */
@@ -56,7 +56,7 @@ public class Template extends Script {
 
     /**
      * Constructor for Template.
-     * 
+     *
      * @param template
      *            The cache key of the template to be compiled/executed. For
      *            inline templates this is the actual templates source code. For
@@ -73,13 +73,13 @@ public class Template extends Script {
      */
     public Template(String template, ScriptType type, @Nullable String lang, @Nullable XContentType xContentType,
             @Nullable Map<String, Object> params) {
-        super(template, type, lang, params);
+        super(template, type, lang == null ? MustacheScriptEngineService.NAME : lang, params);
         this.contentType = xContentType;
     }
 
     /**
      * Method for getting the {@link XContentType} of the template.
-     * 
+     *
      * @return The {@link XContentType} of the template.
      */
     public XContentType getContentType() {

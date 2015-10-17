@@ -25,10 +25,10 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.script.Script;
@@ -52,7 +52,6 @@ import static org.elasticsearch.action.search.SearchType.DFS_QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
-
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -131,7 +130,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             .settings(settingsBuilder))
             .actionGet();
         ensureGreen();
-        
+
         // we need to have age (ie number of repeats of "test" term) high enough
         // to produce the same 8-bit norm for all docs here, so that
         // the tf is basically the entire score (assuming idf is fixed, which
@@ -335,7 +334,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         do {
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll("10m").get();
-    
+
             assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
             assertThat(searchResponse.getHits().hits().length, lessThanOrEqualTo(40));
             for (int i = 0; i < searchResponse.getHits().hits().length; i++) {
@@ -378,7 +377,8 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         logger.info("Start Testing failed search with wrong query");
         try {
-            SearchResponse searchResponse = client().search(searchRequest("test").source(new BytesArray("{ xxx }"))).actionGet();
+            SearchResponse searchResponse = client().search(
+                    searchRequest("test").source(new SearchSourceBuilder().query(new GeohashCellQuery.Builder("foo", "biz")))).actionGet();
             assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
             assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
             assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
@@ -388,7 +388,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             // all is well
         }
         logger.info("Done Testing failed search");
-    }
+     }
 
     @Test
     public void testFailedSearchWithWrongFrom() throws Exception {

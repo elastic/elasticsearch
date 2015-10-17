@@ -20,7 +20,6 @@ package org.elasticsearch;
 
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
@@ -31,12 +30,7 @@ import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
-import org.elasticsearch.cluster.routing.RoutingTableValidation;
-import org.elasticsearch.cluster.routing.RoutingValidationException;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.PathUtils;
@@ -55,7 +49,6 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.CreateFailedEngineException;
 import org.elasticsearch.index.engine.IndexFailedEngineException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -139,9 +132,9 @@ public class ExceptionSerializationTests extends ESTestCase {
                         Class<?> clazz = loadClass(filename);
                         if (ignore.contains(clazz) == false) {
                             if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false && isEsException(clazz)) {
-                                if (ElasticsearchException.isRegistered((Class<? extends Throwable>)clazz) == false && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
+                                if (ElasticsearchException.isRegistered((Class<? extends Throwable>) clazz) == false && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
                                     notRegistered.add(clazz);
-                                } else if (ElasticsearchException.isRegistered((Class<? extends Throwable>)clazz)) {
+                                } else if (ElasticsearchException.isRegistered((Class<? extends Throwable>) clazz)) {
                                     registered.add(clazz);
                                     try {
                                         if (clazz.getDeclaredMethod("writeTo", StreamOutput.class) != null) {
@@ -199,7 +192,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public static final class TestException extends ElasticsearchException {
-        public TestException(StreamInput in) throws IOException{
+        public TestException(StreamInput in) throws IOException {
             super(in);
         }
     }
@@ -247,7 +240,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(ex.getIndex(), "foo");
         assertEquals(ex.getMessage(), "fobar");
 
-        ex = serialize(new QueryShardException((Index)null, null, null));
+        ex = serialize(new QueryShardException((Index) null, null, null));
         assertNull(ex.getIndex());
         assertNull(ex.getMessage());
     }
@@ -282,22 +275,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(-3, alreadyExpiredException.now());
     }
 
-    public void testCreateFailedEngineException() throws IOException {
-        CreateFailedEngineException ex = serialize(new CreateFailedEngineException(new ShardId("idx", 2), "type", "id", null));
-        assertEquals(ex.getShardId(), new ShardId("idx", 2));
-        assertEquals("type", ex.type());
-        assertEquals("id", ex.id());
-        assertNull(ex.getCause());
-
-        ex = serialize(new CreateFailedEngineException(null, "type", "id", new NullPointerException()));
-        assertNull(ex.getShardId());
-        assertEquals("type", ex.type());
-        assertEquals("id", ex.id());
-        assertTrue(ex.getCause() instanceof NullPointerException);
-    }
-
     public void testMergeMappingException() throws IOException {
-        MergeMappingException ex = serialize(new MergeMappingException(new String[] {"one", "two"}));
+        MergeMappingException ex = serialize(new MergeMappingException(new String[]{"one", "two"}));
         assertArrayEquals(ex.failures(), new String[]{"one", "two"});
     }
 
@@ -342,7 +321,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("the dude abides!", ex.name());
         assertEquals("index_template [the dude abides!] already exists", ex.getMessage());
 
-        ex = serialize(new IndexTemplateAlreadyExistsException((String)null));
+        ex = serialize(new IndexTemplateAlreadyExistsException((String) null));
         assertNull(ex.name());
         assertEquals("index_template [null] already exists", ex.getMessage());
     }
@@ -449,7 +428,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(ctx.shardTarget(), ex.shard());
     }
 
-    public void testIllegalIndexShardStateException()throws IOException {
+    public void testIllegalIndexShardStateException() throws IOException {
         ShardId id = new ShardId("foo", 1);
         IndexShardState state = randomFrom(IndexShardState.values());
         IllegalIndexShardStateException ex = serialize(new IllegalIndexShardStateException(id, state, "come back later buddy"));
@@ -480,7 +459,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("baam", ex.getMessage());
         assertTrue(ex.getCause() instanceof NullPointerException);
         assertEquals(empty.length, ex.shardFailures().length);
-        ShardSearchFailure[] one = new ShardSearchFailure[] {
+        ShardSearchFailure[] one = new ShardSearchFailure[]{
                 new ShardSearchFailure(new IllegalArgumentException("nono!"))
         };
 
@@ -521,7 +500,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("index_template [name] missing", ex.getMessage());
         assertEquals("name", ex.name());
 
-        ex = serialize(new IndexTemplateMissingException((String)null));
+        ex = serialize(new IndexTemplateMissingException((String) null));
         assertEquals("index_template [null] missing", ex.getMessage());
         assertNull(ex.name());
     }
@@ -570,8 +549,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         ex = serialize(new NotSerializableExceptionWrapper(new IllegalArgumentException("nono!")));
         assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"nono!\"}", toXContent(ex));
 
-        Throwable[] unknowns = new Throwable[] {
-                new JsonParseException("foobar", new JsonLocation(new Object(), 1,2,3,4)),
+        Throwable[] unknowns = new Throwable[]{
+                new JsonParseException("foobar", new JsonLocation(new Object(), 1, 2, 3, 4)),
                 new ClassCastException("boom boom boom"),
                 new IOException("booom")
         };
@@ -609,7 +588,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         UnknownHeaderException uhe = new UnknownHeaderException("msg", status);
         uhe.addHeader("foo", "foo", "bar");
 
-        ElasticsearchException serialize = serialize((ElasticsearchException)uhe);
+        ElasticsearchException serialize = serialize((ElasticsearchException) uhe);
         assertTrue(serialize instanceof NotSerializableExceptionWrapper);
         NotSerializableExceptionWrapper e = (NotSerializableExceptionWrapper) serialize;
         assertEquals("msg", e.getMessage());
@@ -684,7 +663,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(19, org.elasticsearch.ResourceNotFoundException.class);
         ids.put(20, org.elasticsearch.transport.ActionTransportException.class);
         ids.put(21, org.elasticsearch.ElasticsearchGenerationException.class);
-        ids.put(22, org.elasticsearch.index.engine.CreateFailedEngineException.class);
+        ids.put(22, null); // was CreateFailedEngineException
         ids.put(23, org.elasticsearch.index.shard.IndexShardStartedException.class);
         ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
         ids.put(25, org.elasticsearch.script.ScriptException.class);
@@ -716,7 +695,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(51, org.elasticsearch.index.IndexShardAlreadyExistsException.class);
         ids.put(52, org.elasticsearch.index.engine.VersionConflictEngineException.class);
         ids.put(53, org.elasticsearch.index.engine.EngineException.class);
-        ids.put(54, org.elasticsearch.index.engine.DocumentAlreadyExistsException.class);
+        ids.put(54, null); // was DocumentAlreadyExistsException, which is superseded with VersionConflictEngineException
         ids.put(55, org.elasticsearch.action.NoSuchNodeException.class);
         ids.put(56, org.elasticsearch.common.settings.SettingsException.class);
         ids.put(57, org.elasticsearch.indices.IndexTemplateMissingException.class);
@@ -726,7 +705,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(61, org.elasticsearch.cluster.routing.RoutingValidationException.class);
         ids.put(62, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class);
         ids.put(63, org.elasticsearch.indices.AliasFilterParsingException.class);
-        ids.put(64, org.elasticsearch.index.engine.DeleteByQueryFailedEngineException.class);
+        ids.put(64, null); // DeleteByQueryFailedEngineException was removed in 3.0
         ids.put(65, org.elasticsearch.gateway.GatewayException.class);
         ids.put(66, org.elasticsearch.index.shard.IndexShardNotRecoveringException.class);
         ids.put(67, org.elasticsearch.http.HttpException.class);
@@ -813,7 +792,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         }
 
         for (ElasticsearchException.ElasticsearchExceptionHandle handle : ElasticsearchException.ElasticsearchExceptionHandle.values()) {
-            assertEquals((int)reverse.get(handle.exceptionClass), handle.id);
+            assertEquals((int) reverse.get(handle.exceptionClass), handle.id);
         }
 
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

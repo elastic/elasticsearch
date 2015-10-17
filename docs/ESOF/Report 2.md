@@ -31,7 +31,9 @@ Validation of Requirements
 --------------------------
 Since its inception, the project has admirably met its myriad requirements, which have been repeatedly tested and verified by its many users, the principal stakeholders in the project, both in production and in its testing suite.
 
-
+Use Cases
+---------
+![First use case](images/use_case_1.png "Use Case 1")
 
 
 

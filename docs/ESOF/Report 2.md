@@ -9,18 +9,18 @@ Both the growing need for high throughput and the need for reliability are fulfi
 Functional Requirements:
 * Data Storage - the system must be able to store the information to be retrieved and searched
 * Distributed - storing the various documents comprising the data in multiple machines offers a wide variety of benefits, the system must be able to manage the various nodes
-* Analytics - the data must queryable for aggregations and statistics 
+* Analytics - the data must be queryable for aggregations and statistics 
 * Full Text Search - the ability for fuzzy/exact matching on both partial and entire data fields 
 * Able to handle human language - consideration of the syntax/semantics of natural language provides more meaningful and useful results
-* Able to handle geolocation data - many applications use and store geolocation data, to be able to efficiently handle it out-of-the-box is highly valued
+* Able to handle geolocation data - many applications use and store geolocation data; to be able to efficiently handle it out-of-the-box is highly valued
 * Highlighted Search - many applications require that the segments of the documents that matched a search be highlighted for the user
-* *Search-as-you-type* functionality - faster and more interactive searches need the searches 
-* *Did-you-mean* and *More-like-this* suggestions - these kinds of suggestions enable the users of an application to other data that they might be interested in
+* *Search-as-you-type* functionality - interactive searches improve the end-user experience 
+* *Did-you-mean* and *More-like-this* suggestions - these kinds of suggestions enable the users of an application to be redirected to other data they might be interested in
 * RESTful API - a familiar and cross-language API allows for developers to quickly and easily start developing their applications
-* Discovery - connected nodes should be able to automatically discover eachother
+* Discovery - connected nodes should be able to automatically discover each other
 
 Non-Functional Requirements
-* High Availability - the system must endure the inevitable failures in the potentially many nodes that host the data
+* High Availability - the system must endure the inevitable failures in the potentially many nodes that host the data and continue being operational
 * High Throughput/Real Time Performance - fast response times and overall efficiency are highly valued, especially in highly saturated services/applications
 * High Flexibility in queries/data - the schema-less, document-oriented model as well as the querying system must be flexible enough to effortlessly model any domain 
 * Reliability - the data in the system must be kept through failures in the nodes that host the data
@@ -30,4 +30,13 @@ Non-Functional Requirements
 Validation of Requirements
 --------------------------
 Since its inception, the project has admirably met its myriad requirements, which have been repeatedly tested and verified by its many users, the principal stakeholders in the project, both in production and in its testing suite.
+
+Use Cases
+---------
+![Developer Use Cases](use_case_1.PNG "Developer Use Cases")
+![User Use Cases](use_case_2.PNG "User Use Cases")
+
+Domain Model
+------------
+![Elasticsearch domain model](domain_model.PNG "Elasticsearch domain model")
 

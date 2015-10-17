@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ESOF - Second Report
 ====================
 Elasticsearch is a distributed search engine and data storage system based on Apache Lucene.
@@ -32,14 +31,3 @@ Validation of Requirements
 --------------------------
 Since its inception, the project has admirably met its myriad requirements, which have been repeatedly tested and verified by its many users, the principal stakeholders in the project, both in production and in its testing suite.
 
-
-
-
-
-
-
-=======
-Report 2
-========
-yay yay2
->>>>>>> master

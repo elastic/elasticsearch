@@ -19,7 +19,9 @@
 
 package org.elasticsearch.script;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -30,6 +32,27 @@ import java.util.Map;
  */
 public class MockScriptEngine implements ScriptEngineService {
     public static final String NAME = "mockscript";
+
+    public static class TestPlugin extends Plugin {
+
+        public TestPlugin() {
+        }
+
+        @Override
+        public String name() {
+            return NAME;
+        }
+
+        @Override
+        public String description() {
+            return "Mock script engine for integration tests";
+        }
+
+        public void onModule(ScriptModule module) {
+            module.addScriptEngine(MockScriptEngine.class);
+        }
+
+    }
 
     @Override
     public String[] types() {
@@ -58,17 +81,26 @@ public class MockScriptEngine implements ScriptEngineService {
 
     @Override
     public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        return null;
-    }
+        return new SearchScript() {
+            @Override
+            public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+                AbstractSearchScript leafSearchScript = new AbstractSearchScript() {
 
-    @Override
-    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-        return null;
-    }
+                    @Override
+                    public Object run() {
+                        return compiledScript.compiled();
+                    }
 
-    @Override
-    public Object unwrap(Object value) {
-        return null;
+                };
+                leafSearchScript.setLookup(lookup.getLeafSearchLookup(context));
+                return leafSearchScript;
+            }
+
+            @Override
+            public boolean needsScores() {
+                return false;
+            }
+        };
     }
 
     @Override

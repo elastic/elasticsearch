@@ -120,11 +120,6 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>com.carrotsearch</groupId>
             <artifactId>hppc</artifactId>
             <scope>provided</scope>
@@ -251,9 +246,41 @@
                 <directory>${elasticsearch.tools.directory}/shared-test-resources</directory>
                 <filtering>false</filtering>
             </testResource>
+            <!-- plugin metadata as a test resource -->
+            <testResource>
+                <directory>${basedir}/target/metadata-test-resources</directory>
+                <filtering>false</filtering>
+            </testResource>
         </testResources>
 
         <plugins>
+           <!-- we don't have a proper .zip plugin structure for tests, but we need the metadata as test resource -->
+           <plugin>
+              <artifactId>maven-resources-plugin</artifactId>
+              <executions>
+                  <execution>
+                      <id>copy-resources</id>
+                      <!-- process-resources makes more sense, but is not done by e.g. mvn eclipse:eclipse! -->
+                      <phase>generate-resources</phase>
+                      <goals>
+                          <goal>copy-resources</goal>
+                      </goals>
+                      <configuration>
+                          <outputDirectory>${basedir}/target/metadata-test-resources</outputDirectory>
+                          <resources>
+                              <resource>
+                                  <directory>src/main/plugin-metadata</directory>
+                                  <filtering>false</filtering>
+                              </resource>
+                              <resource>
+                                  <directory>${elasticsearch.tools.directory}/plugin-metadata</directory>
+                                  <filtering>true</filtering>
+                              </resource>
+                          </resources>
+                      </configuration>
+                  </execution>
+              </executions>
+           </plugin>
            <!-- integration tests -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -388,10 +415,10 @@
         <module>analysis-phonetic</module>
         <module>analysis-smartcn</module>
         <module>analysis-stempel</module>
-        <module>cloud-gce</module>
         <module>delete-by-query</module>
         <module>discovery-azure</module>
         <module>discovery-ec2</module>
+        <module>discovery-gce</module>
         <module>discovery-multicast</module>
         <module>lang-expression</module>
         <module>lang-groovy</module>

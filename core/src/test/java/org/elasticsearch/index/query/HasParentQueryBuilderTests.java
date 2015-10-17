@@ -25,7 +25,9 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.support.QueryInnerHits;
@@ -38,6 +40,7 @@ import org.elasticsearch.test.TestSearchContext;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
@@ -190,5 +193,15 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
         queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
         assertEquals(score, queryBuilder.score());
+    }
+
+    public void testToQueryInnerQueryType() throws IOException {
+        String[] searchTypes = new String[]{CHILD_TYPE};
+        QueryShardContext.setTypes(searchTypes);
+        HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(PARENT_TYPE, new IdsQueryBuilder().addIds("id"));
+        Query query = hasParentQueryBuilder.toQuery(createShardContext());
+        //verify that the context types are still the same as the ones we previously set
+        assertThat(QueryShardContext.getTypes(), equalTo(searchTypes));
+        HasChildQueryBuilderTests.assertLateParsingQuery(query, PARENT_TYPE, "id");
     }
 }

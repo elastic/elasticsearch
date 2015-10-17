@@ -19,12 +19,18 @@
 
 package org.apache.lucene.queryparser.classic;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -37,9 +43,12 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
 /**
@@ -51,13 +60,13 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  */
 public class MapperQueryParser extends QueryParser {
 
-    public static final ImmutableMap<String, FieldQueryExtension> fieldQueryExtensions;
+    public static final Map<String, FieldQueryExtension> FIELD_QUERY_EXTENSIONS;
 
     static {
-        fieldQueryExtensions = ImmutableMap.<String, FieldQueryExtension>builder()
-                .put(ExistsFieldQueryExtension.NAME, new ExistsFieldQueryExtension())
-                .put(MissingFieldQueryExtension.NAME, new MissingFieldQueryExtension())
-                .build();
+        Map<String, FieldQueryExtension> fieldQueryExtensions = new HashMap<>();
+        fieldQueryExtensions.put(ExistsFieldQueryExtension.NAME, new ExistsFieldQueryExtension());
+        fieldQueryExtensions.put(MissingFieldQueryExtension.NAME, new MissingFieldQueryExtension());
+        FIELD_QUERY_EXTENSIONS = unmodifiableMap(fieldQueryExtensions);
     }
 
     private final QueryShardContext context;
@@ -123,7 +132,7 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     public Query getFieldQuery(String field, String queryText, boolean quoted) throws ParseException {
-        FieldQueryExtension fieldQueryExtension = fieldQueryExtensions.get(field);
+        FieldQueryExtension fieldQueryExtension = FIELD_QUERY_EXTENSIONS.get(field);
         if (fieldQueryExtension != null) {
             return fieldQueryExtension.query(context, queryText);
         }
@@ -484,30 +493,31 @@ public class MapperQueryParser extends QueryParser {
         if (!settings.analyzeWildcard()) {
             return super.getPrefixQuery(field, termStr);
         }
+        List<String> tlist;
         // get Analyzer from superclass and tokenize the term
-        TokenStream source;
+        TokenStream source = null;
         try {
-            source = getAnalyzer().tokenStream(field, termStr);
-            source.reset();
-        } catch (IOException e) {
-            return super.getPrefixQuery(field, termStr);
-        }
-        List<String> tlist = new ArrayList<>();
-        CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
-
-        while (true) {
             try {
-                if (!source.incrementToken()) break;
+                source = getAnalyzer().tokenStream(field, termStr);
+                source.reset();
             } catch (IOException e) {
-                break;
+                return super.getPrefixQuery(field, termStr);
             }
-            tlist.add(termAtt.toString());
-        }
+            tlist = new ArrayList<>();
+            CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
 
-        try {
-            source.close();
-        } catch (IOException e) {
-            // ignore
+            while (true) {
+                try {
+                    if (!source.incrementToken()) break;
+                } catch (IOException e) {
+                    break;
+                }
+                tlist.add(termAtt.toString());
+            }
+        } finally {
+            if (source != null) {
+                IOUtils.closeWhileHandlingException(source);
+            }
         }
 
         if (tlist.size() == 1) {
@@ -538,7 +548,7 @@ public class MapperQueryParser extends QueryParser {
                     return newMatchAllDocsQuery();
                 }
                 // effectively, we check if a field exists or not
-                return fieldQueryExtensions.get(ExistsFieldQueryExtension.NAME).query(context, actualField);
+                return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(context, actualField);
             }
         }
         if (lowercaseExpandedTerms) {
@@ -617,8 +627,7 @@ public class MapperQueryParser extends QueryParser {
             char c = termStr.charAt(i);
             if (c == '?' || c == '*') {
                 if (isWithinToken) {
-                    try {
-                        TokenStream source = getAnalyzer().tokenStream(field, tmp.toString());
+                    try (TokenStream source = getAnalyzer().tokenStream(field, tmp.toString())) {
                         source.reset();
                         CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
                         if (source.incrementToken()) {
@@ -633,7 +642,6 @@ public class MapperQueryParser extends QueryParser {
                             // no tokens, just use what we have now
                             aggStr.append(tmp);
                         }
-                        source.close();
                     } catch (IOException e) {
                         aggStr.append(tmp);
                     }
@@ -648,22 +656,22 @@ public class MapperQueryParser extends QueryParser {
         }
         if (isWithinToken) {
             try {
-                TokenStream source = getAnalyzer().tokenStream(field, tmp.toString());
-                source.reset();
-                CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
-                if (source.incrementToken()) {
-                    String term = termAtt.toString();
-                    if (term.length() == 0) {
+                try (TokenStream source = getAnalyzer().tokenStream(field, tmp.toString())) {
+                    source.reset();
+                    CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
+                    if (source.incrementToken()) {
+                        String term = termAtt.toString();
+                        if (term.length() == 0) {
+                            // no tokens, just use what we have now
+                            aggStr.append(tmp);
+                        } else {
+                            aggStr.append(term);
+                        }
+                    } else {
                         // no tokens, just use what we have now
                         aggStr.append(tmp);
-                    } else {
-                        aggStr.append(term);
                     }
-                } else {
-                    // no tokens, just use what we have now
-                    aggStr.append(tmp);
                 }
-                source.close();
             } catch (IOException e) {
                 aggStr.append(tmp);
             }

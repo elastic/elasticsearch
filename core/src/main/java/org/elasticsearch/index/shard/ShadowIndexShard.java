@@ -18,32 +18,17 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.cluster.ClusterService;
+import java.io.IOException;
+
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.aliases.IndexAliasesService;
-import org.elasticsearch.index.cache.IndexCache;
-import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.engine.IndexSearcherWrappingService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexServicesProvider;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.termvectors.TermVectorsService;
-import org.elasticsearch.indices.IndicesLifecycle;
-import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
-import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.IOException;
+import org.elasticsearch.index.translog.TranslogStats;
 
 /**
  * ShadowIndexShard extends {@link IndexShard} to add file synchronization
@@ -53,23 +38,8 @@ import java.io.IOException;
  */
 public final class ShadowIndexShard extends IndexShard {
 
-    @Inject
-    public ShadowIndexShard(ShardId shardId, IndexSettingsService indexSettingsService,
-                            IndicesLifecycle indicesLifecycle, Store store,
-                            ThreadPool threadPool, MapperService mapperService,
-                            IndexQueryParserService queryParserService, IndexCache indexCache,
-                            IndexAliasesService indexAliasesService, IndicesQueryCache indicesQueryCache,
-                            CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
-                            @Nullable IndicesWarmer warmer,
-                            SimilarityService similarityService,
-                            EngineFactory factory, ClusterService clusterService,
-                            ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) throws IOException {
-        super(shardId, indexSettingsService, indicesLifecycle, store,
-                threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
-                indicesQueryCache, codecService,
-                termVectorsService, indexFieldDataService,
-                warmer, similarityService,
-                factory, clusterService, path, bigArrays, wrappingService);
+    public ShadowIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, ShardPath path, Store store, IndexServicesProvider provider) throws IOException {
+        super(shardId, indexSettings, path, store, provider);
     }
 
     /**
@@ -112,5 +82,10 @@ public final class ShadowIndexShard extends IndexShard {
 
     public boolean allowsPrimaryPromotion() {
         return false;
+    }
+
+    @Override
+    public TranslogStats translogStats() {
+        return null; // shadow engine has no translog
     }
 }

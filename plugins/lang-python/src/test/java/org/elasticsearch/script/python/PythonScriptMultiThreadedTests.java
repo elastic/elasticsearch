@@ -158,7 +158,7 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
                             long addition = x + y;
                             runtimeVars.put("x", x);
                             runtimeVars.put("y", y);
-                            long result = ((Number) se.execute(compiledScript, runtimeVars)).longValue();
+                            long result = ((Number) se.executable(compiledScript, runtimeVars).run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
                     } catch (Throwable t) {

@@ -19,9 +19,12 @@
 
 package org.elasticsearch.repositories;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -40,9 +43,15 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -58,7 +67,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     private final VerifyNodeRepositoryAction verifyAction;
 
-    private volatile Map<String, RepositoryHolder> repositories = ImmutableMap.of();
+    private volatile Map<String, RepositoryHolder> repositories = emptyMap();
 
     @Inject
     public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService, RepositoryTypesRegistry typesRegistry, Injector injector) {
@@ -272,7 +281,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                 }
             }
 
-            ImmutableMap.Builder<String, RepositoryHolder> builder = ImmutableMap.builder();
+            Map<String, RepositoryHolder> builder = new HashMap<>();
             if (newMetaData != null) {
                 // Now go through all repositories and update existing or create missing
                 for (RepositoryMetaData repositoryMetaData : newMetaData.repositories()) {
@@ -303,7 +312,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                     }
                 }
             }
-            repositories = builder.build();
+            repositories = unmodifiableMap(builder);
         } catch (Throwable ex) {
             logger.warn("failure updating cluster state ", ex);
         }
@@ -368,7 +377,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         }
         Map<String, RepositoryHolder> newRepositories = new HashMap<>(repositories);
         newRepositories.put(repositoryMetaData.name(), holder);
-        repositories = ImmutableMap.copyOf(newRepositories);
         return true;
     }
 

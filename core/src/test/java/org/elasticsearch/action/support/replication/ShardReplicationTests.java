@@ -326,7 +326,7 @@ public class ShardReplicationTests extends ESTestCase {
 
         ClusterState state = stateWithStartedPrimary(index, true, randomInt(5));
         MetaData.Builder metaData = MetaData.builder(state.metaData());
-        Settings.Builder settings = Settings.builder().put(metaData.get(index).settings());
+        Settings.Builder settings = Settings.builder().put(metaData.get(index).getSettings());
         settings.put(IndexMetaData.SETTING_SHADOW_REPLICAS, true);
         metaData.put(IndexMetaData.builder(metaData.get(index)).settings(settings));
         clusterService.setState(ClusterState.builder(state).metaData(metaData));

@@ -30,6 +30,16 @@ public class SeccompTests extends ESTestCase {
         assumeTrue("requires seccomp filter installation", Natives.isSeccompInstalled());
         // otherwise security manager will block the execution, no fun
         assumeTrue("cannot test with security manager enabled", System.getSecurityManager() == null);
+        // otherwise, since we don't have TSYNC support, rules are not applied to the test thread
+        // (randomizedrunner class initialization happens in its own thread, after the test thread is created)
+        // instead we just forcefully run it for the test thread here.
+        if (!JNANatives.LOCAL_SECCOMP_ALL) {
+            try {
+                Seccomp.init(createTempDir());
+            } catch (Throwable e) {
+                throw new RuntimeException("unable to forcefully apply seccomp to test thread", e);
+            }
+        }
     }
     
     public void testNoExecution() throws Exception {

@@ -63,8 +63,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
 
         IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
-        assertThat(indexMetaData.settings().get("index.refresh_interval"), nullValue());
-        assertThat(indexMetaData.settings().get("index.cache.filter.type"), nullValue());
+        assertThat(indexMetaData.getSettings().get("index.refresh_interval"), nullValue());
+        assertThat(indexMetaData.getSettings().get("index.cache.filter.type"), nullValue());
 
         // Now verify via dedicated get settings api:
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
@@ -78,7 +78,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
-        assertThat(indexMetaData.settings().get("index.refresh_interval"), equalTo("-1"));
+        assertThat(indexMetaData.getSettings().get("index.refresh_interval"), equalTo("-1"));
         // Now verify via dedicated get settings api:
         getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
         assertThat(getSettingsResponse.getSetting("test", "index.refresh_interval"), equalTo("-1"));
@@ -110,8 +110,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
-        assertThat(indexMetaData.settings().get("index.refresh_interval"), equalTo("1s"));
-        assertThat(indexMetaData.settings().get("index.cache.filter.type"), equalTo("none"));
+        assertThat(indexMetaData.getSettings().get("index.refresh_interval"), equalTo("1s"));
+        assertThat(indexMetaData.getSettings().get("index.cache.filter.type"), equalTo("none"));
 
         // Now verify via dedicated get settings api:
         getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();

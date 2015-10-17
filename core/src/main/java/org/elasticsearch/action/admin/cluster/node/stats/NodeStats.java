@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -38,7 +40,6 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
@@ -281,8 +282,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
 
             if (!getNode().attributes().isEmpty()) {
                 builder.startObject("attributes");
-                for (Map.Entry<String, String> attr : getNode().attributes().entrySet()) {
-                    builder.field(attr.getKey(), attr.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                for (ObjectObjectCursor<String, String> attr : getNode().attributes()) {
+                    builder.field(attr.key, attr.value, XContentBuilder.FieldCaseConversion.NONE);
                 }
                 builder.endObject();
             }

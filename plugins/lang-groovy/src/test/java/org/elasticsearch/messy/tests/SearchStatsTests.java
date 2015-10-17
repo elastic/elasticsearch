@@ -34,6 +34,7 @@ import org.elasticsearch.index.search.stats.SearchStats.Stats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -65,7 +66,7 @@ public class SearchStatsTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Override
     protected int numberOfReplicas() {
         return 0;
@@ -109,7 +110,7 @@ public class SearchStatsTests extends ESIntegTestCase {
         for (int i = 0; i < iters; i++) {
             SearchResponse searchResponse = internalCluster().clientNodeClient().prepareSearch()
                     .setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2")
-                    .addHighlightedField("field")
+                    .highlighter(new HighlightBuilder().field("field"))
                     .addScriptField("scrip1", new Script("_source.field"))
                     .setSize(100)
                     .execute().actionGet();

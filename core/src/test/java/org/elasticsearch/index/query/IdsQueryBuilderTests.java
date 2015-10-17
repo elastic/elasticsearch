@@ -121,4 +121,26 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
         return alternateVersions;
     }
+
+    public void testIllegalArguments() {
+        try {
+            new IdsQueryBuilder((String[])null);
+            fail("must be not null");
+        } catch(IllegalArgumentException e) {
+            //all good
+        }
+
+        try {
+            new IdsQueryBuilder().addIds((String[])null);
+            fail("must be not null");
+        } catch(IllegalArgumentException e) {
+            //all good
+        }
+    }
+
+    @Test(expected= ParsingException.class) // see #7686.
+    public void testIdsQueryWithInvalidValues() throws Exception {
+        String query = "{ \"ids\": { \"values\": [[1]] } }";
+        parseQuery(query);
+    }
 }

@@ -36,6 +36,7 @@ import java.util.Properties;
 public class PluginInfo implements Streamable, ToXContent {
 
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
+    public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
     static final class Fields {
         static final XContentBuilderString NAME = new XContentBuilderString("name");
@@ -114,7 +115,8 @@ public class PluginInfo implements Streamable, ToXContent {
             }
             Version esVersion = Version.fromString(esVersionString);
             if (esVersion.equals(Version.CURRENT) == false) {
-                throw new IllegalArgumentException("Elasticsearch version [" + esVersionString + "] is too old for plugin [" + name + "]");
+                throw new IllegalArgumentException("Plugin [" + name + "] is incompatible with Elasticsearch [" + Version.CURRENT.toString() +
+                        "]. Was designed for version [" + esVersionString + "]");
             }
             String javaVersionString = props.getProperty("java.version");
             if (javaVersionString == null) {

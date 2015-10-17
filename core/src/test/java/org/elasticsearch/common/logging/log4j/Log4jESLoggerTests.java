@@ -57,7 +57,7 @@ public class Log4jESLoggerTests extends ESTestCase {
                 .put("path.conf", configDir.toAbsolutePath())
                 .put("path.home", createTempDir().toString())
                 .build();
-        LogConfigurator.configure(settings);
+        LogConfigurator.configure(settings, true);
 
         esTestLogger = Log4jESLoggerFactory.getLogger("test");
         Logger testLogger = ((Log4jESLogger) esTestLogger).logger();

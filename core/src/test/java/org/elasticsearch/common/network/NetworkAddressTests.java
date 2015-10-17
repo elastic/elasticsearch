@@ -22,9 +22,11 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.Random;
 
 /**
  * Tests for network address formatting. Please avoid using any methods that cause DNS lookups!
@@ -83,6 +85,32 @@ public class NetworkAddressTests extends ESTestCase {
         
         assertEquals("[::1]:1234", NetworkAddress.formatAddress(new InetSocketAddress(forgeScoped(null, "::1", 5), 1234)));
         assertEquals("[::1]:1234", NetworkAddress.formatAddress(new InetSocketAddress(forgeScoped("localhost", "::1", 5), 1234)));
+    }
+
+    /** Test that ipv4 address formatting round trips */
+    public void testRoundTripV4() throws Exception {
+        byte bytes[] = new byte[4];
+        Random random = random();
+        for (int i = 0; i < 10000; i++) {
+            random.nextBytes(bytes);
+            InetAddress expected = Inet4Address.getByAddress(bytes);
+            String formatted = NetworkAddress.formatAddress(expected);
+            InetAddress actual = InetAddress.getByName(formatted);
+            assertEquals(expected, actual);
+        }
+    }
+
+    /** Test that ipv6 address formatting round trips */
+    public void testRoundTripV6() throws Exception {
+        byte bytes[] = new byte[16];
+        Random random = random();
+        for (int i = 0; i < 10000; i++) {
+            random.nextBytes(bytes);
+            InetAddress expected = Inet6Address.getByAddress(bytes);
+            String formatted = NetworkAddress.formatAddress(expected);
+            InetAddress actual = InetAddress.getByName(formatted);
+            assertEquals(expected, actual);
+        }
     }
     
     /** creates address without any lookups. hostname can be null, for missing */

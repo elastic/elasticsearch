@@ -19,6 +19,7 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -131,7 +132,7 @@ public class CancellableThreads {
 
 
     public interface Interruptable {
-        public void run() throws InterruptedException;
+        void run() throws InterruptedException;
     }
 
     public static class ExecutionCancelledException extends ElasticsearchException {

@@ -121,7 +121,7 @@ The following settings are supported:
  using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
 `max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `40mb` per second.
 `max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `40mb` per second.
-`readonly`:: Makes repository read-only. coming[2.1.0]  Defaults to `false`.
+`readonly`:: Makes repository read-only.  Defaults to `false`.
 
 [float]
 ===== Read-only URL Repository
@@ -259,7 +259,7 @@ GET /_snapshot/my_backup/_all
 -----------------------------------
 // AUTOSENSE
 
-coming[2.0.0-beta1] A currently running snapshot can be retrieved using the following command:
+A currently running snapshot can be retrieved using the following command:
 
 [source,sh]
 -----------------------------------

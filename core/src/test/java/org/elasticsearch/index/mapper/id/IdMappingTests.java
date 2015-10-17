@@ -114,4 +114,17 @@ public class IdMappingTests extends ESSingleNodeTestCase {
         // _id is not indexed so we need to check _uid
         assertEquals(Uid.createUid("type", "1"), doc.rootDoc().get(UidFieldMapper.NAME));
     }
+
+    public void testIncludeInObjectNotAllowed() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        try {
+            docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
+                .startObject().field("_id", "1").endObject().bytes()).type("type"));
+            fail("Expected failure to parse metadata field");
+        } catch (MapperParsingException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("Field [_id] is a metadata field and cannot be added inside a document"));
+        }
+    }
 }

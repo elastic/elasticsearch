@@ -8,7 +8,7 @@ converting the alias name to the actual index name. An alias can also be
 mapped to more than one index, and when specifying it, the alias will
 automatically expand to the aliases indices. An alias can also be
 associated with a filter that will automatically be applied when
-searching, and routing values.
+searching, and routing values. An alias cannot have the same name as an index.
 
 Here is a sample of associating the alias `alias1` with index `test1`:
 

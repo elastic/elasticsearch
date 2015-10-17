@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ESOF - Second Report
 ====================
 Elasticsearch is a distributed search engine and data storage system based on Apache Lucene.
@@ -37,3 +38,8 @@ Since its inception, the project has admirably met its myriad requirements, whic
 
 
 
+=======
+Report 2
+========
+yay yay2
+>>>>>>> master

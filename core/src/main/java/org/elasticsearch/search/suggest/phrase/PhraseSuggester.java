@@ -92,18 +92,18 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         if (gens.size() > 0 && suggestTerms != null) {
             final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram(), suggestion.getTokenLimit());
             final BytesRef separator = suggestion.separator();
-            TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField());
-            
             WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood, separator);
-            Result checkerResult = checker.getCorrections(stream, new MultiCandidateGeneratorWrapper(suggestion.getShardSize(),
-                    gens.toArray(new CandidateGenerator[gens.size()])), suggestion.maxErrors(),
-                    suggestion.getShardSize(), wordScorer, suggestion.confidence(), suggestion.gramSize());
+            Result checkerResult;
+            try (TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
+                checkerResult = checker.getCorrections(stream, new MultiCandidateGeneratorWrapper(suggestion.getShardSize(),
+                                                                                                         gens.toArray(new CandidateGenerator[gens.size()])), suggestion.maxErrors(),
+                                                              suggestion.getShardSize(), wordScorer, suggestion.confidence(), suggestion.gramSize());
+                }
 
             PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
             response.addTerm(resultEntry);
 
             final BytesRefBuilder byteSpare = new BytesRefBuilder();
-            final EarlyTerminatingCollector collector = Lucene.createExistsCollector();
             final CompiledScript collateScript = suggestion.getCollateQueryScript();
             final boolean collatePrune = (collateScript != null) && suggestion.collatePrune();
             for (int i = 0; i < checkerResult.corrections.length; i++) {
@@ -118,7 +118,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     final ExecutableScript executable = scriptService.executable(collateScript, vars);
                     final BytesReference querySource = (BytesReference) executable.run();
                     final ParsedQuery parsedQuery = suggestion.getQueryParserService().parse(querySource);
-                    collateMatch = Lucene.exists(searcher, parsedQuery.query(), collector);
+                    collateMatch = Lucene.exists(searcher, parsedQuery.query());
                 }
                 if (!collateMatch && !collatePrune) {
                     continue;

@@ -28,39 +28,8 @@ public abstract class IndexingOperationListener {
     /**
      * Called before the indexing occurs.
      */
-    public Engine.Create preCreate(Engine.Create create) {
-        return create;
-    }
-
-    /**
-     * Called after the indexing occurs, under a locking scheme to maintain
-     * concurrent updates to the same doc.
-     * <p>
-     * Note, long operations should not occur under this callback.
-     */
-    public void postCreateUnderLock(Engine.Create create) {
-
-    }
-
-    /**
-     * Called after create index operation occurred.
-     */
-    public void postCreate(Engine.Create create) {
-
-    }
-
-    /**
-     * Called after create index operation occurred with exception.
-     */
-    public void postCreate(Engine.Create create, Throwable ex) {
-
-    }
-
-    /**
-     * Called before the indexing occurs.
-     */
-    public Engine.Index preIndex(Engine.Index index) {
-        return index;
+    public Engine.Index preIndex(Engine.Index operation) {
+        return operation;
     }
 
     /**

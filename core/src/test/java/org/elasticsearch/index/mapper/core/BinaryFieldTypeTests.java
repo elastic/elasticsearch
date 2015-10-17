@@ -28,15 +28,4 @@ public class BinaryFieldTypeTests extends FieldTypeTestCase {
     protected MappedFieldType createDefaultFieldType() {
         return new BinaryFieldMapper.BinaryFieldType();
     }
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("try_uncompressing", false, true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                BinaryFieldMapper.BinaryFieldType bft = (BinaryFieldMapper.BinaryFieldType)ft;
-                bft.setTryUncompressing(!bft.tryUncompressing());
-            }
-        });
-    }
 }

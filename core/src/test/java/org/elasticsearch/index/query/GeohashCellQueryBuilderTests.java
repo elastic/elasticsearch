@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import com.spatial4j.core.shape.Point;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.GeohashCellQuery.Builder;
+import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -105,4 +108,15 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
         builder.precision(-1);
     }
 
+    @Test
+    public void testLocationParsing() throws IOException {
+        Point point = RandomShapeGenerator.xRandomPoint(getRandom());
+        Builder pointTestBuilder = new GeohashCellQuery.Builder("pin", new GeoPoint(point.getY(), point.getX()));
+        String pointTest1 = "{\"geohash_cell\": {\"pin\": {\"lat\": " + point.getY() + ",\"lon\": " + point.getX() + "}}}";
+        assertParsedQuery(pointTest1, pointTestBuilder);
+        String pointTest2 = "{\"geohash_cell\": {\"pin\": \"" + point.getY() + "," + point.getX() + "\"}}";
+        assertParsedQuery(pointTest2, pointTestBuilder);
+        String pointTest3 = "{\"geohash_cell\": {\"pin\": [" + point.getX() + "," + point.getY() + "]}}";
+        assertParsedQuery(pointTest3, pointTestBuilder);
+    }
 }

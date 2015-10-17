@@ -131,11 +131,11 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                         Set<String> newPreviouslyWrittenIndices = new HashSet<>(previouslyWrittenIndices.size());
                         for (IndexMetaData indexMetaData : newMetaData) {
                             IndexMetaData indexMetaDataOnDisk = null;
-                            if (indexMetaData.state().equals(IndexMetaData.State.CLOSE)) {
-                                indexMetaDataOnDisk = metaStateService.loadIndexState(indexMetaData.index());
+                            if (indexMetaData.getState().equals(IndexMetaData.State.CLOSE)) {
+                                indexMetaDataOnDisk = metaStateService.loadIndexState(indexMetaData.getIndex());
                             }
                             if (indexMetaDataOnDisk != null) {
-                                newPreviouslyWrittenIndices.add(indexMetaDataOnDisk.index());
+                                newPreviouslyWrittenIndices.add(indexMetaDataOnDisk.getIndex());
                             }
                         }
                         newPreviouslyWrittenIndices.addAll(previouslyWrittenIndices);
@@ -274,8 +274,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             String writeReason = null;
             if (previouslyWrittenIndices.contains(index) == false || previousIndexMetaData == null) {
                 writeReason = "freshly created";
-            } else if (previousIndexMetaData.version() != newIndexMetaData.version()) {
-                writeReason = "version changed from [" + previousIndexMetaData.version() + "] to [" + newIndexMetaData.version() + "]";
+            } else if (previousIndexMetaData.getVersion() != newIndexMetaData.getVersion()) {
+                writeReason = "version changed from [" + previousIndexMetaData.getVersion() + "] to [" + newIndexMetaData.getVersion() + "]";
             }
             if (writeReason != null) {
                 indicesToWrite.add(new GatewayMetaState.IndexMetaWriteInfo(newIndexMetaData, previousIndexMetaData, writeReason));
@@ -295,12 +295,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         }
         // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if we have it written on disk previously
         for (IndexMetaData indexMetaData : state.metaData()) {
-            boolean isOrWasClosed = indexMetaData.state().equals(IndexMetaData.State.CLOSE);
+            boolean isOrWasClosed = indexMetaData.getState().equals(IndexMetaData.State.CLOSE);
             // if the index is open we might still have to write the state if it just transitioned from closed to open
             // so we have to check for that as well.
             IndexMetaData previousMetaData = previousState.metaData().getIndices().get(indexMetaData.getIndex());
             if (previousMetaData != null) {
-                isOrWasClosed = isOrWasClosed || previousMetaData.state().equals(IndexMetaData.State.CLOSE);
+                isOrWasClosed = isOrWasClosed || previousMetaData.getState().equals(IndexMetaData.State.CLOSE);
             }
             if (previouslyWrittenIndices.contains(indexMetaData.getIndex()) && isOrWasClosed) {
                 indices.add(indexMetaData.getIndex());

@@ -39,7 +39,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
     public void testRenameTempFiles() throws IOException {
         IndexService service = createIndex("foo");
 
-        IndexShard indexShard = service.shard(0);
+        IndexShard indexShard = service.getShardOrNull(0);
         DiscoveryNode node = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
         RecoveryStatus status = new RecoveryStatus(indexShard, node, new RecoveryTarget.RecoveryListener() {
             @Override

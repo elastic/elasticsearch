@@ -68,7 +68,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.MockEngineFactoryPlugin;
+import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -1047,8 +1047,8 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    try {
-                        CommitStats commitStats = indexShard.engine().commitStats();
+                    CommitStats commitStats = indexShard.commitStats();
+                    if (commitStats != null) { // null if the engine is closed or if the shard is recovering
                         String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);
                         if (syncId != null) {
                             long liveDocsOnShard = commitStats.getNumDocs();
@@ -1058,8 +1058,6 @@ public final class InternalTestCluster extends TestCluster {
                                 docsOnShards.put(syncId, liveDocsOnShard);
                             }
                         }
-                    } catch (EngineClosedException e) {
-                        // nothing to do, shard is closed
                     }
                 }
             }
@@ -1741,7 +1739,7 @@ public final class InternalTestCluster extends TestCluster {
             IndexService indexService = indicesService.indexService(index);
             if (indexService != null) {
                 assertThat(indexService.settingsService().getSettings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), greaterThan(shard));
-                OperationRouting operationRouting = indexService.injector().getInstance(OperationRouting.class);
+                OperationRouting operationRouting = getInstanceFromNode(OperationRouting.class, node);
                 while (true) {
                     String routing = RandomStrings.randomAsciiOfLength(random, 10);
                     final int targetShard = operationRouting.indexShards(clusterService.state(), index, type, null, routing).shardId().getId();
@@ -1854,7 +1852,7 @@ public final class InternalTestCluster extends TestCluster {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 final IndicesFieldDataCache fdCache = getInstanceFromNode(IndicesFieldDataCache.class, nodeAndClient.node);
                 // Clean up the cache, ensuring that entries' listeners have been called
-                fdCache.getCache().cleanUp();
+                fdCache.getCache().refresh();
 
                 final String name = nodeAndClient.name;
                 final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);

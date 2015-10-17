@@ -14,12 +14,12 @@
   - do:
       search:
       # stringified for boolean value
-        body: "{ _source: true, query: { match_all: {} } }"
+        body: { _source: true, query: { match_all: {} } }
 
   - length:   { hits.hits: 1  }
   - match: { hits.hits.0._source.count: 1 }
 
-  - do: { search: { body: "{ _source: false, query: { match_all: {} } }" } }
+  - do: { search: { body: { _source: false, query: { match_all: {} } } } }
   - length:   { hits.hits: 1  }
   - is_false: hits.hits.0._source
 

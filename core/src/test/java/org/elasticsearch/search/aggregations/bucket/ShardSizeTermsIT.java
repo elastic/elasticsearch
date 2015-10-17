@@ -18,14 +18,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.junit.Test;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -49,16 +48,15 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms  terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Map<String, Long> expected = ImmutableMap.<String, Long>builder()
-                .put("1", 8l)
-                .put("3", 8l)
-                .put("2", 5l)
-                .build();
+        Map<String, Long> expected = new HashMap<>();
+        expected.put("1", 8l);
+        expected.put("3", 8l);
+        expected.put("2", 5l);
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsString())));
         }
     }
-    
+
     @Test
     public void shardSizeEqualsSize_string() throws Exception {
         createIdx("type=string,index=not_analyzed");
@@ -74,11 +72,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms  terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Map<String, Long> expected = ImmutableMap.<String, Long>builder()
-                .put("1", 8l)
-                .put("3", 8l)
-                .put("2", 4l)
-                .build();
+        Map<String, Long> expected = new HashMap<>();
+        expected.put("1", 8l);
+        expected.put("3", 8l);
+        expected.put("2", 4l);
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsString())));
         }
@@ -100,11 +97,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3)); // we still only return 3 entries (based on the 'size' param)
-        Map<String, Long> expected = ImmutableMap.<String, Long>builder()
-                .put("1", 8l)
-                .put("3", 8l)
-                .put("2", 5l) // <-- count is now fixed
-                .build();
+        Map<String, Long> expected = new HashMap<>();
+        expected.put("1", 8l);
+        expected.put("3", 8l);
+        expected.put("2", 5l); // <-- count is now fixed
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsString())));
         }
@@ -126,16 +122,15 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3)); // we still only return 3 entries (based on the 'size' param)
-        Map<String, Long> expected = ImmutableMap.<String, Long>builder()
-                .put("1", 5l)
-                .put("2", 4l)
-                .put("3", 3l) // <-- count is now fixed
-                .build();
+        Map<String, Long> expected = new HashMap<>();
+        expected.put("1", 5l);
+        expected.put("2", 4l);
+        expected.put("3", 3l); // <-- count is now fixed
         for (Terms.Bucket bucket: buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKey())));
         }
     }
-    
+
     @Test
     public void noShardSizeTermOrder_string() throws Exception {
         createIdx("type=string,index=not_analyzed");
@@ -151,11 +146,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms  terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Map<String, Long> expected = ImmutableMap.<String, Long>builder()
-                .put("1", 8l)
-                .put("2", 5l)
-                .put("3", 8l)
-                .build();
+        Map<String, Long> expected = new HashMap<>();
+        expected.put("1", 8l);
+        expected.put("2", 5l);
+        expected.put("3", 8l);
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsString())));
         }
@@ -177,11 +171,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
-                .put(1, 8l)
-                .put(3, 8l)
-                .put(2, 5l)
-                .build();
+        Map<Integer, Long> expected = new HashMap<>();
+        expected.put(1, 8l);
+        expected.put(3, 8l);
+        expected.put(2, 5l);
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsNumber().intValue())));
         }
@@ -203,11 +196,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
-                .put(1, 8l)
-                .put(3, 8l)
-                .put(2, 4l)
-                .build();
+        Map<Integer, Long> expected = new HashMap<>();
+        expected.put(1, 8l);
+        expected.put(3, 8l);
+        expected.put(2, 4l);
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsNumber().intValue())));
         }
@@ -229,11 +221,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3)); // we still only return 3 entries (based on the 'size' param)
-        Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
-                .put(1, 8l)
-                .put(3, 8l)
-                .put(2, 5l) // <-- count is now fixed
-                .build();
+        Map<Integer, Long> expected = new HashMap<>();
+        expected.put(1, 8l);
+        expected.put(3, 8l);
+        expected.put(2, 5l); // <-- count is now fixed
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsNumber().intValue())));
         }
@@ -255,11 +246,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3)); // we still only return 3 entries (based on the 'size' param)
-        Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
-                .put(1, 5l)
-                .put(2, 4l)
-                .put(3, 3l)
-                .build();
+        Map<Integer, Long> expected = new HashMap<>();
+        expected.put(1, 5l);
+        expected.put(2, 4l);
+        expected.put(3, 3l);
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsNumber().intValue())));
         }
@@ -281,11 +271,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
-                .put(1, 8l)
-                .put(2, 5l)
-                .put(3, 8l)
-                .build();
+        Map<Integer, Long> expected = new HashMap<>();
+        expected.put(1, 8l);
+        expected.put(2, 5l);
+        expected.put(3, 8l);
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsNumber().intValue())));
         }
@@ -307,11 +296,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
-                .put(1, 8l)
-                .put(3, 8l)
-                .put(2, 5l)
-                .build();
+        Map<Integer, Long> expected = new HashMap<>();
+        expected.put(1, 8l);
+        expected.put(3, 8l);
+        expected.put(2, 5l);
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsNumber().intValue())));
         }
@@ -333,11 +321,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
-                .put(1, 8l)
-                .put(3, 8l)
-                .put(2, 4l)
-                .build();
+        Map<Integer, Long> expected = new HashMap<>();
+        expected.put(1, 8l);
+        expected.put(3, 8l);
+        expected.put(2, 4l);
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsNumber().intValue())));
         }
@@ -359,11 +346,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
-                .put(1, 8l)
-                .put(3, 8l)
-                .put(2, 5l) // <-- count is now fixed
-                .build();
+        Map<Integer, Long> expected = new HashMap<>();
+        expected.put(1, 8l);
+        expected.put(3, 8l);
+        expected.put(2, 5l); // <-- count is now fixed
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsNumber().intValue())));
         }
@@ -385,11 +371,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
-                .put(1, 5l)
-                .put(2, 4l)
-                .put(3, 3l)
-                .build();
+        Map<Integer, Long> expected = new HashMap<>();
+        expected.put(1, 5l);
+        expected.put(2, 4l);
+        expected.put(3, 3l);
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsNumber().intValue())));
         }
@@ -411,11 +396,10 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         Terms terms = response.getAggregations().get("keys");
         Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
-                .put(1, 8l)
-                .put(2, 5l)
-                .put(3, 8l)
-                .build();
+        Map<Integer, Long> expected = new HashMap<>();
+        expected.put(1, 8l);
+        expected.put(2, 5l);
+        expected.put(3, 8l);
         for (Terms.Bucket bucket : buckets) {
             assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsNumber().intValue())));
         }

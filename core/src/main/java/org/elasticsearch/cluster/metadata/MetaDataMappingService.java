@@ -172,7 +172,7 @@ public class MetaDataMappingService extends AbstractComponent {
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
                 // we need to create the index here, and add the current mapping to it, so we can merge
-                indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
+                indexService = indicesService.createIndex(indexMetaData);
                 removeIndex = true;
                 Set<String> typesToIntroduce = new HashSet<>();
                 for (MappingTask task : tasks) {
@@ -184,9 +184,9 @@ public class MetaDataMappingService extends AbstractComponent {
                 }
                 for (String type : typesToIntroduce) {
                     // only add the current relevant mapping (if exists)
-                    if (indexMetaData.mappings().containsKey(type)) {
+                    if (indexMetaData.getMappings().containsKey(type)) {
                         // don't apply the default mapping, it has been applied when the mapping was created
-                        indexService.mapperService().merge(type, indexMetaData.mappings().get(type).source(), false, true);
+                        indexService.mapperService().merge(type, indexMetaData.getMappings().get(type).source(), false, true);
                     }
                 }
             }
@@ -350,15 +350,15 @@ public class MetaDataMappingService extends AbstractComponent {
                             continue;
                         }
                         final IndexMetaData indexMetaData = currentState.metaData().index(index);
-                        IndexService indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), clusterService.localNode().id());
-                        indicesToClose.add(indexMetaData.index());
+                        IndexService indexService = indicesService.createIndex(indexMetaData);
+                        indicesToClose.add(indexMetaData.getIndex());
                         // make sure to add custom default mapping if exists
-                        if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                            indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.mappings().get(MapperService.DEFAULT_MAPPING).source(), false, request.updateAllTypes());
+                        if (indexMetaData.getMappings().containsKey(MapperService.DEFAULT_MAPPING)) {
+                            indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.getMappings().get(MapperService.DEFAULT_MAPPING).source(), false, request.updateAllTypes());
                         }
                         // only add the current relevant mapping (if exists)
-                        if (indexMetaData.mappings().containsKey(request.type())) {
-                            indexService.mapperService().merge(request.type(), indexMetaData.mappings().get(request.type()).source(), false, request.updateAllTypes());
+                        if (indexMetaData.getMappings().containsKey(request.type())) {
+                            indexService.mapperService().merge(request.type(), indexMetaData.getMappings().get(request.type()).source(), false, request.updateAllTypes());
                         }
                     }
 
@@ -391,7 +391,7 @@ public class MetaDataMappingService extends AbstractComponent {
                                 // Also the order of the mappings may be backwards.
                                 if (newMapper.parentFieldMapper().active()) {
                                     IndexMetaData indexMetaData = currentState.metaData().index(index);
-                                    for (ObjectCursor<MappingMetaData> mapping : indexMetaData.mappings().values()) {
+                                    for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
                                         if (newMapper.parentFieldMapper().type().equals(mapping.value.type())) {
                                             throw new IllegalArgumentException("can't add a _parent field that points to an already existing type");
                                         }

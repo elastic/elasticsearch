@@ -98,17 +98,6 @@ public interface IndicesLifecycle {
         }
 
         /**
-         * Called right after the shard is moved into POST_RECOVERY mode
-         */
-        public void afterIndexShardPostRecovery(IndexShard indexShard) {}
-
-        /**
-         * Called right before the shard is moved into POST_RECOVERY mode.
-         * The shard is ready to be used but not yet marked as POST_RECOVERY.
-         */
-        public void beforeIndexShardPostRecovery(IndexShard indexShard) {}
-
-        /**
          * Called after the index shard has been started.
          */
         public void afterIndexShardStarted(IndexShard indexShard) {

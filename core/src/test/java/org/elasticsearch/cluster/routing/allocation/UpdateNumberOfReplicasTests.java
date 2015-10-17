@@ -106,7 +106,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
         metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(2).build();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaData).build();
 
-        assertThat(clusterState.metaData().index("test").numberOfReplicas(), equalTo(2));
+        assertThat(clusterState.metaData().index("test").getNumberOfReplicas(), equalTo(2));
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
@@ -157,7 +157,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
         metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1).build();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaData).build();
 
-        assertThat(clusterState.metaData().index("test").numberOfReplicas(), equalTo(1));
+        assertThat(clusterState.metaData().index("test").getNumberOfReplicas(), equalTo(1));
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(1));

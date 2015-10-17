@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.percolator;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -27,6 +28,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,20 +44,18 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.percolator.PercolatorService;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -64,39 +65,35 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Once a document type has been created, the real-time percolator will start to listen to write events and update the
  * this registry with queries in real time.
  */
-public class PercolatorQueriesRegistry extends AbstractIndexShardComponent implements Closeable{
+public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent implements Closeable {
 
     public final String MAP_UNMAPPED_FIELDS_AS_STRING = "index.percolator.map_unmapped_fields_as_string";
 
     // This is a shard level service, but these below are index level service:
     private final IndexQueryParserService queryParserService;
     private final MapperService mapperService;
-    private final IndicesLifecycle indicesLifecycle;
     private final IndexFieldDataService indexFieldDataService;
 
     private final ShardIndexingService indexingService;
-    private final ShardPercolateService shardPercolateService;
 
     private final ConcurrentMap<BytesRef, Query> percolateQueries = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-    private final ShardLifecycleListener shardLifecycleListener = new ShardLifecycleListener();
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
     private boolean mapUnmappedFieldsAsString;
+    private final MeanMetric percolateMetric = new MeanMetric();
+    private final CounterMetric currentMetric = new CounterMetric();
+    private final CounterMetric numberOfQueries = new CounterMetric();
 
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
-                                     ShardIndexingService indexingService, IndicesLifecycle indicesLifecycle, MapperService mapperService,
-                                     IndexFieldDataService indexFieldDataService, ShardPercolateService shardPercolateService) {
+                                     ShardIndexingService indexingService, MapperService mapperService,
+                                     IndexFieldDataService indexFieldDataService) {
         super(shardId, indexSettings);
         this.queryParserService = queryParserService;
         this.mapperService = mapperService;
-        this.indicesLifecycle = indicesLifecycle;
         this.indexingService = indexingService;
         this.indexFieldDataService = indexFieldDataService;
-        this.shardPercolateService = shardPercolateService;
         this.mapUnmappedFieldsAsString = indexSettings.getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
-
-        indicesLifecycle.addListener(shardLifecycleListener);
         mapperService.addTypeListener(percolateTypeListener);
     }
 
@@ -107,7 +104,6 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     @Override
     public void close() {
         mapperService.removeTypeListener(percolateTypeListener);
-        indicesLifecycle.removeListener(shardLifecycleListener);
         indexingService.removeListener(realTimePercolatorOperationListener);
         clear();
     }
@@ -116,30 +112,25 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         percolateQueries.clear();
     }
 
-    void enableRealTimePercolator() {
+    public void enableRealTimePercolator() {
         if (realTimePercolatorEnabled.compareAndSet(false, true)) {
             indexingService.addListener(realTimePercolatorOperationListener);
-        }
-    }
-
-    void disableRealTimePercolator() {
-        if (realTimePercolatorEnabled.compareAndSet(true, false)) {
-            indexingService.removeListener(realTimePercolatorOperationListener);
         }
     }
 
     public void addPercolateQuery(String idAsString, BytesReference source) {
         Query newquery = parsePercolatorDocument(idAsString, source);
         BytesRef id = new BytesRef(idAsString);
-        Query previousQuery = percolateQueries.put(id, newquery);
-        shardPercolateService.addedQuery(id, previousQuery, newquery);
+        percolateQueries.put(id, newquery);
+        numberOfQueries.inc();
+
     }
 
     public void removePercolateQuery(String idAsString) {
         BytesRef id = new BytesRef(idAsString);
         Query query = percolateQueries.remove(id);
         if (query != null) {
-            shardPercolateService.removedQuery(id, query);
+            numberOfQueries.dec();
         }
     }
 
@@ -187,7 +178,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     private Query parseQuery(String type, XContentParser parser) {
         String[] previousTypes = null;
         if (type != null) {
-            QueryShardContext.setTypesWithPrevious(new String[]{type});
+            previousTypes = QueryShardContext.setTypesWithPrevious(type);
         }
         QueryShardContext context = queryParserService.getShardContext();
         try {
@@ -225,83 +216,38 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
                 enableRealTimePercolator();
             }
         }
-
     }
 
-    private class ShardLifecycleListener extends IndicesLifecycle.Listener {
-
-        @Override
-        public void afterIndexShardCreated(IndexShard indexShard) {
-            if (hasPercolatorType(indexShard)) {
-                enableRealTimePercolator();
+    public void loadQueries(IndexReader reader) {
+        logger.trace("loading percolator queries...");
+        final int loadedQueries;
+        try {
+            Query query = new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME));
+            QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            indexSearcher.setQueryCache(null);
+            indexSearcher.search(query, queryCollector);
+            Map<BytesRef, Query> queries = queryCollector.queries();
+            for (Map.Entry<BytesRef, Query> entry : queries.entrySet()) {
+                percolateQueries.put(entry.getKey(), entry.getValue());
+                numberOfQueries.inc();
             }
+            loadedQueries = queries.size();
+        } catch (Exception e) {
+            throw new PercolatorException(shardId.index(), "failed to load queries from percolator index", e);
         }
-
-        @Override
-        public void beforeIndexShardPostRecovery(IndexShard indexShard) {
-            if (hasPercolatorType(indexShard)) {
-                // percolator index has started, fetch what we can from it and initialize the indices
-                // we have
-                logger.trace("loading percolator queries for [{}]...", shardId);
-                int loadedQueries = loadQueries(indexShard);
-                logger.debug("done loading [{}] percolator queries for [{}]", loadedQueries, shardId);
-            }
-        }
-
-        private boolean hasPercolatorType(IndexShard indexShard) {
-            ShardId otherShardId = indexShard.shardId();
-            return shardId.equals(otherShardId) && mapperService.hasMapping(PercolatorService.TYPE_NAME);
-        }
-
-        private int loadQueries(IndexShard shard) {
-            shard.refresh("percolator_load_queries");
-            // NOTE: we acquire the searcher via the engine directly here since this is executed right
-            // before the shard is marked as POST_RECOVERY
-            try (Engine.Searcher searcher = shard.engine().acquireSearcher("percolator_load_queries")) {
-                Query query = new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME));
-                QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
-                IndexSearcher indexSearcher = new IndexSearcher(searcher.reader());
-                indexSearcher.setQueryCache(null);
-                indexSearcher.search(query, queryCollector);
-                Map<BytesRef, Query> queries = queryCollector.queries();
-                for (Map.Entry<BytesRef, Query> entry : queries.entrySet()) {
-                    Query previousQuery = percolateQueries.put(entry.getKey(), entry.getValue());
-                    shardPercolateService.addedQuery(entry.getKey(), previousQuery, entry.getValue());
-                }
-                return queries.size();
-            } catch (Exception e) {
-                throw new PercolatorException(shardId.index(), "failed to load queries from percolator index", e);
-            }
-        }
-
+        logger.debug("done loading [{}] percolator queries", loadedQueries);
     }
 
     private class RealTimePercolatorOperationListener extends IndexingOperationListener {
 
         @Override
-        public Engine.Create preCreate(Engine.Create create) {
+        public Engine.Index preIndex(Engine.Index operation) {
             // validate the query here, before we index
-            if (PercolatorService.TYPE_NAME.equals(create.type())) {
-                parsePercolatorDocument(create.id(), create.source());
+            if (PercolatorService.TYPE_NAME.equals(operation.type())) {
+                parsePercolatorDocument(operation.id(), operation.source());
             }
-            return create;
-        }
-
-        @Override
-        public void postCreateUnderLock(Engine.Create create) {
-            // add the query under a doc lock
-            if (PercolatorService.TYPE_NAME.equals(create.type())) {
-                addPercolateQuery(create.id(), create.source());
-            }
-        }
-
-        @Override
-        public Engine.Index preIndex(Engine.Index index) {
-            // validate the query here, before we index
-            if (PercolatorService.TYPE_NAME.equals(index.type())) {
-                parsePercolatorDocument(index.id(), index.source());
-            }
-            return index;
+            return operation;
         }
 
         @Override
@@ -320,4 +266,35 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
             }
         }
     }
+
+    public void prePercolate() {
+        currentMetric.inc();
+    }
+
+    public void postPercolate(long tookInNanos) {
+        currentMetric.dec();
+        percolateMetric.inc(tookInNanos);
+    }
+
+    /**
+     * @return The current metrics
+     */
+    public PercolateStats stats() {
+        return new PercolateStats(percolateMetric.count(), TimeUnit.NANOSECONDS.toMillis(percolateMetric.sum()), currentMetric.count(), -1, numberOfQueries.count());
+    }
+
+    // Enable when a more efficient manner is found for estimating the size of a Lucene query.
+    /*private static long computeSizeInMemory(HashedBytesRef id, Query query) {
+        long size = (3 * RamUsageEstimator.NUM_BYTES_INT) + RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + id.bytes.bytes.length;
+        size += RamEstimator.sizeOf(query);
+        return size;
+    }
+
+    private static final class RamEstimator {
+        // we move this into it's own class to exclude it from the forbidden API checks
+        // it's fine to use here!
+        static long sizeOf(Query query) {
+            return RamUsageEstimator.sizeOf(query);
+        }
+    }*/
 }

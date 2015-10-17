@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
@@ -59,12 +60,12 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
         return this;
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         return this;
     }
 
@@ -85,11 +86,6 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
 
     @Override
     public void clear() {
-        // no need to clear, because this is cached and cleared in AbstractBytesIndexFieldData
-    }
-
-    @Override
-    public void clear(IndexReader reader) {
         // no need to clear, because this is cached and cleared in AbstractBytesIndexFieldData
     }
 

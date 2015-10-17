@@ -105,9 +105,6 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateRequest;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateRequestBuilder;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequest;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequestBuilder;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
@@ -745,27 +742,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Validate a query for correctness.
      */
     ValidateQueryRequestBuilder prepareValidateQuery(String... indices);
-
-    /**
-     * Return the rendered search request for a given search template.
-     *
-     * @param request The request
-     * @return The result future
-     */
-    ActionFuture<RenderSearchTemplateResponse> renderSearchTemplate(RenderSearchTemplateRequest request);
-
-    /**
-     * Return the rendered search request for a given search template.
-     *
-     * @param request  The request
-     * @param listener A listener to be notified of the result
-     */
-    void renderSearchTemplate(RenderSearchTemplateRequest request, ActionListener<RenderSearchTemplateResponse> listener);
-
-    /**
-     * Return the rendered search request for a given search template.
-     */
-    RenderSearchTemplateRequestBuilder prepareRenderSearchTemplate();
 
     /**
      * Puts an index search warmer to be applies when applicable.

@@ -96,7 +96,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                 new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings, new IndicesAnalysisService(settings)),
-                new SimilarityModule(settings),
+                new SimilarityModule(index, settings),
                 new IndexNameModule(index),
                 new AbstractModule() {
                     @Override

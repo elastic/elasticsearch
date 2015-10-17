@@ -19,8 +19,6 @@
 
 package org.elasticsearch.messy.tests;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -42,6 +40,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
@@ -58,12 +57,12 @@ import static org.hamcrest.Matchers.not;
  */
 @SuppressCodecs("*") // requires custom completion format
 public class TransformOnIndexMapperTests extends ESIntegTestCase {
-    
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Test
     public void searchOnTransformed() throws Exception {
         setup(true);
@@ -171,7 +170,7 @@ public class TransformOnIndexMapperTests extends ESIntegTestCase {
         if (getRandom().nextBoolean()) {
             script = script.replace("sourceField", "'content'");
         } else {
-            builder.field("params", ImmutableMap.of("sourceField", "content"));
+            builder.field("params", singletonMap("sourceField", "content"));
         }
         builder.field("script", script);
     }

@@ -71,7 +71,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         QueryShardContext queryShardContext = new QueryShardContext(new Index("test"), queryParser);
         queryShardContext.setAllowUnmappedFields(true);
         Query parsedQuery = multiMatchQuery("banon").field("name.first", 2).field("name.last", 3).field("foobar").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(queryShardContext);
-        try (Engine.Searcher searcher = indexService.shardSafe(0).acquireSearcher("test")) {
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             Query rewrittenQuery = searcher.searcher().rewrite(parsedQuery);
 
             BooleanQuery.Builder expected = new BooleanQuery.Builder();

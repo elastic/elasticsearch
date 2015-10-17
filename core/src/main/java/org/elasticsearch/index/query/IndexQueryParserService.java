@@ -149,7 +149,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return this.queryStringLenient;
     }
 
-    IndicesQueriesRegistry indicesQueriesRegistry() {
+    public IndicesQueriesRegistry indicesQueriesRegistry() {
         return indicesQueriesRegistry;
     }
 
@@ -195,15 +195,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } finally {
             context.reset(null);
         }
-    }
-
-    @Nullable
-    public Query parseInnerQuery(QueryShardContext context) throws IOException {
-        Query query = context.parseContext().parseInnerQueryBuilder().toQuery(context);
-        if (query == null) {
-            query = Queries.newMatchNoDocsQuery();
-        }
-        return query;
     }
 
     public QueryShardContext getShardContext() {
@@ -258,14 +249,39 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         context.reset(parser);
         try {
             context.parseFieldMatcher(parseFieldMatcher);
-            Query query = context.parseContext().parseInnerQueryBuilder().toQuery(context);
-            if (query == null) {
-                query = Queries.newMatchNoDocsQuery();
-            }
+            Query query = parseInnerQuery(context);
             return new ParsedQuery(query, context.copyNamedQueries());
         } finally {
             context.reset(null);
         }
+    }
+
+    public Query parseInnerQuery(QueryShardContext context) throws IOException {
+        return toQuery(context.parseContext().parseInnerQueryBuilder(), context);
+    }
+
+    public ParsedQuery toQuery(QueryBuilder<?> queryBuilder) {
+        QueryShardContext context = cache.get();
+        context.reset();
+        context.parseFieldMatcher(parseFieldMatcher);
+        try {
+            Query query = toQuery(queryBuilder, context);
+            return new ParsedQuery(query, context.copyNamedQueries());
+        } catch(QueryShardException | ParsingException e ) {
+            throw e;
+        } catch(Exception e) {
+            throw new QueryShardException(context, "failed to create query: {}", e, queryBuilder);
+        } finally {
+            context.reset();
+        }
+    }
+
+    private static Query toQuery(QueryBuilder<?> queryBuilder, QueryShardContext context) throws IOException {
+        Query query = queryBuilder.toQuery(context);
+        if (query == null) {
+            query = Queries.newMatchNoDocsQuery();
+        }
+        return query;
     }
 
     public ParseFieldMatcher parseFieldMatcher() {

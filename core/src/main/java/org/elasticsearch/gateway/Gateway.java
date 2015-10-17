@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 
 import java.nio.file.Path;
-import java.util.Arrays;
 
 /**
  *
@@ -96,7 +95,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 electedGlobalState = nodeState.metaData();
             }
             for (ObjectCursor<IndexMetaData> cursor : nodeState.metaData().indices().values()) {
-                indices.addTo(cursor.value.index(), 1);
+                indices.addTo(cursor.value.getIndex(), 1);
             }
         }
         if (found < requiredAllocation) {
@@ -123,7 +122,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                     }
                     if (electedIndexMetaData == null) {
                         electedIndexMetaData = indexMetaData;
-                    } else if (indexMetaData.version() > electedIndexMetaData.version()) {
+                    } else if (indexMetaData.getVersion() > electedIndexMetaData.getVersion()) {
                         electedIndexMetaData = indexMetaData;
                     }
                     indexMetaDataCount++;

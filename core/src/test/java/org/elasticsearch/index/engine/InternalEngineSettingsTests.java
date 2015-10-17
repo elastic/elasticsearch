@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.EngineAccess;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.concurrent.TimeUnit;
@@ -33,7 +34,7 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
     public void testSettingsUpdate() {
         final IndexService service = createIndex("foo");
         // INDEX_COMPOUND_ON_FLUSH
-        InternalEngine engine = ((InternalEngine)engine(service));
+        InternalEngine engine = ((InternalEngine) EngineAccess.engine(service.getShardOrNull(0)));
         assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(true));
         client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, false).build()).get();
         assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(false));

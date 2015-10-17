@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
-import com.google.common.collect.Iterators;
 import com.spatial4j.core.shape.Point;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;

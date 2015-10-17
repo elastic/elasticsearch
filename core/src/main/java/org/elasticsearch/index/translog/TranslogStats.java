@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
@@ -31,17 +30,23 @@ import java.io.IOException;
 /**
  *
  */
-public class TranslogStats implements ToXContent, Streamable {
+public class TranslogStats extends ToXContentToBytes implements Streamable {
 
-    private long translogSizeInBytes = 0;
-    private int estimatedNumberOfOperations = -1;
+    private long translogSizeInBytes;
+    private int numberOfOperations;
 
     public TranslogStats() {
     }
 
-    public TranslogStats(int estimatedNumberOfOperations, long translogSizeInBytes) {
+    public TranslogStats(int numberOfOperations, long translogSizeInBytes) {
+        if (numberOfOperations < 0) {
+            throw new IllegalArgumentException("numberOfOperations must be >= 0");
+        }
+        if (translogSizeInBytes < 0) {
+            throw new IllegalArgumentException("translogSizeInBytes must be >= 0");
+        }
         assert translogSizeInBytes >= 0 : "translogSizeInBytes must be >= 0, got [" + translogSizeInBytes + "]";
-        this.estimatedNumberOfOperations = estimatedNumberOfOperations;
+        this.numberOfOperations = numberOfOperations;
         this.translogSizeInBytes = translogSizeInBytes;
     }
 
@@ -50,22 +55,22 @@ public class TranslogStats implements ToXContent, Streamable {
             return;
         }
 
-        this.estimatedNumberOfOperations += translogStats.estimatedNumberOfOperations;
-        this.translogSizeInBytes = +translogStats.translogSizeInBytes;
+        this.numberOfOperations += translogStats.numberOfOperations;
+        this.translogSizeInBytes += translogStats.translogSizeInBytes;
     }
 
-    public ByteSizeValue translogSizeInBytes() {
-        return new ByteSizeValue(translogSizeInBytes);
+    public long getTranslogSizeInBytes() {
+        return translogSizeInBytes;
     }
 
     public long estimatedNumberOfOperations() {
-        return estimatedNumberOfOperations;
+        return numberOfOperations;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.TRANSLOG);
-        builder.field(Fields.OPERATIONS, estimatedNumberOfOperations);
+        builder.field(Fields.OPERATIONS, numberOfOperations);
         builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, translogSizeInBytes);
         builder.endObject();
         return builder;
@@ -80,13 +85,13 @@ public class TranslogStats implements ToXContent, Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        estimatedNumberOfOperations = in.readVInt();
+        numberOfOperations = in.readVInt();
         translogSizeInBytes = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(estimatedNumberOfOperations);
+        out.writeVInt(numberOfOperations);
         out.writeVLong(translogSizeInBytes);
     }
 }

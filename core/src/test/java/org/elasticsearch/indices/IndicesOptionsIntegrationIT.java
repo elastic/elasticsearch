@@ -48,10 +48,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -61,7 +61,9 @@ import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuild
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
@@ -508,7 +510,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .execute().actionGet();
         assertHitCount(response, 0l);
-        
+
         //you should still be able to run empty searches without things blowing up
         response  = client().prepareSearch()
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -613,7 +615,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareExists("bar").get().isExists(), equalTo(false));
         assertThat(client().admin().indices().prepareExists("barbaz").get().isExists(), equalTo(false));
     }
-    
+
     @Test
     public void testPutWarmer() throws Exception {
         createIndex("foobar");
@@ -622,26 +624,26 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
 
     }
-    
+
     @Test
     public void testPutWarmer_wildcard() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
         ensureYellow();
 
         verify(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch().setIndices("foo*").setQuery(QueryBuilders.matchAllQuery())), false);
-        
+
         assertThat(client().admin().indices().prepareGetWarmers("foo").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
         assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
         assertThat(client().admin().indices().prepareGetWarmers("bar").setWarmers("warmer1").get().getWarmers().size(), equalTo(0));
         assertThat(client().admin().indices().prepareGetWarmers("barbaz").setWarmers("warmer1").get().getWarmers().size(), equalTo(0));
 
         verify(client().admin().indices().preparePutWarmer("warmer2").setSearchRequest(client().prepareSearch().setIndices().setQuery(QueryBuilders.matchAllQuery())), false);
-        
+
         assertThat(client().admin().indices().prepareGetWarmers("foo").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
         assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
         assertThat(client().admin().indices().prepareGetWarmers("bar").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
         assertThat(client().admin().indices().prepareGetWarmers("barbaz").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
-        
+
     }
 
     @Test
@@ -652,7 +654,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("foobar").get().exists(), equalTo(true));
 
     }
-    
+
     @Test
     public void testPutAlias_wildcard() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
@@ -669,14 +671,14 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("foobar").get().exists(), equalTo(true));
         assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("bar").get().exists(), equalTo(true));
         assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("barbaz").get().exists(), equalTo(true));
-        
+
     }
-    
+
     @Test
     public void testDeleteWarmer() throws Exception {
-        IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry(
-                "test1", new String[]{"typ1"}, false, new BytesArray("{\"query\" : { \"match_all\" : {}}}")
-        );
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.query(QueryBuilders.matchAllQuery());
+        IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry("test1", new String[] { "typ1" }, false, new IndexWarmersMetaData.SearchSource(source));
         assertAcked(prepareCreate("foobar").addCustom(new IndexWarmersMetaData(entry)));
         ensureYellow();
 
@@ -690,9 +692,9 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     public void testDeleteWarmer_wildcard() throws Exception {
         verify(client().admin().indices().prepareDeleteWarmer().setIndices("_all").setNames("test1"), true);
 
-        IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry(
-                "test1", new String[]{"type1"}, false, new BytesArray("{\"query\" : { \"match_all\" : {}}}")
-        );
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.query(QueryBuilders.matchAllQuery());
+        IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry("test1", new String[] { "type1" }, false, new IndexWarmersMetaData.SearchSource(source));
         assertAcked(prepareCreate("foo").addCustom(new IndexWarmersMetaData(entry)));
         assertAcked(prepareCreate("foobar").addCustom(new IndexWarmersMetaData(entry)));
         assertAcked(prepareCreate("bar").addCustom(new IndexWarmersMetaData(entry)));
@@ -737,7 +739,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar").get("type3"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type3"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type3"), notNullValue());
-        
+
 
         verify(client().admin().indices().preparePutMapping("c*").setType("type1").setSource("field", "type=string"), true);
 
@@ -883,7 +885,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     private static void verify(ActionRequestBuilder requestBuilder, boolean fail) {
         verify(requestBuilder, fail, 0);
     }
-    
+
     private static void verify(ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
             if (requestBuilder instanceof MultiSearchRequestBuilder) {

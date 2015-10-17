@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport.netty;
 
-import java.nio.charset.StandardCharsets;
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -93,6 +91,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.CancelledKeyException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -115,6 +114,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING_CLIENT;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING_SERVER;
@@ -340,7 +340,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public Map<String, BoundTransportAddress> profileBoundAddresses() {
-        return ImmutableMap.copyOf(profileBoundAddresses);
+        return unmodifiableMap(new HashMap<>(profileBoundAddresses));
     }
 
     private InetSocketAddress createPublishAddress(String publishHost, int publishPort) {
@@ -453,7 +453,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             bindServerBootstrap(name, hostAddress, settings);
         }
     }
-        
+
     private void bindServerBootstrap(final String name, final InetAddress hostAddress, Settings profileSettings) {
 
         String port = profileSettings.get("port");
@@ -657,15 +657,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
-        return parse(address, settings.get("transport.profiles.default.port", 
-                              settings.get("transport.netty.port", 
-                              settings.get("transport.tcp.port", 
+        return parse(address, settings.get("transport.profiles.default.port",
+                              settings.get("transport.netty.port",
+                              settings.get("transport.tcp.port",
                               DEFAULT_PORT_RANGE))), perAddressLimit);
     }
-    
+
     // this code is a take on guava's HostAndPort, like a HostAndPortRange
-    
-    // pattern for validating ipv6 bracked addresses. 
+
+    // pattern for validating ipv6 bracked addresses.
     // not perfect, but PortsRange should take care of any port range validation, not a regex
     private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
 
@@ -698,12 +698,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             }
           }
         }
-        
+
         // if port isn't specified, fill with the default
         if (portString == null || portString.isEmpty()) {
             portString = defaultPortRange;
         }
-        
+
         // generate address for each port in the range
         Set<InetAddress> addresses = new HashSet<>(Arrays.asList(InetAddress.getAllByName(host)));
         List<TransportAddress> transportAddresses = new ArrayList<>();

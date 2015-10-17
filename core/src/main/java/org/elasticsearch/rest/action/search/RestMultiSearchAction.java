@@ -20,16 +20,35 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.script.Template;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
+import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -38,9 +57,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMultiSearchAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
+    private final IndicesQueriesRegistry indicesQueriesRegistry;
+
 
     @Inject
-    public RestMultiSearchAction(Settings settings, RestController controller, Client client) {
+    public RestMultiSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
         super(settings, controller, client);
 
         controller.registerHandler(GET, "/_msearch", this);
@@ -58,6 +79,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/{type}/_msearch/template", this);
 
         this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
+        this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
 
     @Override
@@ -69,12 +91,121 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String path = request.path();
         boolean isTemplateRequest = isTemplateRequest(path);
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, multiSearchRequest.indicesOptions());
-        multiSearchRequest.add(RestActions.getRestContent(request), isTemplateRequest, indices, types, request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex);
-
-        client.multiSearch(multiSearchRequest, new RestToXContentListener<MultiSearchResponse>(channel));
+        parseRequest(multiSearchRequest, RestActions.getRestContent(request), isTemplateRequest, indices, types,
+                request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex, indicesQueriesRegistry,
+                parseFieldMatcher);
+        client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
     }
 
     private boolean isTemplateRequest(String path) {
         return (path != null && path.endsWith("/template"));
+    }
+
+    public static MultiSearchRequest parseRequest(MultiSearchRequest msr, BytesReference data, boolean isTemplateRequest,
+                                                   @Nullable String[] indices,
+                                                   @Nullable String[] types,
+                                                   @Nullable String searchType,
+                                                   @Nullable String routing,
+                                                   IndicesOptions indicesOptions,
+                                                   boolean allowExplicitIndex, IndicesQueriesRegistry indicesQueriesRegistry,
+                                                   ParseFieldMatcher parseFieldMatcher) throws Exception {
+        XContent xContent = XContentFactory.xContent(data);
+        int from = 0;
+        int length = data.length();
+        byte marker = xContent.streamSeparator();
+        final QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry);
+        while (true) {
+            int nextMarker = findNextMarker(marker, from, data, length);
+            if (nextMarker == -1) {
+                break;
+            }
+            // support first line with \n
+            if (nextMarker == 0) {
+                from = nextMarker + 1;
+                continue;
+            }
+
+            SearchRequest searchRequest = new SearchRequest();
+            if (indices != null) {
+                searchRequest.indices(indices);
+            }
+            if (indicesOptions != null) {
+                searchRequest.indicesOptions(indicesOptions);
+            }
+            if (types != null && types.length > 0) {
+                searchRequest.types(types);
+            }
+            if (routing != null) {
+                searchRequest.routing(routing);
+            }
+            searchRequest.searchType(searchType);
+
+            IndicesOptions defaultOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
+
+
+            // now parse the action
+            if (nextMarker - from > 0) {
+                try (XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from))) {
+                    Map<String, Object> source = parser.map();
+                    for (Map.Entry<String, Object> entry : source.entrySet()) {
+                        Object value = entry.getValue();
+                        if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
+                            if (!allowExplicitIndex) {
+                                throw new IllegalArgumentException("explicit index in multi percolate is not allowed");
+                            }
+                            searchRequest.indices(nodeStringArrayValue(value));
+                        } else if ("type".equals(entry.getKey()) || "types".equals(entry.getKey())) {
+                            searchRequest.types(nodeStringArrayValue(value));
+                        } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
+                            searchRequest.searchType(nodeStringValue(value, null));
+                        } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
+                            searchRequest.requestCache(nodeBooleanValue(value));
+                        } else if ("preference".equals(entry.getKey())) {
+                            searchRequest.preference(nodeStringValue(value, null));
+                        } else if ("routing".equals(entry.getKey())) {
+                            searchRequest.routing(nodeStringValue(value, null));
+                        }
+                    }
+                    defaultOptions = IndicesOptions.fromMap(source, defaultOptions);
+                }
+            }
+            searchRequest.indicesOptions(defaultOptions);
+
+            // move pointers
+            from = nextMarker + 1;
+            // now for the body
+            nextMarker = findNextMarker(marker, from, data, length);
+            if (nextMarker == -1) {
+                break;
+            }
+            final BytesReference slice = data.slice(from, nextMarker - from);
+            if (isTemplateRequest) {
+                try (XContentParser parser = XContentFactory.xContent(slice).createParser(slice)) {
+                    queryParseContext.reset(parser);
+                    queryParseContext.parseFieldMatcher(parseFieldMatcher);
+                    Template template = TemplateQueryParser.parse(parser, queryParseContext.parseFieldMatcher(), "params", "template");
+                    searchRequest.template(template);
+                }
+            } else {
+                try (XContentParser requestParser = XContentFactory.xContent(slice).createParser(slice)) {
+                    queryParseContext.reset(requestParser);
+                    searchRequest.source(SearchSourceBuilder.parseSearchSource(requestParser, queryParseContext));
+                }
+            }
+            // move pointers
+            from = nextMarker + 1;
+
+            msr.add(searchRequest);
+        }
+        return msr;
+    }
+
+    private static int findNextMarker(byte marker, int from, BytesReference data, int length) {
+        for (int i = from; i < length; i++) {
+            if (data.get(i) == marker) {
+                return i;
+            }
+        }
+        return -1;
     }
 }

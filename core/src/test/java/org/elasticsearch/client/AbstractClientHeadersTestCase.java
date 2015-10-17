@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.GenericAction;
@@ -138,10 +137,9 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     @Test
     public void testOverideHeader() throws Exception {
         String key1Val = randomAsciiOfLength(5);
-        Map<String, Object> expected = ImmutableMap.<String, Object>builder()
-                .put("key1", key1Val)
-                .put("key2", "val 2")
-                .build();
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("key1", key1Val);
+        expected.put("key2", "val 2");
 
         client.prepareGet("idx", "type", "id")
                 .putHeader("key1", key1Val)

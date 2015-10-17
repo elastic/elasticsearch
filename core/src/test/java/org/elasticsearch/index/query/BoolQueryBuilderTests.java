@@ -19,25 +19,15 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -209,5 +199,48 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         csq = (ConstantScoreQuery) parseQuery(constantScoreQuery(boolQuery().should(termQuery("foo", "bar"))).buildAsBytes()).toQuery(createShardContext());
         bq = (BooleanQuery) csq.getQuery();
         assertEquals(1, bq.getMinimumNumberShouldMatch());
+    }
+
+    public void testMinShouldMatchFilterWithoutShouldClauses() throws Exception {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new BoolQueryBuilder().must(new MatchAllQueryBuilder()));
+        Query query = boolQueryBuilder.toQuery(createShardContext());
+        assertThat(query, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
+        assertThat(booleanQuery.clauses().size(), equalTo(1));
+        BooleanClause booleanClause = booleanQuery.clauses().get(0);
+        assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.FILTER));
+        assertThat(booleanClause.getQuery(), instanceOf(BooleanQuery.class));
+        BooleanQuery innerBooleanQuery = (BooleanQuery) booleanClause.getQuery();
+        //we didn't set minimum should match initially, there are no should clauses so it should be 0
+        assertThat(innerBooleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
+        assertThat(innerBooleanQuery.clauses().size(), equalTo(1));
+        BooleanClause innerBooleanClause = innerBooleanQuery.clauses().get(0);
+        assertThat(innerBooleanClause.getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(innerBooleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
+    }
+
+    public void testMinShouldMatchFilterWithShouldClauses() throws Exception {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new BoolQueryBuilder().must(new MatchAllQueryBuilder()).should(new MatchAllQueryBuilder()));
+        Query query = boolQueryBuilder.toQuery(createShardContext());
+        assertThat(query, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
+        assertThat(booleanQuery.clauses().size(), equalTo(1));
+        BooleanClause booleanClause = booleanQuery.clauses().get(0);
+        assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.FILTER));
+        assertThat(booleanClause.getQuery(), instanceOf(BooleanQuery.class));
+        BooleanQuery innerBooleanQuery = (BooleanQuery) booleanClause.getQuery();
+        //we didn't set minimum should match initially, but there are should clauses so it should be 1
+        assertThat(innerBooleanQuery.getMinimumNumberShouldMatch(), equalTo(1));
+        assertThat(innerBooleanQuery.clauses().size(), equalTo(2));
+        BooleanClause innerBooleanClause1 = innerBooleanQuery.clauses().get(0);
+        assertThat(innerBooleanClause1.getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(innerBooleanClause1.getQuery(), instanceOf(MatchAllDocsQuery.class));
+        BooleanClause innerBooleanClause2 = innerBooleanQuery.clauses().get(1);
+        assertThat(innerBooleanClause2.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(innerBooleanClause2.getQuery(), instanceOf(MatchAllDocsQuery.class));
     }
 }

@@ -31,6 +31,7 @@
 # Load test utilities
 load packaging_test_utils
 load os_package
+load plugins
 
 # Cleans everything for the 1st execution
 setup() {
@@ -80,6 +81,7 @@ setup() {
     # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
     # them.
     install_elasticsearch_test_scripts
+    ESPLUGIN_COMMAND_USER=root install_and_check_plugin lang groovy
     start_elasticsearch_service
     run_elasticsearch_tests
 }

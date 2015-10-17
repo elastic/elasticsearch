@@ -27,13 +27,15 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -99,24 +101,14 @@ public class TemplateQueryIT extends ESIntegTestCase {
                 "        }\n" +
                 "    }\n" +
                 "}";
-        SearchResponse sr = client().prepareSearch().setSource(new BytesArray(request))
-                .execute().actionGet();
-        assertNoFailures(sr);
-        assertThat(sr.getHits().hits().length, equalTo(0));
-        request = "{\n" +
-                "    \"query\": {\n" +
-                "        \"template\": {\n" +
-                "            \"query\": {\"match_{{template}}\": {}},\n" +
-                "            \"params\" : {\n" +
-                "                \"template\" : \"all\"\n" +
-                "            }\n" +
-                "        }\n" +
-                "    },\n" +
-                "    \"size\":0" +
-                "}";
-
-        sr = client().prepareSearch().setSource(new BytesArray(request))
-                .execute().actionGet();
+        Map<String, Object> params = new HashMap<>();
+        params.put("template", "all");
+        SearchResponse sr = client().prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().size(0).query(
+                                QueryBuilders.templateQuery(new Template("{ \"query\": { \"match_{{template}}\": {} } }",
+                                        ScriptType.INLINE, null, null, params)))).execute()
+                .actionGet();
         assertNoFailures(sr);
         assertThat(sr.getHits().hits().length, equalTo(0));
     }
@@ -145,25 +137,11 @@ public class TemplateQueryIT extends ESIntegTestCase {
     }
 
     @Test
-    public void testRawEscapedTemplate() throws IOException {
-        String query = "{\"template\": {\"query\": \"{\\\"match_{{template}}\\\": {}}\\\"\",\"params\" : {\"template\" : \"all\"}}}";
-
-        SearchResponse sr = client().prepareSearch().setQuery(query).get();
-        assertHitCount(sr, 2);
-    }
-
-    @Test
-    public void testRawTemplate() throws IOException {
-        String query = "{\"template\": {\"query\": {\"match_{{template}}\": {}},\"params\" : {\"template\" : \"all\"}}}";
-        SearchResponse sr = client().prepareSearch().setQuery(query).get();
-        assertHitCount(sr, 2);
-    }
-
-    @Test
     public void testRawFSTemplate() throws IOException {
-        String query = "{\"template\": {\"file\": \"storedTemplate\",\"params\" : {\"template\" : \"all\"}}}";
-
-        SearchResponse sr = client().prepareSearch().setQuery(query).get();
+        Map<String, Object> params = new HashMap<>();
+        params.put("template", "all");
+        TemplateQueryBuilder builder = new TemplateQueryBuilder(new Template("storedTemplate", ScriptType.FILE, null, null, params));
+        SearchResponse sr = client().prepareSearch().setQuery(builder).get();
         assertHitCount(sr, 2);
     }
 
@@ -173,11 +151,16 @@ public class TemplateQueryIT extends ESIntegTestCase {
         searchRequest.indices("_all");
 
         String query = "{ \"template\" : { \"query\": {\"match_{{template}}\": {} } }, \"params\" : { \"template\":\"all\" } }";
-        BytesReference bytesRef = new BytesArray(query);
-        searchRequest.templateSource(bytesRef);
+        searchRequest.template(parseTemplate(query));
 
         SearchResponse searchResponse = client().search(searchRequest).get();
         assertHitCount(searchResponse, 2);
+    }
+
+    private Template parseTemplate(String template) throws IOException {
+        try (XContentParser parser = XContentFactory.xContent(template).createParser(template)) {
+            return TemplateQueryParser.parse(parser, ParseFieldMatcher.EMPTY, "params", "template");
+        }
     }
 
     @Test
@@ -187,16 +170,14 @@ public class TemplateQueryIT extends ESIntegTestCase {
         searchRequest.indices("_all");
         try {
             String query = "{ \"template\" : { \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  } }";
-            BytesReference bytesRef = new BytesArray(query);
-            searchRequest.templateSource(bytesRef);
+            searchRequest.template(parseTemplate(query));
             client().search(searchRequest).get();
             fail("expected exception");
         } catch (Exception ex) {
             // expected - no params
         }
         String query = "{ \"template\" : { \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  }, \"params\" : { \"my_size\": 1 } }";
-        BytesReference bytesRef = new BytesArray(query);
-        searchRequest.templateSource(bytesRef);
+        searchRequest.template(parseTemplate(query));
 
         SearchResponse searchResponse = client().search(searchRequest).get();
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
@@ -234,10 +215,9 @@ public class TemplateQueryIT extends ESIntegTestCase {
     public void testSearchTemplateQueryFromFile() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
-        String templateString = "{" + "  \"file\": \"full-query-template\"," + "  \"params\":{" + "    \"mySize\": 2,"
+        String query = "{" + "  \"file\": \"full-query-template\"," + "  \"params\":{" + "    \"mySize\": 2,"
                 + "    \"myField\": \"text\"," + "    \"myValue\": \"value1\"" + "  }" + "}";
-        BytesReference bytesRef = new BytesArray(templateString);
-        searchRequest.templateSource(bytesRef);
+        searchRequest.template(parseTemplate(query));
         SearchResponse searchResponse = client().search(searchRequest).get();
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
     }
@@ -249,10 +229,9 @@ public class TemplateQueryIT extends ESIntegTestCase {
     public void testTemplateQueryAsEscapedString() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
-        String templateString = "{" + "  \"template\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
+        String query = "{" + "  \"template\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
                 + "  \"params\":{" + "    \"size\": 1" + "  }" + "}";
-        BytesReference bytesRef = new BytesArray(templateString);
-        searchRequest.templateSource(bytesRef);
+        searchRequest.template(parseTemplate(query));
         SearchResponse searchResponse = client().search(searchRequest).get();
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
     }
@@ -268,8 +247,7 @@ public class TemplateQueryIT extends ESIntegTestCase {
         String templateString = "{"
                 + "  \"template\" : \"{ {{#use_size}} \\\"size\\\": \\\"{{size}}\\\", {{/use_size}} \\\"query\\\":{\\\"match_all\\\":{}}}\","
                 + "  \"params\":{" + "    \"size\": 1," + "    \"use_size\": true" + "  }" + "}";
-        BytesReference bytesRef = new BytesArray(templateString);
-        searchRequest.templateSource(bytesRef);
+        searchRequest.template(parseTemplate(templateString));
         SearchResponse searchResponse = client().search(searchRequest).get();
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
     }
@@ -285,8 +263,7 @@ public class TemplateQueryIT extends ESIntegTestCase {
         String templateString = "{"
                 + "  \"inline\" : \"{ \\\"query\\\":{\\\"match_all\\\":{}} {{#use_size}}, \\\"size\\\": \\\"{{size}}\\\" {{/use_size}} }\","
                 + "  \"params\":{" + "    \"size\": 1," + "    \"use_size\": true" + "  }" + "}";
-        BytesReference bytesRef = new BytesArray(templateString);
-        searchRequest.templateSource(bytesRef);
+        searchRequest.template(parseTemplate(templateString));
         SearchResponse searchResponse = client().search(searchRequest).get();
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
     }
@@ -451,12 +428,15 @@ public class TemplateQueryIT extends ESIntegTestCase {
                 .execute().actionGet();
         assertHitCount(sr, 1);
 
-        String query = "{\"template\": {\"id\": \"3\",\"params\" : {\"fieldParam\" : \"foo\"}}}";
-        sr = client().prepareSearch().setQuery(query).get();
+        // "{\"template\": {\"id\": \"3\",\"params\" : {\"fieldParam\" : \"foo\"}}}";
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldParam", "foo");
+        TemplateQueryBuilder templateQuery = new TemplateQueryBuilder(new Template("3", ScriptType.INDEXED, null, null, params));
+        sr = client().prepareSearch().setQuery(templateQuery).get();
         assertHitCount(sr, 4);
 
-        query = "{\"template\": {\"id\": \"/mustache/3\",\"params\" : {\"fieldParam\" : \"foo\"}}}";
-        sr = client().prepareSearch().setQuery(query).get();
+        templateQuery = new TemplateQueryBuilder(new Template("/mustache/3", ScriptType.INDEXED, null, null, params));
+        sr = client().prepareSearch().setQuery(templateQuery).get();
         assertHitCount(sr, 4);
     }
 
@@ -471,7 +451,7 @@ public class TemplateQueryIT extends ESIntegTestCase {
 
         int iterations = randomIntBetween(2, 11);
         for (int i = 1; i < iterations; i++) {
-            PutIndexedScriptResponse scriptResponse = client().preparePutIndexedScript(MustacheScriptEngineService.NAME, "git01", 
+            PutIndexedScriptResponse scriptResponse = client().preparePutIndexedScript(MustacheScriptEngineService.NAME, "git01",
                     "{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\",\"type\": \"ooophrase_prefix\"}}}}").get();
             assertEquals(i * 2 - 1, scriptResponse.getVersion());
 
@@ -507,7 +487,7 @@ public class TemplateQueryIT extends ESIntegTestCase {
         }
     }
 
-    
+
     @Test
     public void testIndexedTemplateWithArray() throws Exception {
       createIndex(ScriptService.SCRIPT_INDEX);

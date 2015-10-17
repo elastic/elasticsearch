@@ -32,6 +32,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.search.MultiMatchQuery;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -163,13 +165,6 @@ public class DocumentActionsIT extends ESIntegTestCase {
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
-            // test failed (simply query that can't be parsed)
-            try {
-                client().count(countRequest("test").source("{ term : { _type : \"type1 } }")).actionGet();
-            } catch(SearchPhaseExecutionException e) {
-                assertThat(e.shardFailures().length, equalTo(numShards.numPrimaries));
-            }
-
             // count with no query is a match all one
             countResponse = client().prepareCount("test").execute().actionGet();
             assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length, equalTo(0));
@@ -210,7 +205,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[1].getId(), equalTo("2"));
 
         assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[2].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.getItems()[2].getOpType(), equalTo("index"));
         assertThat(bulkResponse.getItems()[2].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[2].getType(), equalTo("type1"));
         String generatedId3 = bulkResponse.getItems()[2].getId();
@@ -222,7 +217,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[3].getId(), equalTo("1"));
 
         assertThat(bulkResponse.getItems()[4].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[4].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.getItems()[4].getOpType(), equalTo("index"));
         assertThat(bulkResponse.getItems()[4].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[4].getType(), equalTo("type1"));
 

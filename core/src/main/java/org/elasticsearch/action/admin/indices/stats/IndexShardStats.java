@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 
 /**
@@ -57,7 +57,7 @@ public class IndexShardStats implements Iterable<ShardStats>, Streamable {
 
     @Override
     public Iterator<ShardStats> iterator() {
-        return Iterators.forArray(shards);
+        return Arrays.stream(shards).iterator();
     }
 
     private CommonStats total = null;

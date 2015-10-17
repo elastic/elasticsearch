@@ -20,8 +20,10 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -29,6 +31,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.support.QueryInnerHits;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
@@ -37,8 +42,10 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQueryBuilder> {
@@ -183,7 +190,36 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     public void testParseFromJSON() throws IOException {
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/has-child-with-inner-hits.json").trim();
+        String query = "{\n" +
+                "  \"has_child\" : {\n" +
+                "    \"query\" : {\n" +
+                "      \"range\" : {\n" +
+                "        \"mapped_string\" : {\n" +
+                "          \"from\" : \"agJhRET\",\n" +
+                "          \"to\" : \"zvqIq\",\n" +
+                "          \"include_lower\" : true,\n" +
+                "          \"include_upper\" : true,\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"child_type\" : \"child\",\n" +
+                "    \"score_mode\" : \"avg\",\n" +
+                "    \"min_children\" : 883170873,\n" +
+                "    \"max_children\" : 1217235442,\n" +
+                "    \"boost\" : 2.0,\n" +
+                "    \"_name\" : \"WNzYMJKRwePuRBh\",\n" +
+                "    \"inner_hits\" : {\n" +
+                "      \"name\" : \"inner_hits_name\",\n" +
+                "      \"size\" : 100,\n" +
+                "      \"sort\" : [ {\n" +
+                "        \"mapped_string\" : {\n" +
+                "          \"order\" : \"asc\"\n" +
+                "        }\n" +
+                "      } ]\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
         HasChildQueryBuilder queryBuilder = (HasChildQueryBuilder) parseQuery(query);
         assertEquals(query, queryBuilder.maxChildren(), 1217235442);
         assertEquals(query, queryBuilder.minChildren(), 883170873);
@@ -196,7 +232,75 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         // now assert that we actually generate the same JSON
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         queryBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        logger.info(msg(query, builder.string()));
         assertEquals(query, builder.string());
     }
 
+    private String msg(String left, String right) {
+        int size = Math.min(left.length(), right.length());
+        StringBuilder builder = new StringBuilder("size: " + left.length() + " vs. " + right.length());
+        builder.append(" content: <<");
+        for (int i = 0; i < size; i++) {
+            if (left.charAt(i) == right.charAt(i)) {
+                builder.append(left.charAt(i));
+            } else {
+                builder.append(">> ").append("until offset: ").append(i)
+                        .append(" [").append(left.charAt(i)).append(" vs.").append(right.charAt(i))
+                        .append("] [").append((int)left.charAt(i) ).append(" vs.").append((int)right.charAt(i)).append(']');
+                return builder.toString();
+            }
+        }
+        if (left.length() != right.length()) {
+            int leftEnd = Math.max(size, left.length()) - 1;
+            int rightEnd = Math.max(size, right.length()) - 1;
+            builder.append(">> ").append("until offset: ").append(size)
+                    .append(" [").append(left.charAt(leftEnd)).append(" vs.").append(right.charAt(rightEnd))
+                    .append("] [").append((int)left.charAt(leftEnd)).append(" vs.").append((int)right.charAt(rightEnd)).append(']');
+            return builder.toString();
+        }
+        return "";
+    }
+
+    public void testToQueryInnerQueryType() throws IOException {
+        String[] searchTypes = new String[]{PARENT_TYPE};
+        QueryShardContext.setTypes(searchTypes);
+        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(CHILD_TYPE, new IdsQueryBuilder().addIds("id"));
+        Query query = hasChildQueryBuilder.toQuery(createShardContext());
+        //verify that the context types are still the same as the ones we previously set
+        assertThat(QueryShardContext.getTypes(), equalTo(searchTypes));
+        assertLateParsingQuery(query, CHILD_TYPE, "id");
+    }
+
+    static void assertLateParsingQuery(Query query, String type, String id) throws IOException {
+        assertThat(query, instanceOf(HasChildQueryBuilder.LateParsingQuery.class));
+        HasChildQueryBuilder.LateParsingQuery lateParsingQuery = (HasChildQueryBuilder.LateParsingQuery) query;
+        assertThat(lateParsingQuery.getInnerQuery(), instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) lateParsingQuery.getInnerQuery();
+        assertThat(booleanQuery.clauses().size(), equalTo(2));
+        //check the inner ids query, we have to call rewrite to get to check the type it's executed against
+        assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(TermsQuery.class));
+        TermsQuery termsQuery = (TermsQuery) booleanQuery.clauses().get(0).getQuery();
+        Query rewrittenTermsQuery = termsQuery.rewrite(null);
+        assertThat(rewrittenTermsQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) rewrittenTermsQuery;
+        assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
+        BooleanQuery booleanTermsQuery = (BooleanQuery) constantScoreQuery.getQuery();
+        assertThat(booleanTermsQuery.clauses().size(), equalTo(1));
+        assertThat(booleanTermsQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(booleanTermsQuery.clauses().get(0).getQuery(), instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) booleanTermsQuery.clauses().get(0).getQuery();
+        assertThat(termQuery.getTerm().field(), equalTo(UidFieldMapper.NAME));
+        //we want to make sure that the inner ids query gets executed against the child type rather than the main type we initially set to the context
+        BytesRef[] ids = Uid.createUidsForTypesAndIds(Collections.singletonList(type), Collections.singletonList(id));
+        assertThat(termQuery.getTerm().bytes(), equalTo(ids[0]));
+        //check the type filter
+        assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
+        assertThat(booleanQuery.clauses().get(1).getQuery(), instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery typeConstantScoreQuery = (ConstantScoreQuery) booleanQuery.clauses().get(1).getQuery();
+        assertThat(typeConstantScoreQuery.getQuery(), instanceOf(TermQuery.class));
+        TermQuery typeTermQuery = (TermQuery) typeConstantScoreQuery.getQuery();
+        assertThat(typeTermQuery.getTerm().field(), equalTo(TypeFieldMapper.NAME));
+        assertThat(typeTermQuery.getTerm().text(), equalTo(type));
+    }
 }

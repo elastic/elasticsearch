@@ -90,7 +90,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                         throw new IndexNotFoundException(index);
                     }
 
-                    if (indexMetaData.state() != IndexMetaData.State.CLOSE) {
+                    if (indexMetaData.getState() != IndexMetaData.State.CLOSE) {
                         IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
                         for (IndexShardRoutingTable shard : indexRoutingTable) {
                             for (ShardRouting shardRouting : shard) {
@@ -124,7 +124,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     rtBuilder.remove(index);
                 }
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
+                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build());
                 //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
                 return ClusterState.builder(updatedState).routingResult(routingResult).build();
             }
@@ -151,7 +151,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     if (indexMetaData == null) {
                         throw new IndexNotFoundException(index);
                     }
-                    if (indexMetaData.state() != IndexMetaData.State.OPEN) {
+                    if (indexMetaData.getState() != IndexMetaData.State.OPEN) {
                         indicesToOpen.add(index);
                     }
                 }
@@ -181,7 +181,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     rtBuilder.addAsFromCloseToOpen(updatedState.metaData().index(index));
                 }
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
+                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build());
                 //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
                 return ClusterState.builder(updatedState).routingResult(routingResult).build();
             }

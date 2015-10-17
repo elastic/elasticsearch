@@ -29,26 +29,31 @@ public class VersionTypeTests extends ESTestCase {
     @Test
     public void testInternalVersionConflict() throws Exception {
 
-        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, Versions.MATCH_ANY));
+        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, Versions.MATCH_ANY, randomBoolean()));
         assertFalse(VersionType.INTERNAL.isVersionConflictForReads(10, Versions.MATCH_ANY));
         // if we don't have a version in the index we accept everything
-        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_SET, 10));
+        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_SET, 10, randomBoolean()));
         assertFalse(VersionType.INTERNAL.isVersionConflictForReads(Versions.NOT_SET, 10));
-        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_SET, Versions.MATCH_ANY));
+        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_SET, Versions.MATCH_ANY, randomBoolean()));
         assertFalse(VersionType.INTERNAL.isVersionConflictForReads(Versions.NOT_SET, Versions.MATCH_ANY));
 
         // if we didn't find a version (but the index does support it), we don't like it unless MATCH_ANY
-        assertTrue(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, 10));
+        assertTrue(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, 10, randomBoolean()));
         assertTrue(VersionType.INTERNAL.isVersionConflictForReads(Versions.NOT_FOUND, 10));
-        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.MATCH_ANY));
+        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.MATCH_ANY, randomBoolean()));
         assertFalse(VersionType.INTERNAL.isVersionConflictForReads(Versions.NOT_FOUND, Versions.MATCH_ANY));
 
+        // deletes
+        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.MATCH_DELETED, true));
+        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, Versions.MATCH_DELETED, true));
+
+
         // and the stupid usual case
-        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, 10));
+        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, 10, randomBoolean()));
         assertFalse(VersionType.INTERNAL.isVersionConflictForReads(10, 10));
-        assertTrue(VersionType.INTERNAL.isVersionConflictForWrites(9, 10));
+        assertTrue(VersionType.INTERNAL.isVersionConflictForWrites(9, 10, randomBoolean()));
         assertTrue(VersionType.INTERNAL.isVersionConflictForReads(9, 10));
-        assertTrue(VersionType.INTERNAL.isVersionConflictForWrites(10, 9));
+        assertTrue(VersionType.INTERNAL.isVersionConflictForWrites(10, 9, randomBoolean()));
         assertTrue(VersionType.INTERNAL.isVersionConflictForReads(10, 9));
 
 // Old indexing code, dictating behavior
@@ -99,23 +104,23 @@ public class VersionTypeTests extends ESTestCase {
     @Test
     public void testExternalVersionConflict() throws Exception {
 
-        assertFalse(VersionType.EXTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, 10));
-        assertFalse(VersionType.EXTERNAL.isVersionConflictForWrites(Versions.NOT_SET, 10));
+        assertFalse(VersionType.EXTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, 10, randomBoolean()));
+        assertFalse(VersionType.EXTERNAL.isVersionConflictForWrites(Versions.NOT_SET, 10, randomBoolean()));
         // MATCH_ANY must throw an exception in the case of external version, as the version must be set! it used as the new value
-        assertTrue(VersionType.EXTERNAL.isVersionConflictForWrites(10, Versions.MATCH_ANY));
+        assertTrue(VersionType.EXTERNAL.isVersionConflictForWrites(10, Versions.MATCH_ANY, randomBoolean()));
 
         // if we didn't find a version (but the index does support it), we always accept
-        assertFalse(VersionType.EXTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.NOT_FOUND));
-        assertFalse(VersionType.EXTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, 10));
+        assertFalse(VersionType.EXTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.NOT_FOUND, randomBoolean()));
+        assertFalse(VersionType.EXTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, 10, randomBoolean()));
 
         assertTrue(VersionType.EXTERNAL.isVersionConflictForReads(Versions.NOT_FOUND, Versions.NOT_FOUND));
         assertTrue(VersionType.EXTERNAL.isVersionConflictForReads(Versions.NOT_FOUND, 10));
         assertFalse(VersionType.EXTERNAL.isVersionConflictForReads(Versions.NOT_FOUND, Versions.MATCH_ANY));
 
         // and the standard behavior
-        assertTrue(VersionType.EXTERNAL.isVersionConflictForWrites(10, 10));
-        assertFalse(VersionType.EXTERNAL.isVersionConflictForWrites(9, 10));
-        assertTrue(VersionType.EXTERNAL.isVersionConflictForWrites(10, 9));
+        assertTrue(VersionType.EXTERNAL.isVersionConflictForWrites(10, 10, randomBoolean()));
+        assertFalse(VersionType.EXTERNAL.isVersionConflictForWrites(9, 10, randomBoolean()));
+        assertTrue(VersionType.EXTERNAL.isVersionConflictForWrites(10, 9, randomBoolean()));
 
         assertFalse(VersionType.EXTERNAL.isVersionConflictForReads(10, 10));
         assertTrue(VersionType.EXTERNAL.isVersionConflictForReads(9, 10));
@@ -137,14 +142,14 @@ public class VersionTypeTests extends ESTestCase {
     @Test
     public void testExternalGTEVersionConflict() throws Exception {
 
-        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(Versions.NOT_FOUND, 10));
-        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(Versions.NOT_SET, 10));
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(Versions.NOT_FOUND, 10, randomBoolean()));
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(Versions.NOT_SET, 10, randomBoolean()));
         // MATCH_ANY must throw an exception in the case of external version, as the version must be set! it used as the new value
-        assertTrue(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(10, Versions.MATCH_ANY));
+        assertTrue(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(10, Versions.MATCH_ANY, randomBoolean()));
 
         // if we didn't find a version (but the index does support it), we always accept
-        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.NOT_FOUND));
-        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(Versions.NOT_FOUND, 10));
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.NOT_FOUND, randomBoolean()));
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(Versions.NOT_FOUND, 10, randomBoolean()));
 
         assertTrue(VersionType.EXTERNAL_GTE.isVersionConflictForReads(Versions.NOT_FOUND, Versions.NOT_FOUND));
         assertTrue(VersionType.EXTERNAL_GTE.isVersionConflictForReads(Versions.NOT_FOUND, 10));
@@ -152,9 +157,9 @@ public class VersionTypeTests extends ESTestCase {
 
 
         // and the standard behavior
-        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(10, 10));
-        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(9, 10));
-        assertTrue(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(10, 9));
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(10, 10, randomBoolean()));
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(9, 10, randomBoolean()));
+        assertTrue(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(10, 9, randomBoolean()));
 
         assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForReads(10, 10));
         assertTrue(VersionType.EXTERNAL_GTE.isVersionConflictForReads(9, 10));
@@ -166,14 +171,20 @@ public class VersionTypeTests extends ESTestCase {
     @Test
     public void testForceVersionConflict() throws Exception {
 
-        assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_FOUND, 10));
-        assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_SET, 10));
-        // MATCH_ANY must throw an exception in the case of external version, as the version must be set! it used as the new value
-        assertTrue(VersionType.FORCE.isVersionConflictForWrites(10, Versions.MATCH_ANY));
+        assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_FOUND, 10, randomBoolean()));
+        assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_SET, 10, randomBoolean()));
+
+        // MATCH_ANY must throw an exception in the case of force version, as the version must be set! it used as the new value
+        try {
+            VersionType.FORCE.isVersionConflictForWrites(10, Versions.MATCH_ANY, randomBoolean());
+            fail();
+        } catch (IllegalStateException e) {
+            //yes!!
+        }
 
         // if we didn't find a version (but the index does support it), we always accept
-        assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.NOT_FOUND));
-        assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_FOUND, 10));
+        assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.NOT_FOUND, randomBoolean()));
+        assertFalse(VersionType.FORCE.isVersionConflictForWrites(Versions.NOT_FOUND, 10, randomBoolean()));
 
         assertFalse(VersionType.FORCE.isVersionConflictForReads(Versions.NOT_FOUND, Versions.NOT_FOUND));
         assertFalse(VersionType.FORCE.isVersionConflictForReads(Versions.NOT_FOUND, 10));
@@ -181,9 +192,9 @@ public class VersionTypeTests extends ESTestCase {
 
 
         // and the standard behavior
-        assertFalse(VersionType.FORCE.isVersionConflictForWrites(10, 10));
-        assertFalse(VersionType.FORCE.isVersionConflictForWrites(9, 10));
-        assertFalse(VersionType.FORCE.isVersionConflictForWrites(10, 9));
+        assertFalse(VersionType.FORCE.isVersionConflictForWrites(10, 10, randomBoolean()));
+        assertFalse(VersionType.FORCE.isVersionConflictForWrites(9, 10, randomBoolean()));
+        assertFalse(VersionType.FORCE.isVersionConflictForWrites(10, 9, randomBoolean()));
         assertFalse(VersionType.FORCE.isVersionConflictForReads(10, 10));
         assertFalse(VersionType.FORCE.isVersionConflictForReads(9, 10));
         assertFalse(VersionType.FORCE.isVersionConflictForReads(10, 9));

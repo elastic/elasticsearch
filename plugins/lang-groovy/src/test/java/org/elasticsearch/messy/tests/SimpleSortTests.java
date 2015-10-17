@@ -30,7 +30,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.StringAndBytesText;
@@ -51,51 +50,23 @@ import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Random;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSortValues;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 
 /**
@@ -107,7 +78,7 @@ public class SimpleSortTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @TestLogging("action.search.type:TRACE")
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9421")
     public void testIssue8226() {
@@ -391,7 +362,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         SearchResponse searchResponse = client()
                 .prepareSearch("test")
                 .setQuery(
-                        QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.scriptFunction(new Script("_source.field"))))
+                        QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field")))
                 .execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).score(), Matchers.lessThan(searchResponse.getHits().getAt(0).score()));
@@ -402,7 +373,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         searchResponse = client()
                 .prepareSearch("test")
                 .setQuery(
-                        QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.scriptFunction(new Script("_source.field"))))
+                        QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field")))
                 .addSort("_score", SortOrder.DESC).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).score(), Matchers.lessThan(searchResponse.getHits().getAt(0).score()));
@@ -413,7 +384,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         searchResponse = client()
                 .prepareSearch("test")
                 .setQuery(
-                        QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.scriptFunction(new Script("_source.field"))))
+                        QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field")))
                 .addSort("_score", SortOrder.DESC).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
@@ -433,7 +404,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchAllQuery(), scriptFunction(new Script("_source.field")))).execute().actionGet();
+                .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("field"))).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).score(), Matchers.lessThan(searchResponse.getHits().getAt(0).score()));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
@@ -441,7 +412,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchAllQuery(), scriptFunction(new Script("_source.field"))))
+                .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("field")))
                 .addSort("_score", SortOrder.DESC).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).score(), Matchers.lessThan(searchResponse.getHits().getAt(0).score()));
@@ -450,7 +421,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchAllQuery(), scriptFunction(new Script("_source.field"))))
+                .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("field")))
                 .addSort("_score", SortOrder.DESC).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
@@ -907,9 +878,9 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
-        assertThat((String) searchResponse.getHits().getAt(0).field("id").value(), equalTo("1"));
-        assertThat((String) searchResponse.getHits().getAt(1).field("id").value(), equalTo("3"));
-        assertThat((String) searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(0).field("id").value(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).field("id").value(), equalTo("3"));
+        assertThat(searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -920,9 +891,9 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
-        assertThat((String) searchResponse.getHits().getAt(0).field("id").value(), equalTo("1"));
-        assertThat((String) searchResponse.getHits().getAt(1).field("id").value(), equalTo("3"));
-        assertThat((String) searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(0).field("id").value(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).field("id").value(), equalTo("3"));
+        assertThat(searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -939,9 +910,9 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(searchResponse.getFailedShards(), equalTo(0));
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
-        assertThat((String) searchResponse.getHits().getAt(0).field("id").value(), equalTo("3"));
-        assertThat((String) searchResponse.getHits().getAt(1).field("id").value(), equalTo("1"));
-        assertThat((String) searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(0).field("id").value(), equalTo("3"));
+        assertThat(searchResponse.getHits().getAt(1).field("id").value(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
 
         // a query with docs just with null values
         searchResponse = client().prepareSearch()
@@ -959,7 +930,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(searchResponse.getFailedShards(), equalTo(0));
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
-        assertThat((String) searchResponse.getHits().getAt(0).field("id").value(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(0).field("id").value(), equalTo("2"));
     }
 
     @Test
@@ -1782,32 +1753,32 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS)));
-        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS)));
+        assertThat(searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS)));
+        assertThat(searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS)));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("min").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS)));
-        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS)));
+        assertThat(searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS)));
+        assertThat(searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS)));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("max").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS)));
-        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS)));
+        assertThat(searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS)));
+        assertThat(searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS)));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("max").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS)));
-        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS)));
+        assertThat(searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS)));
+        assertThat(searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS)));
     }
 
     protected void createShuffeldJSONArray(XContentBuilder builder, GeoPoint[] pointsArray) throws IOException {
@@ -1881,50 +1852,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(3.25, 4, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
         assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(5.25, 4, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
 
-        //test all the different formats in one
-        createQPoints(qHashes, qPoints);
-        XContentBuilder searchSourceBuilder = jsonBuilder();
-        searchSourceBuilder.startObject().startArray("sort").startObject().startObject("_geo_distance").startArray("location");
-
-        for (int i = 0; i < 4; i++) {
-            int at = randomInt(qPoints.size() - 1);
-            int format = randomInt(3);
-            switch (format) {
-                case 0: {
-                    searchSourceBuilder.value(qHashes.get(at));
-                    break;
-                }
-                case 1: {
-                    searchSourceBuilder.value(qPoints.get(at).lat() + "," + qPoints.get(at).lon());
-                    break;
-                }
-                case 2: {
-                    searchSourceBuilder.value(qPoints.get(at));
-                    break;
-                }
-                case 3: {
-                    searchSourceBuilder.startArray().value(qPoints.get(at).lon()).value(qPoints.get(at).lat()).endArray();
-                    break;
-                }
-            }
-            qHashes.remove(at);
-            qPoints.remove(at);
-        }
-
-        searchSourceBuilder.endArray();
-        searchSourceBuilder.field("order", "asc");
-        searchSourceBuilder.field("unit", "km");
-        searchSourceBuilder.field("sort_mode", "min");
-        searchSourceBuilder.field("distance_type", "plane");
-        searchSourceBuilder.endObject();
-        searchSourceBuilder.endObject();
-        searchSourceBuilder.endArray();
-        searchSourceBuilder.endObject();
-
-        searchResponse = client().prepareSearch().setSource(searchSourceBuilder.bytes()).execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
-        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(4.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
     }
 
     public void testSinglePointGeoDistanceSort() throws ExecutionException, InterruptedException, IOException {
@@ -1963,40 +1890,25 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
-        String geoSortRequest = jsonBuilder().startObject().startArray("sort").startObject()
-                .startObject("_geo_distance")
-                .startArray("location").value(2f).value(2f).endArray()
-                .field("unit", "km")
-                .field("distance_type", "plane")
-                .endObject()
-                .endObject().endArray().string();
-        searchResponse = client().prepareSearch().setSource(new BytesArray(geoSortRequest))
-                .execute().actionGet();
+        searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location").point(2.0, 2.0)
+                                .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
-        geoSortRequest = jsonBuilder().startObject().startArray("sort").startObject()
-                .startObject("_geo_distance")
-                .field("location", "s037ms06g7h0")
-                .field("unit", "km")
-                .field("distance_type", "plane")
-                .endObject()
-                .endObject().endArray().string();
-        searchResponse = client().prepareSearch().setSource(new BytesArray(geoSortRequest))
-                .execute().actionGet();
+        searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location").geohashes("s037ms06g7h0")
+                                .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
-        geoSortRequest = jsonBuilder().startObject().startArray("sort").startObject()
-                .startObject("_geo_distance")
-                .startObject("location")
-                .field("lat", 2)
-                .field("lon", 2)
-                .endObject()
-                .field("unit", "km")
-                .field("distance_type", "plane")
-                .endObject()
-                .endObject().endArray().string();
-        searchResponse = client().prepareSearch().setSource(new BytesArray(geoSortRequest))
-                .execute().actionGet();
+        searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location").point(2.0, 2.0)
+                                .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
     }
 

@@ -128,7 +128,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                         .build();
 
                 RoutingAllocation.Result routingResult = allocationService.reroute(
-                        ClusterState.builder(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
+                        ClusterState.builder(currentState).routingTable(routingTableBuilder.build()).metaData(newMetaData).build());
 
                 ClusterBlocks blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(request.index).build();
 

@@ -97,7 +97,7 @@ public class CodecTests extends ESSingleNodeTestCase {
 
     private static CodecService createCodecService(Settings settings) {
         IndexService indexService = createIndex("test", settings);
-        return indexService.injector().getInstance(CodecService.class);
+        return indexService.getIndexServices().getCodecService();
     }
 
 }

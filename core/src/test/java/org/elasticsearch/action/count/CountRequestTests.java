@@ -21,18 +21,13 @@ package org.elasticsearch.action.count;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import java.util.Map;
-
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.nullValue;
 
 public class CountRequestTests extends ESTestCase {
 
@@ -56,8 +51,9 @@ public class CountRequestTests extends ESTestCase {
         if (randomBoolean()) {
             countRequest.preference(randomAsciiOfLengthBetween(1, 10));
         }
-        if (randomBoolean()) {
-            countRequest.source(new QuerySourceBuilder().setQuery(QueryBuilders.termQuery("field", "value")));
+        final boolean querySet = randomBoolean();
+        if (querySet) {
+            countRequest.query(QueryBuilders.termQuery("field", "value"));
         }
         if (randomBoolean()) {
             countRequest.minScore(randomFloat());
@@ -72,31 +68,15 @@ public class CountRequestTests extends ESTestCase {
         assertThat(searchRequest.types(), equalTo(countRequest.types()));
         assertThat(searchRequest.routing(), equalTo(countRequest.routing()));
         assertThat(searchRequest.preference(), equalTo(countRequest.preference()));
-
-        if (countRequest.source() == null) {
-            assertThat(searchRequest.source(), nullValue());
+        SearchSourceBuilder source = searchRequest.source();
+        assertThat(source.size(), equalTo(0));
+        if (querySet) {
+            assertThat(source.query(), notNullValue());
         } else {
-            Map<String, Object> sourceMap = XContentHelper.convertToMap(searchRequest.source(), false).v2();
-            assertThat(sourceMap.size(), equalTo(1));
-            assertThat(sourceMap.get("query"), notNullValue());
+            assertNull(source.query());
         }
-
-        Map<String, Object> extraSourceMap = XContentHelper.convertToMap(searchRequest.extraSource(), false).v2();
-        int count = 1;
-        assertThat((Integer)extraSourceMap.get("size"), equalTo(0));
-        if (countRequest.minScore() == CountRequest.DEFAULT_MIN_SCORE) {
-            assertThat(extraSourceMap.get("min_score"), nullValue());
-        } else {
-            assertThat(((Number)extraSourceMap.get("min_score")).floatValue(), equalTo(countRequest.minScore()));
-            count++;
-        }
-        if (countRequest.terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER) {
-            assertThat(extraSourceMap.get("terminate_after"), nullValue());
-        } else {
-            assertThat((Integer)extraSourceMap.get("terminate_after"), equalTo(countRequest.terminateAfter()));
-            count++;
-        }
-        assertThat(extraSourceMap.size(), equalTo(count));
+        assertThat(source.minScore(), equalTo(countRequest.minScore()));
+        assertThat(source.terminateAfter(), equalTo(countRequest.terminateAfter()));
     }
 
     private static String[] randomStringArray() {

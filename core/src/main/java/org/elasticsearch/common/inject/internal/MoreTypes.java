@@ -17,8 +17,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Message;
@@ -35,11 +33,13 @@ import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
 import static java.util.Collections.singleton;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Static methods for working with types that we aren't publishing in the
@@ -54,18 +54,20 @@ public class MoreTypes {
     private MoreTypes() {
     }
 
-    private static final Map<TypeLiteral<?>, TypeLiteral<?>> PRIMITIVE_TO_WRAPPER
-            = new ImmutableMap.Builder<TypeLiteral<?>, TypeLiteral<?>>()
-            .put(TypeLiteral.get(boolean.class), TypeLiteral.get(Boolean.class))
-            .put(TypeLiteral.get(byte.class), TypeLiteral.get(Byte.class))
-            .put(TypeLiteral.get(short.class), TypeLiteral.get(Short.class))
-            .put(TypeLiteral.get(int.class), TypeLiteral.get(Integer.class))
-            .put(TypeLiteral.get(long.class), TypeLiteral.get(Long.class))
-            .put(TypeLiteral.get(float.class), TypeLiteral.get(Float.class))
-            .put(TypeLiteral.get(double.class), TypeLiteral.get(Double.class))
-            .put(TypeLiteral.get(char.class), TypeLiteral.get(Character.class))
-            .put(TypeLiteral.get(void.class), TypeLiteral.get(Void.class))
-            .build();
+    private static final Map<TypeLiteral<?>, TypeLiteral<?>> PRIMITIVE_TO_WRAPPER;
+    static {
+        Map<TypeLiteral<?>, TypeLiteral<?>> primitiveToWrapper = new HashMap<>();
+        primitiveToWrapper.put(TypeLiteral.get(boolean.class), TypeLiteral.get(Boolean.class));
+        primitiveToWrapper.put(TypeLiteral.get(byte.class), TypeLiteral.get(Byte.class));
+        primitiveToWrapper.put(TypeLiteral.get(short.class), TypeLiteral.get(Short.class));
+        primitiveToWrapper.put(TypeLiteral.get(int.class), TypeLiteral.get(Integer.class));
+        primitiveToWrapper.put(TypeLiteral.get(long.class), TypeLiteral.get(Long.class));
+        primitiveToWrapper.put(TypeLiteral.get(float.class), TypeLiteral.get(Float.class));
+        primitiveToWrapper.put(TypeLiteral.get(double.class), TypeLiteral.get(Double.class));
+        primitiveToWrapper.put(TypeLiteral.get(char.class), TypeLiteral.get(Character.class));
+        primitiveToWrapper.put(TypeLiteral.get(void.class), TypeLiteral.get(Void.class));
+        PRIMITIVE_TO_WRAPPER = unmodifiableMap(primitiveToWrapper);
+    }
 
     /**
      * Returns an equivalent type that's safe for use in a key. The returned type will be free of

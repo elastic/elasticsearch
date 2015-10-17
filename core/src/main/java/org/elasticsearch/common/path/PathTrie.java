@@ -19,14 +19,15 @@
 
 package org.elasticsearch.common.path;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Strings;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -45,7 +46,7 @@ public class PathTrie<T> {
     };
 
     private final Decoder decoder;
-    private final TrieNode<T> root;
+    private final TrieNode root;
     private final char separator;
     private T rootValue;
 
@@ -60,10 +61,10 @@ public class PathTrie<T> {
     public PathTrie(char separator, String wildcard, Decoder decoder) {
         this.decoder = decoder;
         this.separator = separator;
-        root = new TrieNode<>(new String(new char[]{separator}), null, null, wildcard);
+        root = new TrieNode(new String(new char[]{separator}), null, wildcard);
     }
 
-    public class TrieNode<T> {
+    public class TrieNode {
         private transient String key;
         private transient T value;
         private boolean isWildcard;
@@ -71,17 +72,14 @@ public class PathTrie<T> {
 
         private transient String namedWildcard;
 
-        private ImmutableMap<String, TrieNode<T>> children;
+        private Map<String, TrieNode> children;
 
-        private final TrieNode parent;
-
-        public TrieNode(String key, T value, TrieNode parent, String wildcard) {
+        public TrieNode(String key, T value, String wildcard) {
             this.key = key;
             this.wildcard = wildcard;
             this.isWildcard = (key.equals(wildcard));
-            this.parent = parent;
             this.value = value;
-            this.children = ImmutableMap.of();
+            this.children = emptyMap();
             if (isNamedWildcard(key)) {
                 namedWildcard = key.substring(key.indexOf('{') + 1, key.indexOf('}'));
             } else {
@@ -98,8 +96,14 @@ public class PathTrie<T> {
             return isWildcard;
         }
 
-        public synchronized void addChild(TrieNode<T> child) {
-            children = newMapBuilder(children).put(child.key, child).immutableMap();
+        public synchronized void addChild(TrieNode child) {
+            addInnerChild(child.key, child);
+        }
+
+        private void addInnerChild(String key, TrieNode child) {
+            Map<String, TrieNode> newChildren = new HashMap<>(children);
+            newChildren.put(key, child);
+            children = unmodifiableMap(newChildren);
         }
 
         public TrieNode getChild(String key) {
@@ -115,14 +119,11 @@ public class PathTrie<T> {
             if (isNamedWildcard(token)) {
                 key = wildcard;
             }
-            TrieNode<T> node = children.get(key);
+            TrieNode node = children.get(key);
             if (node == null) {
-                if (index == (path.length - 1)) {
-                    node = new TrieNode<>(token, value, this, wildcard);
-                } else {
-                    node = new TrieNode<>(token, null, this, wildcard);
-                }
-                children = newMapBuilder(children).put(key, node).immutableMap();
+                T nodeValue = index == path.length - 1 ? value : null;
+                node = new TrieNode(token, nodeValue, wildcard);
+                addInnerChild(key, node);
             } else {
                 if (isNamedWildcard(token)) {
                     node.updateKeyWithNamedWildcard(token);
@@ -158,7 +159,7 @@ public class PathTrie<T> {
                 return null;
 
             String token = path[index];
-            TrieNode<T> node = children.get(token);
+            TrieNode node = children.get(token);
             boolean usedWildcard;
             if (node == null) {
                 node = children.get(wildcard);
@@ -195,10 +196,15 @@ public class PathTrie<T> {
             return res;
         }
 
-        private void put(Map<String, String> params, TrieNode<T> node, String value) {
+        private void put(Map<String, String> params, TrieNode node, String value) {
             if (params != null && node.isNamedWildcard()) {
                 params.put(node.namedWildcard(), value);
             }
+        }
+
+        @Override
+        public String toString() {
+            return key;
         }
     }
 

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common;
 
-import com.google.common.collect.ImmutableMap;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 /**
  */
@@ -115,7 +115,7 @@ public class Table {
         Map<String, String> mAttr;
         if (attributes.length() == 0) {
             if (inHeaders) {
-                mAttr = ImmutableMap.of();
+                mAttr = emptyMap();
             } else {
                 // get the attributes of the header cell we are going to add to
                 mAttr = headers.get(currentCells.size()).attr;

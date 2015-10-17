@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.cache.request;
 
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
-
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.cache.RemovalListener;
+import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -61,7 +59,7 @@ public class ShardRequestCache extends AbstractIndexShardComponent implements Re
 
     @Override
     public void onRemoval(RemovalNotification<IndicesRequestCache.Key, IndicesRequestCache.Value> removalNotification) {
-        if (removalNotification.wasEvicted()) {
+        if (removalNotification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED) {
             evictionsMetric.inc();
         }
         long dec = 0;

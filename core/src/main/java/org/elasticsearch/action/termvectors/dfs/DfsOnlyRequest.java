@@ -27,7 +27,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -104,10 +103,8 @@ public class DfsOnlyRequest extends BroadcastRequest<DfsOnlyRequest> {
     @Override
     public String toString() {
         String sSource = "_na_";
-        try {
-            sSource = XContentHelper.convertToJson(searchRequest.source(), false);
-        } catch (IOException e) {
-            // ignore
+        if (searchRequest.source() != null) {
+            sSource = searchRequest.source().toString();
         }
         return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types()) + ", source[" + sSource + "]";
     }

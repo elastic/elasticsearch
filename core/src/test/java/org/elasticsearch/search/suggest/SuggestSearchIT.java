@@ -19,14 +19,18 @@
 
 package org.elasticsearch.search.suggest;
 
-import java.nio.charset.StandardCharsets;
-import com.google.common.io.Resources;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
@@ -38,6 +42,9 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -48,8 +55,17 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 import static org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.candidateGenerator;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionPhraseCollateMatchExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionSize;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Integration tests for term and phrase suggestions.  Many of these tests many requests that vary only slightly from one another.  Where
@@ -268,16 +284,14 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         phraseSuggestion.field("nosuchField");
         {
-            SearchRequestBuilder suggestBuilder = client().prepareSearch().setSize(0);
-            suggestBuilder.setSuggestText("tetsting sugestion");
-            suggestBuilder.addSuggestion(phraseSuggestion);
-            assertThrows(suggestBuilder, SearchPhaseExecutionException.class);
+            SearchRequestBuilder searchBuilder = client().prepareSearch().setSize(0);
+            searchBuilder.suggest(new SuggestBuilder().setText("tetsting sugestion").addSuggestion(phraseSuggestion));
+            assertThrows(searchBuilder, SearchPhaseExecutionException.class);
         }
         {
-            SearchRequestBuilder suggestBuilder = client().prepareSearch().setSize(0);
-            suggestBuilder.setSuggestText("tetsting sugestion");
-            suggestBuilder.addSuggestion(phraseSuggestion);
-            assertThrows(suggestBuilder, SearchPhaseExecutionException.class);
+            SearchRequestBuilder searchBuilder = client().prepareSearch().setSize(0);
+            searchBuilder.suggest(new SuggestBuilder().setText("tetsting sugestion").addSuggestion(phraseSuggestion));
+            assertThrows(searchBuilder, SearchPhaseExecutionException.class);
         }
     }
 
@@ -470,7 +484,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     
     @Test
     @Nightly
-    public void testMarvelHerosPhraseSuggest() throws IOException {
+    public void testMarvelHerosPhraseSuggest() throws IOException, URISyntaxException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.reverse.tokenizer", "standard")
@@ -506,7 +520,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
-        for (String line: Resources.readLines(SuggestSearchIT.class.getResource("/config/names.txt"), StandardCharsets.UTF_8)) {
+        for (String line : readMarvelHeroNames()) {
             index("test", "type1", line, "body", line, "body_reverse", line, "bigram", line);
         }
         refresh();
@@ -598,6 +612,10 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel"));
     }
     
+    private List<String> readMarvelHeroNames() throws IOException, URISyntaxException {
+        return Files.readAllLines(PathUtils.get(SuggestSearchIT.class.getResource("/config/names.txt").toURI()), StandardCharsets.UTF_8);
+    }
+
     @Test
     public void testSizePararm() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
@@ -666,7 +684,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     @Test
     @Nightly
-    public void testPhraseBoundaryCases() throws IOException {
+    public void testPhraseBoundaryCases() throws IOException, URISyntaxException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1) // to get reliable statistics we should put this all into one shard
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
@@ -698,7 +716,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
-        for (String line: Resources.readLines(SuggestSearchIT.class.getResource("/config/names.txt"), StandardCharsets.UTF_8)) {
+        for (String line : readMarvelHeroNames()) {
             index("test", "type1", line, "body", line, "bigram", line, "ngram", line);
         }
         refresh();
@@ -811,14 +829,16 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         // When searching on a shard with a non existing mapping, we should fail
         SearchRequestBuilder request = client().prepareSearch().setSize(0)
-            .setSuggestText("tetsting sugestion")
-            .addSuggestion(phraseSuggestion("did_you_mean").field("fielddoesnotexist").maxErrors(5.0f));
+                .suggest(
+                        new SuggestBuilder().setText("tetsting sugestion").addSuggestion(
+                                phraseSuggestion("did_you_mean").field("fielddoesnotexist").maxErrors(5.0f)));
         assertThrows(request, SearchPhaseExecutionException.class);
 
         // When searching on a shard which does not hold yet any document of an existing type, we should not fail
         SearchResponse searchResponse = client().prepareSearch().setSize(0)
-            .setSuggestText("tetsting sugestion")
-            .addSuggestion(phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f))
+                .suggest(
+                        new SuggestBuilder().setText("tetsting sugestion").addSuggestion(
+                                phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f)))
             .get();
         ElasticsearchAssertions.assertNoFailures(searchResponse);
         ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
@@ -860,8 +880,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setSize(0)
-                .setSuggestText("tetsting sugestion")
-                .addSuggestion(phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f))
+                .suggest(
+                        new SuggestBuilder().setText("tetsting sugestion").addSuggestion(
+                                phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f)))
                 .get();
 
         assertNoFailures(searchResponse);
@@ -1252,12 +1273,14 @@ public class SuggestSearchIT extends ESIntegTestCase {
     protected Suggest searchSuggest(String suggestText, int expectShardsFailed, SuggestionBuilder<?>... suggestions) {
         if (randomBoolean()) {
             SearchRequestBuilder builder = client().prepareSearch().setSize(0);
+            SuggestBuilder suggestBuilder = new SuggestBuilder();
             if (suggestText != null) {
-                builder.setSuggestText(suggestText);
+                suggestBuilder.setText(suggestText);
             }
             for (SuggestionBuilder<?> suggestion : suggestions) {
-                builder.addSuggestion(suggestion);
+                suggestBuilder.addSuggestion(suggestion);
             }
+            builder.suggest(suggestBuilder);
             SearchResponse actionGet = builder.execute().actionGet();
             assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
             return actionGet.getSuggest();

@@ -27,6 +27,9 @@ Non-Functional Requirements
 * Developer Friendliness - developers unfamiliar with distributed NoSQL systems or search engines such as Lucene must be able to quickly get up and running
 * High Horizontal Scalability - the system must elegantly support the heavy load inherent in large-scale applications involving massive amounts of information
 
+Validation of Requirements
+--------------------------
+Since its inception, the project has admirably met its myriad requirements, which have been repeatedly tested and verified by its many users, the principal stakeholders in the project, both in production and in its testing suite.
 
 
 

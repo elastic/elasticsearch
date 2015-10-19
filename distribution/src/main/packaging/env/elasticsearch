@@ -50,6 +50,9 @@
 #ES_USER=${packaging.elasticsearch.user}
 #ES_GROUP=${packaging.elasticsearch.group}
 
+# The number of seconds to wait before checking if Elasticsearch started successfully as a daemon process
+ES_STARTUP_SLEEP_TIME=${packaging.elasticsearch.startup.sleep.time}
+
 ################################
 # System properties
 ################################

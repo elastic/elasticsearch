@@ -45,7 +45,7 @@ public final class BootstrapInfo {
     }
     
     /**
-     * Returns true if secure computing mode is enabled (linux/amd64, OS X only)
+     * Returns true if secure computing mode is enabled (supported systems only)
      */
     public static boolean isSeccompInstalled() {
         return Natives.isSeccompInstalled();

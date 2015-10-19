@@ -44,7 +44,7 @@ import java.util.List;
  * Installs a limited form of secure computing mode,
  * to filters system calls to block process execution.
  * <p>
- * This is only supported on the Linux and Mac OS X operating systems.
+ * This is only supported on the Linux, Solaris, and Mac OS X operating systems.
  * <p>
  * On Linux it currently supports on the amd64 architecture, on Linux kernels 3.5 or above, and requires
  * {@code CONFIG_SECCOMP} and {@code CONFIG_SECCOMP_FILTER} compiled into the kernel.
@@ -62,6 +62,12 @@ import java.util.List;
  *   <li>{@code execveat}</li>
  * </ul>
  * <p>
+ * On Solaris 10 or higher, the following privileges are dropped with {@code priv_set(3C)}:
+ * <ul>
+ *   <li>{@code PRIV_PROC_FORK}</li>
+ *   <li>{@code PRIV_PROC_EXEC}</li>
+ * </ul>
+ * <p>
  * On Mac OS X Leopard or above, a custom {@code sandbox(7)} ("Seatbelt") profile is installed that
  * denies the following rules:
  * <ul>
@@ -75,6 +81,8 @@ import java.util.List;
  *      http://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt</a>
  * @see <a href="https://reverse.put.as/wp-content/uploads/2011/06/The-Apple-Sandbox-BHDC2011-Paper.pdf">
  *      https://reverse.put.as/wp-content/uploads/2011/06/The-Apple-Sandbox-BHDC2011-Paper.pdf</a>
+ * @see <a href="https://docs.oracle.com/cd/E23824_01/html/821-1456/prbac-2.html">
+ *      https://docs.oracle.com/cd/E23824_01/html/821-1456/prbac-2.html</a>
  */
 // not an example of how to write code!!!
 final class Seccomp {
@@ -96,7 +104,7 @@ final class Seccomp {
     };
 
     // null if unavailable or something goes wrong.
-    static final LinuxLibrary linux_libc;
+    private static final LinuxLibrary linux_libc;
 
     static {
         LinuxLibrary lib = null;
@@ -380,7 +388,7 @@ final class Seccomp {
     }
 
     // null if unavailable, or something goes wrong.
-    static final MacLibrary libc_mac;
+    private static final MacLibrary libc_mac;
 
     static {
         MacLibrary lib = null;
@@ -437,6 +445,58 @@ final class Seccomp {
             }
         }
     }
+    
+    // Solaris implementation via priv_set(3C)
+
+    /** Access to non-standard Solaris libc methods */
+    static interface SolarisLibrary extends Library {
+        /** 
+         * see priv_set(3C), a convenience method for setppriv(2).
+         */
+        int priv_set(int op, String which, String... privs);
+    }
+
+    // null if unavailable, or something goes wrong.
+    private static final SolarisLibrary libc_solaris;
+
+    static {
+        SolarisLibrary lib = null;
+        if (Constants.SUN_OS) {
+            try {
+                lib = (SolarisLibrary) Native.loadLibrary("c", SolarisLibrary.class);
+            } catch (UnsatisfiedLinkError e) {
+                logger.warn("unable to link C library. native methods (priv_set) will be disabled.", e);
+            }
+        }
+        libc_solaris = lib;
+    }
+    
+    // constants for priv_set(2)
+    static final int PRIV_OFF = 1;
+    static final String PRIV_ALLSETS = null;
+    // see privileges(5) for complete list of these
+    static final String PRIV_PROC_FORK = "proc_fork";
+    static final String PRIV_PROC_EXEC = "proc_exec";
+
+    static void solarisImpl() {
+        // first be defensive: we can give nice errors this way, at the very least.
+        boolean supported = Constants.SUN_OS;
+        if (supported == false) {
+            throw new IllegalStateException("bug: should not be trying to initialize priv_set for an unsupported OS");
+        }
+
+        // we couldn't link methods, could be some really ancient Solaris or some bug
+        if (libc_solaris == null) {
+            throw new UnsupportedOperationException("priv_set unavailable: could not link methods. requires Solaris 10+");
+        }
+
+        // drop a null-terminated list of privileges 
+        if (libc_solaris.priv_set(PRIV_OFF, PRIV_ALLSETS, PRIV_PROC_FORK, PRIV_PROC_EXEC, null) != 0) {
+            throw new UnsupportedOperationException("priv_set unavailable: priv_set(): " + JNACLibrary.strerror(Native.getLastError()));
+        }
+
+        logger.debug("Solaris priv_set initialization successful");
+    }
 
     /**
      * Attempt to drop the capability to execute for the process.
@@ -449,6 +509,9 @@ final class Seccomp {
             return linuxImpl();
         } else if (Constants.MAC_OS_X) {
             macImpl(tmpFile);
+            return 1;
+        } else if (Constants.SUN_OS) {
+            solarisImpl();
             return 1;
         } else {
             throw new UnsupportedOperationException("syscall filtering not supported for OS: '" + Constants.OS_NAME + "'");

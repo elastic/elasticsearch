@@ -235,7 +235,7 @@ public class IndexingStats implements Streamable, ToXContent {
         if (indexingStats == null) {
             return;
         }
-        totalStats.add(indexingStats.totalStats);
+        addTotals(indexingStats);
         if (includeTypes && indexingStats.typeStats != null && !indexingStats.typeStats.isEmpty()) {
             if (typeStats == null) {
                 typeStats = new HashMap<>(indexingStats.typeStats.size());
@@ -249,6 +249,13 @@ public class IndexingStats implements Streamable, ToXContent {
                 }
             }
         }
+    }
+
+    public void addTotals(IndexingStats indexingStats) {
+        if (indexingStats == null) {
+            return;
+        }
+        totalStats.add(indexingStats.totalStats);
     }
 
     public Stats getTotal() {

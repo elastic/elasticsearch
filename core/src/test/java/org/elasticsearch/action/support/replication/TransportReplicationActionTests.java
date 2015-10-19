@@ -75,7 +75,7 @@ import static org.elasticsearch.action.support.replication.ClusterStateCreationU
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithStartedPrimary;
 import static org.hamcrest.Matchers.*;
 
-public class ShardReplicationTests extends ESTestCase {
+public class TransportReplicationActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 

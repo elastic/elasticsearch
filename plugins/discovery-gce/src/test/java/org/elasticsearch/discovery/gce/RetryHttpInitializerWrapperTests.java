@@ -113,7 +113,7 @@ public class RetryHttpInitializerWrapperTests {
 
     @Test
     public void testRetryWaitTooLong() throws Exception {
-        int maxWait = 50;
+        int maxWait = 10;
 
         FailThenSuccessBackoffTransport fakeTransport =
                 new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 50);
@@ -124,7 +124,7 @@ public class RetryHttpInitializerWrapperTests {
         MockSleeper oneTimeSleeper = new MockSleeper() {
             @Override
             public void sleep(long millis) throws InterruptedException {
-                Thread.sleep(maxWait);
+                Thread.sleep(maxWait * 10);
                 super.sleep(0); // important number, use this to get count
             }
         };

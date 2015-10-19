@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
-import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -309,7 +308,6 @@ public class ClusterModule extends AbstractModule {
         bind(DiscoveryNodeService.class).asEagerSingleton();
         bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();
         bind(OperationRouting.class).asEagerSingleton();
-        bind(MetaDataService.class).asEagerSingleton();
         bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();
         bind(MetaDataIndexStateService.class).asEagerSingleton();

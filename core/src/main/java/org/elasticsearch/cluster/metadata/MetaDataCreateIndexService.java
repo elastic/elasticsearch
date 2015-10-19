@@ -106,32 +106,25 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public final static int MAX_INDEX_NAME_BYTES = 255;
     private static final DefaultIndexTemplateFilter DEFAULT_INDEX_TEMPLATE_FILTER = new DefaultIndexTemplateFilter();
 
-    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
-    private final MetaDataService metaDataService;
     private final Version version;
     private final AliasValidator aliasValidator;
     private final IndexTemplateFilter indexTemplateFilter;
-    private final NodeEnvironment nodeEnv;
     private final Environment env;
 
     @Inject
-    public MetaDataCreateIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                      IndicesService indicesService, AllocationService allocationService, MetaDataService metaDataService,
+    public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
+                                      IndicesService indicesService, AllocationService allocationService,
                                       Version version, AliasValidator aliasValidator,
-                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env,
-                                      NodeEnvironment nodeEnv) {
+                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env) {
         super(settings);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.allocationService = allocationService;
-        this.metaDataService = metaDataService;
         this.version = version;
         this.aliasValidator = aliasValidator;
-        this.nodeEnv = nodeEnv;
         this.env = env;
 
         if (indexTemplateFilters.isEmpty()) {
@@ -145,29 +138,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
             this.indexTemplateFilter = new IndexTemplateFilter.Compound(templateFilters);
         }
-    }
-
-    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-
-        // we lock here, and not within the cluster service callback since we don't want to
-        // block the whole cluster state handling
-        final Semaphore mdLock = metaDataService.indexMetaDataLock(request.index());
-
-        // quick check to see if we can acquire a lock, otherwise spawn to a thread pool
-        if (mdLock.tryAcquire()) {
-            createIndex(request, listener, mdLock);
-            return;
-        }
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new ActionRunnable(listener) {
-            @Override
-            public void doRun() throws InterruptedException {
-                if (!mdLock.tryAcquire(request.masterNodeTimeout().nanos(), TimeUnit.NANOSECONDS)) {
-                    listener.onFailure(new ProcessClusterEventTimeoutException(request.masterNodeTimeout(), "acquire index lock"));
-                    return;
-                }
-                createIndex(request, listener, mdLock);
-            }
-        });
     }
 
     public void validateIndexName(String index, ClusterState state) {
@@ -209,8 +179,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
-    private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
-
+    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
@@ -220,24 +189,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                 return new ClusterStateUpdateResponse(acknowledged);
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                mdLock.release();
-                super.onAllNodesAcked(t);
-            }
-
-            @Override
-            public void onAckTimeout() {
-                mdLock.release();
-                super.onAckTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                mdLock.release();
-                super.onFailure(source, t);
             }
 
             @Override

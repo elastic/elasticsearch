@@ -62,7 +62,7 @@ This will yield the following result:
    "profile": {
       "shards": [
          {
-            "shard_id": "P51lzeWXRHOPt4ksduh55Q",
+            "id": "[96xato22S9eXTrm9_ZxlIQ][test][0]",
             "query": [
                {
                   "query_type": "TermQuery",
@@ -108,7 +108,7 @@ First, the overall structure of the profile response is as follows:
    "profile": {
       "shards": [
          {
-            "shard_id": "P51lzeWXRHOPt4ksduh55Q",  <1>
+            "id": "[96xato22S9eXTrm9_ZxlIQ][test][0]",  <1>
             "query": [ ... ],                      <2>
             "collector": [ ... ]                   <3>
          }
@@ -117,14 +117,14 @@ First, the overall structure of the profile response is as follows:
 }
 --------------------------------------------------
 <1> A profile is returned for each shard that participated in the response, and is identified
-by it's shard ID
+by a unique ID
 <2> Each profile contains a section which holds details about the query execution
 <3> Each profile also contains a section about the Lucene Collectors which run the search
 
 Because a search request may be executed against one or more shards in an index, and a search may cover
 one or more indices, the top level element in the profile response is an array of `shard` objects.
-Each shard object lists it's `shard_id` which uniquely identifies the shard (e.g. these are the same IDs
-used in the Cluster State `routing_table`).  Each object then contains two arrays of profiled information:
+Each shard object lists it's `id` which uniquely identifies the shard.  The ID's format is
+`[nodeID][indexName][shardID]`. Each object then contains two arrays of profiled information:
 a `query` array and a `collector` array.  In the future, more sections may be added, such as `suggest`, `highlight`,
 `aggregations`, etc
 
@@ -422,7 +422,7 @@ And the response:
    "profile": {
       "shards": [
          {
-            "shard_id": "ec6BHvadQia4T8N9NSS2Lg",
+            "id": "[96xato22S9eXTrm9_ZxlIQ][test][0]",
             "query": [
                {
                   "query_type": "TermQuery",    <1>

@@ -64,6 +64,7 @@ export ES_HEAP_NEWSIZE
 export ES_DIRECT_SIZE
 export ES_JAVA_OPTS
 export ES_GC_LOG_FILE
+export ES_STARTUP_SLEEP_TIME
 export JAVA_HOME
 
 lockfile=/var/lock/subsys/$prog

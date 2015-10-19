@@ -113,7 +113,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
-        assertThat(allocation.routingNodes().unassigned().ignored().get(0).primaryTerm(), equalTo(0));
+        assertThat(allocation.routingNodes().unassigned().ignored().get(0).primaryTerm(), equalTo(0l));
     }
 
     /**
@@ -136,7 +136,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             nodeMatchers[i] = equalTo(nodes[i].id());
         }
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), anyOf((Matcher<? super Object>[]) nodeMatchers));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).primaryTerm(), equalTo(1));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).primaryTerm(), equalTo(1L));
     }
 
     /**

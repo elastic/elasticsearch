@@ -27,29 +27,29 @@ import org.elasticsearch.test.ESTestCase;
  */
 public class TestShardRouting {
 
-    public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, int primaryTerm, boolean primary,
+    public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, long primaryTerm, boolean primary,
                                                ShardRoutingState state, long version) {
         return new ShardRouting(index, shardId, currentNodeId, null, null, primaryTerm, primary, state, version, buildUnassignedInfo(state), buildAllocationId(state), true, -1);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, String relocatingNodeId,
-                                               int primaryTerm, boolean primary, ShardRoutingState state, long version) {
+                                               long primaryTerm, boolean primary, ShardRoutingState state, long version) {
         return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, null, primaryTerm, primary, state, version, buildUnassignedInfo(state), buildAllocationId(state), true, -1);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, String relocatingNodeId,
-                                               int primaryTerm, boolean primary, ShardRoutingState state, AllocationId allocationId, long version) {
+                                               long primaryTerm, boolean primary, ShardRoutingState state, AllocationId allocationId, long version) {
         return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, null, primaryTerm, primary, state, version, buildUnassignedInfo(state), allocationId, true, -1);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, String relocatingNodeId,
-                                               RestoreSource restoreSource, int primaryTerm, boolean primary,
+                                               RestoreSource restoreSource, long primaryTerm, boolean primary,
                                                ShardRoutingState state, long version) {
         return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primaryTerm, primary, state, version, buildUnassignedInfo(state), buildAllocationId(state), true, -1);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId,
-                                               String relocatingNodeId, RestoreSource restoreSource, int primaryTerm, boolean primary,
+                                               String relocatingNodeId, RestoreSource restoreSource, long primaryTerm, boolean primary,
                                                ShardRoutingState state, long version, UnassignedInfo unassignedInfo) {
         return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primaryTerm, primary, state, version, unassignedInfo, buildAllocationId(state), true, -1);
     }

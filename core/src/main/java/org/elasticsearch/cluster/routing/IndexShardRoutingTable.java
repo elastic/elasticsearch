@@ -124,11 +124,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             return this;
         }
         long highestVersion = shards.get(0).version();
-        int highestPrimaryTerm = shards.get(0).primaryTerm();
+        long highestPrimaryTerm = shards.get(0).primaryTerm();
         boolean requiresNormalization = false;
         for (int i = 1; i < shards.size(); i++) {
             final long version = shards.get(i).version();
-            final int primaryTerm = shards.get(i).primaryTerm();
+            final long primaryTerm = shards.get(i).primaryTerm();
             if (highestVersion != version || highestPrimaryTerm != primaryTerm) {
                 requiresNormalization = true;
             }

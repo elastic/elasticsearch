@@ -47,7 +47,7 @@ public final class ShardRouting implements Streamable, ToXContent {
     private String currentNodeId;
     private String relocatingNodeId;
     private boolean primary;
-    private int primaryTerm;
+    private long primaryTerm;
     private ShardRoutingState state;
     private long version;
     private RestoreSource restoreSource;
@@ -70,7 +70,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         this(copy, version, copy.primaryTerm());
     }
 
-    public ShardRouting(ShardRouting copy, long version, int primaryTerm) {
+    public ShardRouting(ShardRouting copy, long version, long primaryTerm) {
         this(copy.index(), copy.id(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(), primaryTerm, copy.primary(), copy.state(), version, copy.unassignedInfo(), copy.allocationId(), true, copy.getExpectedShardSize());
     }
 
@@ -79,7 +79,7 @@ public final class ShardRouting implements Streamable, ToXContent {
      * by either this class or tests. Visible for testing.
      */
     ShardRouting(String index, int shardId, String currentNodeId,
-                 String relocatingNodeId, RestoreSource restoreSource, int primaryTerm, boolean primary, ShardRoutingState state, long version,
+                 String relocatingNodeId, RestoreSource restoreSource, long primaryTerm, boolean primary, ShardRoutingState state, long version,
                  UnassignedInfo unassignedInfo, AllocationId allocationId, boolean internal, long expectedShardSize) {
         this.index = index;
         this.shardId = shardId;
@@ -109,7 +109,7 @@ public final class ShardRouting implements Streamable, ToXContent {
     /**
      * Creates a new unassigned shard.
      */
-    public static ShardRouting newUnassigned(String index, int shardId, RestoreSource restoreSource, int primaryTerm, boolean primary, UnassignedInfo unassignedInfo) {
+    public static ShardRouting newUnassigned(String index, int shardId, RestoreSource restoreSource, long primaryTerm, boolean primary, UnassignedInfo unassignedInfo) {
         return new ShardRouting(index, shardId, null, null, restoreSource, primaryTerm, primary, ShardRoutingState.UNASSIGNED, 0, unassignedInfo, null, true, UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
@@ -261,7 +261,7 @@ public final class ShardRouting implements Streamable, ToXContent {
      *
      * See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)} for more info.
      */
-    public int primaryTerm() {
+    public long primaryTerm() {
         return this.primaryTerm;
     }
 
@@ -334,7 +334,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         }
 
         primary = in.readBoolean();
-        primaryTerm = in.readVInt();
+        primaryTerm = in.readVLong();
         state = ShardRoutingState.fromValue(in.readByte());
 
         restoreSource = RestoreSource.readOptionalRestoreSource(in);
@@ -380,7 +380,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         }
 
         out.writeBoolean(primary);
-        out.writeVInt(primaryTerm);
+        out.writeVLong(primaryTerm);
         out.writeByte(state.value());
 
         if (restoreSource != null) {
@@ -684,7 +684,8 @@ public final class ShardRouting implements Streamable, ToXContent {
         result = 31 * result + (currentNodeId != null ? currentNodeId.hashCode() : 0);
         result = 31 * result + (relocatingNodeId != null ? relocatingNodeId.hashCode() : 0);
         result = 31 * result + (primary ? 1 : 0);
-        result = 31 * result + primaryTerm;
+        result = 31 * result + (int) (primaryTerm ^ (primaryTerm >>> 32));
+        ;
         result = 31 * result + (state != null ? state.hashCode() : 0);
         result = 31 * result + (int) (version ^ (version >>> 32));
         result = 31 * result + (restoreSource != null ? restoreSource.hashCode() : 0);

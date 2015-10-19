@@ -56,7 +56,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             .build());
     private ClusterState clusterState;
 
-    private final Map<String, int[]> primaryTermsPerIndex = new HashMap<>();
+    private final Map<String, long[]> primaryTermsPerIndex = new HashMap<>();
     private final Map<String, long[]> versionsPerIndex = new HashMap<>();
 
     @Override
@@ -114,7 +114,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     private void incrementPrimaryTerm(String index) {
-        final int[] primaryTerms = primaryTermsPerIndex.get(index);
+        final long[] primaryTerms = primaryTermsPerIndex.get(index);
         for (int i = 0; i < primaryTerms.length; i++) {
             primaryTerms[i]++;
         }
@@ -167,7 +167,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     private IndexMetaData.Builder createIndexMetaData(String indexName) {
-        primaryTermsPerIndex.put(indexName, new int[numberOfShards]);
+        primaryTermsPerIndex.put(indexName, new long[numberOfShards]);
         final IndexMetaData.Builder builder = new IndexMetaData.Builder(indexName)
                 .settings(DEFAULT_SETTINGS)
                 .numberOfReplicas(this.numberOfReplicas)
@@ -185,7 +185,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
 
     private void assertVersionAndPrimaryTerm(String index) {
         final long[] versions = versionsPerIndex.get(index);
-        final int[] terms = primaryTermsPerIndex.get(index);
+        final long[] terms = primaryTermsPerIndex.get(index);
         final IndexMetaData indexMetaData = clusterState.metaData().index(index);
         for (IndexShardRoutingTable shardRoutingTable : this.testRoutingTable.index(index)) {
             final int shard = shardRoutingTable.shardId().id();

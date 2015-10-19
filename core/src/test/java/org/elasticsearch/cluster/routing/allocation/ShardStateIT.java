@@ -48,8 +48,8 @@ public class ShardStateIT extends ESIntegTestCase {
         logger.info("--> waiting for a yellow index");
         assertBusy(() -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(), equalTo(ClusterHealthStatus.YELLOW)));
 
-        final int term0 = shard == 0 ? 2 : 1;
-        final int term1 = shard == 1 ? 2 : 1;
+        final long term0 = shard == 0 ? 2 : 1;
+        final long term1 = shard == 1 ? 2 : 1;
         assertPrimaryTerms(term0, term1);
 
         logger.info("--> enabling allocation");
@@ -58,7 +58,7 @@ public class ShardStateIT extends ESIntegTestCase {
         assertPrimaryTerms(term0, term1);
     }
 
-    protected void assertPrimaryTerms(int term0, int term1) {
+    protected void assertPrimaryTerms(long term0, long term1) {
         for (String node : internalCluster().getNodeNames()) {
             logger.debug("--> asserting primary terms terms on [{}]", node);
             ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();

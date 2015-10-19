@@ -94,7 +94,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(1));
         // verify where the primary is
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node2"));
-        assertThat(routingTable.index("test").shard(0).primaryShard().primaryTerm(), equalTo(2));
+        assertThat(routingTable.index("test").shard(0).primaryShard().primaryTerm(), equalTo(2l));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node3"));
     }
 
@@ -142,7 +142,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.shardsWithState(STARTED).size(), equalTo(1));
         assertThat(routingNodes.shardsWithState(INITIALIZING).size(), equalTo(1));
         assertThat(routingNodes.node(nodeIdRemaining).shardsWithState(INITIALIZING).get(0).primary(), equalTo(true));
-        assertThat(routingNodes.node(nodeIdRemaining).shardsWithState(INITIALIZING).get(0).primaryTerm(), equalTo(2));
+        assertThat(routingNodes.node(nodeIdRemaining).shardsWithState(INITIALIZING).get(0).primaryTerm(), equalTo(2l));
 
     }
 }

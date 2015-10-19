@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardRoutingTests extends ESTestCase {
 
     public void testFrozenAfterRead() throws IOException {
-        int term = randomInt(200);
+        long term = randomInt(200);
         ShardRouting routing = TestShardRouting.newShardRouting("foo", 1, "node_1", null, null, term, false, ShardRoutingState.INITIALIZING, 1);
         routing.moveToPrimary();
         assertTrue(routing.primary());
@@ -53,7 +53,7 @@ public class ShardRoutingTests extends ESTestCase {
     }
 
     public void testPrimaryTermIncrementOnPromotion() {
-        int term = randomInt(200);
+        long term = randomInt(200);
         ShardRouting routing = TestShardRouting.newShardRouting("foo", 1, "node_1", null, null, term, false, ShardRoutingState.STARTED, 1);
         routing.moveToPrimary();
         assertTrue(routing.primary());
@@ -64,7 +64,7 @@ public class ShardRoutingTests extends ESTestCase {
     }
 
     public void testIsSameAllocation() {
-        int term = randomInt(200);
+        long term = randomInt(200);
         ShardRouting unassignedShard0 = TestShardRouting.newShardRouting("test", 0, null, term, false, ShardRoutingState.UNASSIGNED, 1);
         ShardRouting unassignedShard1 = TestShardRouting.newShardRouting("test", 1, null, term, false, ShardRoutingState.UNASSIGNED, 1);
         ShardRouting initializingShard0 = TestShardRouting.newShardRouting("test", 0, "1", term, randomBoolean(), ShardRoutingState.INITIALIZING, 1);

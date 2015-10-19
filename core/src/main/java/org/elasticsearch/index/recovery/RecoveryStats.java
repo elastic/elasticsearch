@@ -47,15 +47,11 @@ public class RecoveryStats implements ToXContent, Streamable {
         if (recoveryStats != null) {
             this.currentAsSource.addAndGet(recoveryStats.currentAsSource());
             this.currentAsTarget.addAndGet(recoveryStats.currentAsTarget());
-            this.throttleTimeInNanos.addAndGet(recoveryStats.throttleTime().nanos());
         }
+        addTotals(recoveryStats);
     }
 
-    /**
-     * add statistics that should be accumulated about old shards after they have been
-     * deleted or relocated
-     */
-    public void addAsOld(RecoveryStats recoveryStats) {
+    public void addTotals(RecoveryStats recoveryStats) {
         if (recoveryStats != null) {
             this.throttleTimeInNanos.addAndGet(recoveryStats.throttleTime().nanos());
         }

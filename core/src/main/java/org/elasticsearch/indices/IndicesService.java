@@ -438,13 +438,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
                                                         @IndexSettings Settings indexSettings) {
             if (indexShard != null) {
-                getStats.add(indexShard.getStats());
-                indexingStats.add(indexShard.indexingStats(), false);
-                searchStats.add(indexShard.searchStats(), false);
-                mergeStats.add(indexShard.mergeStats());
-                refreshStats.add(indexShard.refreshStats());
-                flushStats.add(indexShard.flushStats());
-                recoveryStats.addAsOld(indexShard.recoveryStats());
+                getStats.addTotals(indexShard.getStats());
+                indexingStats.addTotals(indexShard.indexingStats());
+                searchStats.addTotals(indexShard.searchStats());
+                mergeStats.addTotals(indexShard.mergeStats());
+                refreshStats.addTotals(indexShard.refreshStats());
+                flushStats.addTotals(indexShard.flushStats());
+                recoveryStats.addTotals(indexShard.recoveryStats());
             }
         }
     }

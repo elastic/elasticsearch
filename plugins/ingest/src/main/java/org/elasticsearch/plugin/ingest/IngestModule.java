@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.ingest.processor.simple.SimpleProcessor;
+import org.elasticsearch.ingest.processor.date.DateProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
 
 import java.util.HashMap;
@@ -40,6 +41,7 @@ public class IngestModule extends AbstractModule {
         binder().bind(PipelineStoreClient.class).asEagerSingleton();
 
         registerProcessor(SimpleProcessor.TYPE, SimpleProcessor.Builder.Factory.class);
+        registerProcessor(DateProcessor.TYPE, DateProcessor.Builder.Factory.class);
 
         MapBinder<String, Processor.Builder.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Processor.Builder.Factory.class);
         for (Map.Entry<String, Class<? extends Processor.Builder.Factory>> entry : processors.entrySet()) {

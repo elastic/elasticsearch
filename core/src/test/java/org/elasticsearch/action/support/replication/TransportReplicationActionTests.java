@@ -80,7 +80,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ShardReplicationTests extends ESTestCase {
+public class TransportReplicationActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest.completion.context;
 
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.suggest.xdocument.ContextQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +38,7 @@ import java.util.*;
  * {@link CategoryQueryContext} defines options for constructing
  * a unit of query context for this context type
  */
-public class CategoryContextMapping extends ContextMapping<CategoryQueryContext> {
+public class CategoryContextMapping extends ContextMapping {
 
     private static final String FIELD_FIELDNAME = "path";
 
@@ -125,7 +124,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
                 values.add(field.stringValue());
             }
         }
-        return (values == null) ? new HashSet<CharSequence>(0) : values;
+        return (values == null) ? Collections.<CharSequence>emptySet() : values;
     }
 
     /**
@@ -145,8 +144,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
      *  </ul>
      */
     @Override
-    public QueryContexts<CategoryQueryContext> parseQueryContext(String name, XContentParser parser) throws IOException, ElasticsearchParseException {
-        final QueryContexts<CategoryQueryContext> queryContexts = new QueryContexts<>(name);
+    public QueryContexts parseQueryContext(String name, XContentParser parser) throws IOException, ElasticsearchParseException {
+        final QueryContexts queryContexts = new QueryContexts(name);
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
             queryContexts.add(innerParseQueryContext(parser));
@@ -212,10 +211,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     }
 
     @Override
-    protected void addQueryContexts(ContextQuery query, QueryContexts<CategoryQueryContext> queryContexts) {
-        for (CategoryQueryContext queryContext : queryContexts) {
-            query.addContext(queryContext.context, queryContext.boost, queryContext.isPrefix == false);
-        }
+    protected List<CategoryQueryContext> getQueryContexts(QueryContexts queryContexts) {
+        return queryContexts.getQueryContexts();
     }
 
     @Override

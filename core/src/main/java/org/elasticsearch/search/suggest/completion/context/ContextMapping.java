@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
-import org.apache.lucene.search.suggest.xdocument.ContextQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,9 +38,8 @@ import java.util.*;
  * (used by {@link ContextMappingsParser}) and add parsed query contexts to query
  * supplied by {@link ContextMappings}
  *
- * @param <T> query context representation
  */
-public abstract class ContextMapping<T extends ToXContent> implements ToXContent {
+public abstract class ContextMapping implements ToXContent {
 
     public static final String FIELD_TYPE = "type";
     public static final String FIELD_NAME = "name";
@@ -101,15 +99,14 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     /**
      * Parses query contexts for this mapper
      */
-    protected abstract QueryContexts<T> parseQueryContext(String name, XContentParser parser) throws IOException, ElasticsearchParseException;
+    protected abstract QueryContexts parseQueryContext(String name, XContentParser parser) throws IOException, ElasticsearchParseException;
 
     /**
      * Named holder for a set of query context
-     * @param <T> query context type
      */
-    public static class QueryContexts<T extends ToXContent> implements Iterable<T>, ToXContent {
+    public static class QueryContexts implements ToXContent {
         private String name;
-        private List<T> queryContexts;
+        private List<CategoryQueryContext> queryContexts;
 
         /**
          * Constructs a query contexts holder
@@ -130,31 +127,22 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
             return name;
         }
 
+
+        public List<CategoryQueryContext> getQueryContexts() {
+            return queryContexts;
+        }
         /**
          * Adds a query context to the holder
          * @param queryContext instance
          */
-        public void add(T queryContext) {
+        public void add(CategoryQueryContext queryContext) {
             this.queryContexts.add(queryContext);
-        }
-
-        /**
-         * @return the number of query contexts
-         * added
-         */
-        public int size() {
-            return queryContexts.size();
-        }
-
-        @Override
-        public Iterator<T> iterator() {
-            return queryContexts.iterator();
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startArray(name);
-            for (T queryContext : queryContexts) {
+            for (CategoryQueryContext queryContext : queryContexts) {
                 queryContext.toXContent(builder, params);
             }
             builder.endArray();
@@ -165,7 +153,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     /**
      * Adds query contexts to a completion query
      */
-    protected abstract void addQueryContexts(ContextQuery query, QueryContexts<T> queryContexts);
+    protected abstract List<CategoryQueryContext> getQueryContexts(QueryContexts queryContexts);
 
     /**
      * Implementations should add specific configurations
@@ -186,7 +174,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        ContextMapping<?> that = (ContextMapping<?>) o;
+        ContextMapping that = (ContextMapping) o;
 
         if (type != that.type) return false;
         return name.equals(that.name);

@@ -1006,7 +1006,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         if (completionMappingBuilder.contextMappings != null) {
             mapping = mapping.startArray("contexts");
-            for (Map.Entry<String, ContextMapping<?>> contextMapping : completionMappingBuilder.contextMappings.entrySet()) {
+            for (Map.Entry<String, ContextMapping> contextMapping : completionMappingBuilder.contextMappings.entrySet()) {
                 mapping = mapping.startObject()
                         .field("name", contextMapping.getValue().name())
                         .field("type", contextMapping.getValue().type().name());
@@ -1206,7 +1206,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         String indexAnalyzer = "simple";
         Boolean preserveSeparators = getRandom().nextBoolean();
         Boolean preservePositionIncrements = getRandom().nextBoolean();
-        LinkedHashMap<String, ContextMapping<?>> contextMappings = null;
+        LinkedHashMap<String, ContextMapping> contextMappings = null;
 
         public CompletionMappingBuilder searchAnalyzer(String searchAnalyzer) {
             this.searchAnalyzer = searchAnalyzer;
@@ -1225,7 +1225,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             return this;
         }
 
-        public CompletionMappingBuilder context(LinkedHashMap<String, ContextMapping<?>> contextMappings) {
+        public CompletionMappingBuilder context(LinkedHashMap<String, ContextMapping> contextMappings) {
             this.contextMappings = contextMappings;
             return this;
         }

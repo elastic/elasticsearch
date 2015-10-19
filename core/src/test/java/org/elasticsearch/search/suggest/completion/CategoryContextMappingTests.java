@@ -181,7 +181,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", builder.bytes());
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
-        assertContextSuggestFields(fields, 6);
+        assertContextSuggestFields(fields, 3);
     }
 
     @Test
@@ -189,8 +189,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         XContentBuilder builder = jsonBuilder().value("context1");
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        ContextMapping.QueryContexts<CategoryQueryContext> queryContexts = mapping.parseQueryContext("cat", parser);
-        Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
+        ContextMapping.QueryContexts queryContexts = mapping.parseQueryContext("cat", parser);
+        Iterator<CategoryQueryContext> iterator = queryContexts.getQueryContexts().iterator();
         assertTrue(iterator.hasNext());
         CategoryQueryContext queryContext = iterator.next();
         assertThat(queryContext.context.toString(), equalTo("context1"));
@@ -206,9 +206,9 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        ContextMapping.QueryContexts<CategoryQueryContext> queryContexts = mapping.parseQueryContext("cat", parser);
+        ContextMapping.QueryContexts queryContexts = mapping.parseQueryContext("cat", parser);
         List<String> expectedContexts = new ArrayList<>(Arrays.asList("context1", "context2"));
-        Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
+        Iterator<CategoryQueryContext> iterator = queryContexts.getQueryContexts().iterator();
         assertTrue(iterator.hasNext());
         CategoryQueryContext queryContext = iterator.next();
         assertThat(queryContext.context.toString(), isIn(expectedContexts));
@@ -226,8 +226,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        ContextMapping.QueryContexts<CategoryQueryContext> queryContexts = mapping.parseQueryContext("cat", parser);
-        Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
+        ContextMapping.QueryContexts queryContexts = mapping.parseQueryContext("cat", parser);
+        Iterator<CategoryQueryContext> iterator = queryContexts.getQueryContexts().iterator();
         assertTrue(iterator.hasNext());
         CategoryQueryContext queryContext = iterator.next();
         assertThat(queryContext.context.toString(), equalTo("context1"));
@@ -252,8 +252,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        ContextMapping.QueryContexts<CategoryQueryContext> queryContexts = mapping.parseQueryContext("cat", parser);
-        Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
+        ContextMapping.QueryContexts queryContexts = mapping.parseQueryContext("cat", parser);
+        Iterator<CategoryQueryContext> iterator = queryContexts.getQueryContexts().iterator();
         assertTrue(iterator.hasNext());
         CategoryQueryContext queryContext = iterator.next();
         assertThat(queryContext.context.toString(), equalTo("context1"));
@@ -278,8 +278,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        ContextMapping.QueryContexts<CategoryQueryContext> queryContexts = mapping.parseQueryContext("cat", parser);
-        Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
+        ContextMapping.QueryContexts queryContexts = mapping.parseQueryContext("cat", parser);
+        Iterator<CategoryQueryContext> iterator = queryContexts.getQueryContexts().iterator();
         assertTrue(iterator.hasNext());
         CategoryQueryContext queryContext = iterator.next();
         assertThat(queryContext.context.toString(), equalTo("context1"));

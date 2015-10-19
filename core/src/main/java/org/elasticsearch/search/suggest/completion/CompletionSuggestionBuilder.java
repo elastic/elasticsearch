@@ -272,7 +272,14 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
      * @param queryContexts a list of {@link CategoryQueryContext}
      */
     public CompletionSuggestionBuilder categoryContexts(String name, CategoryQueryContext... queryContexts) {
-        addQueryContext(name, queryContexts);
+        QueryContexts queryContext = new QueryContexts(name);
+        for (CategoryQueryContext context : queryContexts) {
+            queryContext.add(context);
+        }
+        if (this.queryContextsList == null) {
+            this.queryContextsList = new ArrayList<>(2);
+        }
+        this.queryContextsList.add(queryContext);
         return this;
     }
 
@@ -282,19 +289,7 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
      * @param queryContexts a list of {@link GeoQueryContext}
      */
     public CompletionSuggestionBuilder geoContexts(String name, GeoQueryContext... queryContexts) {
-        addQueryContext(name, queryContexts);
-        return this;
-    }
-
-    private <T extends ToXContent> void addQueryContext(String name, T[] queryContexts) {
-        QueryContexts<T> queryContext = new QueryContexts<>(name);
-        for (T context : queryContexts) {
-            queryContext.add(context);
-        }
-        if (this.queryContextsList == null) {
-            this.queryContextsList = new ArrayList<>(2);
-        }
-        this.queryContextsList.add(queryContext);
+        return categoryContexts(name, queryContexts);
     }
 
     @Override

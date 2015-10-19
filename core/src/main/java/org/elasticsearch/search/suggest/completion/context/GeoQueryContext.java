@@ -30,7 +30,7 @@ import static org.elasticsearch.search.suggest.completion.context.GeoContextMapp
 /**
  * Defines the query context for {@link GeoContextMapping}
  */
-public class GeoQueryContext implements ToXContent {
+public class GeoQueryContext extends CategoryQueryContext {
     public final CharSequence geoHash;
     public final int precision;
     public final int boost;
@@ -83,6 +83,7 @@ public class GeoQueryContext implements ToXContent {
      * at specified precisions
      */
     public GeoQueryContext(CharSequence geoHash, int boost, int precision, int... neighbours) {
+        super(geoHash, boost, true);
         this.geoHash = geoHash;
         this.boost = boost;
         this.precision = precision;
@@ -92,7 +93,7 @@ public class GeoQueryContext implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(CONTEXT_VALUE, geoHash);
+        builder.field(CONTEXT_VALUE, context);
         builder.field(CONTEXT_BOOST, boost);
         builder.field(CONTEXT_NEIGHBOURS, neighbours);
         builder.endObject();

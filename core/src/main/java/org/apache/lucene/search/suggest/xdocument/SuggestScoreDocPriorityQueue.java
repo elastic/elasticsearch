@@ -25,7 +25,7 @@ import org.apache.lucene.util.PriorityQueue;
  * Priority is based on {@link SuggestScoreDoc#score} and tie
  * is broken by {@link SuggestScoreDoc#doc}
  */
-final class SuggestScoreDocPriorityQueue extends PriorityQueue<SuggestScoreDoc> {
+public final class SuggestScoreDocPriorityQueue extends PriorityQueue<SuggestScoreDoc> {
   /**
    * Creates a new priority queue of the specified size.
    */

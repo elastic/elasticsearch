@@ -368,7 +368,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
      *   "OBJECT" - see {@link #parse(ParseContext, Token, XContentParser, CompletionInputs)}
      *
      * Indexing:
-     *  if context mappings are defined, delegates to {@link ContextMappings#addFields(ParseContext.Document, String, String, int, Map)}
+     *  if context mappings are defined, delegates to {@link ContextMappings#addField(ParseContext.Document, String, String, int, Map)}
      *  else adds inputs as a {@link org.apache.lucene.search.suggest.xdocument.SuggestField}
      */
     @Override
@@ -398,7 +398,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             }
             CompletionInputs.CompletionInputMetaData metaData = completionInput.getValue();
             if (fieldType().hasContextMappings()) {
-                fieldType().getContextMappings().addFields(context.doc(), fieldType().names().indexName(),
+                fieldType().getContextMappings().addField(context.doc(), fieldType().names().indexName(),
                         input, metaData.weight, metaData.contexts);
             } else {
                 context.doc().add(new org.apache.lucene.search.suggest.xdocument.SuggestField(fieldType().names().indexName(), input, metaData.weight));

@@ -25,6 +25,7 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.suggest.xdocument.CompletionQuery;
+import org.apache.lucene.search.suggest.xdocument.SuggestScoreDocPriorityQueue;
 import org.apache.lucene.search.suggest.xdocument.TopSuggestDocs;
 import org.apache.lucene.search.suggest.xdocument.TopSuggestDocsCollector;
 import org.apache.lucene.util.CharsRefBuilder;
@@ -53,7 +54,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
     @Override
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
-            CompletionSuggestionContext suggestionContext, IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
+            final CompletionSuggestionContext suggestionContext, final IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
         if (suggestionContext.getFieldType() == null) {
             throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
@@ -62,7 +63,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new StringText(spare.toString()), 0, spare.length());
         completionSuggestion.addTerm(completionSuggestEntry);
         Map<Integer, Option> results = new LinkedHashMap<>(suggestionContext.getSize());
-        TopSuggestDocsCollector collector = new TopSuggestDocsCollector(suggestionContext.getSize());
+        TopSuggestDocsCollector collector = new TopDocumentsCollector(suggestionContext.getSize(), searcher.getIndexReader().numDocs());
         suggest(searcher, toQuery(suggestionContext), collector);
         for (TopSuggestDocs.SuggestScoreDoc suggestDoc : collector.get().scoreLookupDocs()) {
             // TODO: currently we can get multiple entries with the same docID
@@ -155,6 +156,139 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             return contextMappings.toContextQuery(query, suggestionContext.getQueryContexts());
         }
         return query;
+    }
+
+    /**
+     * num
+     * sorted List of Docs
+     *
+     * map of doc -> Doc
+     *
+     * NextReader:
+     *  for doc in map
+     *
+     *  clear doc map
+     *
+     *  Collect:
+     *      if doc in map
+     *          doc get map
+     *          update doc
+     *          map put doc
+     *      else
+     *          if size(map) == num
+     *              terminate
+     *          map put doc
+     *
+     *  Get:
+     *      NextReader()
+     *      return sorted List of Docs
+     *
+     *
+     *
+     */
+    private static class TopDocumentsCollector extends TopSuggestDocsCollector {
+
+        private static class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {
+
+            private List<TopSuggestDocs.SuggestScoreDoc> suggestScoreDocs;
+
+            public SuggestDoc(int doc, CharSequence key, CharSequence context, float score) {
+                super(doc, key, context, score);
+            }
+
+            public void add(CharSequence key, CharSequence context, float score) {
+                if (suggestScoreDocs == null) {
+                    suggestScoreDocs = new ArrayList<>();
+                }
+                suggestScoreDocs.add(new TopSuggestDocs.SuggestScoreDoc(doc, key, context, score));
+            }
+
+            public List<CharSequence> getKeys() {
+                if (suggestScoreDocs == null) {
+                    return Collections.singletonList(key);
+                } else {
+                    List<CharSequence> keys = new ArrayList<>(suggestScoreDocs.size() + 1);
+                    keys.add(key);
+                    for (TopSuggestDocs.SuggestScoreDoc scoreDoc : suggestScoreDocs) {
+                        keys.add(scoreDoc.key);
+                    }
+                    return keys;
+                }
+            }
+
+            public List<CharSequence> getContexts() {
+                if (suggestScoreDocs == null) {
+                    return Collections.singletonList(context);
+                } else {
+                    List<CharSequence> contexts = new ArrayList<>(suggestScoreDocs.size() + 1);
+                    contexts.add(key);
+                    for (TopSuggestDocs.SuggestScoreDoc scoreDoc : suggestScoreDocs) {
+                        contexts.add(scoreDoc.context);
+                    }
+                    return contexts;
+                }
+            }
+
+            public float getScore() {
+                return score;
+            }
+
+        }
+
+        private final int maxDocs;
+        private final int num;
+        private LeafReaderContext readerContext;
+        private final SuggestScoreDocPriorityQueue pq;
+        private final Map<Integer, SuggestDoc> scoreDocMap;
+
+        public TopDocumentsCollector(int num, int maxDocs) {
+            super(num, null);
+            this.maxDocs = maxDocs;
+            this.num = num;
+            this.scoreDocMap = new LinkedHashMap<>(num);
+            this.pq = new SuggestScoreDocPriorityQueue(num);
+        }
+
+        @Override
+        public int getCountToCollect() {
+            return maxDocs;
+        }
+
+
+        @Override
+        protected void doSetNextReader(LeafReaderContext context) throws IOException {
+            super.doSetNextReader(context);
+            for (SuggestDoc suggestDoc : scoreDocMap.values()) {
+                if (pq.insertWithOverflow(suggestDoc) == suggestDoc) {
+                    break;
+                }
+            }
+            this.scoreDocMap.clear();
+            this.readerContext = context;
+        }
+
+        @Override
+        public void collect(int docID, CharSequence key, CharSequence context, float score) throws IOException {
+            if (scoreDocMap.containsKey(docID)) {
+                SuggestDoc suggestDoc = scoreDocMap.get(docID);
+                suggestDoc.add(key, context, score);
+            } else if (scoreDocMap.size() <= num) {
+                scoreDocMap.put(docID, new SuggestDoc(docBase + docID, key, context, score));
+            } else {
+                throw new CollectionTerminatedException();
+            }
+        }
+
+        @Override
+        public TopSuggestDocs get() throws IOException {
+            doSetNextReader(readerContext);
+            TopSuggestDocs.SuggestScoreDoc[] suggestScoreDocs = pq.getResults();
+            if (suggestScoreDocs.length > 0) {
+                return new TopSuggestDocs(suggestScoreDocs.length, suggestScoreDocs, suggestScoreDocs[0].score);
+            } else {
+                return TopSuggestDocs.EMPTY;
+            }
+        }
     }
 
     private static void suggest(IndexSearcher searcher, CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {

@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.suggest.xdocument.ContextQuery;
 import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -48,7 +47,7 @@ import java.util.*;
  * {@link GeoQueryContext} defines the options for constructing
  * a unit of query context for this context type
  */
-public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
+public class GeoContextMapping extends ContextMapping {
 
     public static final String FIELD_PRECISION = "precision";
     public static final String FIELD_FIELDNAME = "path";
@@ -159,6 +158,10 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     token = parser.nextToken();
                 }
             }
+        } else if (token == Token.VALUE_STRING) {
+            final String geoHash = parser.text();
+            final CharSequence truncatedGeoHash = geoHash.subSequence(0, Math.min(geoHash.length(), precision));
+            contexts.add(truncatedGeoHash);
         } else {
             // or a single location
             GeoPoint point = GeoUtils.parseGeoPoint(parser);
@@ -230,8 +233,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
      * see {@link GeoUtils#parseGeoPoint(String, GeoPoint)} for GEO POINT
      */
     @Override
-    public QueryContexts<GeoQueryContext> parseQueryContext(String name, XContentParser parser) throws IOException, ElasticsearchParseException {
-        QueryContexts<GeoQueryContext> queryContexts = new QueryContexts<>(name);
+    public QueryContexts parseQueryContext(String name, XContentParser parser) throws IOException, ElasticsearchParseException {
+        QueryContexts queryContexts = new QueryContexts(name);
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
             GeoQueryContext current = innerParseQueryContext(parser);
@@ -375,21 +378,25 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
 
 
     @Override
-    public void addQueryContexts(ContextQuery query, QueryContexts<GeoQueryContext> queryContexts) {
-        for (GeoQueryContext queryContext : queryContexts) {
-            int precision = Math.min(this.precision, queryContext.geoHash.length());
-            String truncatedGeohash = queryContext.geoHash.toString().substring(0, precision);
-            query.addContext(truncatedGeohash, queryContext.boost, false);
-            for (int neighboursPrecision : queryContext.neighbours) {
+    public List<CategoryQueryContext> getQueryContexts(QueryContexts queryContexts) {
+        List<CategoryQueryContext> queryContextList = new ArrayList<>();
+        for (CategoryQueryContext queryContext : queryContexts.getQueryContexts()) {
+            GeoQueryContext geoQueryContext = ((GeoQueryContext) queryContext);
+            int precision = Math.min(this.precision, geoQueryContext.geoHash.length());
+            String truncatedGeohash = geoQueryContext.geoHash.toString().substring(0, precision);
+            queryContextList.add(new CategoryQueryContext(truncatedGeohash, geoQueryContext.boost, false));
+            for (int neighboursPrecision : geoQueryContext.neighbours) {
                 int neighbourPrecision = Math.min(neighboursPrecision, truncatedGeohash.length());
                 String neighbourGeohash = truncatedGeohash.substring(0, neighbourPrecision);
                 Collection<String> locations = new HashSet<>();
-                XGeoHashUtils.addNeighbors(neighbourGeohash, precision, locations);
+                XGeoHashUtils.addNeighbors(neighbourGeohash, neighbourPrecision, locations);
+                boolean isPrefix = neighbourPrecision < precision;
                 for (String location : locations) {
-                    query.addContext(location, queryContext.boost, false);
+                    queryContextList.add(new CategoryQueryContext(location, geoQueryContext.boost, isPrefix));
                 }
             }
         }
+        return queryContextList;
     }
 
     @Override

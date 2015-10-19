@@ -32,22 +32,11 @@ import static org.elasticsearch.search.suggest.completion.context.CategoryContex
  * Defines the query context for {@link CategoryContextMapping}
  */
 public class CategoryQueryContext implements ToXContent {
-    /**
-     * The value of the category
-     */
+
     public final CharSequence context;
 
-    /**
-     * Whether the value is a
-     * prefix of a category value or not
-     */
     public final boolean isPrefix;
 
-    /**
-     * Query-time boost to be
-     * applied to suggestions associated
-     * with this category
-     */
     public final int boost;
 
     /**

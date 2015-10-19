@@ -58,7 +58,7 @@ public class ContextMappingsParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-                final ContextMapping<?> mapping = contextMappings.get(currentFieldName);
+                final ContextMapping mapping = contextMappings.get(currentFieldName);
                 queryContextsMap.put(currentFieldName, mapping.parseQueryContext(currentFieldName, parser));
             }
 
@@ -87,7 +87,7 @@ public class ContextMappingsParser {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         String currentFieldName = parser.currentName();
-                        ContextMapping<?> mapping = contextMappings.get(currentFieldName);
+                        ContextMapping mapping = contextMappings.get(currentFieldName);
                         Set<CharSequence> contexts = contextMap.get(currentFieldName);
                         if (contexts == null) {
                             contexts = new HashSet<>();
@@ -98,7 +98,7 @@ public class ContextMappingsParser {
                 }
             }
         } else if (token == XContentParser.Token.START_OBJECT) {
-            ContextMapping<?> contextMapping = null;
+            ContextMapping contextMapping = null;
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {

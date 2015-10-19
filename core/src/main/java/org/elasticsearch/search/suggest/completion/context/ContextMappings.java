@@ -71,7 +71,7 @@ public class ContextMappings implements ToXContent {
     /**
      * Returns a context mapping by its name
      */
-    public ContextMapping<?> get(String name) {
+    public ContextMapping get(String name) {
         ContextMapping contextMapping = contextNameMap.get(name);
         if (contextMapping == null) {
             throw new IllegalArgumentException("Unknown context name[" + name + "], must be one of " + contextNameMap.size());
@@ -83,15 +83,8 @@ public class ContextMappings implements ToXContent {
      * Adds a context-enabled field for all the defined mappings to <code>document</code>
      * see {@link org.elasticsearch.search.suggest.completion.context.ContextMappings.TypedContextField}
      */
-    public void addFields(ParseContext.Document document, String name, String input, int weight, Map<String, Set<CharSequence>> contexts) {
-        for (int typeId = 0; typeId < contextMappings.size(); typeId++) {
-            ContextMapping<?> mapping = contextMappings.get(typeId);
-            Set<CharSequence> ctxs = contexts.get(mapping.name());
-            if (ctxs == null) {
-                ctxs = new HashSet<>();
-            }
-            document.add(new TypedContextField(name, typeId, input, weight, ctxs, document, mapping));
-        }
+    public void addField(ParseContext.Document document, String name, String input, int weight, Map<String, Set<CharSequence>> contexts) {
+        document.add(new TypedContextField(name, input, weight, contexts, document));
     }
 
     /**
@@ -111,57 +104,48 @@ public class ContextMappings implements ToXContent {
      * Field can also use values of other indexed fields as contexts
      * at index time
      */
-    private static class TypedContextField extends ContextSuggestField {
-        private final int typeId;
-        private final Set<CharSequence> contexts;
+    private class TypedContextField extends ContextSuggestField {
+        private final Map<String, Set<CharSequence>> contexts;
         private final ParseContext.Document document;
-        private final ContextMapping<?> mapping;
 
-        public TypedContextField(String name, int typeId, String value, int weight, Set<CharSequence> contexts,
-                                 ParseContext.Document document, ContextMapping mapping) {
+        public TypedContextField(String name, String value, int weight, Map<String, Set<CharSequence>> contexts,
+                                 ParseContext.Document document) {
             super(name, value, weight);
-            this.typeId = typeId;
             this.contexts = contexts;
             this.document = document;
-            this.mapping = mapping;
         }
 
         @Override
         protected Iterable<CharSequence> contexts() {
-            contexts.addAll(mapping.parseContext(document));
-            final Iterator<CharSequence> contextsIterator = contexts.iterator();
+            Set<CharSequence> typedContexts = new HashSet<>();
             final CharsRefBuilder scratch = new CharsRefBuilder();
-            scratch.append(((char) typeId));
-            return new Iterable<CharSequence>() {
-                @Override
-                public Iterator<CharSequence> iterator() {
-                    return new Iterator<CharSequence>() {
-                        @Override
-                        public boolean hasNext() {
-                            return contextsIterator.hasNext();
-                        }
-
-                        @Override
-                        public CharSequence next() {
-                            scratch.setLength(1);
-                            scratch.append(contextsIterator.next());
-                            return scratch.toCharsRef();
-                        }
-
-                        @Override
-                        public void remove() {
-                            throw new UnsupportedOperationException("remove not supported");
-                        }
-                    };
+            scratch.grow(1);
+            for (int typeId = 0; typeId < contextMappings.size(); typeId++) {
+                scratch.setCharAt(0, (char) typeId);
+                scratch.setLength(1);
+                ContextMapping mapping = contextMappings.get(typeId);
+                for (CharSequence context : mapping.parseContext(document)) {
+                    scratch.append(context);
+                    typedContexts.add(scratch.toCharsRef());
+                    scratch.setLength(1);
                 }
-            };
+                final Set<CharSequence> contexts = this.contexts.get(mapping.name());
+                if (contexts != null) {
+                    for (CharSequence context : contexts) {
+                        scratch.append(context);
+                        typedContexts.add(scratch.toCharsRef());
+                        scratch.setLength(1);
+                    }
+                }
+            }
+            return typedContexts;
         }
     }
 
     /**
      * Wraps a {@link CompletionQuery} with context queries,
      * individual context mappings adds query contexts using
-     * {@link ContextMapping#addQueryContexts(ContextQuery, QueryContexts)}s
+     * {@link ContextMapping#getQueryContexts(QueryContexts)}s
      *
      * @param query base completion query to wrap
      * @param queryContexts a map of context mapping name and collected query contexts
@@ -169,53 +153,26 @@ public class ContextMappings implements ToXContent {
      * @return a context-enabled query
      */
     public ContextQuery toContextQuery(CompletionQuery query, Map<String, QueryContexts> queryContexts) {
-        CharsRefBuilder scratch = new CharsRefBuilder();
-        TypedContextQuery contextQuery = new TypedContextQuery(query, scratch);
-        for (int typeId = 0; typeId < contextMappings.size(); typeId++) {
-            ContextMapping<?> mapping = contextMappings.get(typeId);
-            contextQuery.setTypeId(typeId);
-            QueryContexts queryContext = queryContexts.get(mapping.name());
-            if (queryContext != null) {
-                if (queryContext.size() == 0) {
-                    contextQuery.addAllContexts();
-                } else {
-                    mapping.addQueryContexts(contextQuery, queryContext);
+        ContextQuery typedContextQuery = new ContextQuery(query);
+        if (queryContexts.isEmpty() == false) {
+            CharsRefBuilder scratch = new CharsRefBuilder();
+            scratch.grow(1);
+            for (int typeId = 0; typeId < contextMappings.size(); typeId++) {
+                scratch.setCharAt(0, (char) typeId);
+                scratch.setLength(1);
+                ContextMapping mapping = contextMappings.get(typeId);
+                QueryContexts queryContext = queryContexts.get(mapping.name());
+                if (queryContext != null) {
+                    List<CategoryQueryContext> contexts = mapping.getQueryContexts(queryContext);
+                    for (CategoryQueryContext context : contexts) {
+                        scratch.append(context.context);
+                        typedContextQuery.addContext(scratch.toCharsRef(), context.boost, !context.isPrefix);
+                        scratch.setLength(1);
+                    }
                 }
             }
         }
-        return contextQuery;
-    }
-
-    /**
-     * Wraps a Context query to prepend the context values
-     * with a type id
-     */
-    private static class TypedContextQuery extends ContextQuery {
-        private final CharsRefBuilder scratch;
-
-        public TypedContextQuery(CompletionQuery innerQuery, CharsRefBuilder scratch) {
-            super(innerQuery);
-            this.scratch = scratch;
-        }
-
-        public void setTypeId(int typeId) {
-            scratch.clear();
-            scratch.append(((char) typeId));
-        }
-
-        @Override
-        public final void addContext(CharSequence context, float boost, boolean exact) {
-            scratch.setLength(1);
-            if (context != null) {
-                scratch.append(context);
-            }
-            super.addContext(scratch.toCharsRef(), boost, exact);
-        }
-
-        @Override
-        public final void addAllContexts() {
-            addContext(null, 1, false);
-        }
+        return typedContextQuery;
     }
 
     /**
@@ -229,7 +186,7 @@ public class ContextMappings implements ToXContent {
     public Map.Entry<String, CharSequence> getNamedContext(CharSequence context) {
         int typeId = context.charAt(0);
         assert typeId < contextMappings.size() : "Returned context has invalid type";
-        ContextMapping<?> mapping = contextMappings.get(typeId);
+        ContextMapping mapping = contextMappings.get(typeId);
         return new AbstractMap.SimpleEntry<>(mapping.name(), context.subSequence(1, context.length()));
     }
 
@@ -294,7 +251,7 @@ public class ContextMappings implements ToXContent {
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (ContextMapping<?> contextMapping : contextMappings) {
+        for (ContextMapping contextMapping : contextMappings) {
             builder.startObject();
             contextMapping.toXContent(builder, params);
             builder.endObject();
@@ -306,7 +263,7 @@ public class ContextMappings implements ToXContent {
     public int hashCode() {
         final int prime = 31;
         int result = super.hashCode();
-        for (ContextMapping<?> contextMapping : contextMappings) {
+        for (ContextMapping contextMapping : contextMappings) {
             result = prime * result + contextMapping.hashCode();
         }
         return result;
@@ -320,5 +277,4 @@ public class ContextMappings implements ToXContent {
         ContextMappings other = ((ContextMappings) obj);
         return contextMappings.equals(other.contextMappings);
     }
-
 }

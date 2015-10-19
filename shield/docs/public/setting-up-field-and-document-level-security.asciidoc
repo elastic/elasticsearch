@@ -1,5 +1,5 @@
 [[setting-up-field-and-document-level-security]]
-=== Setting Up Field and Document Level Security.
+=== Setting Up Field and Document Level Security
 
 You can control access to data within an index by adding field and document level security permissions to a role.
 Field level security permissions restrict access to particular fields within a document.
@@ -111,6 +111,7 @@ When field level security is enabled for an index:
 * The query cache and the request cache are disabled for search requests.
 * The update API is blocked. An update request needs to be executed via a role that doesn't have field level security enabled.
 
+[[document-level-security]]
 ==== Document Level Security
 
 Enabling document level security restricts which documents can be accessed from any document based API.
@@ -165,6 +166,6 @@ When document level security is enabled for an index:
 * The get, multi get, termsvector and multi termsvector APIs aren't executed in real time. The realtime option for these APIs is forcefully set to false.
 * Document level security isn't applied for APIs that aren't document based oriented. For example this is the case for the field stats API.
 * Document level security doesn't affect global index statistics that relevancy scoring uses. So this means that scores are computed without taking the role query into account.
-  Note that, documents not matching with the role query are never returned.
+  Note that documents not matching with the role query are never returned.
 * The `has_child` and `has_parent` queries aren't supported as role query in the `roles.yml` file.
   The `has_child` and `has_parent` queries can be used in the search API with document level security enabled.

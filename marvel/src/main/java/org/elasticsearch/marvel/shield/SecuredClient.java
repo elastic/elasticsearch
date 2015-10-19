@@ -214,10 +214,6 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountAction;
-import org.elasticsearch.action.count.CountRequest;
-import org.elasticsearch.action.count.CountRequestBuilder;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
@@ -257,8 +253,6 @@ import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.action.support.AdapterActionFuture;
-import org.elasticsearch.action.support.DelegatingActionListener;
 import org.elasticsearch.action.termvectors.*;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -504,28 +498,6 @@ public class SecuredClient implements Client {
 
     public MultiSearchRequestBuilder prepareMultiSearch() {
         return new MultiSearchRequestBuilder(this, MultiSearchAction.INSTANCE);
-    }
-
-    public ActionFuture<CountResponse> count(CountRequest request) {
-        AdapterActionFuture actionFuture = new AdapterActionFuture<CountResponse, SearchResponse>() {
-            protected CountResponse convert(SearchResponse listenerResponse) {
-                return new CountResponse(listenerResponse);
-            }
-        };
-        this.execute(SearchAction.INSTANCE, request.toSearchRequest(), actionFuture);
-        return actionFuture;
-    }
-
-    public void count(CountRequest request, final ActionListener<CountResponse> listener) {
-        this.execute(SearchAction.INSTANCE, request.toSearchRequest(), new DelegatingActionListener<SearchResponse, CountResponse>(listener) {
-            protected CountResponse getDelegatedFromInstigator(SearchResponse response) {
-                return new CountResponse(response);
-            }
-        });
-    }
-
-    public CountRequestBuilder prepareCount(String... indices) {
-        return new CountRequestBuilder(this, CountAction.INSTANCE).setIndices(indices);
     }
 
     public ActionFuture<ExistsResponse> exists(ExistsRequest request) {

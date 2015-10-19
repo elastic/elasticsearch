@@ -177,8 +177,8 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     protected void assertMarvelDocsCount(Matcher<Long> matcher, String... types) {
         try {
-            long count = client().prepareCount(MarvelSettings.MARVEL_INDICES_PREFIX + "*")
-                    .setTypes(types).get().getCount();
+            long count = client().prepareSearch(MarvelSettings.MARVEL_INDICES_PREFIX + "*").setSize(0)
+                    .setTypes(types).get().getHits().totalHits();
             logger.trace("--> searched for [{}] documents, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
             assertThat(count, matcher);
         } catch (IndexNotFoundException e) {

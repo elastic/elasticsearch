@@ -70,8 +70,8 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         client().prepareIndex("other", "bar").setSource("value", randomInt()).get();
 
         flushAndRefresh();
-        assertHitCount(client().prepareCount(indexName).get(), numDocs);
-        assertHitCount(client().prepareCount("other").get(), 1L);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), numDocs);
+        assertHitCount(client().prepareSearch("other").setSize(0).get(), 1L);
 
         logger.info("--> start second node");
         final String node2 = internalCluster().startNode();

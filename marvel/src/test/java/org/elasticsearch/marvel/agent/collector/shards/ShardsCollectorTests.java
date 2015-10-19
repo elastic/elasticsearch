@@ -49,7 +49,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         ensureGreen();
         refresh();
 
-        assertHitCount(client().prepareCount().get(), nbDocs);
+        assertHitCount(client().prepareSearch().setSize(0).get(), nbDocs);
 
         Collection<MarvelDoc> results = newShardsCollector().doCollect();
         assertThat(results, hasSize(getNumShards("test-shards").totalNumShards));
@@ -117,7 +117,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         refresh();
 
         for (int i = 0; i < nbIndices; i++) {
-            assertHitCount(client().prepareCount(indexPrefix + String.valueOf(i)).get(), nbDocsPerIndex[i]);
+            assertHitCount(client().prepareSearch(indexPrefix + String.valueOf(i)).setSize(0).get(), nbDocsPerIndex[i]);
         }
 
         Collection<MarvelDoc> results = newShardsCollector().doCollect();

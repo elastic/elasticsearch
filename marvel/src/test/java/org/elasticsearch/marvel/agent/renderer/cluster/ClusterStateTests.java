@@ -89,7 +89,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
         DiscoveryNodes nodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
 
         logger.debug("--> ensure that the 'nodes' attributes of the cluster state document is not indexed");
-        assertHitCount(client().prepareCount()
+        assertHitCount(client().prepareSearch().setSize(0)
                 .setTypes(ClusterStateCollector.TYPE)
                 .setQuery(QueryBuilders.matchQuery("cluster_state.nodes." + nodes.masterNodeId() + ".name", nodes.masterNode().name())).get(), 0L);
     }

@@ -116,7 +116,7 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
         securedFlush();
         securedRefresh();
 
-        assertHitCount(client().prepareCount()
+        assertHitCount(client().prepareSearch().setSize(0)
                 .setIndices(MarvelSettings.MARVEL_DATA_INDEX_NAME)
                 .setTypes(ClusterInfoCollector.TYPE)
                 .setQuery(QueryBuilders.boolQuery()

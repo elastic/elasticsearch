@@ -57,7 +57,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
 
         securedFlush();
         securedRefresh();
-        assertHitCount(client().prepareCount().get(), nbDocs);
+        assertHitCount(client().prepareSearch().setSize(0).get(), nbDocs);
 
         Collection<MarvelDoc> results = newClusterStateCollector().doCollect();
         assertThat(results, hasSize(1));
@@ -99,7 +99,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
         securedFlush();
         securedRefresh();
         for (int i = 0; i < nbIndices; i++) {
-            assertHitCount(client().prepareCount("test-" + i).get(), docsPerIndex[i]);
+            assertHitCount(client().prepareSearch("test-" + i).setSize(0).get(), docsPerIndex[i]);
         }
 
         Collection<MarvelDoc> results = newClusterStateCollector().doCollect();

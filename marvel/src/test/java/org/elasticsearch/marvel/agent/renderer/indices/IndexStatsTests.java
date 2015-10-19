@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.renderer.indices;
 
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -76,11 +75,12 @@ public class IndexStatsTests extends MarvelIntegTestCase {
                 securedFlush(indices);
                 securedRefresh();
                 for (int i = 0; i < nbIndices; i++) {
-                    CountResponse count = client().prepareCount()
+                    SearchResponse count = client().prepareSearch()
+                            .setSize(0)
                             .setTypes(IndexStatsCollector.TYPE)
                             .setQuery(QueryBuilders.termQuery("index_stats.index", indices[i]))
                             .get();
-                    assertThat(count.getCount(), greaterThan(0L));
+                    assertThat(count.getHits().totalHits(), greaterThan(0L));
                 }
             }
         });

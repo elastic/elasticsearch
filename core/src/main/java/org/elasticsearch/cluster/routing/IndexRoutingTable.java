@@ -100,6 +100,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
     /**
      * creates a new {@link IndexRoutingTable} with all shard versions &amp; primary terms set to the highest found.
+     * This allows incrementing {@link ShardRouting#version()} and {@link ShardRouting#primaryTerm()} where we work on
+     * the individual shards without worrying about synchronization between {@link ShardRouting} instances. This method
+     * takes care of it.
      *
      * @return new {@link IndexRoutingTable}
      */

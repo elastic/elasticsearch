@@ -285,9 +285,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     /**
      * The term of the current selected primary. This is a non-negative number incremented when
-     * a primary shard is assigned after a full cluster restart or a replica shard is promoted
-     * to a primary (see {@link ShardRouting#moveToPrimary()})
-     */
+     * a primary shard is assigned after a full cluster restart (see {@link ShardRouting#initialize(java.lang.String, long)}
+     * or a replica shard is promoted to a primary (see {@link ShardRouting#moveToPrimary()}).
+     **/
     public int primaryTerm(int shardId) {
         return this.primaryTerms[shardId];
     }
@@ -632,7 +632,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
         public Builder numberOfShards(int numberOfShards) {
             settings = settingsBuilder().put(settings).put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
-            primaryTerms = new int[numberOfShards];
             return this;
         }
 
@@ -736,6 +735,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this;
         }
 
+        /**
+         * returns the primary term for the given shard.
+         * See {@link IndexMetaData#primaryTerm(int)} for more information.
+         */
         public int primaryTerm(int shardId) {
             if (primaryTerms == null) {
                 initializePrimaryTerms();
@@ -743,6 +746,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this.primaryTerms[shardId];
         }
 
+        /**
+         * sets the primary term for the given shard.
+         * See {@link IndexMetaData#primaryTerm(int)} for more information.
+         */
         public Builder primaryTerm(int shardId, int primaryTerm) {
             if (primaryTerms == null) {
                 initializePrimaryTerms();
@@ -794,7 +801,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             static final XContentBuilderString ALIASES = new XContentBuilderString("aliases");
             static final XContentBuilderString PRIMARY_TERMS = new XContentBuilderString("primary_terms");
         }
-
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject(indexMetaData.getIndex(), XContentBuilder.FieldCaseConversion.NONE);

@@ -90,8 +90,7 @@ public class AllocationService extends AbstractComponent {
 
     }
     protected RoutingAllocation.Result buildChangedResult(MetaData metaData, RoutingNodes routingNodes, RoutingExplanations explanations) {
-        final RoutingTable routingTable = new RoutingTable.Builder().updateNodes(routingNodes)
-                .version(routingNodes.getRoutingTable().version() + 1).build();
+        final RoutingTable routingTable = new RoutingTable.Builder().updateNodes(routingNodes).build();
         MetaData newMetaData = updateMetaDataWithRoutingTable(metaData,routingTable);
         return new RoutingAllocation.Result(true, routingTable.validateRaiseException(newMetaData), newMetaData, explanations);
     }
@@ -136,7 +135,7 @@ public class AllocationService extends AbstractComponent {
             }
         }
         if (metaDataBuilder != null) {
-            return metaDataBuilder.version(currentMetaData.version() + 1).build();
+            return metaDataBuilder.build();
         } else {
             return currentMetaData;
         }

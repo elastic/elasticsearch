@@ -256,7 +256,10 @@ public final class ShardRouting implements Streamable, ToXContent {
     }
 
     /**
-     * Returns the term of the current primary shard for this shard. The term is incremented with every primary promotion/initial assignment
+     * Returns the term of the current primary shard for this shard.
+     * The term is incremented with every primary promotion/initial assignment.
+     *
+     * See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)} for more info.
      */
     public int primaryTerm() {
         return this.primaryTerm;

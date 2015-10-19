@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.*;
@@ -97,9 +96,8 @@ public class RoutingTableTests extends ESAllocationTestCase {
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(discoBuilder).build();
         RoutingAllocation.Result rerouteResult = ALLOCATION_SERVICE.reroute(clusterState);
-        this.testRoutingTable = rerouteResult.routingTable();
         assertThat(rerouteResult.changed(), is(true));
-        this.clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
+        applyRerouteResult(rerouteResult);
         versionsPerIndex.keySet().forEach(this::incrementVersion);
         primaryTermsPerIndex.keySet().forEach(this::incrementPrimaryTerm);
     }
@@ -130,9 +128,23 @@ public class RoutingTableTests extends ESAllocationTestCase {
         this.clusterState = ClusterState.builder(clusterState).routingTable(this.testRoutingTable).build();
         logger.info("start primary shards for index " + index);
         RoutingAllocation.Result rerouteResult = ALLOCATION_SERVICE.applyStartedShards(this.clusterState, this.clusterState.getRoutingNodes().shardsWithState(index, INITIALIZING));
-        this.clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
-        this.testRoutingTable = rerouteResult.routingTable();
+        // TODO: this simulate the code in InternalClusterState.UpdateTask.run() we should unify this.
+        applyRerouteResult(rerouteResult);
         incrementVersion(index);
+    }
+
+    private void applyRerouteResult(RoutingAllocation.Result rerouteResult) {
+        ClusterState previousClusterState = this.clusterState;
+        ClusterState newClusterState = ClusterState.builder(previousClusterState).routingResult(rerouteResult).build();
+        ClusterState.Builder builder = ClusterState.builder(newClusterState).incrementVersion();
+        if (previousClusterState.routingTable() != newClusterState.routingTable()) {
+            builder.routingTable(RoutingTable.builder(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1).build());
+        }
+        if (previousClusterState.metaData() != newClusterState.metaData()) {
+            builder.metaData(MetaData.builder(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
+        }
+        this.clusterState = builder.build();
+        this.testRoutingTable = rerouteResult.routingTable();
     }
 
     private void failSomePrimaries(String index) {
@@ -151,10 +163,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             incrementVersion(index, shard); // and another time when the primary flag is set to false
         }
         RoutingAllocation.Result rerouteResult = ALLOCATION_SERVICE.applyFailedShards(this.clusterState, failedShards);
-        assertThat(rerouteResult.routingTable().version(), greaterThan(clusterState.routingTable().version()));
-        assertThat(rerouteResult.metaData().version(), greaterThan(clusterState.metaData().version()));
-        this.clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
-        this.testRoutingTable = rerouteResult.routingTable();
+        applyRerouteResult(rerouteResult);
     }
 
     private IndexMetaData.Builder createIndexMetaData(String indexName) {

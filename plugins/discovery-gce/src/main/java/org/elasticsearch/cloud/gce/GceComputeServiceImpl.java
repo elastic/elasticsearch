@@ -39,6 +39,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
 
 import java.io.IOException;
 import java.net.URL;
@@ -171,7 +172,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
             logger.info("starting GCE discovery service");
             ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory)
-                        .setTokenServerEncodedUrl(TOKEN_SERVER_ENCODED_URL)
+                    .setTokenServerEncodedUrl(TOKEN_SERVER_ENCODED_URL)
                     .build();
 
             // hack around code messiness in GCE code
@@ -190,14 +191,29 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
             logger.debug("token [{}] will expire in [{}] s", credential.getAccessToken(), credential.getExpiresInSeconds());
             if (credential.getExpiresInSeconds() != null) {
-                refreshInterval = TimeValue.timeValueSeconds(credential.getExpiresInSeconds()-1);
+                refreshInterval = TimeValue.timeValueSeconds(credential.getExpiresInSeconds() - 1);
             }
 
-            // Once done, let's use this token
-            this.client = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null)
-                    .setApplicationName(Fields.VERSION)
-                    .setHttpRequestInitializer(credential)
-                    .build();
+            boolean ifRetry = settings.getAsBoolean(Fields.RETRY, true);
+            Compute.Builder builder = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null)
+                    .setApplicationName(Fields.VERSION);
+
+            if (ifRetry) {
+                int maxWait = settings.getAsInt(Fields.MAXWAIT, -1);
+                RetryHttpInitializerWrapper retryHttpInitializerWrapper;
+
+                if (maxWait > 0) {
+                    retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, maxWait);
+                } else {
+                    retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential);
+                }
+                builder.setHttpRequestInitializer(retryHttpInitializerWrapper);
+
+            } else {
+                builder.setHttpRequestInitializer(credential);
+            }
+
+            this.client = builder.build();
         } catch (Exception e) {
             logger.warn("unable to start GCE discovery service", e);
             throw new IllegalArgumentException("unable to start GCE discovery service", e);

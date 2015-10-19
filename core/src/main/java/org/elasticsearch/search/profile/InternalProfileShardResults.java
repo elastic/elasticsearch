@@ -140,7 +140,7 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
         for (Map.Entry<SearchShardTarget, List<InternalProfileResult>> entry : results.entrySet()) {
 
             builder.startObject()
-                    .field("shard_id", entry.getKey().getNodeId())
+                    .field("id", entry.getKey().toString())
                     .startArray("query");
 
             for (InternalProfileResult p : entry.getValue()) {

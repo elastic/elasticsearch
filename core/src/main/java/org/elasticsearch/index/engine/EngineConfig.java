@@ -25,15 +25,12 @@ import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -76,7 +73,6 @@ public final class EngineConfig {
     private final boolean forceNewTranslog;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
-    private final SetOnce<IndexSearcherWrapper> searcherWrapper = new SetOnce<>();
 
     /**
      * Index setting for compound file on flush. This setting is realtime updateable.

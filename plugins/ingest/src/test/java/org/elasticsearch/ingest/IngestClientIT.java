@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.plugin.ingest.IngestPlugin;
-import org.elasticsearch.plugin.ingest.PipelineStore;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineAction;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineRequestBuilder;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineResponse;
@@ -33,11 +32,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.*;
 
 public class IngestClientIT extends ESIntegTestCase {

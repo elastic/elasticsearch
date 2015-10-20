@@ -47,7 +47,7 @@ public final class Data {
         return (T) XContentMapValues.extractValue(path, document);
     }
 
-    public void addField(String field, String value) {
+    public void addField(String field, Object value) {
         modified = true;
         document.put(field, value);
     }

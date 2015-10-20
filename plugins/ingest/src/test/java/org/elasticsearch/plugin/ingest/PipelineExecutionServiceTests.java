@@ -22,7 +22,7 @@ package org.elasticsearch.plugin.ingest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;

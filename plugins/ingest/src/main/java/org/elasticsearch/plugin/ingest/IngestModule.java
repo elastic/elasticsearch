@@ -21,8 +21,8 @@ package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.SimpleProcessor;
+import org.elasticsearch.ingest.processor.Processor;
+import org.elasticsearch.ingest.processor.simple.SimpleProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
 
 import java.util.HashMap;

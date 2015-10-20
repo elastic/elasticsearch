@@ -220,16 +220,16 @@ public class PluginManager {
         PluginInfo info = PluginInfo.readFromProperties(root);
         terminal.println(VERBOSE, "%s", info);
 
-        // check for jar hell before any copying
-        if (info.isJvm()) {
-            jarHellCheck(root, info.isIsolated());
-        }
-
         // update name in handle based on 'name' property found in descriptor file
         pluginHandle = new PluginHandle(info.getName(), pluginHandle.version, pluginHandle.user);
         final Path extractLocation = pluginHandle.extractedDir(environment);
         if (Files.exists(extractLocation)) {
             throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + pluginHandle.name + "' command");
+        }
+
+        // check for jar hell before any copying
+        if (info.isJvm()) {
+            jarHellCheck(root, info.isIsolated());
         }
 
         // read optional security policy (extra permissions)

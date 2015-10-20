@@ -20,10 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -330,17 +329,14 @@ public class DocumentMapper implements ToXContent {
                 continue;
             }
 
-            Filter filter = objectMapper.nestedTypeFilter();
+            Query filter = objectMapper.nestedTypeFilter();
             if (filter == null) {
                 continue;
             }
             // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
             // therefor is guaranteed to be a live doc.
-            DocIdSet nestedTypeSet = filter.getDocIdSet(context, null);
-            if (nestedTypeSet == null) {
-                continue;
-            }
-            DocIdSetIterator iterator = nestedTypeSet.iterator();
+            final Weight nestedWeight = filter.createWeight(sc.searcher(), false);
+            DocIdSetIterator iterator = nestedWeight.scorer(context);
             if (iterator == null) {
                 continue;
             }

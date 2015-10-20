@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
@@ -133,7 +132,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Filter searchFilter(String[] types) {
+    public Query searchFilter(String[] types) {
         return null;
     }
 
@@ -413,7 +412,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Filter aliasFilter() {
+    public Query aliasFilter() {
         return null;
     }
 

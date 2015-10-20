@@ -20,8 +20,9 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.index.*;
-import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -170,7 +171,7 @@ public class MultiValueModeTests extends ESTestCase {
     private void verify(SortedNumericDocValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
-                final NumericDocValues selected = mode.select(values, missingValue, rootDocs, new BitDocIdSet(innerDocs), maxDoc);
+                final NumericDocValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc);
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     final long actual = selected.get(root);
@@ -320,7 +321,7 @@ public class MultiValueModeTests extends ESTestCase {
     private void verify(SortedNumericDoubleValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
-                final NumericDoubleValues selected = mode.select(values, missingValue, rootDocs, new BitDocIdSet(innerDocs), maxDoc);
+                final NumericDoubleValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc);
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     final double actual = selected.get(root);
@@ -460,7 +461,7 @@ public class MultiValueModeTests extends ESTestCase {
     private void verify(SortedBinaryDocValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(RandomStrings.randomAsciiOfLength(getRandom(), 8)) }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
-                final BinaryDocValues selected = mode.select(values, missingValue, rootDocs, new BitDocIdSet(innerDocs), maxDoc);
+                final BinaryDocValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc);
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     final BytesRef actual = selected.get(root);
@@ -600,7 +601,7 @@ public class MultiValueModeTests extends ESTestCase {
 
     private void verify(RandomAccessOrds values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
-            final SortedDocValues selected = mode.select(values, rootDocs, new BitDocIdSet(innerDocs));
+            final SortedDocValues selected = mode.select(values, rootDocs, new BitSetIterator(innerDocs, 0L));
             int prevRoot = -1;
             for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                 final int actual = selected.getOrd(root);
@@ -649,7 +650,6 @@ public class MultiValueModeTests extends ESTestCase {
         };
         final SortedNumericDoubleValues singletonValues = FieldData.singleton(singleValues, docsWithValue);
         final MultiValueMode.UnsortedNumericDoubleValues multiValues = new MultiValueMode.UnsortedNumericDoubleValues() {
-            int doc;
 
             @Override
             public int count() {

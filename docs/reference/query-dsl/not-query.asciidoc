@@ -1,6 +1,8 @@
 [[query-dsl-not-query]]
 === Not Query
 
+deprecated[2.1.0, Use the `bool` query with `must_not` clause instead]
+
 A query that filters out matched documents using a query. For example:
 
 [source,js]

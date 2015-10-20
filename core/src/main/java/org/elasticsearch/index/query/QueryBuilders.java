@@ -684,7 +684,7 @@ public abstract class QueryBuilders {
     public static GeohashCellQuery.Builder geoHashCellQuery(String name, String geohash, boolean neighbors) {
         return new GeohashCellQuery.Builder(name, geohash, neighbors);
     }
-    
+
     /**
      * A filter to filter based on a polygon defined by a set of locations  / points.
      *
@@ -773,6 +773,10 @@ public abstract class QueryBuilders {
         return new MissingQueryBuilder(name);
     }
 
+    /**
+     * @deprecated use {@link #boolQuery()} and add a mustNot clause instead
+     */
+    @Deprecated
     public static NotQueryBuilder notQuery(QueryBuilder filter) {
         return new NotQueryBuilder(filter);
     }

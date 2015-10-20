@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.cluster;
 
 
 
 /**
  * Thrown when a node join request or a master ping reaches a node which is not
- * currently acting as a master.
+ * currently acting as a master or when a cluster state update task is to be executed
+ * on a node that is no longer master.
  */
 public class NotMasterException extends IllegalStateException {
 

@@ -28,7 +28,6 @@ governing permissions and limitations under the License. -->
     <properties>
         <elasticsearch.plugin.classname>org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin</elasticsearch.plugin.classname>
         <google.gce.version>v1-rev71-1.20.0</google.gce.version>
-        <!-- currently has no unit tests -->
         <tests.rest.suite>discovery_gce</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
         <xlint.options>-Xlint:-rawtypes,-unchecked</xlint.options>

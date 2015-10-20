@@ -119,7 +119,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
 
     private String[] stats;
 
-    private Boolean profile = false;
+    private Boolean profile;
 
 
     /**

@@ -81,7 +81,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     private Scroll scroll;
 
-    private boolean profile;
+    private Boolean profile;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -550,7 +550,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * @param profile True if the query should be profiled
      * @return
      */
-    public SearchRequest profile(boolean profile) {
+    public SearchRequest profile(Boolean profile) {
         this.profile = profile;
         return this;
     }
@@ -560,7 +560,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      *
      * @return
      */
-    public boolean profile() {
+    public Boolean profile() {
         return this.profile;
     }
 
@@ -592,6 +592,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             template = Template.readTemplate(in);
         }
         requestCache = in.readOptionalBoolean();
+
+        // nocommit Version check?
+        profile = in.readOptionalBoolean();
     }
 
     @Override
@@ -626,5 +629,8 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         }
 
         out.writeOptionalBoolean(requestCache);
+
+        // nocommit Version check?
+        out.writeOptionalBoolean(profile);
     }
 }

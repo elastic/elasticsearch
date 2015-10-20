@@ -55,14 +55,16 @@ public class TypeQueryParser implements QueryParser<TypeQueryBuilder> {
                     boost = parser.floatValue();
                 } else if ("value".equals(currentFieldName)) {
                     type = parser.utf8Bytes();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[type] filter doesn't support [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]");
             }
         }
 
         if (type == null) {
-            throw new ParsingException(parser.getTokenLocation(), "[type] filter needs to be provided with a value for the type");
+            throw new ParsingException(parser.getTokenLocation(), "[" + TypeQueryBuilder.NAME + "] filter needs to be provided with a value for the type");
         }
         return new TypeQueryBuilder(type)
                 .boost(boost)

@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -100,6 +101,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -322,6 +324,29 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
+     * Test that unknown field trigger ParsingException.
+     * To find the right position in the root query, we add a marker as `queryName` which
+     * all query builders support. The added bogus field after that should trigger the exception.
+     * Queries that allow arbitrary field names at this level need to override this test.
+     */
+    public void testUnknownField() throws IOException {
+        String marker = "#marker#";
+        QB testQuery;
+        do {
+            testQuery = createTestQueryBuilder();
+        } while (testQuery.toString().contains(marker));
+        testQuery.queryName(marker); // to find root query to add additional bogus field there
+        String queryAsString = testQuery.toString().replace("\"" + marker + "\"", "\"" + marker +  "\", \"bogusField\" : \"someValue\"");
+        try {
+            parseQuery(queryAsString);
+            fail("ParsingException expected.");
+        } catch (ParsingException e) {
+            // we'd like to see the offending field name here
+            assertThat(e.getMessage(), containsString("bogusField"));
+        }
+    }
+
+    /**
      * Returns alternate string representation of the query that need to be tested as they are never used as output
      * of {@link QueryBuilder#toXContent(XContentBuilder, ToXContent.Params)}. By default there are no alternate versions.
      */
@@ -361,7 +386,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QueryParseContext context = createParseContext();
         context.reset(parser);
         context.parseFieldMatcher(matcher);
-        return context.parseInnerQueryBuilder();
+        QueryBuilder parseInnerQueryBuilder = context.parseInnerQueryBuilder();
+        assertTrue(parser.nextToken() == null);
+        return parseInnerQueryBuilder;
     }
 
     /**

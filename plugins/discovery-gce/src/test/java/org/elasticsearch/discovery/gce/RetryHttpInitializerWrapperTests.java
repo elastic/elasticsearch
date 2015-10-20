@@ -20,7 +20,13 @@
 package org.elasticsearch.discovery.gce;
 
 import com.google.api.client.googleapis.testing.auth.oauth2.MockGoogleCredential;
-import com.google.api.client.http.*;
+import com.google.api.client.http.GenericUrl;
+import com.google.api.client.http.HttpRequest;
+import com.google.api.client.http.HttpResponse;
+import com.google.api.client.http.HttpResponseException;
+import com.google.api.client.http.HttpStatusCodes;
+import com.google.api.client.http.LowLevelHttpRequest;
+import com.google.api.client.http.LowLevelHttpResponse;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.testing.http.MockHttpTransport;
@@ -28,16 +34,15 @@ import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 import com.google.api.client.testing.util.MockSleeper;
 import com.google.api.services.compute.Compute;
-import org.junit.Test;
+
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 
-public class RetryHttpInitializerWrapperTests {
+public class RetryHttpInitializerWrapperTests extends ESTestCase {
 
     static private class FailThenSuccessBackoffTransport extends MockHttpTransport {
 
@@ -88,7 +93,6 @@ public class RetryHttpInitializerWrapperTests {
         }
     }
 
-    @Test
     public void testSimpleRetry() throws Exception {
 
         FailThenSuccessBackoffTransport fakeTransport =
@@ -112,7 +116,6 @@ public class RetryHttpInitializerWrapperTests {
         assertThat(response.getStatusCode(), equalTo(200));
     }
 
-    @Test
     public void testRetryWaitTooLong() throws Exception {
         int maxWaitTime = 10;
         int maxRetryTimes = 50;
@@ -149,7 +152,6 @@ public class RetryHttpInitializerWrapperTests {
         }
     }
 
-    @Test
     public void testIOExceptionRetry() throws Exception {
 
         FailThenSuccessBackoffTransport fakeTransport =

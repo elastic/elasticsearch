@@ -36,8 +36,6 @@ import java.util.concurrent.TimeoutException;
  */
 public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements ActionFuture<T>, ActionListener<L> {
 
-    private Throwable rootFailure;
-
     @Override
     public T actionGet() {
         try {
@@ -105,9 +103,4 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
     }
 
     protected abstract T convert(L listenerResponse);
-
-    @Override
-    public Throwable getRootFailure() {
-        return rootFailure;
-    }
 }

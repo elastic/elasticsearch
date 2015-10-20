@@ -21,7 +21,6 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BitSet;
@@ -568,12 +567,8 @@ public enum MultiValueMode {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final BitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
-        if (rootDocs == null || innerDocSet == null) {
-            return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
-        }
-        final DocIdSetIterator innerDocs = innerDocSet.iterator();
-        if (innerDocs == null) {
+    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final BitSet rootDocs, final DocIdSetIterator innerDocs, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocs == null) {
             return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
         }
 
@@ -663,12 +658,8 @@ public enum MultiValueMode {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
-        if (rootDocs == null || innerDocSet == null) {
-            return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
-        }
-        final DocIdSetIterator innerDocs = innerDocSet.iterator();
-        if (innerDocs == null) {
+    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet rootDocs, final DocIdSetIterator innerDocs, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocs == null) {
             return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
         }
 
@@ -758,12 +749,8 @@ public enum MultiValueMode {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final BitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
-        if (rootDocs == null || innerDocSet == null) {
-            return select(FieldData.emptySortedBinary(maxDoc), missingValue);
-        }
-        final DocIdSetIterator innerDocs = innerDocSet.iterator();
-        if (innerDocs == null) {
+    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final BitSet rootDocs, final DocIdSetIterator innerDocs, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocs == null) {
             return select(FieldData.emptySortedBinary(maxDoc), missingValue);
         }
         final BinaryDocValues selectedValues = select(values, null);
@@ -858,12 +845,8 @@ public enum MultiValueMode {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public SortedDocValues select(final RandomAccessOrds values, final BitSet rootDocs, final DocIdSet innerDocSet) throws IOException {
-        if (rootDocs == null || innerDocSet == null) {
-            return select(DocValues.emptySortedSet());
-        }
-        final DocIdSetIterator innerDocs = innerDocSet.iterator();
-        if (innerDocs == null) {
+    public SortedDocValues select(final RandomAccessOrds values, final BitSet rootDocs, final DocIdSetIterator innerDocs) throws IOException {
+        if (rootDocs == null || innerDocs == null) {
             return select(DocValues.emptySortedSet());
         }
         final SortedDocValues selectedValues = select(values);

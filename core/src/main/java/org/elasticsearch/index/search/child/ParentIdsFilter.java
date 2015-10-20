@@ -35,6 +35,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
@@ -49,7 +50,10 @@ import java.io.IOException;
  * 1) Don't need to copy all values over to a list from the id cache and then
  * copy all the ids values over to one continuous byte array. Should save a lot of of object creations and gcs..
  * 2) We filter docs by one field only.
+ * @deprecated Use queries from the lucene/join module instead
  */
+@SuppressForbidden(reason="Old p/c queries still use filters")
+@Deprecated
 final class ParentIdsFilter extends Filter {
 
     static Filter createShortCircuitFilter(BitSetProducer nonNestedDocsFilter, SearchContext searchContext,

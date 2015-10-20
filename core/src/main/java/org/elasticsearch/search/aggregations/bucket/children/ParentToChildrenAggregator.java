@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.children;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
@@ -72,7 +72,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     private Set<LeafReaderContext> replay = new LinkedHashSet<>();
 
     public ParentToChildrenAggregator(String name, AggregatorFactories factories, AggregationContext aggregationContext,
-                                      Aggregator parent, String parentType, Filter childFilter, Filter parentFilter,
+                                      Aggregator parent, String parentType, Query childFilter, Query parentFilter,
                                       ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
             long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
@@ -189,10 +189,10 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes.WithOrdinals.ParentChild> {
 
         private final String parentType;
-        private final Filter parentFilter;
-        private final Filter childFilter;
+        private final Query parentFilter;
+        private final Query childFilter;
 
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Bytes.WithOrdinals.ParentChild> config, String parentType, Filter parentFilter, Filter childFilter) {
+        public Factory(String name, ValuesSourceConfig<ValuesSource.Bytes.WithOrdinals.ParentChild> config, String parentType, Query parentFilter, Query childFilter) {
             super(name, InternalChildren.TYPE.name(), config);
             this.parentType = parentType;
             this.parentFilter = parentFilter;

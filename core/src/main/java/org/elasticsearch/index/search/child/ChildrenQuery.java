@@ -33,6 +33,7 @@ import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.XFilteredDocIdSetIterator;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -58,7 +59,10 @@ import java.util.Set;
  * documents by parent uid value. Also the child scores are aggregated per parent uid value. During the second round
  * all parent documents having the same uid value that is collected in the first phase are emitted as hit including
  * a score based on the aggregated child scores and score type.
+ * @deprecated Use queries from lucene/join instead
  */
+@SuppressForbidden(reason="Old p/c queries still use filters")
+@Deprecated
 public final class ChildrenQuery extends IndexCacheableQuery {
 
     protected final ParentChildIndexFieldData ifd;
@@ -209,6 +213,7 @@ public final class ChildrenQuery extends IndexCacheableQuery {
                 maxChildren);
     }
 
+    @SuppressForbidden(reason="Old p/c queries still use filters")
     protected class ParentWeight extends Weight {
 
         protected final Weight childWeight;

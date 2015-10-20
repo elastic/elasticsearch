@@ -2696,16 +2696,13 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(booleanClause.getOccur(), equalTo(Occur.FILTER));
         assertThat(booleanClause.getQuery(), instanceOf(ToParentBlockJoinQuery.class));
         ToParentBlockJoinQuery toParentBlockJoinQuery = (ToParentBlockJoinQuery) booleanClause.getQuery();
-        assertThat(toParentBlockJoinQuery.toString(), equalTo("ToParentBlockJoinQuery (+*:* #QueryWrapperFilter(_type:__nested))"));
+        assertThat(toParentBlockJoinQuery.toString(), equalTo("ToParentBlockJoinQuery (+*:* #_type:__nested)"));
         SearchContext.removeCurrent();
     }
     
     /** 
      * helper to extract term from TermQuery. */
     private Term getTerm(Query query) {
-        while (query instanceof QueryWrapperFilter) {
-            query = ((QueryWrapperFilter) query).getQuery();
-        }
         TermQuery wrapped = (TermQuery) query;
         return wrapped.getTerm();
     }

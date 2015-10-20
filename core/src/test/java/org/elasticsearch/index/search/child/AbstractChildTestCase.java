@@ -20,7 +20,6 @@
 package org.elasticsearch.index.search.child;
 
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -135,7 +134,7 @@ public abstract class AbstractChildTestCase extends ESSingleNodeTestCase {
         }
     }
 
-    static BitSetProducer wrapWithBitSetFilter(Filter filter) {
+    static BitSetProducer wrapWithBitSetFilter(Query filter) {
         return SearchContext.current().bitsetFilterCache().getBitSetProducer(filter);
     }
 

@@ -35,6 +35,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.XFilteredDocIdSetIterator;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.common.lucene.IndexCacheableQuery;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
@@ -46,9 +47,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- *
+ * @deprecated Use queries from lucene/join instead
  */
-// TODO: Remove me and move the logic to ChildrenQuery when needsScore=false
+@SuppressForbidden(reason="Old p/c queries still use filters")
+@Deprecated
 public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
 
     private final IndexParentChildFieldData parentChildIndexFieldData;
@@ -152,6 +154,7 @@ public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
         return "child_filter[" + childType + "/" + parentType + "](" + childQuery + ')';
     }
 
+    @SuppressForbidden(reason="Old p/c queries still use filters")
     private final class ParentWeight extends Weight  {
 
         private final Filter parentFilter;

@@ -25,7 +25,6 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
@@ -180,7 +179,7 @@ public class QueryParseContext {
         return queryParser;
     }
 
-    public BitSetProducer bitsetFilter(Filter filter) {
+    public BitSetProducer bitsetFilter(Query filter) {
         return indexQueryParser.bitsetFilterCache.getBitSetProducer(filter);
     }
 

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -42,6 +43,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.query.HasChildQueryParser.joinUtilHelper;
 
+@SuppressForbidden(reason="Old p/c queries still use filters")
 public class HasParentQueryParser implements QueryParser {
 
     public static final String NAME = "has_parent";

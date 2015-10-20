@@ -26,6 +26,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -50,6 +51,7 @@ import java.io.IOException;
 /**
  *
  */
+@SuppressForbidden(reason="Old p/c queries still use filters")
 public class HasChildQueryParser implements QueryParser {
 
     public static final String NAME = "has_child";

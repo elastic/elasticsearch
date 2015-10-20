@@ -32,6 +32,7 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -52,7 +53,10 @@ import java.util.Set;
  * A query implementation that executes the wrapped parent query and
  * connects the matching parent docs to the related child documents
  * using the {@link ParentChildIndexFieldData}.
+ * @deprecated Use queries from lucene/join instead
  */
+@Deprecated
+@SuppressForbidden(reason="Old p/c queries still use filters")
 public class ParentQuery extends IndexCacheableQuery {
 
     private final ParentChildIndexFieldData parentChildIndexFieldData;
@@ -201,6 +205,7 @@ public class ParentQuery extends IndexCacheableQuery {
 
     }
 
+    @SuppressForbidden(reason="Old p/c queries still use filters")
     private class ChildWeight extends Weight {
 
         private final Weight parentWeight;

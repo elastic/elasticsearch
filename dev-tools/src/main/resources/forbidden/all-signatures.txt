@@ -38,9 +38,13 @@ org.apache.lucene.index.DocsEnum
 org.apache.lucene.index.DocsAndPositionsEnum
 org.apache.lucene.queries.TermFilter
 org.apache.lucene.queries.TermsFilter
+org.apache.lucene.search.Filter
+org.apache.lucene.search.FilteredQuery
 org.apache.lucene.search.TermRangeFilter
 org.apache.lucene.search.NumericRangeFilter
 org.apache.lucene.search.PrefixFilter
+org.apache.lucene.search.QueryWrapperFilter
+org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter
 
 java.nio.file.Paths @ Use org.elasticsearch.common.io.PathUtils.get() instead.
 java.nio.file.FileSystems#getDefault() @ use org.elasticsearch.common.io.PathUtils.getDefaultFileSystem() instead.

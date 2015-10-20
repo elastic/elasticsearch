@@ -27,11 +27,11 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestRuleMarkFailure;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -40,7 +40,6 @@ import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -54,18 +53,12 @@ import java.util.*;
 
 public class MockFSDirectoryService extends FsDirectoryService {
 
-    public static final String CHECK_INDEX_ON_CLOSE = "index.store.mock.check_index_on_close";
     public static final String RANDOM_IO_EXCEPTION_RATE_ON_OPEN = "index.store.mock.random.io_exception_rate_on_open";
     public static final String RANDOM_PREVENT_DOUBLE_WRITE = "index.store.mock.random.prevent_double_write";
     public static final String RANDOM_NO_DELETE_OPEN_FILE = "index.store.mock.random.no_delete_open_file";
     public static final String CRASH_INDEX = "index.store.mock.random.crash_index";
 
-    private static final EnumSet<IndexShardState> validCheckIndexStates = EnumSet.of(
-            IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY
-    );
-
     private final FsDirectoryService delegateService;
-    private final boolean checkIndexOnClose;
     private final Random random;
     private final double randomIOExceptionRate;
     private final double randomIOExceptionRateOnOpen;
@@ -80,7 +73,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         super(indexSettings, indexStore, path);
         final long seed = indexSettings.getAsLong(ESIntegTestCase.SETTING_INDEX_SEED, 0l);
         this.random = new Random(seed);
-        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true);
+
         randomIOExceptionRate = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE, 0.0d);
         randomIOExceptionRateOnOpen = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0.0d);
         preventDoubleWrite = indexSettings.getAsBoolean(RANDOM_PREVENT_DOUBLE_WRITE, true); // true is default in MDW
@@ -95,33 +88,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
         }
         this.indexSettings = indexSettings;
         delegateService = randomDirectorService(indexStore, path);
-        if (checkIndexOnClose) {
-            final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
-
-                boolean canRun = false;
-
-                @Override
-                public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard,
-                                                   @IndexSettings Settings indexSettings) {
-                    if (indexShard != null && shardId.equals(sid)) {
-                        if (validCheckIndexStates.contains(indexShard.state()) && IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
-                            canRun = true;
-                        }
-                    }
-                }
-
-                @Override
-                public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard,
-                                                  @IndexSettings Settings indexSettings) {
-                    if (shardId.equals(sid) && indexShard != null && canRun) {
-                        assert indexShard.state() == IndexShardState.CLOSED : "Current state must be closed";
-                        checkIndex(indexShard.store(), sid);
-                    }
-                    service.indicesLifecycle().removeListener(this);
-                }
-            };
-            service.indicesLifecycle().addListener(listener);
-        }
     }
 
 
@@ -135,7 +101,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         throw new UnsupportedOperationException();
     }
 
-    public void checkIndex(Store store, ShardId shardId) {
+    public static void checkIndex(ESLogger logger, Store store, ShardId shardId) {
         if (store.tryIncRef()) {
             logger.info("start check index");
             try {

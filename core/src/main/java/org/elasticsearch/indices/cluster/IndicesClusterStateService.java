@@ -51,17 +51,17 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -101,14 +101,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final FailedShardHandler failedShardHandler = new FailedShardHandler();
 
     private final boolean sendRefreshMapping;
+    private final List<IndexEventListener> buildInIndexListener;
 
     @Inject
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
                                       ThreadPool threadPool, RecoveryTarget recoveryTarget,
                                       ShardStateAction shardStateAction,
                                       NodeIndexDeletedAction nodeIndexDeletedAction,
-                                      NodeMappingRefreshAction nodeMappingRefreshAction, RepositoriesService repositoriesService, RestoreService restoreService) {
+                                      NodeMappingRefreshAction nodeMappingRefreshAction, RepositoriesService repositoriesService, RestoreService restoreService, SearchService searchService, SyncedFlushService syncedFlushService, RecoverySource recoverySource) {
         super(settings);
+        this.buildInIndexListener = Arrays.asList(recoverySource, recoveryTarget, searchService, syncedFlushService);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -299,7 +301,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] creating index", indexMetaData.getIndex());
                 }
                 try {
-                    indicesService.createIndex(indexMetaData);
+                    indicesService.createIndex(indexMetaData, buildInIndexListener);
                 } catch (Throwable e) {
                     sendFailShard(shard, indexMetaData.getIndexUUID(), "failed to create index", e);
                 }

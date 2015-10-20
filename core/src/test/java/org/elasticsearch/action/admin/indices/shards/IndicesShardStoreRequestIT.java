@@ -38,7 +38,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.store.MockFSIndexStore;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -148,7 +148,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate(index).setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "5")
-                        .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
+                        .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false)
         ));
         indexRandomData(index);
         ensureGreen(index);

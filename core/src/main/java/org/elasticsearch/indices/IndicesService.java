@@ -68,6 +68,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.index.store.IndexStore;
@@ -86,10 +87,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -106,9 +104,6 @@ import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 public class IndicesService extends AbstractLifecycleComponent<IndicesService> implements Iterable<IndexService> {
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
-
-    private final InternalIndicesLifecycle indicesLifecycle;
-
     private final IndicesAnalysisService indicesAnalysisService;
 
     private final Injector injector;
@@ -142,13 +137,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final OldShardsStats oldShardsStats = new OldShardsStats();
 
     @Inject
-    public IndicesService(Settings settings, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, Injector injector, NodeEnvironment nodeEnv) {
+    public IndicesService(Settings settings, IndicesAnalysisService indicesAnalysisService, Injector injector, PluginsService pluginsService,  NodeEnvironment nodeEnv) {
         super(settings);
-        this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indicesAnalysisService = indicesAnalysisService;
         this.injector = injector;
-        this.pluginsService = injector.getInstance(PluginsService.class);
-        this.indicesLifecycle.addListener(oldShardsStats);
+        this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
     }
@@ -193,10 +186,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     protected void doClose() {
         IOUtils.closeWhileHandlingException(injector.getInstance(RecoverySettings.class),
             indicesAnalysisService);
-    }
-
-    public IndicesLifecycle indicesLifecycle() {
-        return this.indicesLifecycle;
     }
 
     /**
@@ -305,7 +294,14 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         return indexService;
     }
 
-    public synchronized IndexService createIndex(IndexMetaData indexMetaData) {
+
+    /**
+     * Creates a new {@link IndexService} for the given metadata.
+     * @param indexMetaData the index metadata to create the index for
+     * @param builtInListeners a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with the per-index listeners
+     * @throws IndexAlreadyExistsException if the index already exists.
+     */
+    public synchronized IndexService createIndex(IndexMetaData indexMetaData, List<IndexEventListener> builtInListeners) {
         if (!lifecycle.started()) {
             throw new IllegalStateException("Can't create an index [" + indexMetaData.getIndex() + "], node is closed");
         }
@@ -314,9 +310,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         if (indices.containsKey(index.name())) {
             throw new IndexAlreadyExistsException(index);
         }
-
-        indicesLifecycle.beforeIndexCreated(index, settings);
-
         logger.debug("creating Index [{}], shards [{}]/[{}{}]",
                 indexMetaData.getIndex(),
                 settings.get(SETTING_NUMBER_OF_SHARDS),
@@ -335,12 +328,19 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         for (Module pluginModule : pluginsService.indexModules(indexSettings)) {
             modules.add(pluginModule);
         }
+        final IndexModule indexModule = new IndexModule(settings, indexMetaData);
+        for (IndexEventListener listener : builtInListeners) {
+            indexModule.addIndexEventListener(listener);
+        }
+        indexModule.addIndexEventListener(oldShardsStats);
         modules.add(new IndexStoreModule(indexSettings));
         modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));
         modules.add(new SimilarityModule(index, indexSettings));
         modules.add(new IndexCacheModule(indexSettings));
-        modules.add(new IndexModule(indexMetaData));
+        modules.add(indexModule);
         pluginsService.processModules(modules);
+        final IndexEventListener listener = indexModule.freeze();
+        listener.beforeIndexCreated(index, settings);
 
         Injector indexInjector;
         try {
@@ -352,9 +352,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
 
         IndexService indexService = indexInjector.getInstance(IndexService.class);
-
-        indicesLifecycle.afterIndexCreated(indexService);
-
+        assert indexService.getIndexEventListener() == listener;
+        listener.afterIndexCreated(indexService);
         indices = newMapBuilder(indices).put(index.name(), new IndexServiceInjectorPair(indexService, indexInjector)).immutableMap();
         return indexService;
     }
@@ -373,6 +372,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         try {
             final IndexService indexService;
             final Injector indexInjector;
+            final IndexEventListener listener;
             synchronized (this) {
                 if (indices.containsKey(index) == false) {
                     return;
@@ -384,11 +384,12 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 indexService = remove.getIndexService();
                 indexInjector = remove.getInjector();
                 indices = unmodifiableMap(newIndices);
+                listener = indexService.getIndexEventListener();
             }
 
-            indicesLifecycle.beforeIndexClosed(indexService);
+            listener.beforeIndexClosed(indexService);
             if (delete) {
-                indicesLifecycle.beforeIndexDeleted(indexService);
+                listener.beforeIndexDeleted(indexService);
             }
             Stream<Closeable> closeables = pluginsService.indexServices().stream().map(p -> indexInjector.getInstance(p));
             IOUtils.close(closeables::iterator);
@@ -412,10 +413,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             indexInjector.getInstance(IndexStore.class).close();
 
             logger.debug("[{}] closed... (reason [{}])", index, reason);
-            indicesLifecycle.afterIndexClosed(indexService.index(), indexService.settingsService().getSettings());
+            listener.afterIndexClosed(indexService.index(), indexService.settingsService().getSettings());
             if (delete) {
                 final Settings indexSettings = indexService.getIndexSettings();
-                indicesLifecycle.afterIndexDeleted(indexService.index(), indexSettings);
+                listener.afterIndexDeleted(indexService.index(), indexSettings);
                 // now we are done - try to wipe data on disk if possible
                 deleteIndexStore(reason, indexService.index(), indexSettings, false);
             }
@@ -424,7 +425,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
     }
 
-    static class OldShardsStats extends IndicesLifecycle.Listener {
+    static class OldShardsStats implements IndexEventListener {
 
         final SearchStats searchStats = new SearchStats();
         final GetStats getStats = new GetStats();

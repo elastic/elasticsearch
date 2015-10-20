@@ -81,7 +81,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new IndicesModule(settings) {
+                new IndicesModule() {
                     @Override
                     public void configure() {
                         // skip services

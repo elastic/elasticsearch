@@ -80,13 +80,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -313,7 +307,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // Set up everything, now locally create the index to see that things are ok, and apply
                     final IndexMetaData tmpImd = IndexMetaData.builder(request.index()).settings(actualIndexSettings).build();
                     // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                    indicesService.createIndex(tmpImd);
+                    indicesService.createIndex(tmpImd, Collections.EMPTY_LIST);
                     indexCreated = true;
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index());
@@ -387,7 +381,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         throw e;
                     }
 
-                    indexService.indicesLifecycle().beforeIndexAddedToCluster(new Index(request.index()),
+                    indexService.getIndexEventListener().beforeIndexAddedToCluster(new Index(request.index()),
                             indexMetaData.getSettings());
 
                     MetaData newMetaData = MetaData.builder(currentState.metaData())
@@ -430,29 +424,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private Map<String, Object> parseMapping(String mappingSource) throws Exception {
         try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
             return parser.map();
-        }
-    }
-
-    private void addMappings(Map<String, Map<String, Object>> mappings, Path mappingsDir) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(mappingsDir)) {
-            for (Path mappingFile : stream) {
-                final String fileName = mappingFile.getFileName().toString();
-                if (FileSystemUtils.isHidden(mappingFile)) {
-                    continue;
-                }
-                int lastDotIndex = fileName.lastIndexOf('.');
-                String mappingType = lastDotIndex != -1 ? mappingFile.getFileName().toString().substring(0, lastDotIndex) : mappingFile.getFileName().toString();
-                try (BufferedReader reader = Files.newBufferedReader(mappingFile, StandardCharsets.UTF_8)) {
-                    String mappingSource = Streams.copyToString(reader);
-                    if (mappings.containsKey(mappingType)) {
-                        XContentHelper.mergeDefaults(mappings.get(mappingType), parseMapping(mappingSource));
-                    } else {
-                        mappings.put(mappingType, parseMapping(mappingSource));
-                    }
-                } catch (Exception e) {
-                    logger.warn("failed to read / parse mapping [" + mappingType + "] from location [" + mappingFile + "], ignoring...", e);
-                }
-            }
         }
     }
 

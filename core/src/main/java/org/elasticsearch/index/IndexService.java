@@ -46,28 +46,17 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShadowIndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.AliasFilterParsingException;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.InternalIndicesLifecycle;
-import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.indices.*;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -80,7 +69,7 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
  */
 public class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard> {
 
-    private final InternalIndicesLifecycle indicesLifecycle;
+    private final IndexEventListener eventListener;
     private final AnalysisService analysisService;
     private final IndexFieldDataService indexFieldData;
     private final BitsetFilterCache bitsetFilterCache;
@@ -102,7 +91,8 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                         BitsetFilterCache bitSetFilterCache,
                         IndicesService indicesServices,
                         IndexServicesProvider indexServicesProvider,
-                        IndexStore indexStore) {
+                        IndexStore indexStore,
+                        IndexEventListener eventListener) {
         super(index, settingsService.indexSettings());
         assert indexMetaData != null;
         this.analysisService = analysisService;
@@ -110,7 +100,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.settingsService = settingsService;
         this.bitsetFilterCache = bitSetFilterCache;
         this.indicesServices = indicesServices;
-        this.indicesLifecycle = (InternalIndicesLifecycle) indexServicesProvider.getIndicesLifecycle();
+        this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
         this.indexServicesProvider = indexServicesProvider;
         this.indexStore = indexStore;
@@ -123,8 +113,8 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return shards.size();
     }
 
-    public InternalIndicesLifecycle indicesLifecycle() {
-        return this.indicesLifecycle;
+    public IndexEventListener getIndexEventListener() {
+        return this.eventListener;
     }
 
     @Override
@@ -225,7 +215,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    public synchronized IndexShard createShard(int sShardId, ShardRouting routing) {
+    public synchronized IndexShard createShard(int sShardId, ShardRouting routing) throws IOException {
         final boolean primary = routing.primary();
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
@@ -237,13 +227,12 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
         final Settings indexSettings = settingsService.getSettings();
         final ShardId shardId = new ShardId(index, sShardId);
-        ShardLock lock = null;
         boolean success = false;
         Store store = null;
         IndexShard indexShard = null;
+        final ShardLock lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
         try {
-            lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
-            indicesLifecycle.beforeIndexShardCreated(shardId, indexSettings);
+            eventListener.beforeIndexShardCreated(shardId, indexSettings);
             ShardPath path;
             try {
                 path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
@@ -293,20 +282,16 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 indexShard = new IndexShard(shardId, indexSettings, path, store, indexServicesProvider);
             }
 
-            indicesLifecycle.indexShardStateChanged(indexShard, null, "shard created");
-            indicesLifecycle.afterIndexShardCreated(indexShard);
+            eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
+            eventListener.afterIndexShardCreated(indexShard);
             settingsService.addListener(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
             success = true;
             return indexShard;
-        } catch (IOException e) {
-            ElasticsearchException ex = new ElasticsearchException("failed to create shard", e);
-            ex.setShard(shardId);
-            throw ex;
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(lock);
-                closeShard("initialization failed", shardId, indexShard, store);
+                closeShard("initialization failed", shardId, indexShard, store, eventListener);
             }
         }
     }
@@ -325,16 +310,16 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         HashMap<Integer, IndexShard> newShards = new HashMap<>(shards);
         indexShard = newShards.remove(shardId);
         shards = unmodifiableMap(newShards);
-        closeShard(reason, sId, indexShard, indexShard.store());
+        closeShard(reason, sId, indexShard, indexShard.store(), indexShard.getIndexEventListener());
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }
 
-    private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store) {
+    private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store, IndexEventListener listener) {
         final int shardId = sId.id();
         final Settings indexSettings = settingsService.getSettings();
         try {
             try {
-                indicesLifecycle.beforeIndexShardClosed(sId, indexShard, indexSettings);
+                listener.beforeIndexShardClosed(sId, indexShard, indexSettings);
             } finally {
                 // this logic is tricky, we want to close the engine so we rollback the changes done to it
                 // and close the shard so no operations are allowed to it
@@ -349,7 +334,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     }
                 }
                 // call this before we close the store, so we can release resources for it
-                indicesLifecycle.afterIndexShardClosed(sId, indexShard, indexSettings);
+                listener.afterIndexShardClosed(sId, indexShard, indexSettings);
             }
         } finally {
             try {
@@ -367,10 +352,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             try {
                 if (ownsShard) {
                     try {
-                        indicesLifecycle.beforeIndexShardDeleted(lock.getShardId(), indexSettings);
+                        eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings);
                     } finally {
                         indicesServices.deleteShardStore("delete index", lock, indexSettings);
-                        indicesLifecycle.afterIndexShardDeleted(lock.getShardId(), indexSettings);
+                        eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings);
                     }
                 }
             } catch (IOException e) {

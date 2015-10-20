@@ -98,7 +98,6 @@ import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -125,7 +124,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     private final ThreadPool threadPool;
     private final MapperService mapperService;
     private final IndexCache indexCache;
-    private final InternalIndicesLifecycle indicesLifecycle;
     private final Store store;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final ShardIndexingService indexingService;
@@ -149,6 +147,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     private final TranslogConfig translogConfig;
     private final MergePolicyConfig mergePolicyConfig;
     private final IndicesQueryCache indicesQueryCache;
+    private final IndexEventListener indexEventListener;
 
     private TimeValue refreshInterval;
 
@@ -206,8 +205,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.similarityService = provider.getSimilarityService();
         Objects.requireNonNull(store, "Store must be provided to the index shard");
         this.engineFactory = provider.getFactory();
-        this.indicesLifecycle = (InternalIndicesLifecycle) provider.getIndicesLifecycle();
         this.store = store;
+        this.indexEventListener = provider.getIndexEventListener();
         this.mergeSchedulerConfig = new MergeSchedulerConfig(indexSettings);
         this.threadPool = provider.getThreadPool();
         this.mapperService = provider.getMapperService();
@@ -367,12 +366,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
                         }
                     }
                     if (movedToStarted) {
-                        indicesLifecycle.afterIndexShardStarted(this);
+                        indexEventListener.afterIndexShardStarted(this);
                     }
                 }
             }
             this.shardRouting = newRouting;
-            indicesLifecycle.shardRoutingChanged(this, currentRouting, newRouting);
+            indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
         } finally {
             if (persistState) {
                 persistMetadata(newRouting, currentRouting);
@@ -431,7 +430,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         logger.debug("state: [{}]->[{}], reason [{}]", state, newState, reason);
         IndexShardState previousState = state;
         state = newState;
-        this.indicesLifecycle.indexShardStateChanged(this, previousState, reason);
+        this.indexEventListener.indexShardStateChanged(this, previousState, newState, reason);
         return previousState;
     }
 
@@ -1036,7 +1035,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             if (wasActive) {
                 updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
                 logger.debug("shard is now inactive");
-                indicesLifecycle.onShardInactive(this);
+                indexEventListener.onShardInactive(this);
             }
         }
 
@@ -1228,6 +1227,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public PercolateStats percolateStats() {
         return percolatorQueriesRegistry.stats();
+    }
+
+    public IndexEventListener getIndexEventListener() {
+        return indexEventListener;
     }
 
     class EngineRefresher implements Runnable {

@@ -678,16 +678,16 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public void profile(boolean profile) {
-        throw new UnsupportedOperationException();
+
     }
 
     @Override
     public boolean profile() {
-        throw new UnsupportedOperationException();
+        return false;
     }
 
     @Override
     public InternalProfiler queryProfiler() {
-        throw new UnsupportedOperationException();
+        return null;
     }
 }

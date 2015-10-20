@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.ingest.SimpleProcessor;
+import org.elasticsearch.ingest.processor.simple.SimpleProcessor;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;

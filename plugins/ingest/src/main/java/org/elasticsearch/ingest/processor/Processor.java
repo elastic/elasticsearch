@@ -18,7 +18,9 @@
  */
 
 
-package org.elasticsearch.ingest;
+package org.elasticsearch.ingest.processor;
+
+import org.elasticsearch.ingest.Data;
 
 import java.util.Map;
 

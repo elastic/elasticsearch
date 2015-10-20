@@ -29,7 +29,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.SimpleProcessor;
+import org.elasticsearch.ingest.processor.simple.SimpleProcessor;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
 import org.elasticsearch.plugin.ingest.PipelineStore;

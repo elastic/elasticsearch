@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
  * There are no assertions here on purpose - all of these tests ((ideally) should) equal to what is
  * documented in the java api query dsl part of our reference guide. 
  * */
-public class QueryDSLDocumentationTests {
+public class QueryDSLDocumentationTests extends ESTestCase {
     @Test
     public void testBool() {
         boolQuery()

@@ -5,7 +5,7 @@ See {ref}/query-dsl-term-query.html[Term Query]
 
 [source,java]
 --------------------------------------------------
-QueryBuilder qb = term(
+QueryBuilder qb = termQuery(
     "name",    <1>
     "kimchy"   <2>
 );

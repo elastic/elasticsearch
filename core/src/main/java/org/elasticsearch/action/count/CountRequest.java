@@ -70,6 +70,8 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
 
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
 
+    private Boolean profile;
+
     /**
      * Constructs a new count request against the provided indices. No indices provided means it will
      * run against all indices.
@@ -218,6 +220,23 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
         return this.terminateAfter;
     }
 
+    /**
+     * Sets if this query should be profiled or not
+     *
+     * @param profile True if the query should be profiled
+     */
+    public CountRequest profile(Boolean profile) {
+        this.profile = profile;
+        return this;
+    }
+
+    /**
+     * Returns if profiling is enabled for this query
+     */
+    public Boolean profile() {
+        return this.profile;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("CountRequest doesn't support being sent over the wire, just a shortcut to the search api");
@@ -246,6 +265,7 @@ public class CountRequest extends BroadcastRequest<CountRequest> {
         searchRequest.routing(routing());
         searchRequest.preference(preference());
         searchRequest.source(source());
+        searchRequest.profile(profile());
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.size(0);
         if (minScore() != DEFAULT_MIN_SCORE) {

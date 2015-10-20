@@ -65,6 +65,9 @@ public class CountRequestTests extends ESTestCase {
         if (randomBoolean()) {
             countRequest.terminateAfter(randomIntBetween(1, 1000));
         }
+        if (randomBoolean()) {
+            countRequest.profile(randomBoolean());
+        }
 
         SearchRequest searchRequest = countRequest.toSearchRequest();
         assertThat(searchRequest.indices(), equalTo(countRequest.indices()));
@@ -72,6 +75,7 @@ public class CountRequestTests extends ESTestCase {
         assertThat(searchRequest.types(), equalTo(countRequest.types()));
         assertThat(searchRequest.routing(), equalTo(countRequest.routing()));
         assertThat(searchRequest.preference(), equalTo(countRequest.preference()));
+        assertThat(searchRequest.profile(), equalTo(countRequest.profile()));
 
         if (countRequest.source() == null) {
             assertThat(searchRequest.source(), nullValue());

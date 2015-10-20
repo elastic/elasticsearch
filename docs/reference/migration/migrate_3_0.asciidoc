@@ -312,3 +312,9 @@ For simplicity, only one way of adding the ids to the existing list (empty by de
 `DocumentAlreadyExistsException` is removed and a `VersionConflictException` is thrown instead (with a better
 error description). This will influence code that use the `IndexRequest.opType()` or `IndexRequest.create()`
 to index a document only if it doesn't already exist.
+
+=== Cache concurrency level settings removed
+
+Two cache concurrency level settings `indices.requests.cache.concurrency_level` and
+`indices.fielddata.cache.concurrency_level` because they no longer apply to the cache implementation used for the
+request cache and the field data cache.

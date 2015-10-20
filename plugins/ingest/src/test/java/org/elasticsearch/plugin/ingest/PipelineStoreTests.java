@@ -68,7 +68,7 @@ public class PipelineStoreTests extends ESTestCase {
     }
 
 
-    public void testUpdatePipeline() throws IOException {
+    public void testUpdatePipeline() throws Exception {
         List<SearchHit> hits = new ArrayList<>();
         hits.add(new InternalSearchHit(0, "1", new StringText("type"), Collections.emptyMap())
                 .sourceRef(new BytesArray("{\"description\": \"_description1\"}"))
@@ -129,7 +129,7 @@ public class PipelineStoreTests extends ESTestCase {
         });
     }
 
-    public void testGetReference() throws IOException {
+    public void testGetReference() throws Exception {
         // fill the store up for the test:
         List<SearchHit> hits = new ArrayList<>();
         hits.add(new InternalSearchHit(0, "foo", new StringText("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));

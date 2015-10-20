@@ -76,6 +76,13 @@ public class PipelineStore extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() {
+        for (Processor.Builder.Factory factory : processorFactoryRegistry.values()) {
+            try {
+                factory.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     public Pipeline get(String id) {

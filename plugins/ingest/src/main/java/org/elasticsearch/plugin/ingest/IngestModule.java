@@ -22,6 +22,7 @@ package org.elasticsearch.plugin.ingest;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.ingest.processor.Processor;
+import org.elasticsearch.ingest.processor.geoip.GeoIpProcessor;
 import org.elasticsearch.ingest.processor.grok.GrokProcessor;
 import org.elasticsearch.ingest.processor.simple.SimpleProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
@@ -41,6 +42,7 @@ public class IngestModule extends AbstractModule {
         binder().bind(PipelineStoreClient.class).asEagerSingleton();
 
         registerProcessor(SimpleProcessor.TYPE, SimpleProcessor.Builder.Factory.class);
+        registerProcessor(GeoIpProcessor.TYPE, GeoIpProcessor.Builder.Factory.class);
         registerProcessor(GrokProcessor.TYPE, GrokProcessor.Builder.Factory.class);
 
         MapBinder<String, Processor.Builder.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Processor.Builder.Factory.class);

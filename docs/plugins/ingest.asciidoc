@@ -142,6 +142,69 @@ This pipeline will insert these named captures as new fields within the document
 }
 --------------------------------------------------
 
+==== Geoip processor
+
+The GeoIP processor adds information about the geographical location of IP addresses, based on data from the Maxmind databases.
+This processor adds this information by default under the `geoip` field.
+
+The ingest plugin ships by default with the GeoLite2 City and GeoLite2 Country geoip2 databases from Maxmind made available
+under the CCA-ShareAlike 3.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/
+
+The GeoIP processor can run with other geoip2 databases from Maxmind. The files must be copied into the geoip config directory
+and the `database_file` option should be used to specify the filename of the custom database. The geoip config directory
+is located at `$ES_HOME/config/ingest/geoip` and holds the shipped databases too.
+
+[[geoip-options]]
+.Geoip options
+[options="header"]
+|======
+| Name                   | Required  | Default             | Description
+| `ip_field`             | yes       | -                   | The field to get the ip address from for the geographical lookip.
+| `target_field`         | no        | geoip               | The field that will hold the geographical information looked up from the Maxmind database.
+| `database_file`        | no        | GeoLite2-City.mmdb  | The database filename in the geoip config directory. The ingest plugin ships with the GeoLite2-City.mmdb and GeoLite2-Country.mmdb files.
+|======
+
+If the GeoLite2 City database is used then the following fields will be added under the `target_field`: `ip`,
+`country_iso_code`, `country_name`, `continent_name`, `region_name`, `city_name`, `timezone`, `latitude`, `longitude`
+and `location`.
+
+If the GeoLite2 Country database is used then the following fields will be added under the `target_field`: `ip`,
+`country_iso_code`, `country_name` and `continent_name`.
+
+An example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field`:
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "...",
+  "processors" : [
+    {
+      "geoip" : {
+        "ip_field" : "ip"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+An example that uses the default country database and add the geographical information to the `geo` field based on the `ip` field`:
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "...",
+  "processors" : [
+    {
+      "geoip" : {
+        "ip_field" : "ip",
+        "target_field" : "geo",
+        "database_file" : "GeoLite2-Country.mmdb"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
 === Put pipeline API
 
 The put pipeline api adds pipelines and updates existing pipelines in the cluster.

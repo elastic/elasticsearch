@@ -22,6 +22,7 @@ package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ingest.Data;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
@@ -55,7 +56,7 @@ public interface Processor {
         /**
          * A factory that creates a processor builder when processor instances for pipelines are being created.
          */
-        interface Factory {
+        interface Factory extends Closeable {
 
             /**
              * Creates the builder.
@@ -67,6 +68,9 @@ public interface Processor {
             default void setConfigDirectory(Path configDirectory) {
             }
 
+            @Override
+            default void close() throws IOException {
+            }
         }
 
     }

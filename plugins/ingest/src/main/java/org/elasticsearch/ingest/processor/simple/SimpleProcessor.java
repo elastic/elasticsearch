@@ -22,6 +22,7 @@ package org.elasticsearch.ingest.processor.simple;
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.processor.Processor;
 
+import java.io.IOException;
 import java.util.Map;
 
 public final class SimpleProcessor implements Processor {
@@ -92,6 +93,7 @@ public final class SimpleProcessor implements Processor {
             public Processor.Builder create() {
                 return new Builder();
             }
+
         }
 
     }

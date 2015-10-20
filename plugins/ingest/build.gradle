@@ -24,6 +24,11 @@ esplugin {
 
 dependencies {
   compile 'org.jruby.joni:joni:2.1.6'
+  compile (group: 'com.maxmind.geoip2', name: 'geoip2', version: '2.3.1') {
+    // we don't use Maxmind's http service:
+    exclude group: 'com.google.http-client', module: 'google-http-client'
+  }
+  testCompile 'org.elasticsearch:geolite2-databases:20151029'
   testCompile 'org.elasticsearch:securemock:1.1'
 }
 
@@ -35,5 +40,19 @@ sourceSets {
   }
 }
 
+task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
+  from zipTree(configurations.testCompile.files.find { it.name.contains('geolite2-databases')})
+  into "${project.buildDir}/geoip"
+  include "*.mmdb"
+}
+
+project.bundlePlugin.dependsOn(copyDefaultGeoIp2DatabaseFiles)
+
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+
+bundlePlugin {
+  from("${project.buildDir}/geoip") {
+    into 'config/geoip'
+  }
+}

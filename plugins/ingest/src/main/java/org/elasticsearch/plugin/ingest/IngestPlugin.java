@@ -20,6 +20,7 @@
 
 package org.elasticsearch.plugin.ingest;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -39,6 +40,8 @@ import org.elasticsearch.plugin.ingest.transport.put.PutPipelineTransportAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;

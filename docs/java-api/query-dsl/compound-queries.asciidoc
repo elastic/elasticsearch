@@ -49,6 +49,5 @@ include::function-score-query.asciidoc[]
 include::boosting-query.asciidoc[]
 include::indices-query.asciidoc[]
 include::not-query.asciidoc[]
-include::limit-query.asciidoc[]
 
 

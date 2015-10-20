@@ -179,15 +179,23 @@ public class ContextMappings implements ToXContent {
      * Maps an output context list to a map of context mapping names and their values
      *
      * see {@link org.elasticsearch.search.suggest.completion.context.ContextMappings.TypedContextField}
-     * @param context from {@link TopSuggestDocs.SuggestScoreDoc#context}
      * @return a map of context names and their values
      *
      */
-    public Map.Entry<String, CharSequence> getNamedContext(CharSequence context) {
-        int typeId = context.charAt(0);
-        assert typeId < contextMappings.size() : "Returned context has invalid type";
-        ContextMapping mapping = contextMappings.get(typeId);
-        return new AbstractMap.SimpleEntry<>(mapping.name(), context.subSequence(1, context.length()));
+    public Map<String, Set<CharSequence>> getNamedContexts(List<CharSequence> contexts) {
+        Map<String, Set<CharSequence>> contextMap = new HashMap<>(contexts.size());
+        for (CharSequence typedContext : contexts) {
+            int typeId = typedContext.charAt(0);
+            assert typeId < contextMappings.size() : "Returned context has invalid type";
+            ContextMapping mapping = contextMappings.get(typeId);
+            Set<CharSequence> contextEntries = contextMap.get(mapping.name());
+            if (contextEntries == null) {
+                contextEntries = new HashSet<>();
+                contextMap.put(mapping.name(), contextEntries);
+            }
+            contextEntries.add(typedContext.subSequence(1, typedContext.length()));
+        }
+        return contextMap;
     }
 
     /**

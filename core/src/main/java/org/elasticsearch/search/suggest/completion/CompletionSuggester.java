@@ -62,60 +62,41 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         spare.copyUTF8Bytes(suggestionContext.getText());
         CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new StringText(spare.toString()), 0, spare.length());
         completionSuggestion.addTerm(completionSuggestEntry);
-        Map<Integer, Option> results = new LinkedHashMap<>(suggestionContext.getSize());
         TopSuggestDocsCollector collector = new TopDocumentsCollector(suggestionContext.getSize(), searcher.getIndexReader().numDocs());
         suggest(searcher, toQuery(suggestionContext), collector);
-        for (TopSuggestDocs.SuggestScoreDoc suggestDoc : collector.get().scoreLookupDocs()) {
-            // TODO: currently we can get multiple entries with the same docID
-            // this has to be fixed at the lucene level
-            // This has other implications:
-            // if we index a suggestion with n contexts, the suggestion and all its contexts
-            // would count as n hits rather than 1, so we have to multiply the desired size
-            // with n to get a suggestion with all n contexts
-            final float score = suggestDoc.score;
-            final Map.Entry<String, CharSequence> contextEntry;
-            if (suggestionContext.getFieldType().hasContextMappings() && suggestDoc.context != null) {
-                contextEntry = suggestionContext.getFieldType().getContextMappings().getNamedContext(suggestDoc.context);
+        int numResult = 0;
+        for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc : collector.get().scoreLookupDocs()) {
+            TopDocumentsCollector.SuggestDoc suggestDoc = (TopDocumentsCollector.SuggestDoc) suggestScoreDoc;
+            final Map<String, Set<CharSequence>> contexts;
+            if (suggestionContext.getFieldType().hasContextMappings() && suggestDoc.getContexts() != null) {
+                contexts = suggestionContext.getFieldType().getContextMappings().getNamedContexts(suggestDoc.getContexts());
             } else {
-                assert suggestDoc.context == null;
-                contextEntry = null;
+                contexts = Collections.emptyMap();
             }
-            final CompletionSuggestion.Entry.Option value = results.get(suggestDoc.doc);
-            if (value == null) {
-                final Map<String, List<Object>> payload;
-                Set<String> payloadFields = suggestionContext.getPayloadFields();
-                if (!payloadFields.isEmpty()) {
-                    int readerIndex = ReaderUtil.subIndex(suggestDoc.doc, searcher.getIndexReader().leaves());
-                    LeafReaderContext subReaderContext = searcher.getIndexReader().leaves().get(readerIndex);
-                    int subDocId = suggestDoc.doc - subReaderContext.docBase;
-                    payload = new LinkedHashMap<>(payloadFields.size());
-                    for (String field : payloadFields) {
-                        MappedFieldType fieldType = suggestionContext.getMapperService().smartNameFieldType(field);
-                        if (fieldType != null) {
-                            AtomicFieldData data = suggestionContext.getFieldData().getForField(fieldType).load(subReaderContext);
-                            ScriptDocValues scriptValues = data.getScriptValues();
-                            scriptValues.setNextDocId(subDocId);
-                            payload.put(field, scriptValues.getValues());
-                        } else {
-                            throw new ElasticsearchException("Payload field [" + field + "] does not exist");
-                        }
+            final Map<String, List<Object>> payload;
+            Set<String> payloadFields = suggestionContext.getPayloadFields();
+            if (!payloadFields.isEmpty()) {
+                int readerIndex = ReaderUtil.subIndex(suggestScoreDoc.doc, searcher.getIndexReader().leaves());
+                LeafReaderContext subReaderContext = searcher.getIndexReader().leaves().get(readerIndex);
+                int subDocId = suggestScoreDoc.doc - subReaderContext.docBase;
+                payload = new LinkedHashMap<>(payloadFields.size());
+                for (String field : payloadFields) {
+                    MappedFieldType fieldType = suggestionContext.getMapperService().smartNameFieldType(field);
+                    if (fieldType != null) {
+                        AtomicFieldData data = suggestionContext.getFieldData().getForField(fieldType).load(subReaderContext);
+                        ScriptDocValues scriptValues = data.getScriptValues();
+                        scriptValues.setNextDocId(subDocId);
+                        payload.put(field, scriptValues.getValues());
+                    } else {
+                        throw new ElasticsearchException("Payload field [" + field + "] does not exist");
                     }
-                } else {
-                    payload = Collections.emptyMap();
                 }
-                final CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(new StringText(suggestDoc.key.toString()), suggestDoc.score, contextEntry, payload);
-                results.put(suggestDoc.doc, option);
             } else {
-                value.addContextEntry(contextEntry);
-                if (value.getScore() < score) {
-                    value.setScore(score);
-                }
+                payload = Collections.emptyMap();
             }
-        }
-        final List<Option> options = new ArrayList<>(results.values());
-        int optionCount = Math.min(suggestionContext.getSize(), options.size());
-        for (int i = 0 ; i < optionCount ; i++) {
-            completionSuggestEntry.addOption(options.get(i));
+            if (numResult++ < suggestionContext.getSize()) {
+                completionSuggestEntry.addOption(new CompletionSuggestion.Entry.Option(new StringText(suggestScoreDoc.key.toString()), suggestScoreDoc.score, contexts, payload));
+            }
         }
         return completionSuggestion;
     }
@@ -218,10 +199,14 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
             public List<CharSequence> getContexts() {
                 if (suggestScoreDocs == null) {
-                    return Collections.singletonList(context);
+                    if (context != null) {
+                        return Collections.singletonList(context);
+                    } else {
+                        return null;
+                    }
                 } else {
                     List<CharSequence> contexts = new ArrayList<>(suggestScoreDocs.size() + 1);
-                    contexts.add(key);
+                    contexts.add(context);
                     for (TopSuggestDocs.SuggestScoreDoc scoreDoc : suggestScoreDocs) {
                         contexts.add(scoreDoc.context);
                     }
@@ -237,7 +222,6 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
         private final int maxDocs;
         private final int num;
-        private LeafReaderContext readerContext;
         private final SuggestScoreDocPriorityQueue pq;
         private final Map<Integer, SuggestDoc> scoreDocMap;
 
@@ -258,13 +242,16 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         @Override
         protected void doSetNextReader(LeafReaderContext context) throws IOException {
             super.doSetNextReader(context);
+            updateResults();
+        }
+
+        private void updateResults() {
             for (SuggestDoc suggestDoc : scoreDocMap.values()) {
                 if (pq.insertWithOverflow(suggestDoc) == suggestDoc) {
                     break;
                 }
             }
             this.scoreDocMap.clear();
-            this.readerContext = context;
         }
 
         @Override
@@ -281,7 +268,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
         @Override
         public TopSuggestDocs get() throws IOException {
-            doSetNextReader(readerContext);
+            updateResults();
             TopSuggestDocs.SuggestScoreDoc[] suggestScoreDocs = pq.getResults();
             if (suggestScoreDocs.length > 0) {
                 return new TopSuggestDocs(suggestScoreDocs.length, suggestScoreDocs, suggestScoreDocs[0].score);

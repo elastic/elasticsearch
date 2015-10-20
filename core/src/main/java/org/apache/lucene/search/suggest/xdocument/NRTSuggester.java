@@ -132,7 +132,7 @@ public final class NRTSuggester implements Accountable {
         scorer.reader.numDocs(), liveDocsRatio, scorer.filtered);
     Comparator<Pair<Long, BytesRef>> comparator = getComparator();
     Util.TopNSearcher<Pair<Long, BytesRef>> searcher = new Util.TopNSearcher<Pair<Long, BytesRef>>(fst,
-        collector.getCountToCollect(), queueSize, comparator, new ScoringPathComparator(scorer)) {
+        collector.getCountToCollect() * maxAnalyzedPathsPerOutput, queueSize, comparator, new ScoringPathComparator(scorer)) {
 
       private final CharsRefBuilder spare = new CharsRefBuilder();
 

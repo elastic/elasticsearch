@@ -78,7 +78,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg").size(5 * (addAnotherContext ? 2 : 1));
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
 
@@ -110,7 +110,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).regex("sugg.*es").size(5 * (addAnotherContext ? 2 : 1));
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).regex("sugg.*es");
         assertSuggestions("foo", prefix, "sugg9estion", "sugg8estion", "sugg7estion", "sugg6estion", "sugg5estion");
     }
 
@@ -142,7 +142,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg", Fuzziness.ONE).size(5 * (addAnotherContext ? 2 : 1));
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg", Fuzziness.ONE);
         assertSuggestions("foo", prefix, "sugxgestion9", "sugxgestion8", "sugxgestion7", "sugxgestion6", "sugxgestion5");
     }
 
@@ -225,7 +225,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     ));
         }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg").size(5 * contexts.size());
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg");
 
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
@@ -278,7 +278,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             multiContextFilterSuggest.categoryContexts("cat", new CategoryQueryContext("cat0"));
             multiContextFilterSuggest.categoryContexts("type", new CategoryQueryContext("type2"), new CategoryQueryContext("type1"));
         }
-        assertSuggestions("foo", multiContextFilterSuggest, "suggestion9", "suggestion8",  "suggestion6", "suggestion5");
+        assertSuggestions("foo", multiContextFilterSuggest, "suggestion9", "suggestion8",  "suggestion6", "suggestion5", "suggestion4");
     }
 
     @Test
@@ -378,7 +378,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
         final int numContexts = randomIntBetween(2, 5);
         for (int i = 0; i < numContexts; i++) {
-            map.put("type"+i, ContextBuilder.category("type"+i).field("type" + i).build());
+            map.put("type" + i, ContextBuilder.category("type" + i).field("type" + i).build());
         }
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
@@ -400,7 +400,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
 
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg").size(5 * numContexts);
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion0", "suggestion1", "suggestion2", "suggestion3", "suggestion4");
     }
 

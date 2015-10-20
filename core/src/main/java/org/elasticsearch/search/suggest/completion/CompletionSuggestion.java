@@ -128,13 +128,13 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
         }
 
         public static class Option extends Suggest.Suggestion.Entry.Option {
-            private Map<String, Set<CharSequence>> contexts = new TreeMap<>();
+            private Map<String, Set<CharSequence>> contexts;
             private Map<String, List<Object>> payload;
 
-            public Option(Text text, float score, Map.Entry<String, CharSequence> contextEntry, Map<String, List<Object>> payload) {
+            public Option(Text text, float score, Map<String, Set<CharSequence>> contexts, Map<String, List<Object>> payload) {
                 super(text, score);
                 this.payload = payload;
-                addContextEntry(contextEntry);
+                this.contexts = contexts;
             }
 
             protected Option() {
@@ -146,22 +146,6 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
                 // Completion suggestions are reduced by
                 // org.elasticsearch.search.suggest.completion.CompletionSuggestion.reduce()
                 throw new UnsupportedOperationException();
-            }
-
-            public void addContextEntry(Map.Entry<String, CharSequence> entry) {
-                if (entry != null) {
-                    Set<CharSequence> namedContext = contexts.get(entry.getKey());
-                    if (namedContext == null) {
-                        namedContext = new HashSet<>();
-                    }
-                    CharSequence value = entry.getValue();
-                    if (value != null) {
-                        namedContext.add(value);
-                    }
-                    if (namedContext.size() > 0) {
-                        contexts.put(entry.getKey(), namedContext);
-                    }
-                }
             }
 
             public Map<String, List<Object>> getPayload() {
@@ -220,6 +204,7 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
                     this.payload.put(payloadName, values);
                 }
                 int contextSize = in.readInt();
+                this.contexts = new LinkedHashMap<>(contextSize);
                 for (int i = 0; i < contextSize; i++) {
                     String contextName = in.readString();
                     int nContexts = in.readVInt();

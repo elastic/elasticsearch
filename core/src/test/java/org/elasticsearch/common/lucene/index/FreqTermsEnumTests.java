@@ -32,9 +32,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -67,7 +65,7 @@ public class FreqTermsEnumTests extends ESTestCase {
     private Map<String, FreqHolder> referenceAll;
     private Map<String, FreqHolder> referenceNotDeleted;
     private Map<String, FreqHolder> referenceFilter;
-    private Filter filter;
+    private Query filter;
 
     static class FreqHolder {
         int docFreq;
@@ -153,7 +151,7 @@ public class FreqTermsEnumTests extends ESTestCase {
                 }
             }
         }
-        filter = new QueryWrapperFilter(new TermsQuery(filterTerms));
+        filter = new TermsQuery(filterTerms);
     }
 
     private void addFreqs(Document doc, Map<String, FreqHolder> reference) {

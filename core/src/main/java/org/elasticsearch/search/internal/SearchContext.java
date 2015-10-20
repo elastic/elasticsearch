@@ -235,8 +235,6 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
 
     public abstract SearchContext minimumScore(float minimumScore);
 
-    public abstract Float minimumScore();
-
     public abstract SearchContext sort(Sort sort);
 
     public abstract Sort sort();

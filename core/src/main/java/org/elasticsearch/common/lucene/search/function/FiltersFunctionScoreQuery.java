@@ -86,22 +86,14 @@ public class FiltersFunctionScoreQuery extends Query {
     final FilterFunction[] filterFunctions;
     final ScoreMode scoreMode;
     final float maxBoost;
-    private Float minScore;
+    final CombineFunction combineFunction;
 
-    protected CombineFunction combineFunction;
-
-    public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost, Float minScore) {
+    public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost, CombineFunction combineFunction) {
         this.subQuery = subQuery;
         this.scoreMode = scoreMode;
         this.filterFunctions = filterFunctions;
         this.maxBoost = maxBoost;
-        combineFunction = CombineFunction.MULT;
-        this.minScore = minScore;
-    }
-
-    public FiltersFunctionScoreQuery setCombineFunction(CombineFunction combineFunction) {
         this.combineFunction = combineFunction;
-        return this;
     }
 
     public Query getSubQuery() {
@@ -186,7 +178,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 Scorer filterScorer = filterWeights[i].scorer(context);
                 docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
             }
-            return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, minScore, needsScores);
+            return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, needsScores);
         }
 
         @Override
@@ -235,8 +227,8 @@ public class FiltersFunctionScoreQuery extends Query {
         private final boolean needsScores;
 
         private FiltersFunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode, FilterFunction[] filterFunctions,
-                                            float maxBoost, LeafScoreFunction[] functions, Bits[] docSets, CombineFunction scoreCombiner, Float minScore, boolean needsScores) throws IOException {
-            super(w, scorer, maxBoost, scoreCombiner, minScore);
+                                            float maxBoost, LeafScoreFunction[] functions, Bits[] docSets, CombineFunction scoreCombiner, boolean needsScores) throws IOException {
+            super(w, scorer, maxBoost, scoreCombiner);
             this.scoreMode = scoreMode;
             this.filterFunctions = filterFunctions;
             this.functions = functions;
@@ -245,7 +237,7 @@ public class FiltersFunctionScoreQuery extends Query {
         }
 
         @Override
-        public float innerScore() throws IOException {
+        public float score() throws IOException {
             int docId = scorer.docID();
             // Even if the weight is created with needsScores=false, it might
             // be costly to call score(), so we explicitly check if scores
@@ -328,19 +320,25 @@ public class FiltersFunctionScoreQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass())
-            return false;
-        FiltersFunctionScoreQuery other = (FiltersFunctionScoreQuery) o;
-        if (this.getBoost() != other.getBoost())
-            return false;
-        if (!this.subQuery.equals(other.subQuery)) {
+        if (super.equals(o) == false) {
             return false;
         }
-        return Arrays.equals(this.filterFunctions, other.filterFunctions);
+        FiltersFunctionScoreQuery that = (FiltersFunctionScoreQuery) o;
+        return subQuery.equals(that.subQuery)
+                && maxBoost == that.maxBoost
+                && combineFunction == that.combineFunction
+                && scoreMode == that.scoreMode
+                && Arrays.equals(filterFunctions, that.filterFunctions);
     }
 
     @Override
     public int hashCode() {
-        return subQuery.hashCode() + 31 * Arrays.hashCode(filterFunctions) ^ Float.floatToIntBits(getBoost());
+        int h = super.hashCode();
+        h = 31 * h + subQuery.hashCode();
+        h = 31 * h + Float.floatToIntBits(maxBoost);
+        h = 31 * h + combineFunction.hashCode();
+        h = 31 * h + scoreMode.hashCode();
+        h = 31 * h + Arrays.hashCode(filterFunctions);
+        return h;
     }
 }

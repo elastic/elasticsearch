@@ -24,15 +24,18 @@ import com.google.common.collect.ImmutableMap.Builder;
 
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.MinScoreQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.FilterFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
@@ -170,25 +173,22 @@ public class FunctionScoreQueryParser implements QueryParser {
         }
         // handle cases where only one score function and no filter was
         // provided. In this case we create a FunctionScoreQuery.
+        Query functionScoreQuery;
         if (filterFunctions.size() == 0 || filterFunctions.size() == 1 && (filterFunctions.get(0).filter == null || Queries.isConstantMatchAllQuery(filterFunctions.get(0).filter))) {
             ScoreFunction function = filterFunctions.size() == 0 ? null : filterFunctions.get(0).function;
-            FunctionScoreQuery theQuery = new FunctionScoreQuery(query, function, minScore);
-            if (combineFunction != null) {
-                theQuery.setCombineFunction(combineFunction);
-            }
-            theQuery.setBoost(boost);
-            theQuery.setMaxBoost(maxBoost);
-            return theQuery;
+            functionScoreQuery = new FunctionScoreQuery(query, function, combineFunction, maxBoost);
             // in all other cases we create a FiltersFunctionScoreQuery.
         } else {
-            FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, scoreMode,
-                    filterFunctions.toArray(new FiltersFunctionScoreQuery.FilterFunction[filterFunctions.size()]), maxBoost, minScore);
-            if (combineFunction != null) {
-                functionScoreQuery.setCombineFunction(combineFunction);
-            }
-            functionScoreQuery.setBoost(boost);
-            return functionScoreQuery;
+            FilterFunction[] functions = filterFunctions.toArray(new FiltersFunctionScoreQuery.FilterFunction[filterFunctions.size()]);
+            functionScoreQuery = new FiltersFunctionScoreQuery(query, scoreMode, functions, maxBoost, combineFunction);
         }
+        if (minScore != null) {
+            functionScoreQuery = new MinScoreQuery(functionScoreQuery, minScore);
+        }
+        if (boost != 1f) {
+            functionScoreQuery = new BoostQuery(functionScoreQuery, boost);
+        }
+        return functionScoreQuery;
     }
 
     private void handleMisplacedFunctionsDeclaration(String errorString, String functionName) {

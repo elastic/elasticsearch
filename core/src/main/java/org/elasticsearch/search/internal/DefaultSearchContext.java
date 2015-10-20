@@ -32,6 +32,7 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.search.MinScoreQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -225,6 +226,9 @@ public class DefaultSearchContext extends SearchContext {
                     .build();
                 parsedQuery(new ParsedQuery(filtered, parsedQuery()));
             }
+        }
+        if (minimumScore != null) {
+            this.query = new MinScoreQuery(query, minimumScore);
         }
         try {
             this.query = searcher().rewrite(this.query);
@@ -500,11 +504,6 @@ public class DefaultSearchContext extends SearchContext {
     public SearchContext minimumScore(float minimumScore) {
         this.minimumScore = minimumScore;
         return this;
-    }
-
-    @Override
-    public Float minimumScore() {
-        return this.minimumScore;
     }
 
     @Override

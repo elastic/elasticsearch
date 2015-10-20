@@ -268,9 +268,9 @@ public class InternalEngineTests extends ESTestCase {
 
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, indexSettings), indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy, mergeSchedulerConfig,
-                iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(shardId.index()), new Engine.FailedEngineListener() {
+                iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(shardId.index()), new Engine.EventListener() {
             @Override
-            public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
+            public void onFailedEngine(String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
             }
         }, new TranslogHandler(shardId.index().getName(), logger), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig);
@@ -1950,7 +1950,7 @@ public class InternalEngineTests extends ESTestCase {
 
         EngineConfig brokenConfig = new EngineConfig(shardId, threadPool, config.getIndexingService(), config.getIndexSettings()
                 , null, store, createSnapshotDeletionPolicy(), newMergePolicy(), config.getMergeSchedulerConfig(),
-                config.getAnalyzer(), config.getSimilarity(), new CodecService(shardId.index()), config.getFailedEngineListener()
+                config.getAnalyzer(), config.getSimilarity(), new CodecService(shardId.index()), config.getEventListener()
         , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig);
 
         try {

@@ -41,10 +41,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsService;
@@ -637,7 +637,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 IndexShard indexShard = indexService.createShard(shardId, shardRouting);
                 indexShard.updateRoutingEntry(shardRouting, state.blocks().disableStatePersistence() == false);
-                indexShard.addFailedEngineListener(failedEngineHandler);
+                indexShard.addShardFailureCallback(failedEngineHandler);
             } catch (IndexShardAlreadyExistsException e) {
                 // ignore this, the method call can happen several times
             } catch (Throwable e) {
@@ -827,29 +827,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
 
-    private class FailedEngineHandler implements Engine.FailedEngineListener {
+    private class FailedEngineHandler implements Callback<IndexShard.ShardFailure> {
         @Override
-        public void onFailedEngine(final ShardId shardId, final String reason, final @Nullable Throwable failure) {
-            ShardRouting shardRouting = null;
-            final IndexService indexService = indicesService.indexService(shardId.index().name());
-            if (indexService != null) {
-                IndexShard indexShard = indexService.getShardOrNull(shardId.id());
-                if (indexShard != null) {
-                    shardRouting = indexShard.routingEntry();
-                }
-            }
-            if (shardRouting == null) {
-                logger.warn("[{}][{}] engine failed, but can't find index shard. failure reason: [{}]", failure,
-                        shardId.index().name(), shardId.id(), reason);
-                return;
-            }
-            final ShardRouting fShardRouting = shardRouting;
-            threadPool.generic().execute(new Runnable() {
-                @Override
-                public void run() {
-                    synchronized (mutex) {
-                        failAndRemoveShard(fShardRouting, indexService, true, "engine failure, reason [" + reason + "]", failure);
-                    }
+        public void handle(final IndexShard.ShardFailure shardFailure) {
+            final IndexService indexService = indicesService.indexService(shardFailure.routing.shardId().index().name());
+            final ShardRouting shardRouting = shardFailure.routing;
+            threadPool.generic().execute(() -> {
+                synchronized (mutex) {
+                    failAndRemoveShard(shardRouting, indexService, true, "engine failure, reason [" + shardFailure.reason + "]", shardFailure.cause);
                 }
             });
         }

@@ -73,7 +73,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.notQuery;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -180,7 +179,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                         .setPostFilter(
                                 boolQuery().must(
                                         matchAllQuery()).must(
-                                        notQuery(boolQuery().must(termQuery("field1", "value1")).must(
+                                        boolQuery().mustNot(boolQuery().must(termQuery("field1", "value1")).must(
                                                 termQuery("field1", "value2"))))).get(),
                 3l);
         assertHitCount(
@@ -189,11 +188,11 @@ public class SearchQueryIT extends ESIntegTestCase {
                                 boolQuery().must(
                                         boolQuery().should(termQuery("field1", "value1")).should(termQuery("field1", "value2"))
                                                 .should(termQuery("field1", "value3"))).filter(
-                                        notQuery(boolQuery().must(termQuery("field1", "value1")).must(
+                                        boolQuery().mustNot(boolQuery().must(termQuery("field1", "value1")).must(
                                                 termQuery("field1", "value2"))))).get(),
                 3l);
         assertHitCount(
-                client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(notQuery(termQuery("field1", "value3"))).get(),
+                client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(boolQuery().mustNot(termQuery("field1", "value3"))).get(),
                 2l);
     }
 

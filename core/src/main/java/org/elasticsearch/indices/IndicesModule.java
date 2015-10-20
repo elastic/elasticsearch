@@ -63,7 +63,7 @@ public class IndicesModule extends AbstractModule {
         this.settings = settings;
         registerBuiltinQueryParsers();
     }
-    
+
     private void registerBuiltinQueryParsers() {
         registerQueryParser(MatchQueryParser.class);
         registerQueryParser(MultiMatchQueryParser.class);
@@ -108,7 +108,6 @@ public class IndicesModule extends AbstractModule {
         registerQueryParser(GeohashCellQuery.Parser.class);
         registerQueryParser(GeoPolygonQueryParser.class);
         registerQueryParser(QueryFilterParser.class);
-        registerQueryParser(NotQueryParser.class);
         registerQueryParser(ExistsQueryParser.class);
         registerQueryParser(MissingQueryParser.class);
         registerQueryParser(MatchNoneQueryParser.class);

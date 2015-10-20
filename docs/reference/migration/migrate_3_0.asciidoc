@@ -285,6 +285,12 @@ The two individual setters for existence() and nullValue() were removed in favou
 optional constructor settings in order to better capture and validate their interdependent
 settings at construction time.
 
+==== NotQueryBuilder
+
+The NotQueryBuilder which was deprecated in 2.1.0 is removed. As a replacement use BoolQueryBuilder
+with added mustNot() clause. So instead of using `new NotQueryBuilder(filter)` now use 
+`new BoolQueryBuilder().mustNot(filter)`. 
+
 ==== TermsQueryBuilder
 
 Remove the setter for `termsLookup()`, making it only possible to either use a TermsLookup object or

@@ -45,9 +45,9 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 /**
  * If one of the following tests doesn't compile make sure to not only fix the compilation error here
  * but also the documentation under ./docs/java-api/query-dsl/bool-query.asciidoc
- * 
+ *
  * There are no assertions here on purpose - all of these tests ((ideally) should) equal to what is
- * documented in the java api query dsl part of our reference guide. 
+ * documented in the java api query dsl part of our reference guide.
  * */
 public class QueryDSLDocumentationTests extends ESTestCase {
     @Test
@@ -63,20 +63,20 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     @Test
     public void testBoosting() {
         boostingQuery(termQuery("name","kimchy"), termQuery("name","dadoonet"))
-                .negativeBoost(0.2f); 
+                .negativeBoost(0.2f);
     }
-    
+
     @Test
     public void testCommonTerms() {
         commonTermsQuery("name", "kimchy");
     }
-    
+
     @Test
     public void testConstantScore() {
         constantScoreQuery(termQuery("name","kimchy"))
-            .boost(2.0f);  
+            .boost(2.0f);
     }
-    
+
     @Test
     public void testDisMax() {
         disMaxQuery()
@@ -85,7 +85,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 .boost(1.2f)
                 .tieBreaker(0.7f);
     }
-    
+
     @Test
     public void testExists() {
         existsQuery("name");
@@ -102,17 +102,17 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         };
         functionScoreQuery(functions);
     }
-    
+
     @Test
     public void testFuzzy() {
         fuzzyQuery("name", "kimchy");
     }
-    
+
     @Test
     public void testGeoBoundingBox() {
         geoBoundingBoxQuery("pin.location").setCorners(40.73, -74.1, 40.717, -73.99);
     }
-    
+
     @Test
     public void testGeoDistance() {
         geoDistanceQuery("pin.location")
@@ -121,7 +121,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             .optimizeBbox("memory")                     // TODO switch to geoexectype see also bounding box
             .geoDistance(GeoDistance.ARC);
     }
-    
+
     @Test
     public void testGeoDistanceRange() {
         geoDistanceRangeQuery("pin.location", new GeoPoint(40, -70)) // TODO check why I need the point here but not above
@@ -132,7 +132,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             .optimizeBbox("memory")
             .geoDistance(GeoDistance.ARC);
     }
-    
+
     @Test
     public void testGeoPolygon() {
         List<GeoPoint> points = new ArrayList<GeoPoint>();
@@ -141,7 +141,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         points.add(new GeoPoint(20, -90));
         geoPolygonQuery("pin.location", points);
     }
-    
+
     @Test
     public void testGeoShape() throws IOException {
         GeoShapeQueryBuilder qb = geoShapeQuery(
@@ -162,15 +162,15 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             .indexedShapeIndex("shapes")
             .indexedShapePath("location");
     }
-    
+
     @Test
     public void testGeoHashCell() {
         geoHashCellQuery("pin.location",
                 new GeoPoint(13.4080, 52.5186))
             .neighbors(true)
-            .precision(3);          
+            .precision(3);
     }
-    
+
     @Test
     public void testHasChild() {
         hasChildQuery(
@@ -178,7 +178,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 termQuery("tag","something")
             );
     }
-    
+
     @Test
     public void testHasParent() {
         hasParentQuery(
@@ -186,7 +186,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             termQuery("tag","something")
         );
     }
-    
+
     @Test
     public void testIds() {
         idsQuery("my_type", "type2")
@@ -194,7 +194,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
         idsQuery().addIds("1", "4", "100");
     }
-    
+
     @Test
     public void testIndices() {
         indicesQuery(
@@ -205,40 +205,40 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         indicesQuery(
                 termQuery("tag", "wow"),
                 "index1", "index2"
-            ).noMatchQuery("all");         
+            ).noMatchQuery("all");
     }
-    
+
     @Test
     public void testMatchAll() {
         matchAllQuery();
     }
-    
+
     @Test
     public void testMatch() {
         matchQuery("name", "kimchy elasticsearch");
     }
-    
+
     @Test
     public void testMissing() {
         missingQuery("user", true, true);
     }
-    
+
     @Test
     public void testMLT() {
         String[] fields = {"name.first", "name.last"};
         String[] texts = {"text like this one"};
         Item[] items = null;
-        
+
         moreLikeThisQuery(fields, texts, items)
         .minTermFreq(1)
-        .maxQueryTerms(12); 
+        .maxQueryTerms(12);
     }
-    
+
     @Test
     public void testMultiMatch() {
         multiMatchQuery("kimchy elasticsearch", "user", "message");
     }
-    
+
     @Test
     public void testNested() {
         nestedQuery(
@@ -249,22 +249,17 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             )
             .scoreMode(ScoreMode.Avg);
     }
-    
-    @Test
-    public void testNot() {
-        notQuery(rangeQuery("price").from("1").to("2"));
-    }
-    
+
     @Test
     public void testPrefix() {
         prefixQuery("brand", "heine");
     }
-    
+
     @Test
     public void testQueryString() {
         queryStringQuery("+kimchy -elasticsearch");
     }
-    
+
     @Test
     public void testRange() {
         rangeQuery("price")
@@ -275,20 +270,20 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
         rangeQuery("age")
         .gte("10")
-        .lt("20"); 
+        .lt("20");
     }
-    
+
     @Test
     public void testRegExp() {
         regexpQuery("name.first", "s.*y");
     }
-    
+
     @Test
     public void testScript() {
         scriptQuery(
                 new Script("doc['num1'].value > 1")
             );
-        
+
         Map<String, Integer> parameters = new HashMap<>();
         parameters.put("param1", 5);
         scriptQuery(
@@ -300,12 +295,12 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             );
 
     }
-    
+
     @Test
     public void testSimpleQueryString() {
         simpleQueryStringQuery("+kimchy -elasticsearch");
     }
-    
+
     @Test
     public void testSpanContaining() {
         spanContainingQuery(
@@ -314,7 +309,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                     .inOrder(true),
                 spanTermQuery("field1","foo"));
     }
-    
+
     @Test
     public void testSpanFirst() {
         spanFirstQuery(
@@ -327,7 +322,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testSpanMultiTerm() {
         spanMultiTermQueryBuilder(prefixQuery("user", "ki"));
     }
-    
+
     @Test
     public void testSpanNear() {
         spanNearQuery(spanTermQuery("field","value1"), 12)
@@ -336,25 +331,25 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         .inOrder(false)
         .collectPayloads(false);
     }
-    
+
     @Test
     public void testSpanNot() {
         spanNotQuery(spanTermQuery("field","value1"),
                 spanTermQuery("field","value2"));
     }
-    
+
     @Test
     public void testSpanOr() {
         spanOrQuery(spanTermQuery("field","value1"))
         .clause(spanTermQuery("field","value2"))
         .clause(spanTermQuery("field","value3"));
     }
-    
+
     @Test
     public void testSpanTerm() {
         spanTermQuery("user", "kimchy");
     }
-    
+
     @Test
     public void testSpanWithin() {
         spanWithinQuery(
@@ -363,30 +358,30 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                     .inOrder(true),
                 spanTermQuery("field1", "foo"));
     }
-    
+
     @Test
     public void testTemplate() {
         templateQuery(
                 "gender_template",
                 ScriptType.INDEXED,
-                new HashMap<>()); 
+                new HashMap<>());
     }
-    
+
     @Test
     public void testTerm() {
         termQuery("name", "kimchy");
     }
-    
+
     @Test
     public void testTerms() {
         termsQuery("tags", "blue", "pill");
     }
-    
+
     @Test
     public void testType() {
         typeQuery("my_type");
     }
-    
+
     @Test
     public void testWildcard() {
         wildcardQuery("user", "k?mch*");

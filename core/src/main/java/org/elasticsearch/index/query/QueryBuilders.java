@@ -831,10 +831,6 @@ public abstract class QueryBuilders {
         return new MissingQueryBuilder(name, nullValue, existence);
     }
 
-    public static NotQueryBuilder notQuery(QueryBuilder filter) {
-        return new NotQueryBuilder(filter);
-    }
-
     private QueryBuilders() {
 
     }

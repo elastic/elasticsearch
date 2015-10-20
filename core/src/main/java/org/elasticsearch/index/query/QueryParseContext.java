@@ -91,20 +91,17 @@ public class QueryParseContext {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
 
-        QueryBuilder result = parseInnerQueryBuilderByName(queryName);
+        QueryParser queryParser = queryParser(queryName);
+        if (queryParser == null) {
+            throw new ParsingException(parser.getTokenLocation(), "No query registered for [" + queryName + "]");
+        }
+
+        QueryBuilder result = queryParser.fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
         }
         return result;
-    }
-
-    public QueryBuilder parseInnerQueryBuilderByName(String queryName) throws IOException {
-        QueryParser queryParser = queryParser(queryName);
-        if (queryParser == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No query registered for [" + queryName + "]");
-        }
-        return queryParser.fromXContent(this);
     }
 
     public ParseFieldMatcher parseFieldMatcher() {

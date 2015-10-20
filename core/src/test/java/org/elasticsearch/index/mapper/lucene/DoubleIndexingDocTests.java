@@ -30,7 +30,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -38,8 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testDoubleIndexingSameDoc() throws Exception {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(random(), Lucene.STANDARD_ANALYZER));

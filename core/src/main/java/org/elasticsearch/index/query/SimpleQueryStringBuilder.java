@@ -121,6 +121,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     /** Add several fields to run the query against with a specific boost. */
     public SimpleQueryStringBuilder fields(Map<String, Float> fields) {
+        Objects.requireNonNull(fields, "fields cannot be null");
         this.fieldsAndWeights.putAll(fields);
         return this;
     }

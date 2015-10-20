@@ -31,7 +31,6 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -48,7 +47,6 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 // TODO: refactor into unit test, or, proper REST test
 public class GroovySecurityTests extends ESIntegTestCase {
-    
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -60,7 +58,6 @@ public class GroovySecurityTests extends ESIntegTestCase {
         return Collections.singleton(GroovyPlugin.class);
     }
 
-    @Test
     public void testEvilGroovyScripts() throws Exception {
         int nodes = randomIntBetween(1, 3);
         Settings nodeSettings = Settings.builder()
@@ -109,7 +106,7 @@ public class GroovySecurityTests extends ESIntegTestCase {
 
         // AccessControlException[access denied ("java.io.FilePermission" "<<ALL FILES>>" "execute")]
         assertFailure("def methodName = 'ex'; Runtime.\"${'get' + 'Runtime'}\"().\"${methodName}ec\"(\"touch /tmp/gotcha2\")");
-        
+
         // test a directory we normally have access to, but the groovy script does not.
         Path dir = createTempDir();
         // TODO: figure out the necessary escaping for windows paths here :)

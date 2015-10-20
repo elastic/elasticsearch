@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -137,8 +136,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
         indexRandom(false, client().prepareIndex("idx", "type2").setRouting("1").setSource(source));
     }
 
-    @Test
-    public void simple_reverseNestedToRoot() throws Exception {
+    public void testSimpleReverseNestedToRoot() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type1")
                 .addAggregation(nested("nested1").path("nested1")
                         .subAggregation(
@@ -326,8 +324,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1l));
     }
 
-    @Test
-    public void simple_nested1ToRootToNested2() throws Exception {
+    public void testSimpleNested1ToRootToNested2() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type2")
                 .addAggregation(nested("nested1").path("nested1")
                                 .subAggregation(
@@ -349,8 +346,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(nested.getDocCount(), equalTo(27l));
     }
 
-    @Test
-    public void simple_reverseNestedToNested1() throws Exception {
+    public void testSimpleReverseNestedToNested1() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type2")
                 .addAggregation(nested("nested1").path("nested1.nested2")
                                 .subAggregation(
@@ -452,23 +448,26 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("f"));
     }
 
-    @Test(expected = SearchPhaseExecutionException.class)
-    public void testReverseNestedAggWithoutNestedAgg() throws Exception {
-        client().prepareSearch("idx")
-                .addAggregation(terms("field2").field("nested1.nested2.field2")
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .subAggregation(
-                                        reverseNested("nested1_to_field1")
-                                                .subAggregation(
-                                                        terms("field1").field("nested1.field1")
-                                                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                                )
-                                )
-                ).get();
+    public void testReverseNestedAggWithoutNestedAgg() {
+        try {
+            client().prepareSearch("idx")
+                    .addAggregation(terms("field2").field("nested1.nested2.field2")
+                            .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                    .subAggregation(
+                                            reverseNested("nested1_to_field1")
+                                                    .subAggregation(
+                                                            terms("field1").field("nested1.field1")
+                                                            .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                                    )
+                                    )
+                    ).get();
+            fail("Expected SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), is("all shards failed"));
+        }
     }
 
-    @Test
-    public void nonExistingNestedField() throws Exception {
+    public void testNonExistingNestedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(nested("nested2").path("nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3")))
@@ -482,7 +481,6 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(reverseNested.getDocCount(), is(0l));
     }
 
-    @Test
     public void testSameParentDocHavingMultipleBuckets() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("product").field("dynamic", "strict").startObject("properties")
                 .startObject("id").field("type", "long").endObject()

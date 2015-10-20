@@ -26,18 +26,17 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.groovy.GroovyPlugin;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,7 +52,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexedScriptTests extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
@@ -73,7 +71,6 @@ public class IndexedScriptTests extends ESIntegTestCase {
         return builder.build();
     }
 
-    @Test
     public void testFieldIndexedScript()  throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "groovy", "script1").setSource("{" +
@@ -112,7 +109,6 @@ public class IndexedScriptTests extends ESIntegTestCase {
     }
 
     // Relates to #10397
-    @Test
     public void testUpdateScripts() {
         createIndex("test_index");
         ensureGreen("test_index");
@@ -121,7 +117,7 @@ public class IndexedScriptTests extends ESIntegTestCase {
 
         int iterations = randomIntBetween(2, 11);
         for (int i = 1; i < iterations; i++) {
-            PutIndexedScriptResponse response = 
+            PutIndexedScriptResponse response =
                     client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "script1", "{\"script\":\"" + i + "\"}").get();
             assertEquals(i, response.getVersion());
             SearchResponse searchResponse = client()
@@ -136,7 +132,6 @@ public class IndexedScriptTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDisabledUpdateIndexedScriptsOnly() {
         if (randomBoolean()) {
             client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
@@ -155,7 +150,6 @@ public class IndexedScriptTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDisabledAggsDynamicScripts() {
         //dynamic scripts don't need to be enabled for an indexed script to be indexed and later on executed
         if (randomBoolean()) {

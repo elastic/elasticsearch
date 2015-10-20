@@ -19,18 +19,28 @@
 package org.elasticsearch.test.rest.test;
 
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.parser.*;
-import org.elasticsearch.test.rest.section.*;
-import org.junit.Test;
+import org.elasticsearch.test.rest.parser.GreaterThanParser;
+import org.elasticsearch.test.rest.parser.IsFalseParser;
+import org.elasticsearch.test.rest.parser.IsTrueParser;
+import org.elasticsearch.test.rest.parser.LengthParser;
+import org.elasticsearch.test.rest.parser.LessThanParser;
+import org.elasticsearch.test.rest.parser.MatchParser;
+import org.elasticsearch.test.rest.parser.RestTestSuiteParseContext;
+import org.elasticsearch.test.rest.section.GreaterThanAssertion;
+import org.elasticsearch.test.rest.section.IsFalseAssertion;
+import org.elasticsearch.test.rest.section.IsTrueAssertion;
+import org.elasticsearch.test.rest.section.LengthAssertion;
+import org.elasticsearch.test.rest.section.LessThanAssertion;
+import org.elasticsearch.test.rest.section.MatchAssertion;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class AssertionParsersTests extends AbstractParserTestCase {
-
-    @Test
     public void testParseIsTrue() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "get.fields._timestamp"
@@ -43,7 +53,6 @@ public class AssertionParsersTests extends AbstractParserTestCase {
         assertThat(trueAssertion.getField(), equalTo("get.fields._timestamp"));
     }
 
-    @Test
     public void testParseIsFalse() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "docs.1._source"
@@ -56,7 +65,6 @@ public class AssertionParsersTests extends AbstractParserTestCase {
         assertThat(falseAssertion.getField(), equalTo("docs.1._source"));
     }
 
-    @Test
     public void testParseGreaterThan() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "{ field: 3}"
@@ -70,7 +78,6 @@ public class AssertionParsersTests extends AbstractParserTestCase {
         assertThat((Integer) greaterThanAssertion.getExpectedValue(), equalTo(3));
     }
 
-    @Test
     public void testParseLessThan() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "{ field: 3}"
@@ -84,7 +91,6 @@ public class AssertionParsersTests extends AbstractParserTestCase {
         assertThat((Integer) lessThanAssertion.getExpectedValue(), equalTo(3));
     }
 
-    @Test
     public void testParseLength() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "{ _id: 22}"
@@ -98,8 +104,6 @@ public class AssertionParsersTests extends AbstractParserTestCase {
         assertThat((Integer) lengthAssertion.getExpectedValue(), equalTo(22));
     }
 
-    @Test
-    @SuppressWarnings("unchecked")
     public void testParseMatchSimpleIntegerValue() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "{ field: 10 }"
@@ -114,8 +118,6 @@ public class AssertionParsersTests extends AbstractParserTestCase {
         assertThat((Integer) matchAssertion.getExpectedValue(), equalTo(10));
     }
 
-    @Test
-    @SuppressWarnings("unchecked")
     public void testParseMatchSimpleStringValue() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "{ foo: bar }"
@@ -130,8 +132,6 @@ public class AssertionParsersTests extends AbstractParserTestCase {
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("bar"));
     }
 
-    @Test
-    @SuppressWarnings("unchecked")
     public void testParseMatchArray() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "{'matches': ['test_percolator_1', 'test_percolator_2']}"
@@ -149,7 +149,6 @@ public class AssertionParsersTests extends AbstractParserTestCase {
         assertThat(strings.get(1).toString(), equalTo("test_percolator_2"));
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testParseMatchSourceValues() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(

@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.is;
@@ -38,8 +37,6 @@ import static org.hamcrest.CoreMatchers.is;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class Ec2DiscoveryUpdateSettingsTests extends AbstractAwsTestCase {
-
-    @Test
     public void testMinimumMasterNodesStart() {
         Settings nodeSettings = settingsBuilder()
                 .put("plugin.types", Ec2DiscoveryPlugin.class.getName())
@@ -57,5 +54,4 @@ public class Ec2DiscoveryUpdateSettingsTests extends AbstractAwsTestCase {
         Integer min = response.getPersistentSettings().getAsInt("discovery.zen.minimum_master_nodes", null);
         assertThat(min, is(1));
     }
-
 }

@@ -34,11 +34,12 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Checking simple filtering capabilites of the cluster state
@@ -54,7 +55,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         refresh();
     }
 
-    @Test
     public void testRoutingTable() throws Exception {
         ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().clear().setRoutingTable(true).get();
         assertThat(clusterStateResponseUnfiltered.getState().routingTable().hasIndex("foo"), is(true));
@@ -69,7 +69,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().routingTable().hasIndex("non-existent"), is(false));
     }
 
-    @Test
     public void testNodes() throws Exception {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setNodes(true).get();
         assertThat(clusterStateResponse.getState().nodes().nodes().size(), is(cluster().size()));
@@ -78,7 +77,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponseFiltered.getState().nodes().nodes().size(), is(0));
     }
 
-    @Test
     public void testMetadata() throws Exception {
         ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().clear().setMetaData(true).get();
         assertThat(clusterStateResponseUnfiltered.getState().metaData().indices().size(), is(3));
@@ -87,7 +85,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(0));
     }
 
-    @Test
     public void testIndexTemplates() throws Exception {
         client().admin().indices().preparePutTemplate("foo_template")
                 .setTemplate("te*")
@@ -113,7 +110,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertIndexTemplateExists(getIndexTemplatesResponse, "foo_template");
     }
 
-    @Test
     public void testThatFilteringByIndexWorksForMetadataAndRoutingTable() throws Exception {
         ClusterStateResponse clusterStateResponseFiltered = client().admin().cluster().prepareState().clear()
                 .setMetaData(true).setRoutingTable(true).setIndices("foo", "fuu", "non-existent").get();
@@ -129,7 +125,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponseFiltered.getState().routingTable().hasIndex("baz"), is(false));
     }
 
-    @Test
     public void testLargeClusterStatePublishing() throws Exception {
         int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("10k", "estimatedBytesSize").bytesAsInt(),
                                                         ByteSizeValue.parseBytesSizeValue("256k", "estimatedBytesSize").bytesAsInt());
@@ -162,7 +157,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testIndicesOptions() throws Exception {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*")
                 .get();
@@ -195,17 +189,25 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metaData().indices().isEmpty(), is(true));
     }
 
-    @Test(expected=IndexNotFoundException.class)
     public void testIndicesOptionsOnAllowNoIndicesFalse() throws Exception {
         // empty wildcard expansion throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, false, true, false);
-        client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("a*").setIndicesOptions(allowNoIndices).get();
+        try {
+            client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("a*").setIndicesOptions(allowNoIndices).get();
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test(expected=IndexNotFoundException.class)
     public void testIndicesIgnoreUnavailableFalse() throws Exception {
         // ignore_unavailable set to false throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
-        client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
+        try {
+            client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 }

@@ -27,20 +27,22 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
 public class MultiFieldsIntegrationIT extends ESIntegTestCase {
-
-    @Test
     public void testMultiFields() throws Exception {
         assertAcked(
             client().admin().indices().prepareCreate("my-index")
@@ -98,7 +100,6 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
     public void testGeoPointMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
@@ -129,7 +130,6 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(countResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
     public void testTokenCountMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
@@ -168,7 +168,6 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(countResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
     public void testCompletionMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
@@ -194,7 +193,6 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(countResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
     public void testIpMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")

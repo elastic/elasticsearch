@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsReq
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -41,8 +40,6 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.lessThan;
 
 public class HotThreadsIT extends ESIntegTestCase {
-
-    @Test
     public void testHotThreadsDontFail() throws ExecutionException, InterruptedException {
         /**
          * This test just checks if nothing crashes or gets stuck etc.

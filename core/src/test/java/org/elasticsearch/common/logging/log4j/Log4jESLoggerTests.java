@@ -29,7 +29,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
-import org.junit.Test;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -84,8 +83,7 @@ public class Log4jESLoggerTests extends ESTestCase {
         deprecationLogger.removeAppender(deprecationAppender);
     }
 
-    @Test
-    public void locationInfoTest() {
+    public void testLocationInfoTest() {
         esTestLogger.error("This is an error");
         esTestLogger.warn("This is a warning");
         esTestLogger.info("This is an info");
@@ -101,7 +99,7 @@ public class Log4jESLoggerTests extends ESTestCase {
         LocationInfo locationInfo = event.getLocationInformation();
         assertThat(locationInfo, notNullValue());
         assertThat(locationInfo.getClassName(), equalTo(Log4jESLoggerTests.class.getCanonicalName()));
-        assertThat(locationInfo.getMethodName(), equalTo("locationInfoTest"));
+        assertThat(locationInfo.getMethodName(), equalTo("testLocationInfoTest"));
         event = events.get(1);
         assertThat(event, notNullValue());
         assertThat(event.getLevel(), equalTo(Level.WARN));
@@ -109,7 +107,7 @@ public class Log4jESLoggerTests extends ESTestCase {
         locationInfo = event.getLocationInformation();
         assertThat(locationInfo, notNullValue());
         assertThat(locationInfo.getClassName(), equalTo(Log4jESLoggerTests.class.getCanonicalName()));
-        assertThat(locationInfo.getMethodName(), equalTo("locationInfoTest"));
+        assertThat(locationInfo.getMethodName(), equalTo("testLocationInfoTest"));
         event = events.get(2);
         assertThat(event, notNullValue());
         assertThat(event.getLevel(), equalTo(Level.INFO));
@@ -117,7 +115,7 @@ public class Log4jESLoggerTests extends ESTestCase {
         locationInfo = event.getLocationInformation();
         assertThat(locationInfo, notNullValue());
         assertThat(locationInfo.getClassName(), equalTo(Log4jESLoggerTests.class.getCanonicalName()));
-        assertThat(locationInfo.getMethodName(), equalTo("locationInfoTest"));
+        assertThat(locationInfo.getMethodName(), equalTo("testLocationInfoTest"));
         event = events.get(3);
         assertThat(event, notNullValue());
         assertThat(event.getLevel(), equalTo(Level.DEBUG));
@@ -125,7 +123,7 @@ public class Log4jESLoggerTests extends ESTestCase {
         locationInfo = event.getLocationInformation();
         assertThat(locationInfo, notNullValue());
         assertThat(locationInfo.getClassName(), equalTo(Log4jESLoggerTests.class.getCanonicalName()));
-        assertThat(locationInfo.getMethodName(), equalTo("locationInfoTest"));
+        assertThat(locationInfo.getMethodName(), equalTo("testLocationInfoTest"));
         event = events.get(4);
         assertThat(event, notNullValue());
         assertThat(event.getLevel(), equalTo(Level.TRACE));
@@ -133,10 +131,9 @@ public class Log4jESLoggerTests extends ESTestCase {
         locationInfo = event.getLocationInformation();
         assertThat(locationInfo, notNullValue());
         assertThat(locationInfo.getClassName(), equalTo(Log4jESLoggerTests.class.getCanonicalName()));
-        assertThat(locationInfo.getMethodName(), equalTo("locationInfoTest"));
+        assertThat(locationInfo.getMethodName(), equalTo("testLocationInfoTest"));
     }
 
-    @Test
     public void testDeprecationLogger() {
         deprecationLogger.deprecated("This is a deprecation message");
         List<LoggingEvent> deprecationEvents = deprecationAppender.getEvents();

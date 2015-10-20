@@ -33,7 +33,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
@@ -126,7 +125,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         terminate(threadPool);
     }
 
-    @Test
     public void testHelloWorld() {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -206,7 +204,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHello");
     }
 
-    @Test
     public void testLocalNodeConnection() throws InterruptedException {
         assertTrue("serviceA is not connected to nodeA", serviceA.nodeConnected(nodeA));
         if (((TransportService) serviceA).getLocalNode() != null) {
@@ -254,7 +251,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(responseString.get(), equalTo("test"));
     }
 
-    @Test
     public void testVoidMessageCompressed() {
         serviceA.registerRequestHandler("sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<TransportRequest.Empty>() {
             @Override
@@ -301,7 +297,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHello");
     }
 
-    @Test
     public void testHelloWorldCompressed() {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -350,7 +345,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHello");
     }
 
-    @Test
     public void testErrorMessage() {
         serviceA.registerRequestHandler("sayHelloException", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -393,7 +387,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHelloException");
     }
 
-    @Test
     public void testDisconnectListener() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         TransportConnectionListener disconnectListener = new TransportConnectionListener() {
@@ -412,7 +405,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(latch.await(5, TimeUnit.SECONDS), equalTo(true));
     }
 
-    @Test
     public void testNotifyOnShutdown() throws Exception {
         final CountDownLatch latch2 = new CountDownLatch(1);
 
@@ -440,7 +432,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
     }
 
-    @Test
     public void testTimeoutSendExceptionWithNeverSendingBackResponse() throws Exception {
         serviceA.registerRequestHandler("sayHelloTimeoutNoResponse", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -489,7 +480,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHelloTimeoutNoResponse");
     }
 
-    @Test
     public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
         serviceA.registerRequestHandler("sayHelloTimeoutDelayedResponse", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -576,8 +566,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
     }
 
-
-    @Test
     @TestLogging(value = "test. transport.tracer:TRACE")
     public void testTracerLog() throws InterruptedException {
         TransportRequestHandler handler = new TransportRequestHandler<StringMessageRequest>() {
@@ -883,8 +871,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    @Test
-    public void testVersion_from0to1() throws Exception {
+    public void testVersionFrom0to1() throws Exception {
         serviceB.registerRequestHandler("/version", Version1Request::new, ThreadPool.Names.SAME, new TransportRequestHandler<Version1Request>() {
             @Override
             public void messageReceived(Version1Request request, TransportChannel channel) throws Exception {
@@ -925,8 +912,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(version0Response.value1, equalTo(1));
     }
 
-    @Test
-    public void testVersion_from1to0() throws Exception {
+    public void testVersionFrom1to0() throws Exception {
         serviceA.registerRequestHandler("/version", Version0Request::new, ThreadPool.Names.SAME, new TransportRequestHandler<Version0Request>() {
             @Override
             public void messageReceived(Version0Request request, TransportChannel channel) throws Exception {
@@ -968,8 +954,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(version1Response.value2, equalTo(0));
     }
 
-    @Test
-    public void testVersion_from1to1() throws Exception {
+    public void testVersionFrom1to1() throws Exception {
         serviceB.registerRequestHandler("/version", Version1Request::new, ThreadPool.Names.SAME, new TransportRequestHandler<Version1Request>() {
             @Override
             public void messageReceived(Version1Request request, TransportChannel channel) throws Exception {
@@ -1013,8 +998,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(version1Response.value2, equalTo(2));
     }
 
-    @Test
-    public void testVersion_from0to0() throws Exception {
+    public void testVersionFrom0to0() throws Exception {
         serviceA.registerRequestHandler("/version", Version0Request::new, ThreadPool.Names.SAME, new TransportRequestHandler<Version0Request>() {
             @Override
             public void messageReceived(Version0Request request, TransportChannel channel) throws Exception {
@@ -1053,7 +1037,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(version0Response.value1, equalTo(1));
     }
 
-    @Test
     public void testMockFailToSendNoConnectRule() {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -1112,7 +1095,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHello");
     }
 
-    @Test
     public void testMockUnresponsiveRule() {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -1172,7 +1154,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
 
-    @Test
     public void testHostOnMessages() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(2);
         final AtomicReference<TransportAddress> addressA = new AtomicReference<>();

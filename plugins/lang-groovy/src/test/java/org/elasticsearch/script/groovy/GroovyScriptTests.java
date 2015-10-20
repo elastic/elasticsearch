@@ -23,15 +23,13 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,13 +51,11 @@ import static org.hamcrest.Matchers.equalTo;
  */
 // TODO: refactor into unit test or proper rest tests
 public class GroovyScriptTests extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
-    @Test
+
     public void testGroovyBigDecimalTransformation() {
         client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
 
@@ -77,7 +73,6 @@ public class GroovyScriptTests extends ESIntegTestCase {
         assertNoFailures(resp);
     }
 
-    @Test
     public void testGroovyExceptionSerialization() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(50, 500); i++) {
@@ -113,7 +108,6 @@ public class GroovyScriptTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testGroovyScriptAccess() {
         client().prepareIndex("test", "doc", "1").setSource("foo", "quick brow fox jumped over the lazy dog", "bar", 1).get();
         client().prepareIndex("test", "doc", "2").setSource("foo", "fast jumping spiders", "bar", 2).get();
@@ -127,7 +121,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "3", "2", "1");
     }
-    
+
     public void testScoreAccess() {
         client().prepareIndex("test", "doc", "1").setSource("foo", "quick brow fox jumped over the lazy dog", "bar", 1).get();
         client().prepareIndex("test", "doc", "2").setSource("foo", "fast jumping spiders", "bar", 2).get();

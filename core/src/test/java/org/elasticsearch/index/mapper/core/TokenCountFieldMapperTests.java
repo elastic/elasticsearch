@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,7 +40,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Test for {@link TokenCountFieldMapper}.
  */
 public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
-    @Test
     public void testMerge() throws IOException {
         String stage1Mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("person")
@@ -77,7 +75,6 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(((TokenCountFieldMapper) stage1.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("standard"));
     }
 
-    @Test
     public void testCountPositions() throws IOException {
         // We're looking to make sure that we:
         Token t1 = new Token();      // Don't count tokens without an increment

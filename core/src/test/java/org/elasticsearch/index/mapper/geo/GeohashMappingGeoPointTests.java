@@ -26,16 +26,17 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.MatcherAssert;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
 public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", false).endObject().endObject()
@@ -54,7 +55,6 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
         MatcherAssert.assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
-    @Test
     public void testLatLonInOneValue() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", false).endObject().endObject()
@@ -73,7 +73,6 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
         MatcherAssert.assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
-    @Test
     public void testGeoHashValue() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).endObject().endObject()
@@ -93,7 +92,6 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
         MatcherAssert.assertThat(doc.rootDoc().get("point"), notNullValue());
     }
 
-    @Test
     public void testGeoHashPrecisionAsInteger() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).field("geohash_precision", 10).endObject().endObject()
@@ -105,7 +103,6 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
         assertThat(geoPointFieldMapper.fieldType().geohashPrecision(), is(10));
     }
 
-    @Test
     public void testGeoHashPrecisionAsLength() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).field("geohash_precision", "5m").endObject().endObject()
@@ -117,7 +114,6 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
         assertThat(geoPointFieldMapper.fieldType().geohashPrecision(), is(10));
     }
 
-    @Test
     public void testNullValue() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()

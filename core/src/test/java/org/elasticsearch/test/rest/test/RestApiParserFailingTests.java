@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.spec.RestApiParser;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -32,14 +31,11 @@ import static org.hamcrest.Matchers.containsString;
  *
  */
 public class RestApiParserFailingTests extends ESTestCase {
-
-    @Test
-    public void brokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnParams() throws Exception {
+    public void testBrokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnParams() throws Exception {
         parseAndExpectFailure(BROKEN_SPEC_PARAMS, "Expected params field in rest api definition to contain an object");
     }
 
-    @Test
-    public void brokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnParts() throws Exception {
+    public void testBrokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnParts() throws Exception {
         parseAndExpectFailure(BROKEN_SPEC_PARTS, "Expected parts field in rest api definition to contain an object");
     }
 
@@ -51,7 +47,6 @@ public class RestApiParserFailingTests extends ESTestCase {
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString(expectedErrorMessage));
         }
-
     }
 
     // see params section is broken, an inside param is missing

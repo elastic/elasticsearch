@@ -54,7 +54,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -65,9 +64,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
-
-    @Test
-    public void testSpecifiedIndexUnavailable_multipleIndices() throws Exception {
+    public void testSpecifiedIndexUnavailableMultipleIndices() throws Exception {
         createIndex("test1");
         ensureYellow();
 
@@ -158,8 +155,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getSettings("test1", "test2").setIndicesOptions(options), false);
     }
 
-    @Test
-    public void testSpecifiedIndexUnavailable_singleIndexThatIsClosed() throws Exception {
+    public void testSpecifiedIndexUnavailableSingleIndexThatIsClosed() throws Exception {
         assertAcked(prepareCreate("test1"));
         // we need to wait until all shards are allocated since recovery from
         // gateway will fail unless the majority of the replicas was allocated
@@ -235,8 +231,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getSettings("test1").setIndicesOptions(options), false);
     }
 
-    @Test
-    public void testSpecifiedIndexUnavailable_singleIndex() throws Exception {
+    public void testSpecifiedIndexUnavailableSingleIndex() throws Exception {
         IndicesOptions options = IndicesOptions.strictExpandOpenAndForbidClosed();
         verify(search("test1").setIndicesOptions(options), true);
         verify(msearch(options, "test1"), true);
@@ -301,8 +296,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getSettings("test1").setIndicesOptions(options), false);
     }
 
-    @Test
-    public void testSpecifiedIndexUnavailable_snapshotRestore() throws Exception {
+    public void testSpecifiedIndexUnavailableSnapshotRestore() throws Exception {
         createIndex("test1");
         ensureGreen("test1");
         waitForRelocation();
@@ -332,7 +326,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(restore("snap3", "test1", "test2").setIndicesOptions(options), false);
     }
 
-    @Test
     public void testWildcardBehaviour() throws Exception {
         // Verify defaults for wildcards, when specifying no indices (*, _all, /)
         String[] indices = Strings.EMPTY_ARRAY;
@@ -448,8 +441,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getSettings(indices).setIndicesOptions(options), false);
     }
 
-    @Test
-    public void testWildcardBehaviour_snapshotRestore() throws Exception {
+    public void testWildcardBehaviourSnapshotRestore() throws Exception {
         createIndex("foobar");
         ensureGreen("foobar");
         waitForRelocation();
@@ -480,8 +472,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(restore("snap3", "foo*", "baz*").setIndicesOptions(options), true);
     }
 
-    @Test
-    public void testAllMissing_lenient() throws Exception {
+    public void testAllMissingLenient() throws Exception {
         createIndex("test1");
         client().prepareIndex("test1", "type", "1").setSource("k", "v").setRefresh(true).execute().actionGet();
         SearchResponse response = client().prepareSearch("test2")
@@ -503,8 +494,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertHitCount(response, 1l);
     }
 
-    @Test
-    public void testAllMissing_strict() throws Exception {
+    public void testAllMissingStrict() throws Exception {
         createIndex("test1");
         ensureYellow();
         try {
@@ -527,9 +517,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         client().prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
     }
 
-    @Test
     // For now don't handle closed indices
-    public void testCloseApi_specifiedIndices() throws Exception {
+    public void testCloseApiSpecifiedIndices() throws Exception {
         createIndex("test1", "test2");
         ensureGreen();
         verify(search("test1", "test2"), false);
@@ -545,8 +534,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(search("t*"), false);
     }
 
-    @Test
-    public void testCloseApi_wildcards() throws Exception {
+    public void testCloseApiWildcards() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
         ensureGreen();
 
@@ -562,7 +550,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(client().admin().indices().prepareOpen("_all"), true);
     }
 
-    @Test
     public void testDeleteIndex() throws Exception {
         createIndex("foobar");
         ensureYellow();
@@ -573,8 +560,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareExists("foobar").get().isExists(), equalTo(false));
     }
 
-    @Test
-    public void testDeleteIndex_wildcard() throws Exception {
+    public void testDeleteIndexWildcard() throws Exception {
         verify(client().admin().indices().prepareDelete("_all"), false);
 
         createIndex("foo", "foobar", "bar", "barbaz");
@@ -595,7 +581,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareExists("barbaz").get().isExists(), equalTo(false));
     }
 
-    @Test
     public void testPutWarmer() throws Exception {
         createIndex("foobar");
         ensureYellow();
@@ -604,8 +589,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void testPutWarmer_wildcard() throws Exception {
+    public void testPutWarmerWildcard() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
         ensureYellow();
 
@@ -625,7 +609,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testPutAlias() throws Exception {
         createIndex("foobar");
         ensureYellow();
@@ -634,8 +617,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void testPutAlias_wildcard() throws Exception {
+    public void testPutAliasWildcard() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
         ensureYellow();
 
@@ -653,7 +635,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testDeleteWarmer() throws Exception {
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.query(QueryBuilders.matchAllQuery());
@@ -667,8 +648,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("test1").get().getWarmers().size(), equalTo(0));
     }
 
-    @Test
-    public void testDeleteWarmer_wildcard() throws Exception {
+    public void testDeleteWarmerWildcard() throws Exception {
         verify(client().admin().indices().prepareDeleteWarmer().setIndices("_all").setNames("test1"), true);
 
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -695,7 +675,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareGetWarmers("barbaz").setWarmers("test1").get().getWarmers().size(), equalTo(0));
     }
 
-    @Test
     public void testPutMapping() throws Exception {
         verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=string"), true);
         verify(client().admin().indices().preparePutMapping("_all").setType("type1").setSource("field", "type=string"), true);
@@ -727,7 +706,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type4"), notNullValue());
     }
 
-    @Test
     public void testUpdateSettings() throws Exception {
         verify(client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put("a", "b")), true);
         verify(client().admin().indices().prepareUpdateSettings("_all").setSettings(Settings.builder().put("a", "b")), true);

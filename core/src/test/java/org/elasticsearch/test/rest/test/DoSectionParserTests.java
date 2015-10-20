@@ -27,18 +27,16 @@ import org.elasticsearch.test.rest.parser.RestTestSuiteParseContext;
 import org.elasticsearch.test.rest.section.ApiCallSection;
 import org.elasticsearch.test.rest.section.DoSection;
 import org.hamcrest.MatcherAssert;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DoSectionParserTests extends AbstractParserTestCase {
-
-    @Test
     public void testParseDoSectionNoBody() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "get:\n" +
@@ -60,7 +58,6 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertThat(apiCallSection.hasBody(), equalTo(false));
     }
 
-    @Test
     public void testParseDoSectionNoParamsNoBody() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "cluster.node_info: {}"
@@ -76,7 +73,6 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertThat(apiCallSection.hasBody(), equalTo(false));
     }
 
-    @Test
     public void testParseDoSectionWithJsonBody() throws Exception {
         String body = "{ \"include\": { \"field1\": \"v1\", \"field2\": \"v2\" }, \"count\": 1 }";
         parser = YamlXContent.yamlXContent.createParser(
@@ -102,7 +98,6 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertJsonEquals(apiCallSection.getBodies().get(0), body);
     }
 
-    @Test
     public void testParseDoSectionWithJsonMultipleBodiesAsLongString() throws Exception {
         String bodies[] = new String[]{
                 "{ \"index\": { \"_index\":\"test_index\", \"_type\":\"test_type\", \"_id\":\"test_id\" } }\n",
@@ -132,7 +127,6 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertThat(apiCallSection.getBodies().size(), equalTo(4));
     }
 
-    @Test
     public void testParseDoSectionWithJsonMultipleBodiesRepeatedProperty() throws Exception {
         String[] bodies = new String[] {
                 "{ \"index\": { \"_index\":\"test_index\", \"_type\":\"test_type\", \"_id\":\"test_id\" } }",
@@ -162,7 +156,6 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         }
     }
 
-    @Test
     public void testParseDoSectionWithYamlBody() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "search:\n" +
@@ -184,7 +177,6 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertJsonEquals(apiCallSection.getBodies().get(0), body);
     }
 
-    @Test
     public void testParseDoSectionWithYamlMultipleBodies() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "bulk:\n" +
@@ -225,7 +217,6 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         }
     }
 
-    @Test
     public void testParseDoSectionWithYamlMultipleBodiesRepeatedProperty() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "bulk:\n" +
@@ -259,7 +250,6 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         }
     }
 
-    @Test
     public void testParseDoSectionWithYamlBodyMultiGet() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "mget:\n" +
@@ -285,7 +275,6 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertJsonEquals(apiCallSection.getBodies().get(0), body);
     }
 
-    @Test
     public void testParseDoSectionWithBodyStringified() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "index:\n" +
@@ -311,7 +300,6 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertJsonEquals(apiCallSection.getBodies().get(0), "{ _source: true, query: { match_all: {} } }");
     }
 
-    @Test
     public void testParseDoSectionWithBodiesStringifiedAndNot() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "index:\n" +
@@ -335,7 +323,6 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertJsonEquals(apiCallSection.getBodies().get(1), body);
     }
 
-    @Test
     public void testParseDoSectionWithCatch() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "catch: missing\n" +
@@ -354,17 +341,20 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
     }
 
-    @Test (expected = RestTestParseException.class)
     public void testParseDoSectionWithoutClientCallSection() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "catch: missing\n"
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+        try {
+            doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+            fail("Expected RestTestParseException");
+        } catch (RestTestParseException e) {
+            assertThat(e.getMessage(), is("client call section is mandatory within a do section"));
+        }
     }
 
-    @Test
     public void testParseDoSectionMultivaluedField() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "indices.get_field_mapping:\n" +

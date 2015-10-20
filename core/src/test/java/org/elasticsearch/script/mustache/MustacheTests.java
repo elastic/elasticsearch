@@ -21,8 +21,8 @@ package org.elasticsearch.script.mustache;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheFactory;
+
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -32,8 +32,6 @@ import java.util.HashMap;
  * Figure out how Mustache works for the simplest use case. Leaving in here for now for reference.
  * */
 public class MustacheTests extends ESTestCase {
-
-    @Test
     public void test() {
         HashMap<String, Object> scopes = new HashMap<>();
         scopes.put("boost_val", "0.2");

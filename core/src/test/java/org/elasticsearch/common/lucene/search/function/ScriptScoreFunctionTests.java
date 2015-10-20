@@ -26,18 +26,15 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptScoreFunctionTests extends ESTestCase {
-
     /**
      * Tests https://github.com/elasticsearch/elasticsearch/issues/2426
      */
-    @Test
     public void testScriptScoresReturnsNaN() throws IOException {
         ScoreFunction scoreFunction = new ScriptScoreFunction(new Script("Float.NaN"), new FloatValueScript(Float.NaN));
         LeafScoreFunction leafScoreFunction = scoreFunction.getLeafScoreFunction(null);

@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -40,7 +39,6 @@ public class AliasRoutingIT extends ESIntegTestCase {
         return 2;
     }
 
-    @Test
     public void testAliasCrudRouting() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -102,7 +100,6 @@ public class AliasRoutingIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testAliasSearchRouting() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -197,7 +194,6 @@ public class AliasRoutingIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testAliasSearchRoutingWithTwoIndices() throws Exception {
         createIndex("test-a");
         createIndex("test-b");
@@ -258,7 +254,6 @@ public class AliasRoutingIT extends ESIntegTestCase {
     to the other indices (without routing) were not taken into account in PlainOperationRouting#searchShards.
     That affected the number of shards that we executed the search on, thus some documents were missing in the search results.
      */
-    @Test
     public void testAliasSearchRoutingWithConcreteAndAliasedIndices_issue2682() throws Exception {
         createIndex("index", "index_2");
         ensureGreen();
@@ -284,7 +279,6 @@ public class AliasRoutingIT extends ESIntegTestCase {
     That could cause returning 1, which led to forcing the QUERY_AND_FETCH mode.
     As a result, (size * number of hit shards) results were returned and no reduce phase was taking place.
      */
-    @Test
     public void testAliasSearchRoutingWithConcreteAndAliasedIndices_issue3268() throws Exception {
         createIndex("index", "index_2");
         ensureGreen();
@@ -305,7 +299,6 @@ public class AliasRoutingIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
     }
 
-    @Test
     public void testIndexingAliasesOverTime() throws Exception {
         createIndex("test");
         ensureGreen();

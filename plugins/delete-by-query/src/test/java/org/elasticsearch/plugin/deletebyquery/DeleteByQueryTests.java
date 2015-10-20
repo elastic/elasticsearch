@@ -38,7 +38,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
@@ -47,25 +46,29 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0)
 public class DeleteByQueryTests extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(DeleteByQueryPlugin.class);
     }
 
-    @Test(expected = ActionRequestValidationException.class)
     public void testDeleteByQueryWithNoSource() {
-        newDeleteByQuery().get();
-        fail("should have thrown a validation exception because of the missing source");
+        try {
+            newDeleteByQuery().get();
+            fail("should have thrown a validation exception because of the missing source");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("source is missing"));
+        }
     }
 
-    @Test
     public void testDeleteByQueryWithNoIndices() throws Exception {
         DeleteByQueryRequestBuilder delete = newDeleteByQuery().setQuery(QueryBuilders.matchAllQuery());
         delete.setIndicesOptions(IndicesOptions.fromOptions(false, true, true, false));
@@ -73,7 +76,6 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testDeleteByQueryWithOneIndex() throws Exception {
         final long docs = randomIntBetween(1, 50);
         for (int i = 0; i < docs; i++) {
@@ -89,7 +91,6 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testDeleteByQueryWithMultipleIndices() throws Exception {
         final int indices = randomIntBetween(2, 5);
         final int docs = randomIntBetween(2, 10) * 2;
@@ -143,7 +144,6 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testDeleteByQueryWithMissingIndex() throws Exception {
         client().prepareIndex("test", "test")
                 .setSource(jsonBuilder().startObject().field("field1", 1).endObject())
@@ -166,7 +166,6 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testDeleteByQueryWithTypes() throws Exception {
         final long docs = randomIntBetween(1, 50);
         for (int i = 0; i < docs; i++) {
@@ -188,7 +187,6 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testDeleteByQueryWithRouting() throws Exception {
         assertAcked(prepareCreate("test").setSettings("number_of_shards", 2));
         ensureGreen("test");
@@ -217,7 +215,6 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testDeleteByFieldQuery() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
 
@@ -240,7 +237,6 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testDeleteByQueryWithDateMath() throws Exception {
         index("test", "type", "1", "d", "2013-01-01");
         ensureGreen();
@@ -254,7 +250,6 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testDeleteByTermQuery() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -280,8 +275,6 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertSearchContextsClosed();
     }
-
-    @Test
 
     public void testConcurrentDeleteByQueriesOnDifferentDocs() throws Exception {
         createIndex("test");
@@ -342,7 +335,6 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testConcurrentDeleteByQueriesOnSameDocs() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
         ensureGreen();
@@ -402,7 +394,6 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testDeleteByQueryOnReadOnlyIndex() throws Exception {
         createIndex("test");
         ensureGreen();

@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,7 +62,6 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
         assertThat(regexpQuery.getField(), equalTo(queryBuilder.fieldName()));
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             if (randomBoolean()) {

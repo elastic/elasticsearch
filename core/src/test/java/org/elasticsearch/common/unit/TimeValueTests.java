@@ -24,11 +24,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.PeriodType;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -136,18 +136,30 @@ public class TimeValueTests extends ESTestCase {
         assertEqualityAfterSerialize(new TimeValue(1, TimeUnit.NANOSECONDS));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnUnknownUnits() {
-        TimeValue.parseTimeValue("23tw", null, "test");
+        try {
+            TimeValue.parseTimeValue("23tw", null, "test");
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("Failed to parse"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnMissingUnits() {
-        TimeValue.parseTimeValue("42", null, "test");
+        try {
+            TimeValue.parseTimeValue("42", null, "test");
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("Failed to parse"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testNoDotsAllowed() {
-        TimeValue.parseTimeValue("42ms.", null, "test");
+        try {
+            TimeValue.parseTimeValue("42ms.", null, "test");
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("Failed to parse"));
+        }
     }
 }

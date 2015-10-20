@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsReques
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -31,20 +30,19 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.is;
+
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class ScriptIndexSettingsTests extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
 
-    @Test
     public void testScriptIndexSettings() {
         PutIndexedScriptResponse putIndexedScriptResponse =
                 client().preparePutIndexedScript().setId("foobar").setScriptLang("groovy").setSource("{ \"script\": 1 }")
@@ -77,7 +75,6 @@ public class ScriptIndexSettingsTests extends ESIntegTestCase {
         assertEquals("Auto expand replicas should be 0-all", "0-all", numberOfReplicas);
     }
 
-    @Test
     public void testDeleteScriptIndex() {
         PutIndexedScriptResponse putIndexedScriptResponse =
                 client().preparePutIndexedScript().setId("foobar").setScriptLang("groovy").setSource("{ \"script\": 1 }")
@@ -87,13 +84,10 @@ public class ScriptIndexSettingsTests extends ESIntegTestCase {
         assertTrue(deleteResponse.isAcknowledged());
         ensureGreen();
         try {
-            GetIndexedScriptResponse response = client().prepareGetIndexedScript("groovy","foobar").get();
-            assertTrue(false); //This should not happen
-        } catch (IndexNotFoundException ime) {
-            assertTrue(true);
+            client().prepareGetIndexedScript("groovy","foobar").get();
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
         }
     }
-
-
-
 }

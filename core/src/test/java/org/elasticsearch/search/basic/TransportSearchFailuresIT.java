@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -48,13 +47,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TransportSearchFailuresIT extends ESIntegTestCase {
-
     @Override
     protected int maximumNumberOfReplicas() {
         return 1;
     }
 
-    @Test
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
         assertAcked(prepareCreate("test", 1, settingsBuilder().put("routing.hash.type", "simple")));

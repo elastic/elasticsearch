@@ -30,14 +30,16 @@ import org.elasticsearch.test.rest.section.IsTrueAssertion;
 import org.elasticsearch.test.rest.section.MatchAssertion;
 import org.elasticsearch.test.rest.section.RestTestSuite;
 import org.junit.After;
-import org.junit.Test;
 
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RestTestParserTests extends ESTestCase {
-
     private XContentParser parser;
 
     @Override
@@ -52,7 +54,6 @@ public class RestTestParserTests extends ESTestCase {
         parser.close();
     }
 
-    @Test
     public void testParseTestSetupAndSections() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                         "setup:\n" +
@@ -139,7 +140,6 @@ public class RestTestParserTests extends ESTestCase {
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("whitespace"));
     }
 
-    @Test
     public void testParseTestSingleTestSection() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
         "---\n" +
@@ -238,7 +238,6 @@ public class RestTestParserTests extends ESTestCase {
         assertThat(((Map) matchAssertion.getExpectedValue()).get("foo").toString(), equalTo("bar"));
     }
 
-    @Test
     public void testParseTestMultipleTestSections() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
         "---\n" +
@@ -330,7 +329,6 @@ public class RestTestParserTests extends ESTestCase {
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(true));
     }
 
-    @Test(expected = RestTestParseException.class)
     public void testParseTestDuplicateTestSections() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "---\n" +
@@ -361,6 +359,11 @@ public class RestTestParserTests extends ESTestCase {
         );
 
         RestTestSuiteParser testParser = new RestTestSuiteParser();
-        testParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+        try {
+            testParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+            fail("Expected RestTestParseException");
+        } catch (RestTestParseException e) {
+            assertThat(e.getMessage(), containsString("duplicate test section"));
+        }
     }
 }

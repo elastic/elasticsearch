@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.StreamableReader;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,8 +38,6 @@ import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class DiffableTests extends ESTestCase {
-
-    @Test
     public void testJdkMapDiff() throws IOException {
         Map<String, TestDiffable> before = new HashMap<>();
         before.put("foo", new TestDiffable("1"));
@@ -64,7 +61,6 @@ public class DiffableTests extends ESTestCase {
         assertThat(serialized.get("new").value(), equalTo("5"));
     }
 
-    @Test
     public void testImmutableOpenMapDiff() throws IOException {
         ImmutableOpenMap.Builder<String, TestDiffable> builder = ImmutableOpenMap.builder();
         builder.put("foo", new TestDiffable("1"));

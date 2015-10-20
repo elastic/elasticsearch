@@ -17,27 +17,22 @@
  * under the License.
  */
 
-
 package org.elasticsearch.test.disruption;
-
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
 
 public class NetworkPartitionIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(MockTransportService.TestPlugin.class);
     }
 
-    @Test
     public void testNetworkPartitionWithNodeShutdown() throws IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         String[] nodeNames = internalCluster().getNodeNames();

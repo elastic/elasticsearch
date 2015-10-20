@@ -23,14 +23,12 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParseContext;
 import org.elasticsearch.test.rest.parser.SetSectionParser;
 import org.elasticsearch.test.rest.section.SetSection;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SetSectionParserTests extends AbstractParserTestCase {
-
-    @Test
     public void testParseSetSectionSingleValue() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                         "{ _id: id }"
@@ -46,7 +44,6 @@ public class SetSectionParserTests extends AbstractParserTestCase {
         assertThat(setSection.getStash().get("_id"), equalTo("id"));
     }
 
-    @Test
     public void testParseSetSectionMultipleValues() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "{ _id: id, _type: type, _index: index }"
@@ -64,14 +61,17 @@ public class SetSectionParserTests extends AbstractParserTestCase {
         assertThat(setSection.getStash().get("_index"), equalTo("index"));
     }
 
-    @Test(expected = RestTestParseException.class)
     public void testParseSetSectionNoValues() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "{ }"
         );
 
         SetSectionParser setSectionParser = new SetSectionParser();
-
-        setSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+        try {
+            setSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+            fail("Expected RestTestParseException");
+        } catch (RestTestParseException e) {
+            assertThat(e.getMessage(), is("set section must set at least a value"));
+        }
     }
 }

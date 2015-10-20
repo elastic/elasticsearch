@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
@@ -36,6 +35,7 @@ import static org.elasticsearch.Version.V_0_20_0;
 import static org.elasticsearch.Version.V_0_90_0;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -102,24 +102,41 @@ public class VersionTests extends ESTestCase {
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testTooLongVersionFromString() {
-        Version.fromString("1.0.0.1.3");
+        try {
+            Version.fromString("1.0.0.1.3");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testTooShortVersionFromString() {
-        Version.fromString("1.0");
+        try {
+            Version.fromString("1.0");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
+        }
+
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testWrongVersionFromString() {
-        Version.fromString("WRONG.VERSION");
+        try {
+            Version.fromString("WRONG.VERSION");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
+        }
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testVersionNoPresentInSettings() {
-        Version.indexCreated(Settings.builder().build());
+        try {
+            Version.indexCreated(Settings.builder().build());
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("[index.version.created] is not present"));
+        }
     }
 
     public void testIndexCreatedVersion() {

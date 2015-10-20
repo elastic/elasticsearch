@@ -22,15 +22,14 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.containsString;
 
 public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<ConstantScoreQueryBuilder> {
-
     /**
      * @return a {@link ConstantScoreQueryBuilder} with random boost between 0.1f and 2.0f
      */
@@ -54,13 +53,16 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     /**
      * test that missing "filter" element causes {@link ParsingException}
      */
-    @Test(expected=ParsingException.class)
     public void testFilterElement() throws IOException {
         String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {}";
-        parseQuery(queryString);
+        try {
+            parseQuery(queryString);
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
+            assertThat(e.getMessage(), containsString("requires a 'filter' element"));
+        }
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             new ConstantScoreQueryBuilder(null);

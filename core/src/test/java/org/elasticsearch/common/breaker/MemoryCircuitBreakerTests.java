@@ -26,7 +26,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,8 +38,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * Tests for the Memory Aggregating Circuit Breaker
  */
 public class MemoryCircuitBreakerTests extends ESTestCase {
-
-    @Test
     public void testThreadedUpdatesToBreaker() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
@@ -82,7 +79,6 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
         assertThat("breaker was tripped at least once", breaker.getTrippedCount(), greaterThanOrEqualTo(1L));
     }
 
-    @Test
     public void testThreadedUpdatesToChildBreaker() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
@@ -140,7 +136,6 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
         assertThat("breaker was tripped at least once", breaker.getTrippedCount(), greaterThanOrEqualTo(1L));
     }
 
-    @Test
     public void testThreadedUpdatesToChildBreakerWithParentLimit() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
@@ -212,7 +207,6 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
         assertThat("total breaker was tripped at least once", tripped.get(), greaterThanOrEqualTo(1));
     }
 
-    @Test
     public void testConstantFactor() throws Exception {
         final MemoryCircuitBreaker breaker = new MemoryCircuitBreaker(new ByteSizeValue(15), 1.6, logger);
         String field = "myfield";

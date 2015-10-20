@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,7 +35,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -132,9 +130,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-
-    @Test
-    public void simple() throws Exception {
+    public void testSimple() throws Exception {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
                     .addAggregation(geohashGrid("geohashgrid")
@@ -165,8 +161,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void multivalued() throws Exception {
+    public void testMultivalued() throws Exception {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("multi_valued_idx")
                     .addAggregation(geohashGrid("geohashgrid")
@@ -190,8 +185,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void filtered() throws Exception {
+    public void testFiltered() throws Exception {
         GeoBoundingBoxQueryBuilder bbox = new GeoBoundingBoxQueryBuilder("location");
         bbox.setCorners(smallestGeoHash, smallestGeoHash).queryName("bbox");
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
@@ -224,8 +218,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx_unmapped")
                     .addAggregation(geohashGrid("geohashgrid")
@@ -242,8 +235,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                     .addAggregation(geohashGrid("geohashgrid")
@@ -267,7 +259,6 @@ public class GeoHashGridIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testTopMatch() throws Exception {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
@@ -300,9 +291,8 @@ public class GeoHashGridIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     // making sure this doesn't runs into an OOME
-    public void sizeIsZero() {
+    public void testSizeIsZero() {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             final int size = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
             final int shardSize = randomBoolean() ? -1 : 0;

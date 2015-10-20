@@ -31,20 +31,19 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
 public class DeadNodesAllocationTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(DeadNodesAllocationTests.class);
 
-    @Test
-    public void simpleDeadNodeOnStartedPrimaryShard() {
+    public void testSimpleDeadNodeOnStartedPrimaryShard() {
         AllocationService allocation = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -95,8 +94,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node(nodeIdRemaining).get(0).state(), equalTo(STARTED));
     }
 
-    @Test
-    public void deadNodeWhileRelocatingOnToNode() {
+    public void testDeadNodeWhileRelocatingOnToNode() {
         AllocationService allocation = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -170,8 +168,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node(origReplicaNodeId).get(0).state(), equalTo(STARTED));
     }
 
-    @Test
-    public void deadNodeWhileRelocatingOnFromNode() {
+    public void testDeadNodeWhileRelocatingOnFromNode() {
         AllocationService allocation = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")

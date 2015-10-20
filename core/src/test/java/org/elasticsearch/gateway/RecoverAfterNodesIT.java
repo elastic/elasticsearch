@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.util.Set;
 
@@ -37,7 +36,6 @@ import static org.hamcrest.Matchers.hasItem;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class RecoverAfterNodesIT extends ESIntegTestCase {
-
     private final static TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
     public Set<ClusterBlock> waitForNoBlocksOnNode(TimeValue timeout, Client nodeClient) throws InterruptedException {
@@ -56,7 +54,6 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
         return internalCluster().client(name);
     }
 
-    @Test
     public void testRecoverAfterNodes() throws Exception {
         logger.info("--> start node (1)");
         Client clientNode1 = startNode(settingsBuilder().put("gateway.recover_after_nodes", 3));
@@ -82,7 +79,6 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, clientNode3).isEmpty(), equalTo(true));
     }
 
-    @Test
     public void testRecoverAfterMasterNodes() throws Exception {
         logger.info("--> start master_node (1)");
         Client master1 = startNode(settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", false).put("node.master", true));
@@ -119,7 +115,6 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, data2).isEmpty(), equalTo(true));
     }
 
-    @Test
     public void testRecoverAfterDataNodes() throws Exception {
         logger.info("--> start master_node (1)");
         Client master1 = startNode(settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", false).put("node.master", true));

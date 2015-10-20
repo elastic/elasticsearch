@@ -57,10 +57,8 @@ import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
 import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -71,7 +69,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class CompletionPostingsFormatTests extends ESTestCase {
-
     Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
     static final CompletionFieldMapper.CompletionFieldType FIELD_TYPE = CompletionFieldMapper.Defaults.FIELD_TYPE.clone();
     static final NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer());
@@ -82,7 +79,6 @@ public class CompletionPostingsFormatTests extends ESTestCase {
         FIELD_TYPE.freeze();
     }
 
-    @Test
     public void testCompletionPostingsFormat() throws IOException {
         AnalyzingCompletionLookupProviderV1 providerV1 = new AnalyzingCompletionLookupProviderV1(true, false, true, true);
         AnalyzingCompletionLookupProvider currentProvider = new AnalyzingCompletionLookupProvider(true, false, true, true);
@@ -103,7 +99,6 @@ public class CompletionPostingsFormatTests extends ESTestCase {
         dir.close();
     }
 
-    @Test
     public void testProviderBackwardCompatibilityForVersion1() throws IOException {
         AnalyzingCompletionLookupProviderV1 providerV1 = new AnalyzingCompletionLookupProviderV1(true, false, true, true);
         AnalyzingCompletionLookupProvider currentProvider = new AnalyzingCompletionLookupProvider(true, false, true, true);
@@ -122,7 +117,6 @@ public class CompletionPostingsFormatTests extends ESTestCase {
         dir.close();
     }
 
-    @Test
     public void testProviderVersion2() throws IOException {
         AnalyzingCompletionLookupProvider currentProvider = new AnalyzingCompletionLookupProvider(true, false, true, true);
 
@@ -140,7 +134,6 @@ public class CompletionPostingsFormatTests extends ESTestCase {
         dir.close();
     }
 
-    @Test
     public void testDuellCompletions() throws IOException, NoSuchFieldException, SecurityException, IllegalArgumentException,
             IllegalAccessException {
         final boolean preserveSeparators = getRandom().nextBoolean();
@@ -148,7 +141,7 @@ public class CompletionPostingsFormatTests extends ESTestCase {
         final boolean usePayloads = getRandom().nextBoolean();
         final int options = preserveSeparators ? AnalyzingSuggester.PRESERVE_SEP : 0;
 
-        XAnalyzingSuggester reference = new XAnalyzingSuggester(new StandardAnalyzer(), null, new StandardAnalyzer(), 
+        XAnalyzingSuggester reference = new XAnalyzingSuggester(new StandardAnalyzer(), null, new StandardAnalyzer(),
                 options, 256, -1, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
         LineFileDocs docs = new LineFileDocs(getRandom());
         int num = scaledRandomIntBetween(150, 300);
@@ -159,7 +152,7 @@ public class CompletionPostingsFormatTests extends ESTestCase {
             IndexableField field = nextDoc.getField("title");
             titles[i] = field.stringValue();
             weights[i] = between(0, 100);
-           
+
         }
         docs.close();
         final InputIterator primaryIter = new InputIterator() {
@@ -223,7 +216,7 @@ public class CompletionPostingsFormatTests extends ESTestCase {
                 public boolean hasPayloads() {
                     return true;
                 }
-                
+
                 @Override
                 public Set<BytesRef> contexts() {
                     return null;
@@ -270,7 +263,7 @@ public class CompletionPostingsFormatTests extends ESTestCase {
                         lookup.get(j).value, equalTo(refLookup.get(j).value));
                 assertThat(lookup.get(j).payload, equalTo(refLookup.get(j).payload));
                 if (usePayloads) {
-                    assertThat(lookup.get(j).payload.utf8ToString(),  equalTo(Long.toString(lookup.get(j).value)));    
+                    assertThat(lookup.get(j).payload.utf8ToString(),  equalTo(Long.toString(lookup.get(j).value)));
                 }
             }
         }
@@ -280,6 +273,7 @@ public class CompletionPostingsFormatTests extends ESTestCase {
             throws IOException {
         RAMDirectory dir = new RAMDirectory();
         Codec codec = new Lucene53Codec() {
+            @Override
             public PostingsFormat getPostingsFormatForField(String field) {
                 final PostingsFormat in = super.getPostingsFormatForField(field);
                 return mapper.fieldType().postingsFormat(in);
@@ -312,7 +306,7 @@ public class CompletionPostingsFormatTests extends ESTestCase {
         dir.close();
         return lookup;
     }
-    @Test
+
     public void testNoDocs() throws IOException {
         AnalyzingCompletionLookupProvider provider = new AnalyzingCompletionLookupProvider(true, false, true, true);
         RAMDirectory dir = new RAMDirectory();

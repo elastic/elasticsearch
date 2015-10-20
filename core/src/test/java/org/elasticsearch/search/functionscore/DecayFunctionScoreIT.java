@@ -34,13 +34,10 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -58,15 +55,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrde
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.lessThan;
 
-
 public class DecayFunctionScoreIT extends ESIntegTestCase {
-
-    @Test
     public void testDistanceScoreGeoLinGaussExp() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
@@ -165,7 +159,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         assertThat(sh.getAt(1).getId(), equalTo("2"));
     }
 
-    @Test
     public void testDistanceScoreGeoLinGaussExpWithOffset() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
@@ -240,7 +233,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         assertThat(sh.getAt(1).score(), equalTo(sh.getAt(0).score()));
     }
 
-    @Test
     public void testBoostModeSettingWorks() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
@@ -295,7 +287,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testParseGeoPoint() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
@@ -336,9 +327,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         assertThat((double) sh.getAt(0).score(), closeTo(0.30685282, 1.e-5));
     }
 
-    @Test
     public void testCombineModes() throws Exception {
-
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
@@ -419,7 +408,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
     }
 
-    @Test(expected = SearchPhaseExecutionException.class)
     public void testExceptionThrownIfScaleLE0() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
@@ -438,14 +426,15 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num1", "2013-05-28", "-1d")))));
-
-        SearchResponse sr = response.actionGet();
-        assertOrderedSearchHits(sr, "2", "1");
+        try {
+            response.actionGet();
+            fail("Expected SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), is("all shards failed"));
+        }
     }
 
-    @Test
     public void testParseDateMath() throws Exception {
-
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
@@ -477,9 +466,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testValueMissingLin() throws Exception {
-
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
@@ -528,7 +515,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testDateWithoutOrigin() throws Exception {
         DateTime dt = new DateTime(DateTimeZone.UTC);
 
@@ -578,7 +564,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testManyDocsLin() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type",
@@ -631,7 +616,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         }
     }
 
-    @Test(expected = SearchPhaseExecutionException.class)
     public void testParsingExceptionIfFieldDoesNotExist() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type",
@@ -653,10 +637,14 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                 .size(numDocs)
                                 .query(functionScoreQuery(termQuery("test", "value"), linearDecayFunction("type1.geo", lonlat, "1000km"))
                                         .scoreMode(FiltersFunctionScoreQuery.ScoreMode.MULTIPLY))));
-        SearchResponse sr = response.actionGet();
+        try {
+            response.actionGet();
+            fail("Expected SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), is("all shards failed"));
+        }
     }
 
-    @Test(expected = SearchPhaseExecutionException.class)
     public void testParsingExceptionIfFieldTypeDoesNotMatch() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type",
@@ -672,10 +660,14 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), linearDecayFunction("num", 1.0, 0.5)).scoreMode(FiltersFunctionScoreQuery.ScoreMode.MULTIPLY))));
-        response.actionGet();
+        try {
+            response.actionGet();
+            fail("Expected SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), is("all shards failed"));
+        }
     }
 
-    @Test
     public void testNoQueryGiven() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type",
@@ -695,7 +687,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         response.actionGet();
     }
 
-    @Test
     public void testMultiFieldOptions() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",

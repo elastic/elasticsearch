@@ -19,7 +19,6 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-
 import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequest;
@@ -40,7 +39,6 @@ import org.elasticsearch.search.suggest.context.ContextBuilder;
 import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,6 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertDistance;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 @SuppressCodecs("*") // requires custom completion format
 public class ContextSuggestSearchIT extends ESIntegTestCase {
@@ -83,7 +82,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
             { "Smythe, Alistair", "Alistair Smythe", "Alistair" }, { "Smythe, Spencer", "Spencer Smythe", "Spencer" },
             { "Whitemane, Aelfyre", "Aelfyre Whitemane", "Aelfyre" }, { "Whitemane, Kofi", "Kofi Whitemane", "Kofi" } };
 
-    @Test
     public void testBasicGeo() throws Exception {
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st").precision("5km").neighbors(true))));
         ensureYellow();
@@ -109,19 +107,18 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet();
 
         client().admin().indices().prepareRefresh(INDEX).get();
-        
+
         String suggestionName = randomAsciiOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text("h").size(10)
                 .addGeoLocation("st", 52.52, 13.4);
-        
+
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
-        
+
         assertEquals(suggestResponse.getSuggest().size(), 1);
         assertEquals("Hotel Amsterdam in Berlin", suggestResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
     }
-    
-    @Test
+
     public void testMultiLevelGeo() throws Exception {
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st")
                 .precision(1)
@@ -150,7 +147,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         client().prepareIndex(INDEX, TYPE, "1").setSource(source1).execute().actionGet();
 
         client().admin().indices().prepareRefresh(INDEX).get();
-        
+
         for (int precision = 1; precision <= 12; precision++) {
             String suggestionName = randomAsciiOfLength(10);
             CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text("h").size(10)
@@ -160,11 +157,10 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
             SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
             assertEquals(suggestResponse.getSuggest().size(), 1);
             assertEquals("Hotel Amsterdam in Berlin", suggestResponse.getSuggest().getSuggestion(suggestionName).iterator().next()
-                    .getOptions().iterator().next().getText().string()); 
+                    .getOptions().iterator().next().getText().string());
         }
     }
 
-    @Test
     public void testMappingIdempotency() throws Exception {
         List<Integer> precisions = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(4, 12); i++) {
@@ -199,10 +195,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(mapping.string()).get());
     }
 
-
-    @Test
     public void testGeoField() throws Exception {
-
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
         mapping.startObject(TYPE);
@@ -249,18 +242,17 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet();
 
         refresh();
-        
+
         String suggestionName = randomAsciiOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text("h").size(10)
                 .addGeoLocation("st", 52.52, 13.4);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
-        
+
         assertEquals(suggestResponse.getSuggest().size(), 1);
         assertEquals("Hotel Amsterdam in Berlin", suggestResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
     }
-    
-    @Test
+
     public void testSimpleGeo() throws Exception {
         String reinickendorf = "u337p3mp11e2";
         String pankow = "u33e0cyyjur4";
@@ -315,7 +307,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertGeoSuggestionsInRange(treptow, "pizza", precision);
     }
 
-    @Test
     public void testSimplePrefix() throws Exception {
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.category("st"))));
         ensureYellow();
@@ -341,7 +332,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertPrefixSuggestions(2, "w", "Whitemane, Kofi");
     }
 
-    @Test
     public void testTypeCategoryIsActuallyCalledCategory() throws Exception {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject().startObject(TYPE).startObject("properties")
@@ -397,8 +387,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
-
-    @Test
     public void testBasic() throws Exception {
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, false, ContextBuilder.reference("st", "_type"), ContextBuilder.reference("nd", "_type"))));
         ensureYellow();
@@ -415,7 +403,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertDoubleFieldSuggestions(TYPE, TYPE, "m", "my hotel");
     }
 
-    @Test
     public void testSimpleField() throws Exception {
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));
         ensureYellow();
@@ -442,7 +429,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
     }
 
-    @Test // see issue #10987
+    // see issue #10987
     public void testEmptySuggestion() throws Exception {
         String mapping = jsonBuilder()
                 .startObject()
@@ -470,7 +457,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testMultiValueField() throws Exception {
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));
         ensureYellow();
@@ -496,7 +482,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertFieldSuggestions("2", "w", "Whitemane, Kofi");
     }
 
-    @Test
     public void testMultiContext() throws Exception {
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"))));
         ensureYellow();
@@ -523,7 +508,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertMultiContextSuggestions("2", "C", "w", "Whitemane, Kofi");
     }
 
-    @Test
     public void testMultiContextWithFuzzyLogic() throws Exception {
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"))));
         ensureYellow();
@@ -554,7 +538,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 "Mary MacPherran", "Mary MacPherran \"Skeeter\"", "Mikhail", "Mikhail Rasputin", "Moira", "Moira MacTaggert");
     }
 
-    @Test
     public void testSimpleType() throws Exception {
         String[] types = { TYPE + "A", TYPE + "B", TYPE + "C" };
 
@@ -586,7 +569,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertFieldSuggestions(types[2], "w", "Whitemane, Kofi");
     }
 
-    @Test // issue 5525, default location didnt work with lat/lon map, and did not set default location appropriately
+    // issue 5525, default location didnt work with lat/lon map, and did not set default location appropriately
     public void testGeoContextDefaultMapping() throws Exception {
         GeoPoint berlinAlexanderplatz = GeoPoint.fromGeohash("u33dc1");
 
@@ -612,7 +595,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
     }
 
-    @Test // issue 5525, setting the path of a category context and then indexing a document without that field returned an error
+    // issue 5525, setting the path of a category context and then indexing a document without that field returned an error
     public void testThatMissingPrefixesForContextReturnException() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
             .startObject("service").startObject("properties").startObject("suggest")
@@ -639,7 +622,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
-    @Test // issue 5525, the geo point parser did not work when the lat/lon values were inside of a value object
+    // issue 5525, the geo point parser did not work when the lat/lon values were inside of a value object
     public void testThatLocationVenueCanBeParsedAsDocumented() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
             .startObject("poi").startObject("properties").startObject("suggest")
@@ -670,7 +653,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertNoFailures(suggestResponse);
     }
 
-    @Test
     public void testThatCategoryDefaultWorks() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
@@ -693,7 +675,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hoodie red");
     }
 
-    @Test
     public void testThatDefaultCategoryAndPathWorks() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
@@ -718,7 +699,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hoodie red");
     }
 
-    @Test
     public void testThatGeoPrecisionIsWorking() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
@@ -751,7 +731,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz", "Berlin Poelchaustr.", "Berlin Dahlem");
     }
 
-    @Test
     public void testThatNeighborsCanBeExcluded() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
@@ -781,7 +760,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
     }
 
-    @Test
     public void testThatGeoPathCanBeSelected() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
@@ -806,7 +784,6 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
     }
 
-    @Test(expected = MapperParsingException.class)
     public void testThatPrecisionIsRequired() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
@@ -818,10 +795,14 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        try {
+            prepareCreate(INDEX).addMapping("item", xContentBuilder).get();
+            fail("Expected MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), is("Failed to parse mapping [item]: field [precision] is missing"));
+        }
     }
 
-    @Test
     public void testThatLatLonParsingFromSourceWorks() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("mappings").startObject("test").startObject("properties").startObject("suggest_geo")
@@ -874,7 +855,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 assertTrue(options.iterator().hasNext());
                 for (CompletionSuggestion.Entry.Option option : options) {
                     String target = option.getPayloadAsString();
-                    assertDistance(location, target, Matchers.lessThanOrEqualTo(precision));                    
+                    assertDistance(location, target, Matchers.lessThanOrEqualTo(precision));
                 }
             }
         }

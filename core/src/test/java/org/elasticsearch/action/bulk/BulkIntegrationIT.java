@@ -20,17 +20,14 @@
 
 package org.elasticsearch.action.bulk;
 
-import java.nio.charset.StandardCharsets;
-
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 
 public class BulkIntegrationIT extends ESIntegTestCase {
-
-    @Test
     public void testBulkIndexCreatesMapping() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/bulk-log.json");
         BulkRequestBuilder bulkBuilder = client().prepareBulk();

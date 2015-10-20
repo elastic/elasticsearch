@@ -25,7 +25,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -34,7 +33,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBuilder> {
-
     @Override
     protected ExistsQueryBuilder doCreateTestQueryBuilder() {
         String fieldPattern;
@@ -80,7 +78,6 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         }
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             if (randomBoolean()) {

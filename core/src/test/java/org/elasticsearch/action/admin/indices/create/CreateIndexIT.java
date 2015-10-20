@@ -52,7 +52,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends ESIntegTestCase {
-    public void testCreationDate_Given() {
+    public void testCreationDateGiven() {
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4l)).get();
         ClusterStateResponse response = client().admin().cluster().prepareState().get();
         ClusterState state = response.getState();
@@ -67,7 +67,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(index.getCreationDate(), equalTo(4l));
     }
 
-    public void testCreationDate_Generated() {
+    public void testCreationDateGenerated() {
         long timeBeforeRequest = System.currentTimeMillis();
         prepareCreate("test").get();
         long timeAfterRequest = System.currentTimeMillis();

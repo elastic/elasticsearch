@@ -29,7 +29,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -67,7 +66,6 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTestCase {
         writer.deleteDocuments(new Term("_id", "1"));
     }
 
-    @Test
     public void testOptimizeTypeLong() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
@@ -81,8 +79,8 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTestCase {
 
         IndexNumericFieldData indexFieldData = getForField("value");
         AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(getFirst(fieldData.getLongValues(), 0), equalTo((long) Integer.MAX_VALUE + 1l));
-        assertThat(getFirst(fieldData.getLongValues(), 1), equalTo((long) Integer.MIN_VALUE - 1l));
+        assertThat(getFirst(fieldData.getLongValues(), 0), equalTo(Integer.MAX_VALUE + 1l));
+        assertThat(getFirst(fieldData.getLongValues(), 1), equalTo(Integer.MIN_VALUE - 1l));
     }
 
     private static long getFirst(SortedNumericDocValues values, int docId) {
@@ -92,14 +90,6 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTestCase {
         return values.valueAt(0);
     }
 
-    private static double getFirst(SortedNumericDoubleValues values, int docId) {
-        values.setDocument(docId);
-        final int numValues = values.count();
-        assertThat(numValues, is(1));
-        return values.valueAt(0);
-    }
-
-    @Test
     public void testDateScripts() throws Exception {
         fillSingleValueAllSet();
         IndexNumericFieldData indexFieldData = getForField("value");

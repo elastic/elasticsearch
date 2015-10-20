@@ -23,20 +23,17 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugin.store.smb.SMBStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.is;
 
 abstract public class AbstractAzureFsTestCase extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(SMBStorePlugin.class);
     }
 
-    @Test
     public void testAzureFs() {
         // Create an index and index some documents
         createIndex("test");

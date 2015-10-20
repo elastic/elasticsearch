@@ -32,7 +32,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
@@ -47,11 +46,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
-
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);
 
-    @Test
-    public void recoverWhileUnderLoadAllocateReplicasTest() throws Exception {
+    public void testRecoverWhileUnderLoadAllocateReplicasTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.ASYNC)));
@@ -104,8 +101,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void recoverWhileUnderLoadAllocateReplicasRelocatePrimariesTest() throws Exception {
+    public void testRecoverWhileUnderLoadAllocateReplicasRelocatePrimariesTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.ASYNC)));
@@ -156,8 +152,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void recoverWhileUnderLoadWithReducedAllowedNodes() throws Exception {
+    public void testRecoverWhileUnderLoadWithReducedAllowedNodes() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test", 2, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.ASYNC)));
@@ -226,8 +221,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void recoverWhileRelocating() throws Exception {
+    public void testRecoverWhileRelocating() throws Exception {
         final int numShards = between(2, 10);
         final int numReplicas = 0;
         logger.info("--> creating test index ...");

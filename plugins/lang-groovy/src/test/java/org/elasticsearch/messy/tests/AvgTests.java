@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -47,14 +46,12 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 public class AvgTests extends AbstractNumericTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Override
-    @Test
     public void testEmptyAggregation() throws Exception {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
@@ -75,7 +72,6 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
     public void testUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
@@ -91,7 +87,6 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
     public void testSingleValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -107,8 +102,7 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testSingleValuedField_getProperty() throws Exception {
+    public void testSingleValuedFieldGetProperty() throws Exception {
 
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(avg("avg").field("value"))).execute().actionGet();
@@ -133,7 +127,7 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    public void testSingleValuedField_PartiallyUnmapped() throws Exception {
+    public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("value"))
@@ -148,8 +142,7 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testSingleValuedField_WithValueScript() throws Exception {
+    public void testSingleValuedFieldWithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("value").script(new Script("_value + 1")))
@@ -164,8 +157,7 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
+    public void testSingleValuedFieldWithValueScriptWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -195,7 +187,6 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
     public void testMultiValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -211,8 +202,7 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testMultiValuedField_WithValueScript() throws Exception {
+    public void testMultiValuedFieldWithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("values").script(new Script("_value + 1")))
@@ -227,8 +217,7 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
+    public void testMultiValuedFieldWithValueScriptWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -245,8 +234,7 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_SingleValued() throws Exception {
+    public void testScriptSingleValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").script(new Script("doc['value'].value")))
@@ -261,8 +249,7 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_SingleValued_WithParams() throws Exception {
+    public void testScriptSingleValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -279,8 +266,7 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_ExplicitSingleValued_WithParams() throws Exception {
+    public void testScriptExplicitSingleValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -297,8 +283,7 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_MultiValued() throws Exception {
+    public void testScriptMultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").script(new Script("[ doc['value'].value, doc['value'].value + 1 ]")))
@@ -313,8 +298,7 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_ExplicitMultiValued() throws Exception {
+    public void testScriptExplicitMultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").script(new Script("[ doc['value'].value, doc['value'].value + 1 ]")))
@@ -329,8 +313,7 @@ public class AvgTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_MultiValued_WithParams() throws Exception {
+    public void testScriptMultiValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")

@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -33,14 +32,12 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  */
 public class MetaStateServiceTests extends ESTestCase {
-
     private static Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
 
-    @Test
     public void testWriteLoadIndex() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
@@ -51,7 +48,6 @@ public class MetaStateServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testLoadMissingIndex() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
@@ -59,7 +55,6 @@ public class MetaStateServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testWriteLoadGlobal() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
@@ -72,7 +67,6 @@ public class MetaStateServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testWriteGlobalStateWithIndexAndNoIndexIsLoaded() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
@@ -89,8 +83,7 @@ public class MetaStateServiceTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void tesLoadGlobal() throws Exception {
+    public void testLoadGlobal() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
 

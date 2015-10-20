@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -87,8 +86,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         ensureSearchable("test");
     }
 
-    @Test
-    public void simplePolygonTest() throws Exception {
+    public void testSimplePolygon() throws Exception {
         List<GeoPoint> points = new ArrayList<>();
         points.add(new GeoPoint(40.7, -74.0));
         points.add(new GeoPoint(40.7, -74.1));
@@ -105,8 +103,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void simpleUnclosedPolygon() throws Exception {
+    public void testSimpleUnclosedPolygon() throws Exception {
         List<GeoPoint> points = new ArrayList<>();
         points.add(new GeoPoint(40.7, -74.0));
         points.add(new GeoPoint(40.7, -74.1));

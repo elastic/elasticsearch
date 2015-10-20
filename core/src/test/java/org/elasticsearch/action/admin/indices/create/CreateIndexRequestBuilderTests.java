@@ -26,7 +26,6 @@ import org.elasticsearch.rest.NoOpClient;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -56,7 +55,6 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
     /**
      * test setting the source with available setters
      */
-    @Test
     public void testSetSource() throws IOException {
         CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
         builder.setSource("{\""+KEY+"\" : \""+VALUE+"\"}");
@@ -82,7 +80,6 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
     /**
      * test setting the settings with available setters
      */
-    @Test
     public void testSetSettings() throws IOException {
         CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
         builder.setSettings(KEY, VALUE);

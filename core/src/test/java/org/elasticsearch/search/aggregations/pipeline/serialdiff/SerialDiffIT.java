@@ -31,16 +31,23 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregationHelperT
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.diff;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
@@ -67,6 +74,7 @@ public class SerialDiffIT extends ESIntegTestCase {
             name = s;
         }
 
+        @Override
         public String toString(){
             return name;
         }
@@ -218,9 +226,7 @@ public class SerialDiffIT extends ESIntegTestCase {
         testValues.put(target.toString(), values);
     }
 
-    @Test
-    public void basicDiff() {
-
+    public void testBasicDiff() {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
@@ -268,8 +274,7 @@ public class SerialDiffIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void invalidLagSize() {
+    public void testInvalidLagSize() {
         try {
             client()
                 .prepareSearch("idx").setTypes("type")
@@ -283,9 +288,7 @@ public class SerialDiffIT extends ESIntegTestCase {
                                         .setBucketsPaths("_count"))
                 ).execute().actionGet();
         } catch (SearchPhaseExecutionException e) {
-            // All good
+            assertThat(e.getMessage(), is("all shards failed"));
         }
     }
-
-
 }

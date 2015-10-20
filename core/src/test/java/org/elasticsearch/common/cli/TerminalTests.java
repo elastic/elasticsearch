@@ -19,16 +19,14 @@
 
 package org.elasticsearch.common.cli;
 
-import org.junit.Test;
-
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
 public class TerminalTests extends CliToolTestCase {
-
-    @Test
     public void testVerbosity() throws Exception {
         CaptureOutputTerminal terminal = new CaptureOutputTerminal(Terminal.Verbosity.SILENT);
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");

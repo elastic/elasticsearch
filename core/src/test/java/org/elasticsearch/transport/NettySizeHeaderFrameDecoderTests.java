@@ -19,29 +19,27 @@
 
 package org.elasticsearch.transport;
 
-import java.nio.charset.StandardCharsets;
-
 import org.elasticsearch.Version;
+import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
@@ -82,7 +80,6 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    @Test
     public void testThatTextMessageIsReturnedOnHTTPLikeRequest() throws Exception {
         String randomMethod = randomFrom("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH");
         String data = randomMethod + " / HTTP/1.1";
@@ -97,7 +94,6 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatNothingIsReturnedForOtherInvalidPackets() throws Exception {
         try (Socket socket = new Socket(host, port)) {
             socket.getOutputStream().write("FOOBAR".getBytes(StandardCharsets.UTF_8));

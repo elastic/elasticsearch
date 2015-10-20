@@ -32,11 +32,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.client.Requests.clearIndicesCacheRequest;
+import static org.elasticsearch.client.Requests.getRequest;
+import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,17 +48,14 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class DocumentActionsIT extends ESIntegTestCase {
-
     protected void createIndex() {
         createIndex(getConcreteIndexName());
     }
-
 
     protected String getConcreteIndexName() {
         return "test";
     }
 
-    @Test
     public void testIndexActions() throws Exception {
         createIndex();
         NumShards numShards = getNumShards(getConcreteIndexName());
@@ -171,7 +170,6 @@ public class DocumentActionsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testBulk() throws Exception {
         createIndex();
         NumShards numShards = getNumShards(getConcreteIndexName());

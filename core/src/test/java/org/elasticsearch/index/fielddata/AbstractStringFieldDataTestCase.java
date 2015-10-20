@@ -26,7 +26,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -50,7 +54,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,7 +69,6 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  */
 public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataImplTestCase {
-
     private void addField(Document d, String name, String value) {
         d.add(new StringField(name, value, Field.Store.YES));
         d.add(new SortedSetDocValuesField(name, new BytesRef(value)));
@@ -463,7 +465,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         }
     }
 
-    @Test
     public void testGlobalOrdinals() throws Exception {
         fillExtendedMvSet();
         refreshReader();
@@ -554,7 +555,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!10"));
     }
 
-    @Test
     public void testTermsEnum() throws Exception {
         fillExtendedMvSet();
         LeafReaderContext atomicReaderContext = refreshReader();
@@ -590,7 +590,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(size, equalTo(3));
     }
 
-    @Test
     public void testGlobalOrdinalsGetRemovedOnceIndexReaderCloses() throws Exception {
         fillExtendedMvSet();
         refreshReader();

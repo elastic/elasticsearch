@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -61,7 +60,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         {
@@ -122,8 +121,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void singleValueField() throws Exception {
+    public void testSingleValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(ipRange("range")
                         .field("ip")
@@ -143,25 +141,25 @@ public class IPv4RangeTests extends ESIntegTestCase {
 
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat((String) (String) bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(((Number) ((Number) bucket.getFrom())).doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat((String) bucket.getKey(), equalTo("*-10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(((Number) ((Number) bucket.getTo())).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat((String) (String) bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(((Number) ((Number) bucket.getFrom())).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(((Number) ((Number) bucket.getTo())).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat((String) (String) bucket.getKey(), equalTo("10.0.0.200-*"));
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
@@ -169,8 +167,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(55l));
     }
 
-    @Test
-    public void singleValueField_WithMaskRange() throws Exception {
+    public void testSingleValueFieldWithMaskRange() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(ipRange("range")
                         .field("ip")
@@ -206,8 +203,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(127l)); // include 10.0.0.128
     }
 
-    @Test
-    public void singleValueField_WithCustomKey() throws Exception {
+    public void testSingleValueFieldWithCustomKey() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(ipRange("range")
                         .field("ip")
@@ -253,8 +249,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(55l));
     }
 
-    @Test
-    public void singleValuedField_WithSubAggregation() throws Exception {
+    public void testSingleValuedFieldWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(ipRange("range")
                         .field("ip")
@@ -322,8 +317,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat((double) propertiesCounts[2], equalTo((double) 55 * 3));
     }
 
-    @Test
-    public void singleValuedField_WithSubAggregation_Inherited() throws Exception {
+    public void testSingleValuedFieldWithSubAggregationInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(ipRange("range")
                         .field("ip")
@@ -379,8 +373,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(max.getValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.254")));
     }
 
-    @Test
-    public void singleValuedField_WithValueScript() throws Exception {
+    public void testSingleValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -440,8 +433,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
     [255, 256]
      */
 
-    @Test
-    public void multiValuedField() throws Exception {
+    public void testMultiValuedField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(ipRange("range")
                         .field("ips")
@@ -487,8 +479,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(56l));
     }
 
-    @Test
-    public void multiValuedField_WithValueScript() throws Exception {
+    public void testMultiValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -532,8 +523,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(56l));
     }
 
-    @Test
-    public void multiValuedField_WithValueScript_WithInheritedSubAggregator() throws Exception {
+    public void testMultiValuedFieldWithValueScriptWithInheritedSubAggregator() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -586,8 +576,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.255")));
     }
 
-    @Test
-    public void script_SingleValue() throws Exception {
+    public void testScriptSingleValue() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -631,8 +620,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(55l));
     }
 
-    @Test
-    public void script_SingleValue_WithSubAggregator_Inherited() throws Exception {
+    public void testScriptSingleValueWithSubAggregatorInherited() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -686,8 +674,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(max.getValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.254")));
     }
 
-    @Test
-    public void script_MultiValued() throws Exception {
+    public void testScriptMultiValued() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -731,8 +718,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(56l));
     }
 
-    @Test
-    public void script_MultiValued_WithAggregatorInherited() throws Exception {
+    public void testScriptMultiValuedWithAggregatorInherited() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -786,8 +772,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.255")));
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(ipRange("range")
                         .field("ip")
@@ -833,8 +818,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(0l));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(ipRange("range")
                         .field("ip")
@@ -880,8 +864,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(55l));
     }
 
-    @Test
-    public void emptyAggregation() throws Exception {
+    public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
@@ -906,8 +889,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(buckets.get(0).getDocCount(), equalTo(0l));
     }
 
-    @Test
-    public void mask0() {
+    public void testMask0() {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(ipRange("range")
                         .field("ip")
@@ -930,10 +912,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertEquals(255l, bucket.getDocCount());
     }
 
-
-    @Test
-    public void mask0SpecialIps() {
-
+    public void testMask0SpecialIps() {
         SearchResponse response = client().prepareSearch("range_idx")
                 .addAggregation(ipRange("range")
                         .field("ip")

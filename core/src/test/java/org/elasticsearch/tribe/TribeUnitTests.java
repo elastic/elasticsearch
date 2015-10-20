@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.nio.file.Path;
 
@@ -70,7 +69,6 @@ public class TribeUnitTests extends ESTestCase {
         tribe2 = null;
     }
 
-    @Test
     public void testThatTribeClientsIgnoreGlobalSysProps() throws Exception {
         System.setProperty("es.cluster.name", "tribe_node_cluster");
         System.setProperty("es.tribe.t1.cluster.name", "tribe1");
@@ -85,7 +83,6 @@ public class TribeUnitTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
         Path pathConf = getDataPath("elasticsearch.yml").getParent();
         Settings settings = Settings.builder().put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true).put("path.conf", pathConf).build();

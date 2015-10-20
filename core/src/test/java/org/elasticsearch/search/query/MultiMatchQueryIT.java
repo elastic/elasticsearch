@@ -19,13 +19,17 @@
 package org.elasticsearch.search.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -33,7 +37,6 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -165,7 +168,6 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .endObject().endObject();
     }
 
-    @Test
     public void testDefaults() throws ExecutionException, InterruptedException {
         MatchQuery.Type type = randomBoolean() ? MatchQueryBuilder.DEFAULT_TYPE : MatchQuery.Type.BOOLEAN;
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -205,7 +207,6 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("theone"));
     }
 
-    @Test
     public void testPhraseType() {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("Man the Ultimate", "full_name_phrase", "first_name_phrase", "last_name_phrase", "category_phrase")
@@ -225,7 +226,6 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2l);
     }
 
-    @Test
     public void testSingleField() throws NoSuchFieldException, IllegalAccessException {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("15", "skill"))).get();
@@ -271,7 +271,6 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testCutoffFreq() throws ExecutionException, InterruptedException {
         final long numDocs = client().prepareSearch("test").setSize(0)
                 .setQuery(matchAllQuery()).get().getHits().totalHits();
@@ -331,8 +330,6 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("theother"));
     }
 
-
-    @Test
     public void testEquivalence() {
 
         final int numDocs = (int) client().prepareSearch("test").setSize(0)
@@ -427,7 +424,6 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testCrossFieldMode() throws ExecutionException, InterruptedException {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name")

@@ -34,7 +34,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -66,7 +65,7 @@ public class DateRangeTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     private static IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
         return client().prepareIndex("idx", "type").setSource(jsonBuilder()
                 .startObject()
@@ -112,8 +111,7 @@ public class DateRangeTests extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void dateMath() throws Exception {
+    public void testDateMath() throws Exception {
         DateRangeBuilder rangeBuilder = dateRange("range");
         if (randomBoolean()) {
             rangeBuilder.field("date");
@@ -152,8 +150,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(0L));
     }
 
-    @Test
-    public void singleValueField() throws Exception {
+    public void testSingleValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("date")
@@ -199,8 +196,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
-    @Test
-    public void singleValueField_WithStringDates() throws Exception {
+    public void testSingleValueFieldWithStringDates() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("date")
@@ -246,8 +242,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
-    @Test
-    public void singleValueField_WithStringDates_WithCustomFormat() throws Exception {
+    public void testSingleValueFieldWithStringDatesWithCustomFormat() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("date")
@@ -294,8 +289,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
-    @Test
-    public void singleValueField_WithDateMath() throws Exception {
+    public void testSingleValueFieldWithDateMath() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("date")
@@ -341,8 +335,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
-    @Test
-    public void singleValueField_WithCustomKey() throws Exception {
+    public void testSingleValueFieldWithCustomKey() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("date")
@@ -397,8 +390,7 @@ public class DateRangeTests extends ESIntegTestCase {
         Mar 23,     6
      */
 
-    @Test
-    public void singleValuedField_WithSubAggregation() throws Exception {
+    public void testSingleValuedFieldWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("date")
@@ -464,8 +456,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat((long) propertiesDocCounts[2], equalTo(numDocs - 4l));
     }
 
-    @Test
-    public void singleValuedField_WithSubAggregation_Inherited() throws Exception {
+    public void testSingleValuedFieldWithSubAggregationInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("date")
@@ -530,8 +521,7 @@ public class DateRangeTests extends ESIntegTestCase {
         Mar 23, Apr 24      6
      */
 
-    @Test
-    public void multiValuedField() throws Exception {
+    public void testMultiValuedField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("dates")
@@ -587,8 +577,7 @@ public class DateRangeTests extends ESIntegTestCase {
      */
 
 
-    @Test
-    public void multiValuedField_WithValueScript() throws Exception {
+    public void testMultiValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("dates")
@@ -632,7 +621,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 1l));
     }
 
-    
+
 
     /*
         Feb 2,  Mar 3,      1
@@ -643,8 +632,7 @@ public class DateRangeTests extends ESIntegTestCase {
         Apr 23, May 24      6
      */
 
-    @Test
-    public void multiValuedField_WithValueScript_WithInheritedSubAggregator() throws Exception {
+    public void testMultiValuedFieldWithValueScriptWithInheritedSubAggregator() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("dates")
@@ -696,8 +684,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(max, notNullValue());
     }
 
-    @Test
-    public void script_SingleValue() throws Exception {
+    public void testScriptSingleValue() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
 .script(new Script("doc['date'].value"))
@@ -743,8 +730,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
-    @Test
-    public void script_SingleValue_WithSubAggregator_Inherited() throws Exception {
+    public void testScriptSingleValueWithSubAggregatorInherited() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -796,7 +782,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(max, notNullValue());
     }
 
-    
+
 
     /*
         Jan 2,  Feb 3,      1
@@ -807,8 +793,7 @@ public class DateRangeTests extends ESIntegTestCase {
         Mar 23, Apr 24      6
      */
 
-    @Test
-    public void script_MultiValued() throws Exception {
+    public void testScriptMultiValued() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -851,8 +836,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 2l));
     }
 
-    @Test
-    public void script_MultiValued_WithAggregatorInherited() throws Exception {
+    public void testScriptMultiValuedWithAggregatorInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
 .script(new Script("doc['dates'].values")).addUnboundedTo(date(2, 15))
@@ -904,8 +888,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(min.getValue(), equalTo((double) date(2, 15).getMillis()));
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
 
         SearchResponse response = client().prepareSearch("idx_unmapped")
@@ -953,8 +936,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(0l));
     }
 
-    @Test
-    public void unmapped_WithStringDates() throws Exception {
+    public void testUnmappedWithStringDates() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(dateRange("range")
                         .field("date")
@@ -1000,8 +982,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(0l));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(dateRange("range")
                         .field("date")
@@ -1047,8 +1028,7 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
-    @Test
-    public void emptyAggregation() throws Exception {
+    public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0).subAggregation(dateRange("date_range").addRange("0-1", 0, 1)))
@@ -1071,6 +1051,5 @@ public class DateRangeTests extends ESIntegTestCase {
         assertThat(((DateTime) buckets.get(0).getTo()).getMillis(), equalTo(1l));
         assertThat(buckets.get(0).getDocCount(), equalTo(0l));
         assertThat(buckets.get(0).getAggregations().asList().isEmpty(), is(true));
-
     }
 }

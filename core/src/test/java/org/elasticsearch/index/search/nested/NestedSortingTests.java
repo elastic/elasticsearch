@@ -50,7 +50,6 @@ import org.elasticsearch.index.fielddata.NoOrdinalsStringFieldDataTests;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,13 +61,11 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class NestedSortingTests extends AbstractFieldDataTestCase {
-
     @Override
     protected FieldDataType getFieldDataType() {
         return new FieldDataType("string", Settings.builder().put("format", "paged_bytes"));
     }
 
-    @Test
     public void testDuel() throws Exception {
         final int numDocs = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < numDocs; ++i) {
@@ -122,7 +119,6 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         return searcher.search(query, n, sort);
     }
 
-    @Test
     public void testNestedSorting() throws Exception {
         List<Document> docs = new ArrayList<>();
         Document document = new Document();

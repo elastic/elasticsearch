@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -39,7 +38,6 @@ public class BroadcastActionsIT extends ESIntegTestCase {
         return 1;
     }
 
-    @Test
     public void testBroadcastOperations() throws IOException {
         assertAcked(prepareCreate("test", 1).execute().actionGet(5000));
 

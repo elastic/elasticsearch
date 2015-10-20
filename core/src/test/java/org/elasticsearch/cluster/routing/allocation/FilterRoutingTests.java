@@ -31,7 +31,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.List;
 
@@ -43,10 +42,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class FilterRoutingTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(FilterRoutingTests.class);
 
-    @Test
     public void testClusterFilters() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.include.tag1", "value1,value2")
@@ -92,7 +89,6 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testIndexFilters() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .build());

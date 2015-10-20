@@ -23,11 +23,12 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilder> {
 
@@ -48,7 +49,6 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
         assertThat(termQuery.getTerm().text(), equalTo(queryBuilder.type()));
     }
 
-    @Test
     public void testIllegalArgument() {
         try {
             new TypeQueryBuilder((String) null);

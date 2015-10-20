@@ -47,7 +47,6 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper.Builder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -61,7 +60,6 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  */
 public class SimpleStringMappingTests extends ESSingleNodeTestCase {
-
     private static Settings DOC_VALUES_SETTINGS = Settings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
 
     IndexService indexService;
@@ -73,7 +71,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         parser = indexService.mapperService().documentMapperParser();
     }
 
-    @Test
     public void testLimit() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").field("ignore_above", 5).endObject().endObject()
@@ -134,7 +131,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         assertEquals(expected, doc.rootDoc().getField("field").fieldType());
     }
 
-    @Test
     public void testDefaultsForAnalyzed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").endObject().endObject()
@@ -153,7 +149,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         assertParseIdemPotent(fieldType, defaultMapper);
     }
 
-    @Test
     public void testDefaultsForNotAnalyzed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").endObject().endObject()
@@ -218,7 +213,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         assertParseIdemPotent(fieldType, defaultMapper);
     }
 
-    @Test
     public void testSearchQuoteAnalyzerSerialization() throws Exception {
         // Cases where search_quote_analyzer should not be added to the mapping.
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -294,7 +288,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         return result;
     }
 
-    @Test
     public void testTermVectors() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -480,7 +473,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         return DocValuesType.NONE;
     }
 
-    @Test
     public void testDisableNorms() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").endObject().endObject()

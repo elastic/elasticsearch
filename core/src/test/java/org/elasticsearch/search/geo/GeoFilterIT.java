@@ -49,7 +49,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
@@ -111,9 +110,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         return out.toByteArray();
     }
 
-    @Test
     public void testShapeBuilders() {
-
         try {
             // self intersection polygon
             ShapeBuilder.newPolygon()
@@ -223,13 +220,10 @@ public class GeoFilterIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testShapeRelations() throws Exception {
-
         assertTrue( "Intersect relation is not supported", intersectSupport);
         assertTrue("Disjoint relation is not supported", disjointSupport);
         assertTrue("within relation is not supported", withinSupport);
-
 
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()
@@ -402,8 +396,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         assertHitCount(result, 1);
     }
 
-    @Test
-    public void bulktest() throws Exception {
+    public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
 
         String mapping = XContentFactory.jsonBuilder()
@@ -468,7 +461,6 @@ public class GeoFilterIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testGeohashCellFilter() throws IOException {
         String geohash = randomhash(10);
         logger.info("Testing geohash_cell filter for [{}]", geohash);
@@ -542,7 +534,6 @@ public class GeoFilterIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testNeighbors() {
         // Simple root case
         assertThat(XGeoHashUtils.addNeighbors("7", new ArrayList<String>()), containsInAnyOrder("4", "5", "6", "d", "e", "h", "k", "s"));

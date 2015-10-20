@@ -36,7 +36,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,14 +65,12 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class GeoDistanceTests extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
-    @Test
-    public void simpleDistanceTests() throws Exception {
+
+    public void testSimpleDistance() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true)
                 .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject().endObject()
@@ -225,7 +222,6 @@ public class GeoDistanceTests extends ESIntegTestCase {
         assertOrderedSearchHits(searchResponse, "7", "2", "6", "5", "4", "3", "1");
     }
 
-    @Test
     public void testDistanceSortingMVFields() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
@@ -360,7 +356,6 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 containsString("sort_mode [sum] isn't supported for sorting by geo distance"));
     }
 
-    @Test
     // Regression bug: https://github.com/elasticsearch/elasticsearch/issues/2851
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
@@ -408,8 +403,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5286d, 10d));
     }
 
-    @Test
-    public void distanceScriptTests() throws Exception {
+    public void testDistanceScript() throws Exception {
         double source_lat = 32.798;
         double source_long = -117.151;
         double target_lat = 32.81;
@@ -489,8 +483,6 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.0001d));
     }
 
-
-    @Test
     public void testDistanceSortingNestedFields() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("company")
                 .startObject("properties")
@@ -654,7 +646,6 @@ public class GeoDistanceTests extends ESIntegTestCase {
     /**
      * Issue 3073
      */
-    @Test
     public void testGeoDistanceFilter() throws IOException {
         double lat = 40.720611;
         double lon = -73.998776;

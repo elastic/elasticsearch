@@ -27,7 +27,10 @@ import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.support.QueryInnerHits;
@@ -36,7 +39,6 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.TestSearchContext;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -161,7 +163,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertEquals(tqb.values(), Arrays.asList("a", "b"));
     }
 
-    @Test
     public void testValidate() {
         try {
             new NestedQueryBuilder(null, EmptyQueryBuilder.PROTOTYPE);

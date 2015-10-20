@@ -20,12 +20,9 @@
 package org.elasticsearch.common.math;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 public class MathUtilsTests extends ESTestCase {
-
-    @Test
-    public void mod() {
+    public void testMod() {
         final int iters = scaledRandomIntBetween(1000, 10000);
         for (int i = 0; i < iters; ++i) {
             final int v = rarely() ? Integer.MIN_VALUE : rarely() ? Integer.MAX_VALUE : randomInt();
@@ -35,5 +32,4 @@ public class MathUtilsTests extends ESTestCase {
             assertTrue(mod < m);
         }
     }
-
 }

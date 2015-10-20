@@ -34,7 +34,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -58,14 +57,12 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         routingService.shutdown();
     }
 
-    @Test
     public void testReroute() {
         assertThat(routingService.hasReroutedAndClear(), equalTo(false));
         routingService.reroute("test");
         assertThat(routingService.hasReroutedAndClear(), equalTo(true));
     }
 
-    @Test
     public void testNoDelayedUnassigned() throws Exception {
         AllocationService allocation = createAllocationService();
         MetaData metaData = MetaData.builder()
@@ -94,7 +91,6 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         assertThat(routingService.hasReroutedAndClear(), equalTo(false));
     }
 
-    @Test
     @TestLogging("_root:DEBUG")
     public void testDelayedUnassignedScheduleReroute() throws Exception {
         AllocationService allocation = createAllocationService();
@@ -142,7 +138,6 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         assertThat(routingService.getRegisteredNextDelaySetting(), equalTo(Long.MAX_VALUE));
     }
 
-    @Test
     public void testDelayedUnassignedDoesNotRerouteForNegativeDelays() throws Exception {
         AllocationService allocation = createAllocationService();
         MetaData metaData = MetaData.builder()

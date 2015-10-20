@@ -21,7 +21,6 @@ package org.elasticsearch.common.logging.jdk;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,8 +50,7 @@ public class JDKESLoggerTests extends ESTestCase {
         testLogger.addHandler(testHandler);
     }
 
-    @Test
-    public void locationInfoTest() {
+    public void testLocationInfoTest() {
         esTestLogger.error("This is an error");
         esTestLogger.warn("This is a warning");
         esTestLogger.info("This is an info");
@@ -66,31 +64,31 @@ public class JDKESLoggerTests extends ESTestCase {
         assertThat(record.getLevel(), equalTo(Level.SEVERE));
         assertThat(record.getMessage(), equalTo("This is an error"));
         assertThat(record.getSourceClassName(), equalTo(JDKESLoggerTests.class.getCanonicalName()));
-        assertThat(record.getSourceMethodName(), equalTo("locationInfoTest"));
+        assertThat(record.getSourceMethodName(), equalTo("testLocationInfoTest"));
         record = records.get(1);
         assertThat(record, notNullValue());
         assertThat(record.getLevel(), equalTo(Level.WARNING));
         assertThat(record.getMessage(), equalTo("This is a warning"));
         assertThat(record.getSourceClassName(), equalTo(JDKESLoggerTests.class.getCanonicalName()));
-        assertThat(record.getSourceMethodName(), equalTo("locationInfoTest"));
+        assertThat(record.getSourceMethodName(), equalTo("testLocationInfoTest"));
         record = records.get(2);
         assertThat(record, notNullValue());
         assertThat(record.getLevel(), equalTo(Level.INFO));
         assertThat(record.getMessage(), equalTo("This is an info"));
         assertThat(record.getSourceClassName(), equalTo(JDKESLoggerTests.class.getCanonicalName()));
-        assertThat(record.getSourceMethodName(), equalTo("locationInfoTest"));
+        assertThat(record.getSourceMethodName(), equalTo("testLocationInfoTest"));
         record = records.get(3);
         assertThat(record, notNullValue());
         assertThat(record.getLevel(), equalTo(Level.FINE));
         assertThat(record.getMessage(), equalTo("This is a debug"));
         assertThat(record.getSourceClassName(), equalTo(JDKESLoggerTests.class.getCanonicalName()));
-        assertThat(record.getSourceMethodName(), equalTo("locationInfoTest"));
+        assertThat(record.getSourceMethodName(), equalTo("testLocationInfoTest"));
         record = records.get(4);
         assertThat(record, notNullValue());
         assertThat(record.getLevel(), equalTo(Level.FINEST));
         assertThat(record.getMessage(), equalTo("This is a trace"));
         assertThat(record.getSourceClassName(), equalTo(JDKESLoggerTests.class.getCanonicalName()));
-        assertThat(record.getSourceMethodName(), equalTo("locationInfoTest"));
+        assertThat(record.getSourceMethodName(), equalTo("testLocationInfoTest"));
     }
 
     private static class TestHandler extends Handler {

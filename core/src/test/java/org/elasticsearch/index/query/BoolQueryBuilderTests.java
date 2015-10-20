@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.*;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
@@ -32,7 +31,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
-
     @Override
     protected BoolQueryBuilder doCreateTestQueryBuilder() {
         BoolQueryBuilder query = new BoolQueryBuilder();
@@ -146,7 +144,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         return alternateVersions;
     }
 
-    @Test
     public void testIllegalArguments() {
         BoolQueryBuilder booleanQuery = new BoolQueryBuilder();
 
@@ -176,7 +173,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     }
 
     // https://github.com/elasticsearch/elasticsearch/issues/7240
-    @Test
     public void testEmptyBooleanQuery() throws Exception {
         String query = jsonBuilder().startObject().startObject("bool").endObject().endObject().string();
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());

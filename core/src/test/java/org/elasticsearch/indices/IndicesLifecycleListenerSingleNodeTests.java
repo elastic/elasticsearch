@@ -24,7 +24,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -33,15 +32,12 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCase {
-
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
     }
 
-    @Test
     public void testCloseDeleteCallback() throws Throwable {
-
         final AtomicInteger counter = new AtomicInteger(1);
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
@@ -86,5 +82,5 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         assertAcked(client().admin().indices().prepareDelete("test").get());
         assertEquals(7, counter.get());
     }
-    
+
 }

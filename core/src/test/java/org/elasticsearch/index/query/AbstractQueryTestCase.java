@@ -91,7 +91,6 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
@@ -310,7 +309,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Generic test that creates new query from the test query and checks both for equality
      * and asserts equality on the two queries.
      */
-    @Test
     public void testFromXContent() throws IOException {
         QB testQuery = createTestQueryBuilder();
         assertParsedQuery(testQuery.toString(), testQuery);
@@ -366,7 +364,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Test creates the {@link Query} from the {@link QueryBuilder} under test and delegates the
      * assertions being made on the result to the implementing subclass.
      */
-    @Test
     public void testToQuery() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
@@ -450,7 +447,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Test serialization and deserialization of the test query.
      */
-    @Test
     public void testSerialization() throws IOException {
         QB testQuery = createTestQueryBuilder();
         assertSerialization(testQuery);
@@ -474,7 +470,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
-    @Test
     public void testEqualsAndHashcode() throws IOException {
         QB firstQuery = createTestQueryBuilder();
         assertFalse("query is equal to null", firstQuery.equals(null));

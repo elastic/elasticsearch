@@ -33,7 +33,6 @@ import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -88,9 +87,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
     public void testGlobal() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(global("global")
@@ -104,9 +101,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @Test
     public void testFilter() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(filter("filter").filter(QueryBuilders.matchAllQuery())
@@ -120,9 +115,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @Test
     public void testMissing() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(missing("missing").field("foobar")
@@ -136,9 +129,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @Test
     public void testGlobalWithFilterWithMissing() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(global("global")
@@ -156,9 +147,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @Test
     public void testNested() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(nested("nested").path("nested")
@@ -172,9 +161,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @Test
     public void testStringTerms() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(terms("terms").field("term-s")
@@ -189,9 +176,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @Test
     public void testLongTerms() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(terms("terms").field("term-l")
@@ -206,9 +191,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @Test
     public void testDoubleTerms() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(terms("terms").field("term-d")
@@ -223,9 +206,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @Test
     public void testRange() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(range("range").field("value").addRange("r1", 0, 10)
@@ -239,9 +220,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @Test
     public void testDateRange() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(dateRange("range").field("date").addRange("r1", "2014-01-01", "2014-01-10")
@@ -255,9 +234,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @Test
     public void testIpRange() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(ipRange("range").field("ip").addRange("r1", "10.0.0.1", "10.0.0.10")
@@ -271,9 +248,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @Test
     public void testHistogram() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(histogram("topHisto").field("value").interval(5)
@@ -287,9 +262,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @Test
     public void testDateHistogram() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(dateHistogram("topHisto").field("date").interval(DateHistogramInterval.MONTH)
@@ -304,9 +277,7 @@ public class ShardReduceIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testGeoHashGrid() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(geohashGrid("grid").field("location")

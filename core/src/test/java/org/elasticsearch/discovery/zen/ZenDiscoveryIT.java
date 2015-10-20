@@ -48,7 +48,6 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -71,8 +70,6 @@ import static org.hamcrest.Matchers.sameInstance;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
 public class ZenDiscoveryIT extends ESIntegTestCase {
-
-    @Test
     public void testChangeRejoinOnMasterOptionIsDynamic() throws Exception {
         Settings nodeSettings = Settings.settingsBuilder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
@@ -88,7 +85,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(zenDiscovery.isRejoinOnMasterGone(), is(false));
     }
 
-    @Test
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
         Settings defaultSettings = Settings.builder()
                 .put(FaultDetection.SETTING_PING_TIMEOUT, "1s")
@@ -135,7 +131,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
     }
 
-    @Test
     @TestLogging(value = "action.admin.cluster.health:TRACE")
     public void testNodeFailuresAreProcessedOnce() throws ExecutionException, InterruptedException, IOException {
         Settings defaultSettings = Settings.builder()
@@ -180,7 +175,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(statesFound, Matchers.hasSize(2));
     }
 
-    @Test
     public void testNodeRejectsClusterStateWithWrongMasterNode() throws Exception {
         Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
@@ -229,7 +223,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(ExceptionsHelper.detailedMessage(reference.get()), containsString("cluster state from a different master than the current one, rejecting"));
     }
 
-    @Test
     public void testHandleNodeJoin_incompatibleMinVersion() throws UnknownHostException {
         Settings nodeSettings = Settings.settingsBuilder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
@@ -254,7 +247,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(holder.get().getMessage(), equalTo("Can't handle join request from a node with a version [1.6.0] that is lower than the minimum compatible version [" + Version.V_2_0_0_beta1.minimumCompatibilityVersion() + "]"));
     }
 
-    @Test
     public void testJoinElectedMaster_incompatibleMinVersion() {
         ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY, Version.V_2_0_0_beta1);
 

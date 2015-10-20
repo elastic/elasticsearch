@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.NumericTokenStream.NumericTermAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -32,8 +31,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class NumericAnalyzerTests extends ESTestCase {
-
-    @Test
     public void testAttributeEqual() throws IOException {
         final int precisionStep = 8;
         final double value = randomDouble();
@@ -59,5 +56,4 @@ public class NumericAnalyzerTests extends ESTestCase {
         ts1.end();
         ts2.end();
     }
-
 }

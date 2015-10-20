@@ -20,14 +20,12 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 
 public class JavaVersionTests extends ESTestCase {
-    @Test
     public void testParse() {
         JavaVersion javaVersion = JavaVersion.parse("1.7.0");
         List<Integer> version = javaVersion.getVersion();
@@ -37,13 +35,11 @@ public class JavaVersionTests extends ESTestCase {
         assertThat(0, is(version.get(2)));
     }
 
-    @Test
     public void testToString() {
         JavaVersion javaVersion = JavaVersion.parse("1.7.0");
         assertThat("1.7.0", is(javaVersion.toString()));
     }
 
-    @Test
     public void testCompare() {
         JavaVersion onePointSix = JavaVersion.parse("1.6");
         JavaVersion onePointSeven = JavaVersion.parse("1.7");
@@ -61,7 +57,6 @@ public class JavaVersionTests extends ESTestCase {
         assertTrue(onePointSevenPointTwo.compareTo(onePointSevenPointTwoPointOne) < 0);
     }
 
-    @Test
     public void testValidVersions() {
         String[] versions = new String[]{"1.7", "1.7.0", "0.1.7", "1.7.0.80"};
         for (String version : versions) {
@@ -69,7 +64,6 @@ public class JavaVersionTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testInvalidVersions() {
         String[] versions = new String[]{"", "1.7.0_80", "1.7."};
         for (String version : versions) {

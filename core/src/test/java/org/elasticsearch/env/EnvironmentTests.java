@@ -20,7 +20,6 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.net.URL;
@@ -34,7 +33,6 @@ import static org.hamcrest.CoreMatchers.nullValue;
  * Simple unit-tests for Environment.java
  */
 public class EnvironmentTests extends ESTestCase {
-
     public Environment newEnvironment() throws IOException {
         return newEnvironment(Settings.EMPTY);
     }
@@ -47,7 +45,6 @@ public class EnvironmentTests extends ESTestCase {
         return new Environment(build);
     }
 
-    @Test
     public void testRepositoryResolution() throws IOException {
         Environment environment = newEnvironment();
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());

@@ -22,17 +22,14 @@ package org.elasticsearch.smoketest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class SmokeTestClientIT extends ESSmokeClientTestCase {
-
     /**
      * Check that we are connected to a cluster named "elasticsearch".
      */
-    @Test
     public void testSimpleClient() {
         Client client = getClient();
 
@@ -47,7 +44,6 @@ public class SmokeTestClientIT extends ESSmokeClientTestCase {
     /**
      * Create an index and index some docs
      */
-    @Test
     public void testPutDocument() {
         Client client = getClient();
 

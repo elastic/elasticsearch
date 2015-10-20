@@ -52,7 +52,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -137,7 +136,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 MockTransportService.TestPlugin.class);
     }
 
-    @Test
     public void testClusterInfoServiceCollectsInformation() throws Exception {
         internalCluster().startNodesAsync(2,
                 Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "200ms").build())
@@ -187,7 +185,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testClusterInfoServiceInformationClearOnError() throws InterruptedException, ExecutionException {
         internalCluster().startNodesAsync(2,
                 // manually control publishing

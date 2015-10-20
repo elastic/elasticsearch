@@ -43,12 +43,10 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,9 +55,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -349,24 +347,39 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         assertThat(allEntries.fields(), hasItem("foo.bar"));
     }
 
-    @Test(expected = MapperParsingException.class)
     public void testMisplacedTypeInRoot() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/misplaced_type_in_root.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
+            fail("Expected MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Root mapping definition has unsupported parameters"));
+            assertThat(e.getMessage(), containsString("[type : string]"));
+        }
     }
 
     // related to https://github.com/elasticsearch/elasticsearch/issues/5864
-    @Test(expected = MapperParsingException.class)
     public void testMistypedTypeInRoot() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mistyped_type_in_root.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
+            fail("Expected MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Root mapping definition has unsupported parameters"));
+            assertThat(e.getMessage(), containsString("type=string"));
+        }
     }
 
     // issue https://github.com/elasticsearch/elasticsearch/issues/5864
-    @Test(expected = MapperParsingException.class)
     public void testMisplacedMappingAsRoot() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/misplaced_mapping_key_in_root.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
+            fail("Expected MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Root mapping definition has unsupported parameters"));
+            assertThat(e.getMessage(), containsString("type=string"));
+        }
     }
 
     // issue https://github.com/elasticsearch/elasticsearch/issues/5864
@@ -399,7 +412,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         mapping += "\"properties\":{}}" ;
         createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
     }
-    
+
     public void testDocValuesNotAllowed() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type")
             .startObject("_all")
@@ -411,7 +424,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         } catch (MapperParsingException e) {
             assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
         }
-        
+
 
         mapping = jsonBuilder().startObject().startObject("type")
             .startObject("_all")

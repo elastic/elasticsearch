@@ -16,6 +16,7 @@
     </parent>
 
     <properties>
+        <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
         <elasticsearch.plugin.classname>org.elasticsearch.marvel.MarvelPlugin</elasticsearch.plugin.classname>
         <!-- TODO: fix plugin dependencies for full isolation -->
         <elasticsearch.plugin.isolated>false</elasticsearch.plugin.isolated>

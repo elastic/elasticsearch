@@ -6,18 +6,18 @@
 package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SecuredStringTests extends ESTestCase {
     public static SecuredString build(String password){
         return new SecuredString(password.toCharArray());
     }
 
-    @Test
     public void testAccessAfterClear(){
         SecuredString password = new SecuredString("password".toCharArray());
         SecuredString password2 = new SecuredString("password".toCharArray());
@@ -47,7 +47,6 @@ public class SecuredStringTests extends ESTestCase {
         assertNotEquals(password, password2);
     }
 
-    @Test
     public void testEqualsHashCode(){
         SecuredString password = new SecuredString("password".toCharArray());
         SecuredString password2 = new SecuredString("password".toCharArray());
@@ -56,7 +55,6 @@ public class SecuredStringTests extends ESTestCase {
         assertEquals(password.hashCode(), password2.hashCode());
     }
 
-    @Test
     public void testsEqualsCharSequence(){
         SecuredString password = new SecuredString("password".toCharArray());
         StringBuffer password2 = new StringBuffer("password");
@@ -66,7 +64,6 @@ public class SecuredStringTests extends ESTestCase {
         assertEquals(password, password3);
     }
 
-    @Test
     public void testConcat() {
         SecuredString password = new SecuredString("password".toCharArray());
         SecuredString password2 = new SecuredString("password".toCharArray());
@@ -76,7 +73,6 @@ public class SecuredStringTests extends ESTestCase {
         assertThat(password3.internalChars(), equalTo("passwordpassword".toCharArray()));
     }
 
-    @Test
     public void testSubsequence(){
         SecuredString password = new SecuredString("password".toCharArray());
         SecuredString password2 = password.subSequence(4, 8);
@@ -87,7 +83,6 @@ public class SecuredStringTests extends ESTestCase {
         assertThat("ensure original is unmodified", password.internalChars(), equalTo("password".toCharArray()));
     }
 
-    @Test
     public void testUFT8(){
         String password = "эластичный поиск-弾性検索";
         SecuredString securePass = new SecuredString(password.toCharArray());
@@ -96,7 +91,6 @@ public class SecuredStringTests extends ESTestCase {
         assertThat(password2, equalTo(password));
     }
 
-    @Test
     public void testCopyChars() throws Exception {
         String password = "эластичный поиск-弾性検索";
         SecuredString securePass = new SecuredString(password.toCharArray());

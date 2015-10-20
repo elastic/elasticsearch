@@ -6,13 +6,13 @@
 package org.elasticsearch.watcher.history;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,7 +31,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the different time fields in the watch_record are mapped as date types
  */
 public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     protected boolean timeWarped() {
         return true; // just to have better control over the triggers
@@ -42,7 +41,6 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
         return false; // remove shield noise from this test
     }
 
-    @Test
     public void testTimeFields() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))

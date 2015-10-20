@@ -16,17 +16,21 @@ import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.ExceptionEvent;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelHandler;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.handler.ssl.SslHandler;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.BindException;
@@ -41,11 +45,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
+
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class HandshakeWaitingHandlerTests extends ESTestCase {
-
     private static final int CONCURRENT_CLIENT_REQUESTS = 20;
 
     private int iterations;
@@ -95,10 +104,8 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
         failureCause = null;
     }
 
-    @Test
     public void testWriteBeforeHandshakeFailsWithoutHandler() throws Exception {
         clientBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
-
             @Override
             public ChannelPipeline getPipeline() throws Exception {
                 final SSLEngine engine = sslContext.createSSLEngine();
@@ -130,7 +137,6 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
         assertThat("Expected this test to fail with an SSLException or AssertionError", failed.get(), is(true));
     }
 
-    @Test
     @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/533")
     public void testWriteBeforeHandshakePassesWithHandshakeWaitingHandler() throws Exception {
         clientBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
@@ -205,6 +211,7 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
 
     private ChannelPipelineFactory getServerFactory() {
         return new ChannelPipelineFactory() {
+            @Override
             public ChannelPipeline getPipeline() throws Exception {
                 final SSLEngine sslEngine = sslContext.createSSLEngine();
                 sslEngine.setUseClientMode(false);

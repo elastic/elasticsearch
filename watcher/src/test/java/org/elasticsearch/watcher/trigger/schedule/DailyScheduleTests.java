@@ -11,27 +11,29 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.Strings.join;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.hasItemInArray;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
 public class DailyScheduleTests extends ScheduleTestCase {
-
-    @Test
-    public void test_Default() throws Exception {
+    public void testDefault() throws Exception {
         DailySchedule schedule = new DailySchedule();
         String[] crons = expressions(schedule.crons());
         assertThat(crons, arrayWithSize(1));
         assertThat(crons, arrayContaining("0 0 0 * * ?"));
     }
 
-    @Test
-    public void test_SingleTime() throws Exception {
+    public void testSingleTime() throws Exception {
         DayTimes time = validDayTime();
         DailySchedule schedule = new DailySchedule(time);
         String[] crons = expressions(schedule);
@@ -39,15 +41,18 @@ public class DailyScheduleTests extends ScheduleTestCase {
         assertThat(crons, arrayContaining("0 " + join(",", time.minute()) + " " + join(",", time.hour()) + " * * ?"));
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void test_SingleTime_Invalid() throws Exception {
+    public void testSingleTimeInvalid() throws Exception {
         HourAndMinute ham = invalidDayTime();
-        new DayTimes(ham.hour, ham.minute);
-        fail("expected an illegal argument exception on invalid time input");
+        try {
+            new DayTimes(ham.hour, ham.minute);
+            fail("expected an illegal argument exception on invalid time input");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("invalid time ["));
+            assertThat(e.getMessage(), either(containsString("invalid time hour value")).or(containsString("invalid time minute value")));
+        }
     }
 
-    @Test
-    public void test_MultipleTimes() throws Exception {
+    public void testMultipleTimes() throws Exception {
         DayTimes[] times = validDayTimes();
         DailySchedule schedule = new DailySchedule(times);
         String[] crons = expressions(schedule);
@@ -57,8 +62,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test
-    public void testParser_Empty() throws Exception {
+    public void testParserEmpty() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -69,8 +73,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0], is(new DayTimes(0, 0)));
     }
 
-    @Test
-    public void testParser_SingleTime_Object() throws Exception {
+    public void testParserSingleTimeObject() throws Exception {
         DayTimes time = validDayTime();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -88,8 +91,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0], is(time));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_SingleTime_Object_Invalid() throws Exception {
+    public void testParserSingleTimeObjectInvalid() throws Exception {
         HourAndMinute time = invalidDayTime();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -101,11 +103,15 @@ public class DailyScheduleTests extends ScheduleTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken(); // advancing to the start object
-        new DailySchedule.Parser().parse(parser);
+        try {
+            new DailySchedule.Parser().parse(parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("could not parse [daily] schedule. invalid time value for field [at] - [START_OBJECT]"));
+        }
     }
 
-    @Test
-    public void testParser_SingleTime_String() throws Exception {
+    public void testParserSingleTimeString() throws Exception {
         String timeStr = validDayTimeStr();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -120,8 +126,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0], is(DayTimes.parse(timeStr)));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_SingleTime_String_Invalid() throws Exception {
+    public void testParserSingleTimeStringInvalid() throws Exception {
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                 .field("at", invalidDayTimeStr())
@@ -129,11 +134,15 @@ public class DailyScheduleTests extends ScheduleTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken(); // advancing to the start object
-        new DailySchedule.Parser().parse(parser);
+        try {
+            new DailySchedule.Parser().parse(parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("could not parse [daily] schedule. invalid time value for field [at] - [VALUE_STRING]"));
+        }
     }
 
-    @Test
-    public void testParser_MultipleTimes_Objects() throws Exception {
+    public void testParserMultipleTimesObjects() throws Exception {
         DayTimes[] times = validDayTimesFromNumbers();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -150,8 +159,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_MultipleTimes_Objects_Invalid() throws Exception {
+    public void testParserMultipleTimesObjectsInvalid() throws Exception {
         HourAndMinute[] times = invalidDayTimes();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -160,11 +168,15 @@ public class DailyScheduleTests extends ScheduleTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken(); // advancing to the start object
-        new DailySchedule.Parser().parse(parser);
+        try {
+            new DailySchedule.Parser().parse(parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("could not parse [daily] schedule. invalid time value for field [at] - [START_OBJECT]"));
+        }
     }
 
-    @Test
-    public void testParser_MultipleTimes_Strings() throws Exception {
+    public void testParserMultipleTimesStrings() throws Exception {
         DayTimes[] times = validDayTimesFromStrings();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -181,8 +193,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_MultipleTimes_Strings_Invalid() throws Exception {
+    public void testParserMultipleTimesStringsInvalid() throws Exception {
         String[] times = invalidDayTimesAsStrings();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -191,7 +202,11 @@ public class DailyScheduleTests extends ScheduleTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken(); // advancing to the start object
-        new DailySchedule.Parser().parse(parser);
+        try {
+            new DailySchedule.Parser().parse(parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("could not parse [daily] schedule. invalid time value for field [at] - [VALUE_STRING]"));
+        }
     }
-
 }

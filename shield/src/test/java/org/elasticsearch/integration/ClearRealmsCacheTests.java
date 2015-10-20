@@ -27,20 +27,27 @@ import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  *
  */
 public class ClearRealmsCacheTests extends ShieldIntegTestCase {
-
     private static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
 
     private static String[] usernames;
@@ -211,28 +218,23 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
                 "r1:" + Strings.arrayToCommaDelimitedString(usernames);
     }
 
-    @Test
     public void testEvictAll() throws Exception {
         testScenario(Scenario.EVICT_ALL);
     }
 
-    @Test
     public void testEvictSome() throws Exception {
         testScenario(Scenario.EVICT_SOME);
     }
 
-    @Test
     public void testEvictAllHttp() throws Exception {
         testScenario(Scenario.EVICT_ALL_HTTP);
     }
 
-    @Test
     public void testEvictSomeHttp() throws Exception {
         testScenario(Scenario.EVICT_SOME_HTTP);
     }
 
     private void testScenario(Scenario scenario) throws Exception {
-
         Map<String, UsernamePasswordToken> tokens = new HashMap<>();
         for (String user : usernames) {
             tokens.put(user, new UsernamePasswordToken(user, SecuredStringTests.build("passwd")));
@@ -242,7 +244,6 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
         for (Realms nodeRealms : internalCluster().getInstances(Realms.class)) {
             realms.add(nodeRealms.realm("esusers"));
         }
-
 
         // we authenticate each user on each of the realms to make sure they're all cached
         Map<String, Map<Realm, User>> users = new HashMap<>();

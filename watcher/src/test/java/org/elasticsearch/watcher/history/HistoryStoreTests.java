@@ -16,18 +16,19 @@ import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
 import org.junit.Before;
-import org.junit.Test;
 import org.mockito.Matchers;
 
 import static org.elasticsearch.watcher.test.WatcherMatchers.indexRequest;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  */
 public class HistoryStoreTests extends ESTestCase {
-
     private HistoryStore historyStore;
     private ClientProxy clientProxy;
 
@@ -38,7 +39,6 @@ public class HistoryStoreTests extends ESTestCase {
         historyStore.start();
     }
 
-    @Test
     public void testPut() throws Exception {
         Wid wid = new Wid("_name", 0, new DateTime(0, UTC));
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), new DateTime(0, UTC), new DateTime(0, UTC));
@@ -51,8 +51,7 @@ public class HistoryStoreTests extends ESTestCase {
         verify(clientProxy).index(Matchers.<IndexRequest>any(), Matchers.<TimeValue>any());
     }
 
-    @Test(expected = IllegalStateException.class)
-    public void testPut_stopped() throws Exception {
+    public void testPutStopped() throws Exception {
         Wid wid = new Wid("_name", 0, new DateTime(0, UTC));
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), new DateTime(0, UTC), new DateTime(0, UTC));
         WatchRecord watchRecord = new WatchRecord(wid, event, ExecutionState.EXECUTED, null);
@@ -60,18 +59,18 @@ public class HistoryStoreTests extends ESTestCase {
         historyStore.stop();
         try {
             historyStore.put(watchRecord);
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("unable to persist watch record history store is not ready"));
         } finally {
             historyStore.start();
         }
-        fail();
     }
 
-    @Test
     public void testIndexNameGeneration() {
         assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(0, UTC)), equalTo(".watch_history-1970.01.01"));
         assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(100000000000L, UTC)), equalTo(".watch_history-1973.03.03"));
         assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(1416582852000L, UTC)), equalTo(".watch_history-2014.11.21"));
         assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(2833165811000L, UTC)), equalTo(".watch_history-2059.10.12"));
     }
-
 }

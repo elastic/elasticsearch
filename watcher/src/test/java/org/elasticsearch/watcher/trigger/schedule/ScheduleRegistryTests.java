@@ -11,19 +11,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
 public class ScheduleRegistryTests extends ScheduleTestCase {
-
     private ScheduleRegistry registry;
 
     @Before
@@ -38,8 +39,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
         registry = new ScheduleRegistry(parsers);
     }
 
-    @Test
-    public void testParser_Interval() throws Exception {
+    public void testParserInterval() throws Exception {
         IntervalSchedule interval = randomIntervalSchedule();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -54,8 +54,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
         assertThat((IntervalSchedule) schedule, is(interval));
     }
 
-    @Test
-    public void testParse_Cron() throws Exception {
+    public void testParseCron() throws Exception {
         Object cron = randomBoolean() ?
                 Schedules.cron("* 0/5 * * * ?") :
                 Schedules.cron("* 0/2 * * * ?", "* 0/3 * * * ?", "* 0/5 * * * ?");
@@ -72,8 +71,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
         assertThat(schedule, is(cron));
     }
 
-    @Test
-    public void testParse_Hourly() throws Exception {
+    public void testParseHourly() throws Exception {
         HourlySchedule hourly = randomHourlySchedule();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -88,8 +86,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
         assertThat((HourlySchedule) schedule, equalTo(hourly));
     }
 
-    @Test
-    public void testParse_Daily() throws Exception {
+    public void testParseDaily() throws Exception {
         DailySchedule daily = randomDailySchedule();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -104,8 +101,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
         assertThat((DailySchedule) schedule, equalTo(daily));
     }
 
-    @Test
-    public void testParse_Weekly() throws Exception {
+    public void testParseWeekly() throws Exception {
         WeeklySchedule weekly = randomWeeklySchedule();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -120,8 +116,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
         assertThat((WeeklySchedule) schedule, equalTo(weekly));
     }
 
-    @Test
-    public void testParse_Monthly() throws Exception {
+    public void testParseMonthly() throws Exception {
         MonthlySchedule monthly = randomMonthlySchedule();
         XContentBuilder builder = jsonBuilder()
                 .startObject()

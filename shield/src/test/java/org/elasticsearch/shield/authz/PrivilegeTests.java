@@ -14,11 +14,11 @@ import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -27,11 +27,9 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 public class PrivilegeTests extends ESTestCase {
-
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
-    @Test
     public void testName() throws Exception {
         Privilege.Name name12 = new Privilege.Name("name1", "name2");
         Privilege.Name name34 = new Privilege.Name("name3", "name4");
@@ -48,7 +46,6 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(none, is(Privilege.Name.NONE));
     }
 
-    @Test
     public void testSubActionPattern() throws Exception {
         AutomatonPredicate predicate = new AutomatonPredicate(Automatons.patterns("foo" + Privilege.SUB_ACTION_SUFFIX_PATTERN));
         assertThat(predicate.test("foo[n][nodes]"), is(true));
@@ -57,9 +54,7 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("[n][nodes]"), is(false));
     }
 
-    @Test
     public void testCluster() throws Exception {
-
         Privilege.Name name = new Privilege.Name("monitor");
         Privilege.Cluster cluster = Privilege.Cluster.get(name);
         assertThat(cluster, is(Privilege.Cluster.MONITOR));
@@ -78,9 +73,7 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(cluster, is(cluster2));
     }
 
-    @Test
-    public void testCluster_TemplateActions() throws Exception {
-
+    public void testClusterTemplateActions() throws Exception {
         Privilege.Name name = new Privilege.Name("indices:admin/template/delete");
         Privilege.Cluster cluster = Privilege.Cluster.get(name);
         assertThat(cluster, notNullValue());
@@ -97,14 +90,12 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(cluster.predicate().test("indices:admin/template/put"), is(true));
     }
 
-    @Test
-    public void testCluster_InvalidName() throws Exception {
+    public void testClusterInvalidName() throws Exception {
         thrown.expect(IllegalArgumentException.class);
         Privilege.Name actionName = new Privilege.Name("foobar");
         Privilege.Cluster.get(actionName);
     }
 
-    @Test
     public void testClusterAction() throws Exception {
         Privilege.Name actionName = new Privilege.Name("cluster:admin/snapshot/delete");
         Privilege.Cluster cluster = Privilege.Cluster.get(actionName);
@@ -113,8 +104,7 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(cluster.predicate().test("cluster:admin/snapshot/dele"), is(false));
     }
 
-    @Test
-    public void testCluster_AddCustom() throws Exception {
+    public void testClusterAddCustom() throws Exception {
         Privilege.Cluster.addCustom("foo", "cluster:bar");
         boolean found = false;
         for (Privilege.Cluster cluster : Privilege.Cluster.values()) {
@@ -130,17 +120,26 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(cluster.predicate().test("cluster:bar"), is(true));
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testCluster_AddCustom_InvalidPattern() throws Exception {
-        Privilege.Cluster.addCustom("foo", "bar");
+    public void testClusterAddCustomInvalidPattern() throws Exception {
+        try {
+            Privilege.Cluster.addCustom("foo", "bar");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("cannot register custom cluster privilege [foo]"));
+            assertThat(e.getMessage(), containsString("must follow the 'cluster:*' format"));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testCluster_AddCustom_AlreadyExists() throws Exception {
-        Privilege.Cluster.addCustom("all", "bar");
+    public void testClusterAddCustomAlreadyExists() throws Exception {
+        try {
+            Privilege.Cluster.addCustom("all", "bar");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("cannot register custom cluster privilege [all]"));
+            assertThat(e.getMessage(), containsString("must follow the 'cluster:*' format"));
+        }
     }
 
-    @Test
     public void testIndexAction() throws Exception {
         Privilege.Name actionName = new Privilege.Name("indices:admin/mapping/delete");
         Privilege.Index index = Privilege.Index.get(actionName);
@@ -149,8 +148,7 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(index.predicate().test("indices:admin/mapping/dele"), is(false));
     }
 
-    @Test
-    public void testIndex_Collapse() throws Exception {
+    public void testIndexCollapse() throws Exception {
         Privilege.Index[] values = Privilege.Index.values().toArray(new Privilege.Index[Privilege.Index.values().size()]);
         Privilege.Index first = values[randomIntBetween(0, values.length-1)];
         Privilege.Index second = values[randomIntBetween(0, values.length-1)];
@@ -167,8 +165,7 @@ public class PrivilegeTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void testIndex_Implies() throws Exception {
+    public void testIndexImplies() throws Exception {
         Privilege.Index[] values = Privilege.Index.values().toArray(new Privilege.Index[Privilege.Index.values().size()]);
         Privilege.Index first = values[randomIntBetween(0, values.length-1)];
         Privilege.Index second = values[randomIntBetween(0, values.length-1)];
@@ -200,8 +197,7 @@ public class PrivilegeTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void testIndex_AddCustom() throws Exception {
+    public void testIndexAddCustom() throws Exception {
         Privilege.Index.addCustom("foo", "indices:bar");
         boolean found = false;
         for (Privilege.Index index : Privilege.Index.values()) {
@@ -217,17 +213,26 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(index.predicate().test("indices:bar"), is(true));
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testIndex_AddCustom_InvalidPattern() throws Exception {
-        Privilege.Index.addCustom("foo", "bar");
+    public void testIndexAddCustomInvalidPattern() throws Exception {
+        try {
+            Privilege.Index.addCustom("foo", "bar");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("cannot register custom index privilege [foo]"));
+            assertThat(e.getMessage(), containsString("must follow the 'indices:*' format"));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testIndex_AddCustom_AlreadyExists() throws Exception {
-        Privilege.Index.addCustom("all", "bar");
+    public void testIndexAddCustomAlreadyExists() throws Exception {
+        try {
+            Privilege.Index.addCustom("all", "bar");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("cannot register custom index privilege [all]"));
+            assertThat(e.getMessage(), containsString("must follow the 'indices:*' format"));
+        }
     }
 
-    @Test
     public void testSystem() throws Exception {
         Predicate<String> predicate = Privilege.SYSTEM.predicate();
         assertThat(predicate.test("indices:monitor/whatever"), is(true));
@@ -244,7 +249,6 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("indices:admin/mapping/whatever"), is(false));
     }
 
-    @Test
     public void testSearchPrivilege() throws Exception {
         Predicate<String> predicate = Privilege.Index.SEARCH.predicate();
         assertThat(predicate.test(SearchAction.NAME), is(true));
@@ -260,7 +264,6 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test(MultiGetAction.NAME + "/whatever"), is(false));
     }
 
-    @Test
     public void testGetPrivilege() throws Exception {
         Predicate<String> predicate = Privilege.Index.GET.predicate();
         assertThat(predicate.test(GetAction.NAME), is(true));

@@ -16,7 +16,6 @@ import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
@@ -33,11 +32,9 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.is;
 
 public class ArrayCompareConditionTests extends ESTestCase {
-
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    @Test
     public void testOpEvalEQ() throws Exception {
         assertThat(ArrayCompareCondition.Quantifier.ALL.eval(Arrays.<Object>asList(1, 1), 1, ArrayCompareCondition.Op.EQ), is(true));
         assertThat(ArrayCompareCondition.Quantifier.ALL.eval(Arrays.<Object>asList(1, 3), 2, ArrayCompareCondition.Op.EQ), is(false));
@@ -47,8 +44,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         assertThat(ArrayCompareCondition.Quantifier.SOME.eval(Collections.emptyList(), 1, ArrayCompareCondition.Op.EQ), is(false));
     }
 
-    @Test
-    public void testOpEvalNOT_EQ() throws Exception {
+    public void testOpEvalNotEQ() throws Exception {
         assertThat(ArrayCompareCondition.Quantifier.ALL.eval(Arrays.<Object>asList(1, 1), 3, ArrayCompareCondition.Op.NOT_EQ), is(true));
         assertThat(ArrayCompareCondition.Quantifier.ALL.eval(Arrays.<Object>asList(1, 3), 1, ArrayCompareCondition.Op.NOT_EQ), is(false));
         assertThat(ArrayCompareCondition.Quantifier.SOME.eval(Arrays.<Object>asList(1, 3), 1, ArrayCompareCondition.Op.NOT_EQ), is(true));
@@ -57,7 +53,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         assertThat(ArrayCompareCondition.Quantifier.SOME.eval(Collections.emptyList(), 1, ArrayCompareCondition.Op.NOT_EQ), is(false));
     }
 
-    @Test
     public void testOpEvalGTE() throws Exception {
         assertThat(ArrayCompareCondition.Quantifier.ALL.eval(Arrays.<Object>asList(1, 3), 1, ArrayCompareCondition.Op.GTE), is(true));
         assertThat(ArrayCompareCondition.Quantifier.ALL.eval(Arrays.<Object>asList(1, 3), 2, ArrayCompareCondition.Op.GTE), is(false));
@@ -67,7 +62,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         assertThat(ArrayCompareCondition.Quantifier.SOME.eval(Collections.emptyList(), 1, ArrayCompareCondition.Op.GTE), is(false));
     }
 
-    @Test
     public void testOpEvalGT() throws Exception {
         assertThat(ArrayCompareCondition.Quantifier.ALL.eval(Arrays.<Object>asList(1, 3), 0, ArrayCompareCondition.Op.GT), is(true));
         assertThat(ArrayCompareCondition.Quantifier.ALL.eval(Arrays.<Object>asList(1, 3), 1, ArrayCompareCondition.Op.GT), is(false));
@@ -77,7 +71,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         assertThat(ArrayCompareCondition.Quantifier.SOME.eval(Collections.emptyList(), 1, ArrayCompareCondition.Op.GT), is(false));
     }
 
-    @Test
     public void testOpEvalLTE() throws Exception {
         assertThat(ArrayCompareCondition.Quantifier.ALL.eval(Arrays.<Object>asList(1, 3), 3, ArrayCompareCondition.Op.LTE), is(true));
         assertThat(ArrayCompareCondition.Quantifier.ALL.eval(Arrays.<Object>asList(1, 3), 0, ArrayCompareCondition.Op.LTE), is(false));
@@ -87,7 +80,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         assertThat(ArrayCompareCondition.Quantifier.SOME.eval(Collections.emptyList(), 1, ArrayCompareCondition.Op.LTE), is(false));
     }
 
-    @Test
     public void testOpEvalLT() throws Exception {
         assertThat(ArrayCompareCondition.Quantifier.ALL.eval(Arrays.<Object>asList(1, 3), 4, ArrayCompareCondition.Op.LT), is(true));
         assertThat(ArrayCompareCondition.Quantifier.ALL.eval(Arrays.<Object>asList(1, 3), 3, ArrayCompareCondition.Op.LT), is(false));
@@ -97,7 +89,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         assertThat(ArrayCompareCondition.Quantifier.SOME.eval(Collections.emptyList(), 1, ArrayCompareCondition.Op.LT), is(false));
     }
 
-    @Test
     public void testExecute() {
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         int value = randomInt(10);
@@ -121,7 +112,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         assertThat(condition.execute(ctx).met(), is(met));
     }
 
-    @Test
     public void testExecutePath() {
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         int value = randomInt(10);
@@ -151,7 +141,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         assertThat(condition.execute(ctx).met(), is(met));
     }
 
-    @Test
     public void testExecuteDateMath() {
         ClockMock clock = new ClockMock();
         boolean met = randomBoolean();
@@ -170,7 +159,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         assertThat(condition.execute(ctx).met(), is(met));
     }
 
-    @Test
     public void testParse() throws IOException {
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
@@ -200,7 +188,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         assertThat(condition.getQuantifier(), is(quantifier));
     }
 
-    @Test
     public void testParseContainsDuplicateOperator() throws IOException {
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
@@ -230,7 +217,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         factory.parseCondition("_id", parser);
     }
 
-    @Test
     public void testParseContainsUnknownOperator() throws IOException {
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);
@@ -255,7 +241,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         factory.parseCondition("_id", parser);
     }
 
-    @Test
     public void testParseContainsDuplicateValue() throws IOException {
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
@@ -282,7 +267,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         factory.parseCondition("_id", parser);
     }
 
-    @Test
     public void testParseContainsDuplicateQuantifier() throws IOException {
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
@@ -309,7 +293,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         factory.parseCondition("_id", parser);
     }
 
-    @Test
     public void testParseContainsUnknownQuantifier() throws IOException {
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         Object value = randomFrom("value", 1, null);
@@ -334,7 +317,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         factory.parseCondition("_id", parser);
     }
 
-    @Test
     public void testParseContainsUnexpectedFieldInComparisonOperator() throws IOException {
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());

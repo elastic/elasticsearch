@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.support;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 
@@ -17,8 +16,6 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class ValidationTests extends ESTestCase {
-
-
     private static final char[] alphabet = {
             'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
             'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
@@ -49,15 +46,13 @@ public class ValidationTests extends ESTestCase {
         return newArray;
     }
 
-    @Test
-    public void testESUsers_validateUsername() throws Exception {
+    public void testESUsersValidateUsername() throws Exception {
         int length = randomIntBetween(1, 30);
         String name = new String(generateValidName(length));
         assertThat(Validation.ESUsers.validateUsername(name), nullValue());
     }
 
-    @Test
-    public void testESUsers_validateUsername_Invalid_Length() throws Exception {
+    public void testESUsersValidateUsernameInvalidLength() throws Exception {
         int length = frequently() ? randomIntBetween(31, 200) : 0; // invalid length
         char[] name = new char[length];
         if (length > 0) {
@@ -66,15 +61,13 @@ public class ValidationTests extends ESTestCase {
         assertThat(Validation.ESUsers.validateUsername(new String(name)), notNullValue());
     }
 
-    @Test
-    public void testESUsers_validateUsername_Invalid_Characters() throws Exception {
+    public void testESUsersValidateUsernameInvalidCharacters() throws Exception {
         int length = randomIntBetween(1, 30); // valid length
         String name = new String(generateInvalidName(length));
         assertThat(Validation.ESUsers.validateUsername(name), notNullValue());
     }
 
-    @Test
-    public void testESUsers_validatePassword() throws Exception {
+    public void testESUsersValidatePassword() throws Exception {
         String passwd = randomAsciiOfLength(randomIntBetween(0, 20));
         logger.info(passwd + "[{}]", passwd.length());
         if (passwd.length() >= 6) {
@@ -84,15 +77,13 @@ public class ValidationTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void testRoles_validateRoleName() throws Exception {
+    public void testRolesValidateRoleName() throws Exception {
         int length = randomIntBetween(1, 30);
         String name = new String(generateValidName(length));
         assertThat(Validation.Roles.validateRoleName(name), nullValue());
     }
 
-    @Test
-    public void testRoles_validateRoleName_Invalid_Length() throws Exception {
+    public void testRolesValidateRoleNameInvalidLength() throws Exception {
         int length = frequently() ? randomIntBetween(31, 200) : 0; // invalid length
         char[] name = new char[length];
         if (length > 0) {
@@ -101,8 +92,7 @@ public class ValidationTests extends ESTestCase {
         assertThat(Validation.ESUsers.validateUsername(new String(name)), notNullValue());
     }
 
-    @Test
-    public void testRoles_validateRoleName_Invalid_Characters() throws Exception {
+    public void testRolesValidateRoleNameInvalidCharacters() throws Exception {
         int length = randomIntBetween(1, 30); // valid length
         String name = new String(generateInvalidName(length));
         assertThat(Validation.ESUsers.validateUsername(name), notNullValue());
@@ -118,11 +108,8 @@ public class ValidationTests extends ESTestCase {
     }
 
     private static char[] generateInvalidName(int length) {
-
         if (length == 1 || randomBoolean()) {
-
-            // invalid name due to charaters not allowed in the beginning of the name
-
+            // invalid name due to characters not allowed in the beginning of the name
             char first;
             while (true) {
                 first = randomUnicodeOfLength(1).charAt(0);
@@ -138,7 +125,6 @@ public class ValidationTests extends ESTestCase {
         }
 
         // invalid name due to charaters not allowed within the name itself
-
         char first = allowedFirstChars[randomIntBetween(0, allowedFirstChars.length - 1)];
         char[] subsequent = new char[length - 1];
         for (int i = 0; i < subsequent.length; i++) {
@@ -153,6 +139,4 @@ public class ValidationTests extends ESTestCase {
         }
         return concat(new char[]{first}, subsequent);
     }
-
-
 }

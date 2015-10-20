@@ -16,15 +16,17 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 public class LdapSessionFactoryTests extends LdapTestCase {
-
     private Settings globalSettings;
 
     @Before
@@ -32,7 +34,6 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     }
 
-    @Test
     public void testBindWithReadTimeout() throws Exception {
         String ldapUrl = ldapUrl();
         String groupSearchBase = "o=sevenSeas";
@@ -61,7 +62,6 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         }
     }
 
-    @Test
     @Network
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/767")
     public void testConnectTimeout() {
@@ -92,7 +92,6 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         }
     }
 
-    @Test
     public void testBindWithTemplates() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String[] userTemplates = new String[] {
@@ -113,8 +112,6 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         }
     }
 
-
-    @Test(expected = ElasticsearchSecurityException.class)
     public void testBindWithBogusTemplates() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String[] userTemplates = new String[] {
@@ -129,11 +126,13 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
         try (LdapSession ldapConnection = ldapFac.session(user, userPass)) {
+            fail("Expected ElasticsearchSecurityException");
+        } catch (ElasticsearchSecurityException e) {
+            assertThat(e.getMessage(), is("failed LDAP authentication"));
         }
     }
 
-    @Test
-    public void testGroupLookup_Subtree() throws Exception {
+    public void testGroupLookupSubtree() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
         RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE), globalSettings);
@@ -149,8 +148,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         }
     }
 
-    @Test
-    public void testGroupLookup_OneLevel() throws Exception {
+    public void testGroupLookupOneLevel() throws Exception {
         String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
         RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL), globalSettings);
@@ -164,8 +162,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         }
     }
 
-    @Test
-    public void testGroupLookup_Base() throws Exception {
+    public void testGroupLookupBase() throws Exception {
         String groupSearchBase = "cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
         RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.BASE), globalSettings);

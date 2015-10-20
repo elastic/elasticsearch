@@ -17,18 +17,16 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Integration test to test authentication with the custom realm
  */
 public class CustomRealmIT extends ESIntegTestCase {
-
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
@@ -42,7 +40,6 @@ public class CustomRealmIT extends ESIntegTestCase {
         return Collections.<Class<? extends Plugin>>singleton(ShieldPlugin.class);
     }
 
-    @Test
     public void testHttpConnectionWithNoAuthentication() throws Exception {
         HttpResponse response = httpClient().path("/").execute();
         assertThat(response.getStatusCode(), is(401));
@@ -50,7 +47,6 @@ public class CustomRealmIT extends ESIntegTestCase {
         assertThat(value, is("custom-challenge"));
     }
 
-    @Test
     public void testHttpAuthentication() throws Exception {
         HttpResponse response = httpClient().path("/")
                 .addHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
@@ -59,7 +55,6 @@ public class CustomRealmIT extends ESIntegTestCase {
         assertThat(response.getStatusCode(), is(200));
     }
 
-    @Test
     public void testTransportClient() throws Exception {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         NodeInfo[] nodes = nodeInfos.getNodes();
@@ -79,7 +74,6 @@ public class CustomRealmIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testTransportClientWrongAuthentication() throws Exception {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         NodeInfo[] nodes = nodeInfos.getNodes();

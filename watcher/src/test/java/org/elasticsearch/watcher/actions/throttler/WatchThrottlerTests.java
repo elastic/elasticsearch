@@ -8,9 +8,10 @@ package org.elasticsearch.watcher.actions.throttler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.license.WatcherLicensee;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -18,9 +19,7 @@ import static org.mockito.Mockito.when;
  *
  */
 public class WatchThrottlerTests extends ESTestCase {
-
-    @Test
-    public void testThrottle_DueToAck() throws Exception {
+    public void testThrottleDueToAck() throws Exception {
         PeriodThrottler periodThrottler = mock(PeriodThrottler.class);
         AckThrottler ackThrottler = mock(AckThrottler.class);
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
@@ -35,8 +34,7 @@ public class WatchThrottlerTests extends ESTestCase {
         assertThat(result, is(expectedResult));
     }
 
-    @Test
-    public void testThrottle_DueToPeriod() throws Exception {
+    public void testThrottleDueToPeriod() throws Exception {
         PeriodThrottler periodThrottler = mock(PeriodThrottler.class);
         AckThrottler ackThrottler = mock(AckThrottler.class);
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
@@ -51,8 +49,7 @@ public class WatchThrottlerTests extends ESTestCase {
         assertThat(result, is(expectedResult));
     }
 
-    @Test
-    public void testThrottle_DueAckAndPeriod() throws Exception {
+    public void testThrottleDueAckAndPeriod() throws Exception {
         PeriodThrottler periodThrottler = mock(PeriodThrottler.class);
         AckThrottler ackThrottler = mock(AckThrottler.class);
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
@@ -69,7 +66,6 @@ public class WatchThrottlerTests extends ESTestCase {
         assertThat(result, is(periodResult));
     }
 
-    @Test
     public void testNoThrottle() throws Exception {
         PeriodThrottler periodThrottler = mock(PeriodThrottler.class);
         AckThrottler ackThrottler = mock(AckThrottler.class);
@@ -84,7 +80,6 @@ public class WatchThrottlerTests extends ESTestCase {
         assertThat(result, is(Throttler.Result.NO));
     }
 
-    @Test
     public void testWithoutPeriod() throws Exception {
         AckThrottler ackThrottler = mock(AckThrottler.class);
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
@@ -98,7 +93,6 @@ public class WatchThrottlerTests extends ESTestCase {
         assertThat(result, sameInstance(ackResult));
     }
 
-    @Test
     public void testThatRestrictedLicenseReturnsCorrectResult() throws Exception {
         AckThrottler ackThrottler = mock(AckThrottler.class);
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);

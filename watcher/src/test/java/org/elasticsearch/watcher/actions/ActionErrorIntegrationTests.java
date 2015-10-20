@@ -20,7 +20,6 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.watch.Payload;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +36,6 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     protected boolean timeWarped() {
         return true; // to have control over the execution
@@ -52,14 +50,12 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
     }
 
     /**
-        this test makes sure that when an action encounters an error
-        it should not be subject to throttling. Also, the ack status
-        of the action in the watch should remain awaits_successful_execution
-        as long as the execution fails.
-    */
-    @Test
+     * This test makes sure that when an action encounters an error it should
+     * not be subject to throttling. Also, the ack status of the action in the
+     * watch should remain awaits_successful_execution as long as the execution
+     * fails.
+     */
     public void testErrorInAction() throws Exception {
-
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))
 

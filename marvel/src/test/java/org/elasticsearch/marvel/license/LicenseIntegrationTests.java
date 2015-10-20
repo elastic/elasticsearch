@@ -7,6 +7,7 @@ package org.elasticsearch.marvel.license;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SysGlobals;
+
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
@@ -21,9 +22,12 @@ import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
@@ -32,7 +36,6 @@ import static org.hamcrest.Matchers.isOneOf;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0, numClientNodes = 0)
 public class LicenseIntegrationTests extends MarvelIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         if (shieldEnabled) {
@@ -48,7 +51,6 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testEnableDisableLicense() {
         assertThat(getLicensee().getStatus().getLicenseState(), isOneOf(LicenseState.ENABLED, LicenseState.GRACE_PERIOD));
         assertThat(getLicensee().collectionEnabled(), is(true));

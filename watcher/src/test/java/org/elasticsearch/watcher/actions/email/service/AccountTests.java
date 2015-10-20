@@ -12,23 +12,27 @@ import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
+
+import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import javax.mail.Address;
 import javax.mail.Message;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
-import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItemInArray;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
 public class AccountTests extends ESTestCase {
-
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";
 
@@ -44,7 +48,6 @@ public class AccountTests extends ESTestCase {
         server.stop();
     }
 
-    @Test
     public void testConfig() throws Exception {
         String accountName = "_name";
 
@@ -152,7 +155,6 @@ public class AccountTests extends ESTestCase {
         assertThat(config.smtp.properties, equalTo(smtpProps));
     }
 
-    @Test
     public void testSend() throws Exception {
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
@@ -192,8 +194,7 @@ public class AccountTests extends ESTestCase {
         handle.remove();
     }
 
-    @Test
-    public void testSend_CC_BCC() throws Exception {
+    public void testSendCCAndBCC() throws Exception {
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
@@ -237,8 +238,7 @@ public class AccountTests extends ESTestCase {
         handle.remove();
     }
 
-    @Test
-    public void testSend_Authentication() throws Exception {
+    public void testSendAuthentication() throws Exception {
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
@@ -268,5 +268,4 @@ public class AccountTests extends ESTestCase {
 
         handle.remove();
     }
-
 }

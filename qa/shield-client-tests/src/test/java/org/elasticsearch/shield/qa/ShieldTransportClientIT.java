@@ -16,20 +16,19 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Integration tests that test a transport client with Shield being loaded that connect to an external cluster
  */
 public class ShieldTransportClientIT extends ESIntegTestCase {
-
     static final String ADMIN_USER_PW = "test_user:changeme";
     static final String TRANSPORT_USER_PW = "transport:changeme";
 
@@ -45,7 +44,6 @@ public class ShieldTransportClientIT extends ESIntegTestCase {
         return Collections.singletonList(ShieldPlugin.class);
     }
 
-    @Test
     public void testThatTransportClientWithoutAuthenticationDoesNotWork() throws Exception {
         try (TransportClient client = transportClient(Settings.EMPTY)) {
             boolean connected = awaitBusy(() -> {
@@ -56,7 +54,6 @@ public class ShieldTransportClientIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testThatTransportClientAuthenticationWithTransportClientRole() throws Exception {
         Settings settings = Settings.builder()
                 .put("shield.user", TRANSPORT_USER_PW)
@@ -78,7 +75,6 @@ public class ShieldTransportClientIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testTransportClientWithAdminUser() throws Exception {
         final boolean useTransportUser = randomBoolean();
         Settings settings = Settings.builder()

@@ -35,19 +35,23 @@ import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.junit.After;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
 public class LicensingTests extends ShieldIntegTestCase {
-
     public static final String ROLES =
             ShieldSettingsSource.DEFAULT_ROLE + ":\n" +
                     "  cluster: all\n" +
@@ -112,7 +116,6 @@ public class LicensingTests extends ShieldIntegTestCase {
         enableLicensing();
     }
 
-    @Test
     public void testEnableDisableBehaviour() throws Exception {
         IndexResponse indexResponse = index("test", "type", jsonBuilder()
                 .startObject()
@@ -187,7 +190,6 @@ public class LicensingTests extends ShieldIntegTestCase {
         assertThat(nodeStats, notNullValue());
     }
 
-    @Test
     public void testRestAuthenticationByLicenseType() throws Exception {
         // the default of the licensing tests is basic
         assertThat(httpClient().path("/").execute().getStatusCode(), is(200));
@@ -198,7 +200,6 @@ public class LicensingTests extends ShieldIntegTestCase {
         assertThat(httpClient().path("/").execute().getStatusCode(), is(401));
     }
 
-    @Test
     public void testTransportClientAuthenticationByLicenseType() throws Exception {
         Settings.Builder builder = Settings.builder()
             .put(internalCluster().transportClient().settings());

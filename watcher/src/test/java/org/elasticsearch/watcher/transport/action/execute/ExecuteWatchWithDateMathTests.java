@@ -13,7 +13,6 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.joda.time.DateTime;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,14 +30,12 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 public class ExecuteWatchWithDateMathTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     protected boolean timeWarped() {
         return true;
     }
 
-    @Test
-    public void testExecute_CustomTriggerData() throws Exception {
+    public void testExecuteCustomTriggerData() throws Exception {
         WatcherClient watcherClient = watcherClient();
 
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()

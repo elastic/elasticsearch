@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -14,9 +13,7 @@ import static org.hamcrest.Matchers.sameInstance;
  *
  */
 public class HasherTests extends ESTestCase {
-
-    @Test
-    public void testBcryptFamily_SelfGenerated() throws Exception {
+    public void testBcryptFamilySelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.BCRYPT);
         testHasherSelfGenerated(Hasher.BCRYPT4);
         testHasherSelfGenerated(Hasher.BCRYPT5);
@@ -26,27 +23,22 @@ public class HasherTests extends ESTestCase {
         testHasherSelfGenerated(Hasher.BCRYPT9);
     }
 
-    @Test
-    public void testMd5_SelfGenerated() throws Exception {
+    public void testMd5SelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.MD5);
     }
 
-    @Test
-    public void testSha1_SelfGenerated() throws Exception {
+    public void testSha1SelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.SHA1);
     }
 
-    @Test
-    public void testSSHA256_SelfGenerated() throws Exception {
+    public void testSSHA256SelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.SSHA256);
     }
 
-    @Test
-    public void testNoop_SelfGenerated() throws Exception {
+    public void testNoopSelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.NOOP);
     }
 
-    @Test
     public void testResolve() throws Exception {
         assertThat(Hasher.resolve("bcrypt"), sameInstance(Hasher.BCRYPT));
         assertThat(Hasher.resolve("bcrypt4"), sameInstance(Hasher.BCRYPT4));

@@ -37,7 +37,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.joda.time.format.DateTimeFormat;
 import org.junit.After;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,12 +47,22 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.marvel.agent.exporter.Exporter.MIN_SUPPORTED_TEMPLATE_VERSION;
-import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class LocalExporterTests extends MarvelIntegTestCase {
-
     private final static AtomicLong timeStampGenerator = new AtomicLong();
 
     @Override
@@ -70,7 +79,6 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         wipeMarvelIndices();
     }
 
-    @Test
     public void testSimpleExport() throws Exception {
         internalCluster().startNode(Settings.builder()
                 .put("marvel.agent.exporters._local.type", LocalExporter.TYPE)
@@ -103,7 +111,6 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         }
     }
 
-    @Test
     public void testTemplateCreation() throws Exception {
         internalCluster().startNode(Settings.builder()
                 .put("marvel.agent.exporters._local.type", LocalExporter.TYPE)
@@ -126,7 +133,6 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         assertThat(getCurrentlyInstalledTemplateVersion(), is(Version.CURRENT));
     }
 
-    @Test
     public void testTemplateUpdate() throws Exception {
         internalCluster().startNode(Settings.builder()
                 .put("marvel.agent.exporters._local.type", LocalExporter.TYPE)
@@ -171,9 +177,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         awaitMarvelTemplateInstalled(Version.CURRENT);
     }
 
-    @Test
     public void testUnsupportedTemplateVersion() throws Exception {
-
         Exporter.Config config = new Exporter.Config("_name", Settings.EMPTY, Settings.builder()
                 .put("type", "local").build());
         Client client = mock(Client.class);
@@ -209,7 +213,6 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         verify(exporter, times(1)).installedTemplateVersionIsSufficient(Version.CURRENT, unsupportedVersion);
     }
 
-    @Test
     public void testIndexTimestampFormat() throws Exception {
         long time = System.currentTimeMillis();
         String timeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM");

@@ -35,7 +35,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Collection;
 
@@ -53,7 +52,6 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class TriggeredWatchStoreTests extends ESTestCase {
-
     private ClientProxy clientProxy;
     private TriggeredWatch.Parser parser;
     private TriggeredWatchStore triggeredWatchStore;
@@ -66,8 +64,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         triggeredWatchStore.start();
     }
 
-    @Test
-    public void testLoadWatchRecords_noPriorHistoryIndices() throws Exception {
+    public void testLoadWatchRecordsNoPriorHistoryIndices() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
         csBuilder.metaData(metaDateBuilder);
@@ -80,8 +77,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         verifyZeroInteractions(clientProxy);
     }
 
-    @Test
-    public void testLoadWatchRecords_noActivePrimaryShards() throws Exception {
+    public void testLoadWatchRecordsNoActivePrimaryShards() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -125,8 +121,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         verifyZeroInteractions(clientProxy);
     }
 
-    @Test
-    public void testLoadWatchRecords_refreshNotHittingAllShards() throws Exception {
+    public void testLoadWatchRecordsRefreshNotHittingAllShards() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -160,8 +155,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
     }
 
-    @Test
-    public void testLoadWatchRecords_searchNotHittingAllShards() throws Exception {
+    public void testLoadWatchRecordsSearchNotHittingAllShards() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -204,8 +198,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         verify(clientProxy, times(1)).clearScroll(anyString());
     }
 
-    @Test
-    public void testLoadWatchRecords_noHistoryEntries() throws Exception {
+    public void testLoadWatchRecordsNoHistoryEntries() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -247,8 +240,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         verify(clientProxy, times(1)).clearScroll(anyString());
     }
 
-    @Test
-    public void testLoadWatchRecords_foundHistoryEntries() throws Exception {
+    public void testLoadWatchRecordsFoundHistoryEntries() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -317,5 +309,4 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(refreshResponse.getSuccessfulShards()).thenReturn(successful);
         return refreshResponse;
     }
-
 }

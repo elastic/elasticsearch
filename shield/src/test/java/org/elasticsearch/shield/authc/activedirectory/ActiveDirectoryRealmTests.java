@@ -11,23 +11,34 @@ import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.schema.Schema;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
-import org.elasticsearch.shield.authc.support.*;
+import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
+import org.elasticsearch.shield.authc.support.DnRoleMapper;
+import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authc.support.SecuredStringTests;
+import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.elasticsearch.shield.authc.ldap.support.SessionFactory.HOSTNAME_VERIFICATION_SETTING;
 import static org.elasticsearch.shield.authc.ldap.support.SessionFactory.URLS_SETTING;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * Active Directory Realm tests that use the UnboundID In Memory Directory Server
@@ -41,7 +52,6 @@ import static org.mockito.Mockito.*;
  * additional bind DN with a password in the test setup since it really is not a DN in the ldif file
  */
 public class ActiveDirectoryRealmTests extends ESTestCase {
-
     private static final String PASSWORD = "password";
 
     private InMemoryDirectoryServer directoryServer;
@@ -76,7 +86,6 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         directoryServer.shutDown(true);
     }
 
-    @Test
     public void testAuthenticateUserPrincipleName() throws Exception {
         Settings settings = settings();
         RealmConfig config = new RealmConfig("testAuthenticateUserPrincipleName", settings, globalSettings);
@@ -89,7 +98,6 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         assertThat(user.roles(), arrayContaining(containsString("Avengers")));
     }
 
-    @Test
     public void testAuthenticateSAMAccountName() throws Exception {
         Settings settings = settings();
         RealmConfig config = new RealmConfig("testAuthenticateSAMAccountName", settings, globalSettings);
@@ -108,7 +116,6 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         return url.toString();
     }
 
-    @Test
     public void testAuthenticateCachesSuccesfulAuthentications() throws Exception {
         Settings settings = settings();
         RealmConfig config = new RealmConfig("testAuthenticateCachesSuccesfulAuthentications", settings, globalSettings);
@@ -125,7 +132,6 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecuredString.class));
     }
 
-    @Test
     public void testAuthenticateCachingCanBeDisabled() throws Exception {
         Settings settings = settings(Settings.builder().put(CachingUsernamePasswordRealm.CACHE_TTL_SETTING, -1).build());
         RealmConfig config = new RealmConfig("testAuthenticateCachingCanBeDisabled", settings, globalSettings);
@@ -142,7 +148,6 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         verify(sessionFactory, times(count)).session(eq("CN=ironman"), any(SecuredString.class));
     }
 
-    @Test
     public void testAuthenticateCachingClearsCacheOnRoleMapperRefresh() throws Exception {
         Settings settings = settings();
         RealmConfig config = new RealmConfig("testAuthenticateCachingClearsCacheOnRoleMapperRefresh", settings, globalSettings);
@@ -168,7 +173,6 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         verify(sessionFactory, times(2)).session(eq("CN=ironman"), any(SecuredString.class));
     }
 
-    @Test
     public void testRealmMapsGroupsToRoles() throws Exception {
         Settings settings = settings(Settings.builder()
                 .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))
@@ -183,7 +187,6 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         assertThat(user.roles(), arrayContaining(equalTo("group_role")));
     }
 
-    @Test
     public void testRealmMapsUsersToRoles() throws Exception {
         Settings settings = settings(Settings.builder()
                 .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))

@@ -9,6 +9,7 @@ import com.unboundid.ldap.sdk.Filter;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPURL;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -20,20 +21,22 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.nio.file.Path;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 
 @Network
 public class ActiveDirectoryGroupsResolverTests extends ESTestCase {
-
     public static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
     private LDAPConnection ldapConnection;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -55,13 +58,13 @@ public class ActiveDirectoryGroupsResolverTests extends ESTestCase {
         ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(), BRUCE_BANNER_DN, ActiveDirectorySessionFactoryTests.PASSWORD);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
         ldapConnection.close();
     }
 
-    @Test
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()
                 .put("scope", LdapSearchScope.SUB_TREE)
@@ -78,7 +81,6 @@ public class ActiveDirectoryGroupsResolverTests extends ESTestCase {
                 containsString("Supers")));
     }
 
-    @Test
     public void testResolveOneLevel() throws Exception {
         Settings settings = Settings.builder()
                 .put("scope", LdapSearchScope.ONE_LEVEL)
@@ -89,7 +91,6 @@ public class ActiveDirectoryGroupsResolverTests extends ESTestCase {
         assertThat(groups, hasItem(containsString("Users")));
     }
 
-    @Test
     public void testResolveBaseLevel() throws Exception {
         Settings settings = Settings.builder()
                 .put("scope", LdapSearchScope.BASE)
@@ -100,7 +101,6 @@ public class ActiveDirectoryGroupsResolverTests extends ESTestCase {
         assertThat(groups, hasItem(containsString("CN=Users,CN=Builtin")));
     }
 
-    @Test
     public void testBuildGroupQuery() throws Exception {
         //test a user with no assigned groups, other than the default groups
         {

@@ -18,9 +18,16 @@ import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelConfig;
+import org.jboss.netty.channel.ChannelEvent;
+import org.jboss.netty.channel.ChannelFactory;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelHandler;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.UpstreamMessageEvent;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -35,7 +42,6 @@ import static org.mockito.Mockito.when;
  *
  */
 public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
-
     private IPFilterNettyUpstreamHandler nettyUpstreamHandler;
 
     @Before
@@ -72,7 +78,6 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatFilteringWorksByIp() throws Exception {
         InetSocketAddress localhostAddr = new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 12345);
         assertThat(nettyUpstreamHandler.accept(new NullChannelHandlerContext(), new UpstreamMessageEvent(new NullChannel(), "my message", localhostAddr), localhostAddr), is(true));
@@ -81,165 +86,204 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
         assertThat(nettyUpstreamHandler.accept(new NullChannelHandlerContext(), new UpstreamMessageEvent(new NullChannel(), "my message", remoteAddr), remoteAddr), is(false));
     }
 
-
     private static class NullChannelHandlerContext implements ChannelHandlerContext {
+        @Override
         public boolean canHandleDownstream() {
             return false;
         }
 
+        @Override
         public boolean canHandleUpstream() {
             return false;
         }
 
+        @Override
         public Object getAttachment() {
             return null;
         }
 
+        @Override
         public Channel getChannel() {
             return null;
         }
 
+        @Override
         public ChannelHandler getHandler() {
             return null;
         }
 
+        @Override
         public String getName() {
             return null;
         }
 
+        @Override
         public ChannelPipeline getPipeline() {
             return null;
         }
 
+        @Override
         public void sendDownstream(ChannelEvent e) {
             // NOOP
         }
 
+        @Override
         public void sendUpstream(ChannelEvent e) {
             // NOOP
         }
 
+        @Override
         public void setAttachment(Object attachment) {
             // NOOP
         }
     }
 
     private static class NullChannel implements Channel {
+        @Override
         public ChannelFuture bind(SocketAddress localAddress) {
             return null;
         }
 
+        @Override
         public ChannelFuture close() {
             return null;
         }
 
+        @Override
         public ChannelFuture connect(SocketAddress remoteAddress) {
             return null;
         }
 
+        @Override
         public ChannelFuture disconnect() {
             return null;
         }
 
+        @Override
         public ChannelFuture getCloseFuture() {
             return null;
         }
 
+        @Override
         public ChannelConfig getConfig() {
             return null;
         }
 
+        @Override
         public ChannelFactory getFactory() {
             return null;
         }
 
+        @Override
         public Integer getId() {
             return null;
         }
 
+        @Override
         public int getInterestOps() {
             return 0;
         }
 
+        @Override
         public SocketAddress getLocalAddress() {
             return null;
         }
 
+        @Override
         public Channel getParent() {
             return null;
         }
 
+        @Override
         public ChannelPipeline getPipeline() {
             return null;
         }
 
+        @Override
         public SocketAddress getRemoteAddress() {
             return null;
         }
 
+        @Override
         public boolean isBound() {
             return false;
         }
 
+        @Override
         public boolean isConnected() {
             return false;
         }
 
+        @Override
         public boolean isOpen() {
             return false;
         }
 
+        @Override
         public boolean isReadable() {
             return false;
         }
 
+        @Override
         public boolean isWritable() {
             return false;
         }
 
+        @Override
         public ChannelFuture setInterestOps(int interestOps) {
             return null;
         }
 
+        @Override
         public ChannelFuture setReadable(boolean readable) {
             return null;
         }
 
+        @Override
         public boolean getUserDefinedWritability(int i) {
             return false;
         }
 
+        @Override
         public void setUserDefinedWritability(int i, boolean b) {
         }
 
+        @Override
         public ChannelFuture unbind() {
             return null;
         }
 
+        @Override
         public ChannelFuture write(Object message) {
             return null;
         }
 
+        @Override
         public ChannelFuture write(Object message, SocketAddress remoteAddress) {
             return null;
         }
 
+        @Override
         public int compareTo(Channel o) {
             return 0;
         }
 
+        @Override
         public int hashCode() {
             return 0;
         }
 
+        @Override
         public boolean equals(Object o) {
             return this == o;
         }
 
+        @Override
         public Object getAttachment() {
             return null;
         }
 
+        @Override
         public void setAttachment(Object attachment) {
             // NOOP
         }

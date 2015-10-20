@@ -28,11 +28,11 @@ import org.elasticsearch.watcher.watch.WatchStore;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
@@ -50,7 +50,6 @@ import static org.mockito.Mockito.when;
  *
  */
 public class WatcherServiceTests extends ESTestCase {
-
     private TriggerService triggerService;
     private WatchStore watchStore;
     private Watch.Parser watchParser;
@@ -72,9 +71,7 @@ public class WatcherServiceTests extends ESTestCase {
         state.set(WatcherState.STARTED);
     }
 
-    @Test
     public void testPutWatch() throws Exception {
-
         boolean activeByDefault = randomBoolean();
 
         IndexResponse indexResponse = mock(IndexResponse.class);
@@ -103,15 +100,20 @@ public class WatcherServiceTests extends ESTestCase {
         }
     }
 
-    @Test(expected = ElasticsearchTimeoutException.class)
-    public void testPutWatch_Timeout() throws Exception {
+    public void testPutWatchTimeout() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
-        watcherService.putWatch("_id", new BytesArray("{}"), timeout, randomBoolean());
+        try {
+            watcherService.putWatch("_id", new BytesArray("{}"), timeout, randomBoolean());
+            fail("Expected ElasticsearchTimeoutException");
+        } catch (ElasticsearchTimeoutException e) {
+            assertThat(e.getMessage(), containsString("could not put watch"));
+            assertThat(e.getMessage(), containsString("wait and try again"));
+            assertThat(e.getMessage(), containsString("there is a high chance that the watch execution is stuck"));
+        }
     }
 
-    @Test
-    public void testPutWatch_DifferentActiveStates() throws Exception {
+    public void testPutWatchDifferentActiveStates() throws Exception {
         Trigger trigger = mock(Trigger.class);
 
         IndexResponse indexResponse = mock(IndexResponse.class);
@@ -156,7 +158,6 @@ public class WatcherServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testDeleteWatch() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
@@ -174,15 +175,20 @@ public class WatcherServiceTests extends ESTestCase {
         verify(triggerService, times(1)).remove("_id");
     }
 
-    @Test(expected = ElasticsearchTimeoutException.class)
-    public void testDeleteWatch_Timeout() throws Exception {
+    public void testDeleteWatchTimeout() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
-        watcherService.deleteWatch("_id", timeout, false);
+        try {
+            watcherService.deleteWatch("_id", timeout, false);
+            fail("Expected ElasticsearchTimeoutException");
+        } catch (ElasticsearchTimeoutException e) {
+            assertThat(e.getMessage(), containsString("could not delete watch"));
+            assertThat(e.getMessage(), containsString("wait and try again"));
+            assertThat(e.getMessage(), containsString("there is a high chance that the watch execution is stuck"));
+        }
     }
 
-    @Test
-    public void testDeleteWatch_Force() throws Exception {
+    public void testDeleteWatchForce() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
@@ -198,8 +204,7 @@ public class WatcherServiceTests extends ESTestCase {
         verify(triggerService, times(1)).remove("_id");
     }
 
-    @Test
-    public void testDeleteWatch_NotFound() throws Exception {
+    public void testDeleteWatchNotFound() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         boolean force = randomBoolean();
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
@@ -216,7 +221,6 @@ public class WatcherServiceTests extends ESTestCase {
         verifyZeroInteractions(triggerService);
     }
 
-    @Test
     public void testAckWatch() throws Exception {
         DateTime now = new DateTime(DateTimeZone.UTC);
         clock.setTime(now);
@@ -235,7 +239,6 @@ public class WatcherServiceTests extends ESTestCase {
         verify(watchStore, times(1)).updateStatus(watch);
     }
 
-    @Test
     public void testActivate() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 30));
         WatcherService service = spy(watcherService);
@@ -246,7 +249,6 @@ public class WatcherServiceTests extends ESTestCase {
         verify(service, times(1)).setWatchState("_id", true, timeout);
     }
 
-    @Test
     public void testDeactivate() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 30));
         WatcherService service = spy(watcherService);
@@ -257,9 +259,7 @@ public class WatcherServiceTests extends ESTestCase {
         verify(service, times(1)).setWatchState("_id", false, timeout);
     }
 
-    @Test
-    public void testSetWatchState_SetActiveOnCurrentlyActive() throws Exception {
-
+    public void testSetWatchStateSetActiveOnCurrentlyActive() throws Exception {
         // trying to activate a watch that is already active:
         //  - the watch status should not change
         //  - the watch doesn't need to be updated in the store
@@ -286,9 +286,7 @@ public class WatcherServiceTests extends ESTestCase {
         verify(watchStore, never()).updateStatus(watch);
     }
 
-    @Test
-    public void testSetWatchState_SetActiveOnCurrentlyInactive() throws Exception {
-
+    public void testSetWatchStateSetActiveOnCurrentlyInactive() throws Exception {
         // activating a watch that is currently inactive:
         //  - the watch status should be updated
         //  - the watch needs to be updated in the store
@@ -315,9 +313,7 @@ public class WatcherServiceTests extends ESTestCase {
         verify(watchStore, times(1)).updateStatus(watch);
     }
 
-    @Test
-    public void testSetWatchState_SetInactiveOnCurrentlyActive() throws Exception {
-
+    public void testSetWatchStateSetInactiveOnCurrentlyActive() throws Exception {
         // deactivating a watch that is currently active:
         //  - the watch status should change
         //  - the watch needs to be updated in the store
@@ -337,7 +333,6 @@ public class WatcherServiceTests extends ESTestCase {
 
         when(watchStore.get("_id")).thenReturn(watch);
 
-
         WatchStatus result = watcherService.setWatchState("_id", false, timeout);
         assertThat(result, not(sameInstance(status)));
 
@@ -345,9 +340,7 @@ public class WatcherServiceTests extends ESTestCase {
         verify(watchStore, times(1)).updateStatus(watch);
     }
 
-    @Test
-    public void testSetWatchState_SetInactiveOnCurrentlyInactive() throws Exception {
-
+    public void testSetWatchStateSetInactiveOnCurrentlyInactive() throws Exception {
         // trying to deactivate a watch that is currently inactive:
         //  - the watch status should not be updated
         //  - the watch should not be updated in the store
@@ -375,15 +368,20 @@ public class WatcherServiceTests extends ESTestCase {
         verify(watchStore, never()).updateStatus(watch);
     }
 
-    @Test(expected = ElasticsearchTimeoutException.class)
-    public void testAckWatch_Timeout() throws Exception {
+    public void testAckWatchTimeout() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
-        watcherService.ackWatch("_id", Strings.EMPTY_ARRAY, timeout);
+        try {
+            watcherService.ackWatch("_id", Strings.EMPTY_ARRAY, timeout);
+            fail("Expected ElasticsearchTimeoutException");
+        } catch (ElasticsearchTimeoutException e) {
+            assertThat(e.getMessage(), containsString("could not ack watch"));
+            assertThat(e.getMessage(), containsString("wait and try again"));
+            assertThat(e.getMessage(), containsString("there is a high chance that the watch execution is stuck"));
+        }
     }
 
-    @Test
-    public void testAckWatch_NotAck() throws Exception {
+    public void testAckWatchNotAck() throws Exception {
         DateTime now = SystemClock.INSTANCE.nowUTC();
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
@@ -400,8 +398,7 @@ public class WatcherServiceTests extends ESTestCase {
         verify(watchStore, never()).updateStatus(watch);
     }
 
-    @Test
-    public void testAckWatch_NoWatch() throws Exception {
+    public void testAckWatchNoWatch() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
@@ -416,5 +413,4 @@ public class WatcherServiceTests extends ESTestCase {
 
         verify(watchStore, never()).updateStatus(any(Watch.class));
     }
-
 }

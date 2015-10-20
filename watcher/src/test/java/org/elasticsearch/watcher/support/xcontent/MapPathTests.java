@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.support.xcontent;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,8 +21,6 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class MapPathTests extends ESTestCase {
-
-    @Test
     public void testEval() throws Exception {
         Map<String, Object> map = singletonMap("key", "value");
 
@@ -31,8 +28,7 @@ public class MapPathTests extends ESTestCase {
         assertThat(ObjectPath.eval("key1", map), nullValue());
     }
 
-    @Test
-    public void testEval_List() throws Exception {
+    public void testEvalList() throws Exception {
         List list = Arrays.asList(1, 2, 3, 4);
         Map<String, Object> map = singletonMap("key", list);
 
@@ -40,8 +36,7 @@ public class MapPathTests extends ESTestCase {
         assertThat(ObjectPath.eval("key." + index, map), is(list.get(index)));
     }
 
-    @Test
-    public void testEval_Array() throws Exception {
+    public void testEvalArray() throws Exception {
         int[] array = new int[] { 1, 2, 3, 4 };
         Map<String, Object> map = singletonMap("key", array);
 
@@ -49,16 +44,13 @@ public class MapPathTests extends ESTestCase {
         assertThat(((Number) ObjectPath.eval("key." + index, map)).intValue(), is(array[index]));
     }
 
-    @Test
-    public void testEval_Map() throws Exception {
+    public void testEvalMap() throws Exception {
         Map<String, Object> map = singletonMap("a", singletonMap("b", "val"));
 
         assertThat(ObjectPath.eval("a.b", map), is((Object) "val"));
     }
 
-
-    @Test
-    public void testEval_Mixed() throws Exception {
+    public void testEvalMixed() throws Exception {
         Map<String, Object> map = new HashMap<>();
 
         Map<String, Object> mapA = new HashMap<>();
@@ -78,6 +70,5 @@ public class MapPathTests extends ESTestCase {
         assertThat(ObjectPath.eval("a.b.0.0.c.d", map), nullValue());
         assertThat(ObjectPath.eval("a.b.0.0.d", map), nullValue());
         assertThat(ObjectPath.eval("a.b.c", map), nullValue());
-
     }
 }

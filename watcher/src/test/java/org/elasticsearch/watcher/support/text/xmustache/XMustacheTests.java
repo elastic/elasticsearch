@@ -15,7 +15,6 @@ import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -38,7 +37,6 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 public class XMustacheTests extends ESTestCase {
-
     private ScriptEngineService engine;
 
     @Before
@@ -46,7 +44,6 @@ public class XMustacheTests extends ESTestCase {
         engine = new XMustacheScriptEngineService(Settings.EMPTY);
     }
 
-    @Test
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
         CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
@@ -73,7 +70,6 @@ public class XMustacheTests extends ESTestCase {
         assertThat(bytes.toUtf8(), both(containsString("foo")).and(containsString("bar")));
     }
 
-    @Test
     public void testArrayInArrayAccess() throws Exception {
         String template = "{{data.0.0}} {{data.0.1}}";
         CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
@@ -91,7 +87,6 @@ public class XMustacheTests extends ESTestCase {
         assertThat(bytes.toUtf8(), equalTo("foo bar"));
     }
 
-    @Test
     public void testMapInArrayAccess() throws Exception {
         String template = "{{data.0.key}} {{data.1.key}}";
         CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
@@ -119,7 +114,6 @@ public class XMustacheTests extends ESTestCase {
 
     }
 
-    @Test
     public void testEscaping() throws Exception {
         XContentType contentType = randomFrom(XContentType.values());
         if (rarely()) {
@@ -189,5 +183,4 @@ public class XMustacheTests extends ESTestCase {
     private String getChars() throws IOException {
         return randomRealisticUnicodeOfCodepointLengthBetween(0, 10);
     }
-
 }

@@ -9,7 +9,6 @@ import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -20,19 +19,18 @@ import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.execution.TriggeredWatch;
 import org.elasticsearch.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.watcher.execution.Wid;
-import org.elasticsearch.watcher.history.*;
+import org.elasticsearch.watcher.history.HistoryStore;
+import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.hamcrest.Matchers;
-import org.junit.Test;
+import org.joda.time.DateTime;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.is;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -45,21 +43,21 @@ import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.newInputSearchRequest;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.joda.time.DateTimeZone.UTC;
 
 /**
  */
 @TestLogging("watcher:TRACE")
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     protected boolean timeWarped() {
         // timewarping isn't necessary here, because we aren't testing triggering or throttling
         return false;
     }
 
-    @Test
     public void testLoadMalformedWatch() throws Exception {
         // valid watch
         client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id0")
@@ -110,7 +108,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertThat(watcherClient().prepareGetWatch("_id0").get().getId(), Matchers.equalTo("_id0"));
     }
 
-    @Test
     public void testLoadMalformedWatchRecord() throws Exception {
         client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id")
                 .setSource(jsonBuilder().startObject()
@@ -190,7 +187,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getWatchesCount(), equalTo(1l));
     }
 
-    @Test
     public void testDeletedWhileQueued() throws Exception {
         DateTime now = DateTime.now(UTC);
         Wid wid = new Wid("_id", 1, now);
@@ -217,8 +213,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertThat(searchResponse.getHits().getAt(0).sourceAsMap().get(WatchRecord.Field.STATE.getPreferredName()).toString(), Matchers.equalTo(ExecutionState.NOT_EXECUTED_WATCH_MISSING.toString()));
     }
 
-
-    @Test
     public void testLoadExistingWatchesUponStartup() throws Exception {
         int numWatches = scaledRandomIntBetween(16, 128);
         SearchRequest searchRequest = newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
@@ -243,7 +237,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getWatchesCount(), equalTo((long) numWatches));
     }
 
-    @Test
     @TestLogging("watcher.actions:DEBUG")
     public void testTriggeredWatchLoading() throws Exception {
         createIndex("output");
@@ -300,7 +293,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    @Test
     public void testMixedTriggeredWatchLoading() throws Exception {
         createIndex("output");
         WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
@@ -352,7 +344,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         });
     }
 
-    @Test
     public void testManuallyStopped() throws Exception {
         WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
         assertThat(response.getWatcherMetaData().manuallyStopped(), is(false));
@@ -363,6 +354,4 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         response = watcherClient().prepareWatcherStats().get();
         assertThat(response.getWatcherMetaData().manuallyStopped(), is(false));
     }
-
-
 }

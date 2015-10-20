@@ -12,17 +12,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.clock.SystemClock;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
 
 /**
  */
 public class ScheduleTriggerEventTests extends ESTestCase {
-
-    @Test
-
-    public void testParser_RandomDateMath() throws Exception {
+    public void testParserRandomDateMath() throws Exception {
         String triggeredTime = randomFrom("now", "now+5m", "2015-05-07T22:24:41.254Z", "2015-05-07T22:24:41.254Z||-5m");
         String scheduledTime = randomFrom("now", "now-5m", "2015-05-07T22:24:41.254Z", "2015-05-07T22:24:41.254Z||+5h");
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
@@ -38,5 +34,4 @@ public class ScheduleTriggerEventTests extends ESTestCase {
         assertThat(scheduleTriggerEvent.scheduledTime().isAfter(0), is(true));
         assertThat(scheduleTriggerEvent.triggeredTime().isAfter(0), is(true));
     }
-
 }

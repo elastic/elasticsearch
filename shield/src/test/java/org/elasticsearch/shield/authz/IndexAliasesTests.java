@@ -15,13 +15,14 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
 
 public class IndexAliasesTests extends ShieldIntegTestCase {
 
@@ -82,7 +83,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testCreateIndexThenAliasesCreateOnlyPermission() {
         //user has create permission only: allows to create indices, manage_aliases is required to add/remove aliases
         assertAcked(client().admin().indices().prepareCreate("test_1")
@@ -105,7 +105,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testCreateIndexAndAliasesCreateOnlyPermission() {
         //user has create permission only: allows to create indices, manage_aliases is required to add aliases although they are part of the same create index request
         try {
@@ -117,7 +116,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testDeleteAliasesCreateOnlyPermission() {
         //user has create permission only: allows to create indices, manage_aliases is required to add/remove aliases
         try {
@@ -145,7 +143,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testGetAliasesCreateOnlyPermission() {
         //user has create permission only: allows to create indices, manage_aliases is required to retrieve aliases though
         try {
@@ -189,7 +186,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testCreateIndexThenAliasesCreateAndAliasesPermission() {
         //user has create and manage_aliases permission on test_*. manage_aliases is required to add/remove aliases on both aliases and indices
         assertAcked(client().admin().indices().prepareCreate("test_1")
@@ -213,7 +209,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testCreateIndexAndAliasesCreateAndAliasesPermission() {
         //user has create and manage_aliases permission on test_*. manage_aliases is required to add/remove aliases on both aliases and indices
         //ok: user has manage_aliases on test_*
@@ -230,7 +225,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testDeleteAliasesCreateAndAliasesPermission() {
         //user has create and manage_aliases permission on test_*. manage_aliases is required to add/remove aliases on both aliases and indices
         //ok: user has manage_aliases on test_*
@@ -284,7 +278,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testGetAliasesCreateAndAliasesPermission() {
         //user has create and manage_aliases permission on test_*. manage_aliases is required to retrieve aliases on both aliases and indices
 
@@ -350,7 +343,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testCreateIndexThenAliasesCreateAndAliasesPermission2() {
         //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases on both aliases and indices
         assertAcked(client().admin().indices().prepareCreate("test_1")
@@ -384,7 +376,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testCreateIndexAndAliasesCreateAndAliasesPermission2() {
         //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases on both aliases and indices
         try {
@@ -406,7 +397,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testDeleteAliasesCreateAndAliasesPermission2() {
         //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases on both aliases and indices
         try {
@@ -437,7 +427,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testGetAliasesCreateAndAliasesPermission2() {
         //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to retrieve aliases on both aliases and indices
         assertAcked(client().admin().indices().prepareCreate("test_1")
@@ -507,7 +496,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testCreateIndexThenAliasesCreateAndAliasesPermission3() {
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
         assertAcked(client().admin().indices().prepareCreate("test_1")
@@ -523,7 +511,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
                 .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray()))));
     }
 
-    @Test
     public void testCreateIndexAndAliasesCreateAndAliasesPermission3() {
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
         assertAcked(client().admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias"))
@@ -533,7 +520,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
                 .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray()))));
     }
 
-    @Test
     public void testDeleteAliasesCreateAndAliasesPermission3() {
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
         assertAcked(client().admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).addAlias(new Alias("alias_1"))
@@ -566,7 +552,6 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testGetAliasesCreateAndAliasesPermission3() {
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
         assertAcked(client().admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).addAlias(new Alias("alias_1"))
@@ -609,13 +594,16 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
                 "test_1", "alias_1");
     }
 
-    @Test(expected = ElasticsearchSecurityException.class)
     public void testCreateIndexAliasesOnlyPermission() {
-        client().admin().indices().prepareCreate("test_1")
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))).get();
+        try {
+            client().admin().indices().prepareCreate("test_1")
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))).get();
+            fail("Expected ElasticsearchSecurityException");
+        } catch (ElasticsearchSecurityException e) {
+            assertThat(e.getMessage(), is("action [indices:admin/create] is unauthorized for user [aliases_only]"));
+        }
     }
 
-    @Test
     public void testGetAliasesAliasesOnlyPermission() {
         //user has manage_aliases only permissions on both alias_* and test_*
 

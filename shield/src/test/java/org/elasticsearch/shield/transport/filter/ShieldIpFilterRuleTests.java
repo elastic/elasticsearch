@@ -9,9 +9,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.jboss.netty.handler.ipfilter.IpFilterRule;
 import org.jboss.netty.handler.ipfilter.IpSubnetFilterRule;
 import org.jboss.netty.handler.ipfilter.PatternRule;
-import org.junit.Test;
 
-import static org.elasticsearch.shield.transport.filter.ShieldIpFilterRule.*;
+import static org.elasticsearch.shield.transport.filter.ShieldIpFilterRule.ACCEPT_ALL;
+import static org.elasticsearch.shield.transport.filter.ShieldIpFilterRule.DENY_ALL;
+import static org.elasticsearch.shield.transport.filter.ShieldIpFilterRule.getRule;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -20,8 +21,6 @@ import static org.hamcrest.Matchers.sameInstance;
  * Unit tests for the {@link ShieldIpFilterRule}
  */
 public class ShieldIpFilterRuleTests extends ESTestCase {
-
-    @Test
     public void testParseAllRules() {
         IpFilterRule rule = getRule(true, "_all");
         assertThat(rule, sameInstance(ACCEPT_ALL));
@@ -30,7 +29,6 @@ public class ShieldIpFilterRuleTests extends ESTestCase {
         assertThat(rule, sameInstance(DENY_ALL));
     }
 
-    @Test
     public void testParseAllRuleWithOtherValues() {
         String ruleValue = "_all," + randomFrom("name", "127.0.0.1", "127.0.0.0/24");
         try {
@@ -41,7 +39,6 @@ public class ShieldIpFilterRuleTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testParseIpSubnetFilterRule() throws Exception {
         final boolean allow = randomBoolean();
         IpFilterRule rule = getRule(allow, "127.0.0.0/24");
@@ -51,7 +48,6 @@ public class ShieldIpFilterRuleTests extends ESTestCase {
         assertThat(ipSubnetFilterRule.contains("127.0.0.1"), equalTo(true));
     }
 
-    @Test
     public void testParseIpSubnetFilterRuleWithOtherValues() throws Exception {
         try {
             getRule(randomBoolean(), "127.0.0.0/24," + randomFrom("name", "127.0.0.1", "192.0.0.0/24"));
@@ -61,7 +57,6 @@ public class ShieldIpFilterRuleTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testParsePatternRules() {
         final boolean allow = randomBoolean();
         String ruleSpec = "127.0.0.1,::1,192.168.0.*,name*,specific_name";

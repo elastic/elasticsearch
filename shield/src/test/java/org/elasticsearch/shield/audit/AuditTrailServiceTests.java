@@ -14,7 +14,6 @@ import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.net.InetAddress;
 import java.util.HashSet;
@@ -28,7 +27,6 @@ import static org.mockito.Mockito.verify;
  *
  */
 public class AuditTrailServiceTests extends ESTestCase {
-
     private Set<AuditTrail> auditTrails;
     private AuditTrailService service;
 
@@ -49,7 +47,6 @@ public class AuditTrailServiceTests extends ESTestCase {
         restRequest = mock(RestRequest.class);
     }
 
-    @Test
     public void testAuthenticationFailed() throws Exception {
         service.authenticationFailed(token, "_action", message);
         for (AuditTrail auditTrail : auditTrails) {
@@ -57,47 +54,41 @@ public class AuditTrailServiceTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void testAuthenticationFailed_No_Token() throws Exception {
+    public void testAuthenticationFailedNoToken() throws Exception {
         service.authenticationFailed("_action", message);
         for (AuditTrail auditTrail : auditTrails) {
             verify(auditTrail).authenticationFailed("_action", message);
         }
     }
 
-    @Test
-    public void testAuthenticationFailed_Rest_No_Token() throws Exception {
+    public void testAuthenticationFailedRestNoToken() throws Exception {
         service.authenticationFailed(restRequest);
         for (AuditTrail auditTrail : auditTrails) {
             verify(auditTrail).authenticationFailed(restRequest);
         }
     }
 
-    @Test
-    public void testAuthenticationFailed_Rest() throws Exception {
+    public void testAuthenticationFailedRest() throws Exception {
         service.authenticationFailed(token, restRequest);
         for (AuditTrail auditTrail : auditTrails) {
             verify(auditTrail).authenticationFailed(token, restRequest);
         }
     }
 
-    @Test
-    public void testAuthenticationFailed_Realm() throws Exception {
+    public void testAuthenticationFailedRealm() throws Exception {
         service.authenticationFailed("_realm", token, "_action", message);
         for (AuditTrail auditTrail : auditTrails) {
             verify(auditTrail).authenticationFailed("_realm", token, "_action", message);
         }
     }
 
-    @Test
-    public void testAuthenticationFailed_Rest_Realm() throws Exception {
+    public void testAuthenticationFailedRestRealm() throws Exception {
         service.authenticationFailed("_realm", token, restRequest);
         for (AuditTrail auditTrail : auditTrails) {
             verify(auditTrail).authenticationFailed("_realm", token, restRequest);
         }
     }
 
-    @Test
     public void testAnonymousAccess() throws Exception {
         service.anonymousAccessDenied("_action", message);
         for (AuditTrail auditTrail : auditTrails) {
@@ -105,7 +96,6 @@ public class AuditTrailServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testAccessGranted() throws Exception {
         User user = new User.Simple("_username", new String[] { "r1" });
         service.accessGranted(user, "_action", message);
@@ -114,7 +104,6 @@ public class AuditTrailServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testAccessDenied() throws Exception {
         User user = new User.Simple("_username", new String[] { "r1" });
         service.accessDenied(user, "_action", message);
@@ -123,7 +112,6 @@ public class AuditTrailServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testConnectionGranted() throws Exception {
         InetAddress inetAddress = InetAddress.getLoopbackAddress();
         ShieldIpFilterRule rule = randomBoolean() ? ShieldIpFilterRule.ACCEPT_ALL : IPFilter.DEFAULT_PROFILE_ACCEPT_ALL;
@@ -133,7 +121,6 @@ public class AuditTrailServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testConnectionDenied() throws Exception {
         InetAddress inetAddress = InetAddress.getLoopbackAddress();
         ShieldIpFilterRule rule = new ShieldIpFilterRule(false, "_all");

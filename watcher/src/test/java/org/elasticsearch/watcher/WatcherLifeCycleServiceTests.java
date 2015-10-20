@@ -5,7 +5,12 @@
  */
 package org.elasticsearch.watcher;
 
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
@@ -13,19 +18,21 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
-import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.util.concurrent.Executor;
-
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  */
 public class WatcherLifeCycleServiceTests extends ESTestCase {
-
     private ClusterService clusterService;
     private WatcherService watcherService;
     private WatcherLifeCycleService lifeCycleService;
@@ -48,7 +55,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         lifeCycleService = new WatcherLifeCycleService(Settings.EMPTY, threadPool, clusterService, watcherService);
     }
 
-    @Test
     public void testStartAndStopCausedByClusterState() throws Exception {
         // starting... local node is master node
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
@@ -75,7 +81,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         verify(watcherService, times(1)).start(clusterState);
     }
 
-    @Test
     public void testStartWithStateNotRecoveredBlock() throws Exception {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
@@ -86,14 +91,12 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         verify(watcherService, never()).start(any(ClusterState.class));
     }
 
-    @Test
     public void testManualStartStop() throws Exception {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes).build();
         when(clusterService.state()).thenReturn(clusterState);
         when(watcherService.validate(clusterState)).thenReturn(true);
-
 
         when(watcherService.state()).thenReturn(WatcherState.STOPPED);
         lifeCycleService.start();
@@ -136,8 +139,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         verify(watcherService, times(2)).stop();
     }
 
-    @Test
-    public void testManualStartStop_clusterStateNotValid() throws Exception {
+    public void testManualStartStopClusterStateNotValid() throws Exception {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes).build();
@@ -151,19 +153,16 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         verify(watcherService, never()).stop();
     }
 
-    @Test
-    public void testManualStartStop_watcherNotStopped() throws Exception {
+    public void testManualStartStopWatcherNotStopped() throws Exception {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes).build();
         when(clusterService.state()).thenReturn(clusterState);
         when(watcherService.state()).thenReturn(WatcherState.STOPPING);
 
-
         lifeCycleService.start();
         verify(watcherService, never()).validate(any(ClusterState.class));
         verify(watcherService, never()).start(any(ClusterState.class));
         verify(watcherService, never()).stop();
     }
-
 }

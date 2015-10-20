@@ -10,7 +10,6 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -19,7 +18,6 @@ import static org.mockito.Mockito.verify;
  *
  */
 public class ClientTransportFilterTests extends ESTestCase {
-
     private AuthenticationService authcService;
     private ClientTransportFilter filter;
 
@@ -29,7 +27,6 @@ public class ClientTransportFilterTests extends ESTestCase {
         filter = new ClientTransportFilter.Node(authcService);
     }
 
-    @Test
     public void testOutbound() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
         filter.outbound("_action", request);

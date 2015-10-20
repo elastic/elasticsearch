@@ -14,7 +14,6 @@ import org.elasticsearch.shield.authz.Privilege;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.junit.Test;
 
 import java.io.BufferedWriter;
 import java.io.OutputStream;
@@ -45,8 +44,6 @@ import static org.hamcrest.Matchers.startsWith;
  *
  */
 public class FileRolesStoreTests extends ESTestCase {
-
-    @Test
     public void testParseFile() throws Exception {
         Path path = getDataPath("roles.yml");
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger);
@@ -148,7 +145,6 @@ public class FileRolesStoreTests extends ESTestCase {
     /**
      * This test is mainly to make sure we can read the default roles.yml config
      */
-    @Test
     public void testDefaultRolesFile() throws Exception {
         Path path = getDataPath("default_roles.yml");
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger);
@@ -165,7 +161,6 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roles, hasKey("marvel_agent"));
     }
 
-    @Test
     public void testAutoReload() throws Exception {
         ThreadPool threadPool = null;
         ResourceWatcherService watcherService = null;
@@ -227,7 +222,6 @@ public class FileRolesStoreTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
         Path file = createTempFile();
         Files.write(file, Collections.singletonList("#"), StandardCharsets.UTF_8);
@@ -235,7 +229,6 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roles.keySet(), is(empty()));
     }
 
-    @Test
     public void testThatInvalidRoleDefinitions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
@@ -255,7 +248,6 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(entries.get(4).text, startsWith("invalid role definition [role4] in roles file [" + path.toAbsolutePath() + "]. could not resolve indices privileges [al;kjdlkj;lkj]"));
     }
 
-    @Test
     public void testThatRoleNamesDoesNotResolvePermissions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
@@ -268,7 +260,6 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(entries.get(0).text, startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));
     }
 
-    @Test
     public void testReservedRoles() throws Exception {
         Set<Permission.Global.Role> reservedRoles = singleton(Permission.Global.Role.builder("reserved")
                         .cluster(Privilege.Cluster.ALL)
@@ -299,7 +290,6 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(reserved.indices().isEmpty(), is(true));
     }
 
-    @Test
     public void testReservedRolesNonExistentRolesFile() throws Exception {
         Set<Permission.Global.Role> reservedRoles = singleton(Permission.Global.Role.builder("reserved")
                         .cluster(Privilege.Cluster.ALL)

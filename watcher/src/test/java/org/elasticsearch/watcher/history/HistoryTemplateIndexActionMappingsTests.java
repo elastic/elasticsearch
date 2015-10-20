@@ -11,7 +11,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.junit.Test;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -27,7 +26,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * not analyzed so they can be used in aggregations
  */
 public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     protected boolean timeWarped() {
         return true; // just to have better control over the triggers
@@ -38,7 +36,6 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
         return false; // remove shield noise from this test
     }
 
-    @Test
     public void testIndexActionFields() throws Exception {
         String index = "the-index";
         String type = "the-type";

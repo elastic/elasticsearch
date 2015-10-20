@@ -12,20 +12,31 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
-import javax.net.ssl.*;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSessionContext;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class ServerSSLServiceTests extends ESTestCase {
-
     Path testnodeStore;
     ShieldSettingsFilter settingsFilter;
     Environment env;
@@ -37,7 +48,6 @@ public class ServerSSLServiceTests extends ESTestCase {
         env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
     }
 
-    @Test
     public void testThatInvalidProtocolThrowsException() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.ssl.protocol", "non-existing")
@@ -54,7 +64,6 @@ public class ServerSSLServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatCustomTruststoreCanBeSpecified() throws Exception {
         Path testClientStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks");
 
@@ -75,7 +84,6 @@ public class ServerSSLServiceTests extends ESTestCase {
         assertThat(sslEngineWithTruststore, is(not(sameInstance(sslEngine))));
     }
 
-    @Test
     public void testThatSslContextCachingWorks() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
             .put("shield.ssl.keystore.path", testnodeStore)
@@ -88,7 +96,6 @@ public class ServerSSLServiceTests extends ESTestCase {
         assertThat(sslContext, is(sameInstance(cachedSslContext)));
     }
 
-    @Test
     public void testThatKeyStoreAndKeyCanHaveDifferentPasswords() throws Exception {
         Path differentPasswordsStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-different-passwords.jks");
         new ServerSSLService(settingsBuilder()
@@ -98,7 +105,6 @@ public class ServerSSLServiceTests extends ESTestCase {
                 .build(), settingsFilter, env).createSSLEngine();
     }
 
-    @Test
     public void testIncorrectKeyPasswordThrowsException() throws Exception {
         Path differentPasswordsStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-different-passwords.jks");
         try {
@@ -112,7 +118,6 @@ public class ServerSSLServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatSSLv3IsNotEnabled() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
@@ -122,7 +127,6 @@ public class ServerSSLServiceTests extends ESTestCase {
         assertThat(Arrays.asList(engine.getEnabledProtocols()), not(hasItem("SSLv3")));
     }
 
-    @Test
     public void testThatSSLSessionCacheHasDefaultLimits() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
@@ -133,7 +137,6 @@ public class ServerSSLServiceTests extends ESTestCase {
         assertThat(context.getSessionTimeout(), equalTo((int) TimeValue.timeValueHours(24).seconds()));
     }
 
-    @Test
     public void testThatSettingSSLSessionCacheLimitsWorks() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
@@ -146,42 +149,56 @@ public class ServerSSLServiceTests extends ESTestCase {
         assertThat(context.getSessionTimeout(), equalTo(600));
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testThatCreateSSLEngineWithoutAnySettingsDoesNotWork() throws Exception {
         ServerSSLService sslService = new ServerSSLService(Settings.EMPTY, settingsFilter, env);
-        sslService.createSSLEngine();
+        try {
+            sslService.createSSLEngine();
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("no keystore configured"));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testThatCreateSSLEngineWithOnlyTruststoreDoesNotWork() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.truststore.path", testnodeStore)
                 .put("shield.ssl.truststore.password", "testnode")
                 .build(), settingsFilter, env);
-        SSLEngine sslEngine = sslService.createSSLEngine();
-        assertThat(sslEngine, notNullValue());
+        try {
+            sslService.createSSLEngine();
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("no keystore configured"));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testThatTruststorePasswordIsRequired() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .put("shield.ssl.truststore.path", testnodeStore)
                 .build(), settingsFilter, env);
-        sslService.sslContext();
+        try {
+            sslService.sslContext();
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("no truststore password configured"));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testThatKeystorePasswordIsRequired() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .build(), settingsFilter, env);
-        sslService.sslContext();
+        try {
+            sslService.sslContext();
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("no keystore password configured"));
+        }
     }
 
-    @Test
-    public void validCiphersAndInvalidCiphersWork() throws Exception {
+    public void testCiphersAndInvalidCiphersWork() throws Exception {
         List<String> ciphers = new ArrayList<>(Arrays.asList(AbstractSSLService.DEFAULT_CIPHERS));
         ciphers.add("foo");
         ciphers.add("bar");
@@ -196,17 +213,20 @@ public class ServerSSLServiceTests extends ESTestCase {
         assertThat(Arrays.asList(enabledCiphers), not(contains("foo", "bar")));
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void invalidCiphersOnlyThrowsException() throws Exception {
+    public void testInvalidCiphersOnlyThrowsException() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .putArray("shield.ssl.ciphers", new String[] { "foo", "bar" })
                 .build(), settingsFilter, env);
-        sslService.createSSLEngine();
+        try {
+            sslService.createSSLEngine();
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("failed loading cipher suites [[foo, bar]]"));
+        }
     }
 
-    @Test
     public void testThatSSLSocketFactoryHasProperCiphersAndProtocols() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)

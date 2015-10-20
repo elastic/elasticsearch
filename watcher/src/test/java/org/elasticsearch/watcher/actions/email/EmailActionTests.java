@@ -30,7 +30,6 @@ import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -40,6 +39,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
@@ -53,8 +53,6 @@ import static org.mockito.Mockito.when;
  *
  */
 public class EmailActionTests extends ESTestCase {
-
-    @Test
     public void testExecute() throws Exception {
         final String account = "account1";
         EmailService service = new EmailService() {
@@ -152,7 +150,6 @@ public class EmailActionTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testParser() throws Exception {
         TextTemplateEngine engine = mock(TextTemplateEngine.class);
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
@@ -299,8 +296,7 @@ public class EmailActionTests extends ESTestCase {
         return templates;
     }
 
-    @Test
-    public void testParser_SelfGenerated() throws Exception {
+    public void testParserSelfGenerated() throws Exception {
         EmailService service = mock(EmailService.class);
         TextTemplateEngine engine = mock(TextTemplateEngine.class);
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
@@ -368,16 +364,19 @@ public class EmailActionTests extends ESTestCase {
         }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_Invalid() throws Exception {
+    public void testParserInvalid() throws Exception {
         EmailService emailService = mock(EmailService.class);
         TextTemplateEngine engine = mock(TextTemplateEngine.class);
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
         XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value");
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer)
-                .parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
+        try {
+            new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer)
+                    .parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("unexpected string field [unknown_field]"));
+        }
     }
 
     static DataAttachment randomDataAttachment() {

@@ -8,6 +8,7 @@ package org.elasticsearch.shield;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.LuceneTestCase.SuppressFsync;
@@ -16,12 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.repositories.uri.URLRepository;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -41,7 +37,6 @@ import org.elasticsearch.test.rest.support.FileUtils;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,7 +45,12 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.UnknownHostException;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -228,13 +228,13 @@ public abstract class TribeRestTestCase extends ESTestCase {
     @SuppressForbidden(reason = "proper use of URL, hack around a JDK bug")
     static FileSystem getFileSystem() throws IOException {
         // REST suite handling is currently complicated, with lots of filtering and so on
-        // For now, to work embedded in a jar, return a ZipFileSystem over the jar contents. 
+        // For now, to work embedded in a jar, return a ZipFileSystem over the jar contents.
         URL codeLocation = FileUtils.class.getProtectionDomain().getCodeSource().getLocation();
         boolean loadPackaged = RandomizedTest.systemPropertyAsBoolean(REST_LOAD_PACKAGED_TESTS, true);
         if (codeLocation.getFile().endsWith(".jar") && loadPackaged) {
             try {
                 // hack around a bug in the zipfilesystem implementation before java 9,
-                // its checkWritable was incorrect and it won't work without write permissions. 
+                // its checkWritable was incorrect and it won't work without write permissions.
                 // if we add the permission, it will open jars r/w, which is too scary! so copy to a safe r-w location.
                 Path tmp = Files.createTempFile(null, ".jar");
                 try (InputStream in = codeLocation.openStream()) {
@@ -349,7 +349,6 @@ public abstract class TribeRestTestCase extends ESTestCase {
         return messageBuilder.toString();
     }
 
-    @Test
     public void test() throws IOException {
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {

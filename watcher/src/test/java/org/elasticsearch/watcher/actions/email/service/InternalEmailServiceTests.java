@@ -15,16 +15,18 @@ import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.*;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  *
  */
 public class InternalEmailServiceTests extends ESTestCase {
-
     private InternalEmailService service;
     private Accounts accounts;
 
@@ -45,7 +47,6 @@ public class InternalEmailServiceTests extends ESTestCase {
         service.stop();
     }
 
-    @Test
     public void testSend() throws Exception {
         Account account = mock(Account.class);
         when(account.name()).thenReturn("account1");

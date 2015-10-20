@@ -23,19 +23,18 @@ import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.transport.Transport;
-import org.junit.Test;
 
-import javax.net.ssl.SSLHandshakeException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
+import javax.net.ssl.SSLHandshakeException;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class SslClientAuthTests extends ShieldIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
@@ -54,7 +53,6 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
         return true;
     }
 
-    @Test(expected = SSLHandshakeException.class)
     public void testThatHttpFailsWithoutSslClientAuth() throws IOException {
         SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
                 SSLContexts.createDefault(),
@@ -62,14 +60,18 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
 
         CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();
 
-        new HttpRequestBuilder(client)
-                .httpTransport(internalCluster().getInstance(HttpServerTransport.class))
-                .method("GET").path("/")
-                .protocol("https")
-                .execute();
+        try {
+            new HttpRequestBuilder(client)
+                    .httpTransport(internalCluster().getInstance(HttpServerTransport.class))
+                    .method("GET").path("/")
+                    .protocol("https")
+                    .execute();
+            fail("Expected SSLHandshakeException");
+        } catch (SSLHandshakeException e) {
+            assertThat(e.getMessage(), containsString("unable to find valid certification path to requested target"));
+        }
     }
 
-    @Test
     public void testThatHttpWorksWithSslClientAuth() throws IOException {
         Settings settings = settingsBuilder().put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient")).build();
         ClientSSLService sslService = new ClientSSLService(settings);
@@ -89,7 +91,6 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
         assertThat(response.getBody(), containsString("You Know, for Search"));
     }
 
-    @Test
     public void testThatTransportWorksWithoutSslClientAuth() throws Exception {
         // specify an arbitrary keystore, that does not include the certs needed to connect to the transport protocol
         Path store = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks");

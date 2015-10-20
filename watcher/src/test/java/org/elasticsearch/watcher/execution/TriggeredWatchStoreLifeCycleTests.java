@@ -7,25 +7,25 @@ package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.ClusterService;
-import org.joda.time.DateTime;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.util.Collection;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
 public class TriggeredWatchStoreLifeCycleTests extends AbstractWatcherIntegrationTestCase {
-
-    @Test
     public void testPutLoadUpdate() throws Exception {
         ExecutableCondition condition = new ExecutableAlwaysCondition(logger);
         TriggeredWatchStore triggeredWatchStore = getInstanceFromMaster(TriggeredWatchStore.class);
@@ -66,5 +66,4 @@ public class TriggeredWatchStoreLifeCycleTests extends AbstractWatcherIntegratio
         assertThat(loadedTriggeredWatches, notNullValue());
         assertThat(loadedTriggeredWatches, hasSize(0));
     }
-
 }

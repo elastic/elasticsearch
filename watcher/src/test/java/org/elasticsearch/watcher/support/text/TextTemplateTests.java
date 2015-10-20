@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.text.xmustache.XMustacheTextTemplateEngine;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,7 +36,6 @@ import static org.mockito.Mockito.when;
  *
  */
 public class TextTemplateTests extends ESTestCase {
-
     private ScriptServiceProxy proxy;
     private TextTemplateEngine engine;
     private ExecutableScript script;
@@ -50,7 +48,6 @@ public class TextTemplateTests extends ESTestCase {
         engine = new XMustacheTextTemplateEngine(Settings.EMPTY, proxy);
     }
 
-    @Test
     public void testRender() throws Exception {
         String templateText = "_template";
         Map<String, Object> params = singletonMap("param_key", "param_val");
@@ -67,8 +64,7 @@ public class TextTemplateTests extends ESTestCase {
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
-    @Test
-    public void testRender_OverridingModel() throws Exception {
+    public void testRenderOverridingModel() throws Exception {
         String templateText = "_template";
         Map<String, Object> params = singletonMap("key", "param_val");
         Map<String, Object> model = singletonMap("key", "model_val");
@@ -81,8 +77,7 @@ public class TextTemplateTests extends ESTestCase {
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
-    @Test
-    public void testRender_Defaults() throws Exception {
+    public void testRenderDefaults() throws Exception {
         String templateText = "_template";
         Map<String, Object> model = singletonMap("key", "model_val");
 
@@ -93,7 +88,6 @@ public class TextTemplateTests extends ESTestCase {
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
-    @Test
     public void testParser() throws Exception {
         ScriptType type = randomScriptType();
         TextTemplate template = templateBuilder(type, "_template").params(singletonMap("param_key", "param_val")).build();
@@ -118,8 +112,7 @@ public class TextTemplateTests extends ESTestCase {
         assertThat(parsed, equalTo(template));
     }
 
-    @Test
-    public void testParser_ParserSelfGenerated() throws Exception {
+    public void testParserParserSelfGenerated() throws Exception {
         TextTemplate template = templateBuilder(randomScriptType(), "_template").params(singletonMap("param_key", "param_val")).build();
 
         XContentBuilder builder = jsonBuilder().value(template);
@@ -131,20 +124,22 @@ public class TextTemplateTests extends ESTestCase {
         assertThat(parsed, equalTo(template));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_Invalid_UnexpectedField() throws Exception {
+    public void testParserInvalidUnexpectedField() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("unknown_field", "value")
                 .endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        TextTemplate.parse(parser);
-        fail("expected parse exception when encountering an unknown field");
+        try {
+            TextTemplate.parse(parser);
+            fail("expected parse exception when encountering an unknown field");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("unexpected field [unknown_field]"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_Invalid_UnknownScriptType() throws Exception {
+    public void testParserInvalidUnknownScriptType() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("template", "_template")
                 .field("type", "unknown_type")
@@ -153,12 +148,15 @@ public class TextTemplateTests extends ESTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        TextTemplate.parse(parser);
-        fail("expected parse exception when script type is unknown");
+        try {
+            TextTemplate.parse(parser);
+            fail("expected parse exception when script type is unknown");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("unexpected field [template]"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_Invalid_MissingText() throws Exception {
+    public void testParserInvalidMissingText() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("type", ScriptType.INDEXED)
                 .startObject("params").endObject()
@@ -166,8 +164,12 @@ public class TextTemplateTests extends ESTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        TextTemplate.parse(parser);
-        fail("expected parse exception when template text is missing");
+        try {
+            TextTemplate.parse(parser);
+            fail("expected parse exception when template text is missing");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("unexpected field [type]"));
+        }
     }
 
     private TextTemplate.Builder templateBuilder(ScriptType type, String text) {

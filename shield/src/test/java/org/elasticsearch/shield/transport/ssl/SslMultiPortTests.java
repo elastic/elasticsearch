@@ -15,7 +15,6 @@ import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.net.InetAddress;
 import java.nio.file.Files;
@@ -25,6 +24,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_PASSWORD;
 import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_USER_NAME;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
 
 public class SslMultiPortTests extends ShieldIntegTestCase {
 
@@ -99,7 +99,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * Uses the internal cluster's transport client to test connection to the default profile. The internal transport
      * client uses the same SSL settings as the default profile so a connection should always succeed
      */
-    @Test
     public void testThatStandardTransportClientCanConnectToDefaultProfile() throws Exception {
         assertGreenClusterState(internalCluster().transportClient());
     }
@@ -111,7 +110,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * connection should always succeed as the settings are the same as the default profile except for the port and
      * disabling the client auth requirement
      */
-    @Test
     public void testThatStandardTransportClientCanConnectToNoClientAuthProfile() throws Exception {
         try(TransportClient transportClient = createTransportClient(Settings.EMPTY)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_client_auth")));
@@ -126,11 +124,13 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * keystore so this connection will fail as the certificate presented by the standard transport client is not trusted
      * by this profile
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatStandardTransportClientCannotConnectToClientProfile() throws Exception {
-        try(TransportClient transportClient = createTransportClient(Settings.EMPTY)) {
+        try (TransportClient transportClient = createTransportClient(Settings.EMPTY)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
             transportClient.admin().cluster().prepareHealth().get();
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
@@ -139,11 +139,13 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * no_ssl profile. The internal transport client is not used here since we are connecting to a different
      * profile. The no_ssl profile is plain text and the standard transport client uses SSL, so a connection will never work
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatStandardTransportClientCannotConnectToNoSslProfile() throws Exception {
         try (TransportClient transportClient = createTransportClient(Settings.EMPTY)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));
             assertGreenClusterState(transportClient);
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
@@ -152,7 +154,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * certificate and had its own self signed certificate. This test connects to the client profile, which is only
      * set to trust the testclient-client-profile certificate so the connection should always succeed
      */
-    @Test
     public void testThatProfileTransportClientCanConnectToClientProfile() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
         try (TransportClient transportClient = createTransportClient(settings)) {
@@ -167,7 +168,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * uses a truststore that does not trust the testclient-client-profile certificate but does not require client
      * authentication
      */
-    @Test
     public void testThatProfileTransportClientCanConnectToNoClientAuthProfile() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
         try (TransportClient transportClient = createTransportClient(settings)) {
@@ -182,13 +182,15 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * uses a truststore that does not trust the testclient-client-profile certificate and requires client authentication
      * so the connection should always fail
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatProfileTransportClientCannotConnectToDefaultProfile() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
         try (TransportClient transportClient = createTransportClient(settings)) {
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
             transportClient.addTransportAddress(transportAddress);
             transportClient.admin().cluster().prepareHealth().get();
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
@@ -197,19 +199,20 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * certificate and had its own self signed certificate. This test connects to the no_ssl profile, which does not
      * use SSL so the connection will never work
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatProfileTransportClientCannotConnectToNoSslProfile() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
         try (TransportClient transportClient = createTransportClient(settings)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));
             transportClient.admin().cluster().prepareHealth().get();
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
     /**
      * Uses a transport client with SSL disabled. This test connects to the no_ssl profile, which should always succeed
      */
-    @Test
     public void testThatTransportClientCanConnectToNoSslProfile() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
@@ -225,7 +228,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * Uses a transport client with SSL disabled. This test connects to the default profile, which should always fail
      * as a non-ssl transport client cannot connect to a ssl profile
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientCannotConnectToDefaultProfile() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
@@ -234,6 +236,9 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
             assertGreenClusterState(transportClient);
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
@@ -241,7 +246,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * Uses a transport client with SSL disabled. This test connects to the client profile, which should always fail
      * as a non-ssl transport client cannot connect to a ssl profile
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientCannotConnectToClientProfile() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
@@ -250,6 +254,9 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
             assertGreenClusterState(transportClient);
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
@@ -257,7 +264,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * Uses a transport client with SSL disabled. This test connects to the no_client_auth profile, which should always fail
      * as a non-ssl transport client cannot connect to a ssl profile
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientCannotConnectToNoClientAuthProfile() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
@@ -266,6 +272,9 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
@@ -274,7 +283,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * certificate and contains no other certification. This test connects to the no_client_auth profile, which uses
      * the testnode certificate and does not require to present a certificate, so this connection should always succeed
      */
-    @Test
     public void testThatTransportClientWithOnlyTruststoreCanConnectToNoClientAuthProfile() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
@@ -295,7 +303,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * the testnode certificate and requires the client to present a certificate, so this connection will never work as
      * the client has no certificate to present
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientWithOnlyTruststoreCannotConnectToClientProfile() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
@@ -307,6 +314,9 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
             assertGreenClusterState(transportClient);
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
@@ -316,7 +326,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * the testnode certificate and requires the client to present a certificate, so this connection will never work as
      * the client has no certificate to present
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientWithOnlyTruststoreCannotConnectToDefaultProfile() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
@@ -328,6 +337,9 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
                     assertGreenClusterState(transportClient);
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
@@ -336,7 +348,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * certificate and contains no other certification. This test connects to the no_ssl profile, which does not use
      * SSL so the connection should never succeed
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientWithOnlyTruststoreCannotConnectToNoSslProfile() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
@@ -348,6 +359,9 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));
             assertGreenClusterState(transportClient);
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
@@ -356,7 +370,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * certificate authorities. This test connects to the default profile, which uses a self-signed certificate that
      * will never be trusted by the default truststore so the connection should always fail
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatSSLTransportClientWithNoTruststoreCannotConnectToDefaultProfile() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
@@ -366,6 +379,9 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
             assertGreenClusterState(transportClient);
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
@@ -374,7 +390,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * certificate authorities. This test connects to the client profile, which uses a self-signed certificate that
      * will never be trusted by the default truststore so the connection should always fail
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatSSLTransportClientWithNoTruststoreCannotConnectToClientProfile() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
@@ -384,6 +399,9 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
             assertGreenClusterState(transportClient);
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
@@ -392,7 +410,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * certificate authorities. This test connects to the no_client_auth profile, which uses a self-signed certificate that
      * will never be trusted by the default truststore so the connection should always fail
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatSSLTransportClientWithNoTruststoreCannotConnectToNoClientAuthProfile() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
@@ -402,6 +419,9 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 
@@ -410,7 +430,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * certificate authorities. This test connects to the no_ssl profile, which does not use SSL so the connection
      * will not work
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatSSLTransportClientWithNoTruststoreCannotConnectToNoSslProfile() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
@@ -420,6 +439,9 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));
             assertGreenClusterState(transportClient);
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
         }
     }
 

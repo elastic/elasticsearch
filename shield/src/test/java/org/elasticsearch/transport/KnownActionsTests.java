@@ -14,7 +14,6 @@ import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,7 +53,6 @@ public class KnownActionsTests extends ShieldIntegTestCase {
         codeActions = loadCodeActions();
     }
 
-    @Test
     public void testAllTransportHandlersAreKnown() {
         TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
         for (String handler : transportService.requestHandlers.keySet()) {
@@ -64,21 +62,18 @@ public class KnownActionsTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testAllCodeActionsAreKnown() throws Exception {
         for (String action : codeActions) {
             assertThat("classpath action [" + action + "] is unknown to shield", knownActions, hasItem(action));
         }
     }
 
-    @Test
     public void testAllKnownActionsAreValid() {
         for (String knownAction : knownActions) {
             assertThat("shield known action [" + knownAction + "] is not among the classpath actions", codeActions, hasItems(knownAction));
         }
     }
 
-    @Test
     public void testAllKnownTransportHandlersAreValid() {
         TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
         for (String knownHandler : knownHandlers) {

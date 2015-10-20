@@ -9,15 +9,17 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class UserTests extends ESTestCase {
-
-    @Test
     public void testWriteToAndReadFrom() throws Exception {
         User user = new User.Simple(randomAsciiOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false));
         BytesStreamOutput output = new BytesStreamOutput();
@@ -31,7 +33,6 @@ public class UserTests extends ESTestCase {
         assertThat(readFrom.runAs(), is(nullValue()));
     }
 
-    @Test
     public void testWriteToAndReadFromWithRunAs() throws Exception {
         User runAs = new User.Simple(randomAsciiOfLengthBetween(4, 30), randomBoolean() ? generateRandomStringArray(20, 30, false) : null);
         User user = new User.Simple(randomAsciiOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false), runAs);
@@ -50,7 +51,6 @@ public class UserTests extends ESTestCase {
         assertThat(readFromRunAs.runAs(), is(nullValue()));
     }
 
-    @Test
     public void testSystemReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
@@ -63,7 +63,6 @@ public class UserTests extends ESTestCase {
         assertThat(readFrom.runAs(), is(nullValue()));
     }
 
-    @Test
     public void testFakeSystemUserSerialization() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
         output.writeBoolean(true);
@@ -76,7 +75,6 @@ public class UserTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCreateUserRunningAsSystemUser() throws Exception {
         try {
             new User.Simple(randomAsciiOfLengthBetween(3, 10), generateRandomStringArray(16, 30, false), User.SYSTEM);

@@ -12,16 +12,22 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.junit.Before;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  *
  */
 public class InternalHipChatServiceTests extends ESTestCase {
-
     private HttpClient httpClient;
     private NodeSettingsService nodeSettingsService;
     private WatcherSettingsFilter settingsFilter;
@@ -33,8 +39,7 @@ public class InternalHipChatServiceTests extends ESTestCase {
         settingsFilter = mock(WatcherSettingsFilter.class);
     }
 
-    @Test
-    public void testSingleAccount_V1() throws Exception {
+    public void testSingleAccountV1() throws Exception {
         String accountName = randomAsciiOfLength(10);
         String host = randomBoolean() ? null : "_host";
         int port = randomBoolean() ? -1 : randomIntBetween(300, 400);
@@ -82,8 +87,7 @@ public class InternalHipChatServiceTests extends ESTestCase {
         assertThatSettingsFilterWasAdded();
     }
 
-    @Test
-    public void testSingleAccount_Integration() throws Exception {
+    public void testSingleAccountIntegration() throws Exception {
         String accountName = randomAsciiOfLength(10);
         String host = randomBoolean() ? null : "_host";
         int port = randomBoolean() ? -1 : randomIntBetween(300, 400);
@@ -127,18 +131,21 @@ public class InternalHipChatServiceTests extends ESTestCase {
         assertThatSettingsFilterWasAdded();
     }
 
-    @Test(expected = SettingsException.class)
-    public void testSingleAccount_Integration_NoRoomSetting() throws Exception {
+    public void testSingleAccountIntegrationNoRoomSetting() throws Exception {
         String accountName = randomAsciiOfLength(10);
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("watcher.actions.hipchat.service.account." + accountName + ".profile", HipChatAccount.Profile.INTEGRATION.value())
                 .put("watcher.actions.hipchat.service.account." + accountName + ".auth_token", "_token");
-        InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient, nodeSettingsService, settingsFilter);
-        service.start();
+        try (InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient, nodeSettingsService,
+                settingsFilter)) {
+            service.start();
+            fail("Expected SettingsException");
+        } catch (SettingsException e) {
+            assertThat(e.getMessage(), containsString("missing required [room] setting for [integration] account profile"));
+        }
     }
 
-    @Test
-    public void testSingleAccount_User() throws Exception {
+    public void testSingleAccountUser() throws Exception {
         String accountName = randomAsciiOfLength(10);
         String host = randomBoolean() ? null : "_host";
         int port = randomBoolean() ? -1 : randomIntBetween(300, 400);
@@ -190,7 +197,6 @@ public class InternalHipChatServiceTests extends ESTestCase {
         assertThatSettingsFilterWasAdded();
     }
 
-    @Test
     public void testMultipleAccounts() throws Exception {
         HipChatMessage.Color defaultColor = randomBoolean() ? null : randomFrom(HipChatMessage.Color.values());
         HipChatMessage.Format defaultFormat = randomBoolean() ? null : randomFrom(HipChatMessage.Format.values());

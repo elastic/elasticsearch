@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.ldap;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPURL;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -19,18 +20,21 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.nio.file.Path;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItems;
 
 @Network
 public class UserAttributeGroupsResolverTests extends ESTestCase {
     public static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
     private LDAPConnection ldapConnection;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -53,13 +57,13 @@ public class UserAttributeGroupsResolverTests extends ESTestCase {
         ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(), BRUCE_BANNER_DN, ActiveDirectorySessionFactoryTests.PASSWORD);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
         ldapConnection.close();
     }
 
-    @Test
     public void testResolve() throws Exception {
         //falling back on the 'memberOf' attribute
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(Settings.EMPTY);
@@ -71,7 +75,6 @@ public class UserAttributeGroupsResolverTests extends ESTestCase {
                 containsString("Philanthropists")));
     }
 
-    @Test
     public void testResolveCustomGroupAttribute() throws Exception {
         Settings settings = Settings.builder()
                 .put("user_group_attribute", "seeAlso")
@@ -81,7 +84,6 @@ public class UserAttributeGroupsResolverTests extends ESTestCase {
         assertThat(groups, hasItems(containsString("Avengers")));  //seeAlso only has Avengers
     }
 
-    @Test
     public void testResolveInvalidGroupAttribute() throws Exception {
         Settings settings = Settings.builder()
                 .put("user_group_attribute", "doesntExist")

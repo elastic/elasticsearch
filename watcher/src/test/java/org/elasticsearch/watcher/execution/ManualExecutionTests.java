@@ -38,7 +38,6 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -69,13 +68,11 @@ import static org.hamcrest.Matchers.startsWith;
 
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
-
     @Override
     protected boolean enableShield() {
         return false;
     }
 
-    @Test
     public void testExecuteWatch() throws Exception {
         boolean ignoreCondition = randomBoolean();
         boolean recordExecution = randomBoolean();
@@ -160,7 +157,6 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    @Test
     public void testExecutionWithInlineWatch() throws Exception {
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
@@ -184,8 +180,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         assertThat(executeWatchResponse.getRecordSource().getValue("trigger_event.type").toString(), equalTo("manual"));
     }
 
-    @Test
-    public void testExecutionWithInlineWatch_withRecordExecutionEnabled() throws Exception {
+    public void testExecutionWithInlineWatchWithRecordExecutionEnabled() throws Exception {
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))
@@ -204,7 +199,6 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    @Test
     public void testExecutionWithInlineWatch_withWatchId() throws Exception {
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
@@ -225,7 +219,6 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    @Test
     public void testDifferentAlternativeInputs() throws Exception {
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
@@ -263,7 +256,6 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         assertThat(watchRecord2.result().inputResult().payload().data().get("foo"), instanceOf(Map.class));
     }
 
-    @Test
     public void testExecutionRequestDefaults() throws Exception {
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
@@ -312,7 +304,6 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         assertThat(ObjectPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.THROTTLED.toString()));
     }
 
-    @Test
     public void testWatchExecutionDuration() throws Exception {
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
@@ -326,7 +317,6 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         assertThat(record.result().executionDurationMs(), greaterThanOrEqualTo(100L));
     }
 
-    @Test
     public void testForceDeletionOfLongRunningWatch() throws Exception {
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))

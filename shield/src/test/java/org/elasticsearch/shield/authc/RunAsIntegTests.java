@@ -20,15 +20,14 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
 public class RunAsIntegTests extends ShieldIntegTestCase {
-
     static final String RUN_AS_USER = "run_as_user";
     static final String TRANSPORT_CLIENT_USER = "transport_user";
     static final String ROLES =
@@ -69,7 +68,6 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
                 + "transport_client:" + TRANSPORT_CLIENT_USER;
     }
 
-    @Test
     public void testUserImpersonation() throws Exception {
         try (TransportClient client = getTransportClient(Settings.builder().put("shield.user", TRANSPORT_CLIENT_USER + ":" + ShieldSettingsSource.DEFAULT_PASSWORD).build())) {
             //ensure the client can connect
@@ -102,7 +100,6 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testUserImpersonationUsingHttp() throws Exception {
         // use the transport client user and try to run as
         HttpResponse response = httpClient().method("GET")
@@ -128,7 +125,6 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
         assertThat(response.getStatusCode(), is(200));
     }
 
-    @Test
     public void testEmptyUserImpersonationHeader() throws Exception {
         try (TransportClient client = getTransportClient(Settings.builder().put("shield.user", TRANSPORT_CLIENT_USER + ":" + ShieldSettingsSource.DEFAULT_PASSWORD).build())) {
             //ensure the client can connect
@@ -147,7 +143,6 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testEmptyHeaderUsingHttp() throws Exception {
         HttpResponse response = httpClient().method("GET")
                 .path("/_nodes")
@@ -157,7 +152,6 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
         assertThat(response.getStatusCode(), is(401));
     }
 
-    @Test
     public void testNonExistentRunAsUser() throws Exception {
         try (TransportClient client = getTransportClient(Settings.builder().put("shield.user", TRANSPORT_CLIENT_USER + ":" + ShieldSettingsSource.DEFAULT_PASSWORD).build())) {
             //ensure the client can connect
@@ -176,7 +170,6 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testNonExistentRunAsUserUsingHttp() throws Exception {
         HttpResponse response = httpClient().method("GET")
                 .path("/_nodes")

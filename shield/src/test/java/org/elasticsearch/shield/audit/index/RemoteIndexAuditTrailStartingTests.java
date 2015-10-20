@@ -16,10 +16,13 @@ import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
@@ -132,7 +135,6 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testThatRemoteAuditInstancesAreStarted() throws Exception {
         Iterable<IndexAuditTrail> auditTrails = remoteCluster.getInstances(IndexAuditTrail.class);
         for (final IndexAuditTrail auditTrail : auditTrails) {

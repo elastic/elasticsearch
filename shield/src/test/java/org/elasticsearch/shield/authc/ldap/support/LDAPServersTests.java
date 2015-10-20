@@ -6,15 +6,13 @@
 package org.elasticsearch.shield.authc.ldap.support;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class LDAPServersTests extends ESTestCase {
-
-    @Test
-    public void testConfigure_1ldaps() {
+    public void testConfigure1ldaps() {
         String[] urls = new String[] { "ldaps://example.com:636" };
 
         SessionFactory.LDAPServers servers = new SessionFactory.LDAPServers(urls);
@@ -25,8 +23,7 @@ public class LDAPServersTests extends ESTestCase {
         assertThat(servers.ssl(), is(equalTo(true)));
     }
 
-    @Test
-    public void testConfigure_2ldaps() {
+    public void testConfigure2ldaps() {
         String[] urls = new String[] { "ldaps://primary.example.com:636", "LDAPS://secondary.example.com:10636" };
 
         SessionFactory.LDAPServers servers = new SessionFactory.LDAPServers(urls);
@@ -39,8 +36,7 @@ public class LDAPServersTests extends ESTestCase {
         assertThat(servers.ssl(), is(equalTo(true)));
     }
 
-    @Test
-    public void testConfigure_2ldap() {
+    public void testConfigure2ldap() {
         String[] urls = new String[] { "ldap://primary.example.com:392", "LDAP://secondary.example.com:10392" };
 
         SessionFactory.LDAPServers servers = new SessionFactory.LDAPServers(urls);
@@ -53,17 +49,25 @@ public class LDAPServersTests extends ESTestCase {
         assertThat(servers.ssl(), is(equalTo(false)));
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testConfigure_1ldaps_1ldap() {
+    public void testConfigure1ldaps1ldap() {
         String[] urls = new String[] { "LDAPS://primary.example.com:636", "ldap://secondary.example.com:392" };
 
-        new SessionFactory.LDAPServers(urls);
+        try {
+            new SessionFactory.LDAPServers(urls);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("configured LDAP protocols are not all equal"));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testConfigure_1ldap_1ldaps() {
+    public void testConfigure1ldap1ldaps() {
         String[] urls = new String[] { "ldap://primary.example.com:392", "ldaps://secondary.example.com:636" };
 
-        new SessionFactory.LDAPServers(urls);
+        try {
+            new SessionFactory.LDAPServers(urls);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("configured LDAP protocols are not all equal"));
+        }
     }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
@@ -28,7 +27,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.is;
 
 public class MultipleIndicesPermissionsTests extends ShieldIntegTestCase {
-
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
 
     @Override
@@ -64,7 +62,6 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegTestCase {
                 "role_b:user_ab\n";
     }
 
-    @Test
     public void testSingleRole() throws Exception {
         IndexResponse indexResponse = index("test", "type", jsonBuilder()
                 .startObject()
@@ -140,15 +137,12 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegTestCase {
         assertHitCount(searchResponse, 1);
     }
 
-    @Test
     public void testMultipleRoles() throws Exception {
-
         IndexResponse indexResponse = index("a", "type", jsonBuilder()
                 .startObject()
                 .field("name", "value_a")
                 .endObject());
         assertThat(indexResponse.isCreated(), is(true));
-
 
         indexResponse = index("b", "type", jsonBuilder()
                 .startObject()

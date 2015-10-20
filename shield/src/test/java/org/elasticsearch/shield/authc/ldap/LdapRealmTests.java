@@ -19,18 +19,22 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.elasticsearch.shield.authc.ldap.LdapSessionFactory.USER_DN_TEMPLATES_SETTING;
 import static org.elasticsearch.shield.authc.ldap.support.SessionFactory.HOSTNAME_VERIFICATION_SETTING;
 import static org.elasticsearch.shield.authc.ldap.support.SessionFactory.URLS_SETTING;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class LdapRealmTests extends LdapTestCase {
-
     public static final String VALID_USER_TEMPLATE = "cn={0},ou=people,o=sevenSeas";
     public static final String VALID_USERNAME = "Thomas Masterman Hardy";
     public static final String PASSWORD = "pass";
@@ -52,8 +56,7 @@ public class LdapRealmTests extends LdapTestCase {
         terminate(threadPool);
     }
 
-    @Test
-    public void testAuthenticate_SubTreeGroupSearch() throws Exception {
+    public void testAuthenticateSubTreeGroupSearch() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE);
@@ -66,8 +69,7 @@ public class LdapRealmTests extends LdapTestCase {
         assertThat(user.roles(), arrayContaining("HMS Victory"));
     }
 
-    @Test
-    public void testAuthenticate_OneLevelGroupSearch() throws Exception {
+    public void testAuthenticateOneLevelGroupSearch() throws Exception {
         String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
@@ -83,8 +85,7 @@ public class LdapRealmTests extends LdapTestCase {
         assertThat(user.roles(), arrayContaining("HMS Victory"));
     }
 
-    @Test
-    public void testAuthenticate_Caching() throws Exception {
+    public void testAuthenticateCaching() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
@@ -102,8 +103,7 @@ public class LdapRealmTests extends LdapTestCase {
         verify(ldapFactory, times(1)).session(anyString(), any(SecuredString.class));
     }
 
-    @Test
-    public void testAuthenticate_Caching_Refresh() throws Exception {
+    public void testAuthenticateCachingRefresh() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
@@ -129,8 +129,7 @@ public class LdapRealmTests extends LdapTestCase {
         verify(ldapFactory, times(2)).session(anyString(), any(SecuredString.class));
     }
 
-    @Test
-    public void testAuthenticate_Noncaching() throws Exception {
+    public void testAuthenticateNoncaching() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
@@ -149,7 +148,6 @@ public class LdapRealmTests extends LdapTestCase {
         verify(ldapFactory, times(2)).session(anyString(), any(SecuredString.class));
     }
 
-    @Test
     public void testLdapRealmSelectsLdapSessionFactory() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
@@ -165,7 +163,6 @@ public class LdapRealmTests extends LdapTestCase {
         assertThat(sessionFactory, is(instanceOf(LdapSessionFactory.class)));
     }
 
-    @Test
     public void testLdapRealmSelectsLdapUserSearchSessionFactory() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         Settings settings = Settings.builder()
@@ -186,7 +183,6 @@ public class LdapRealmTests extends LdapTestCase {
         }
     }
 
-    @Test
     public void testLdapRealmThrowsExceptionForUserTemplateAndSearchSettings() throws Exception {
         Settings settings = Settings.builder()
                 .putArray(URLS_SETTING, ldapUrl())
@@ -205,7 +201,6 @@ public class LdapRealmTests extends LdapTestCase {
         }
     }
 
-    @Test
     public void testLdapRealmMapsUserDNToRole() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;

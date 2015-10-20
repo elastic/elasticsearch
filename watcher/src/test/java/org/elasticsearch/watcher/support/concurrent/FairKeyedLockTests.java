@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.support.concurrent;
 
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.Map;
 import java.util.Set;
@@ -17,15 +16,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
  */
 public class FairKeyedLockTests extends ESTestCase {
-
-    @Test
-    public void checkIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
+    public void testIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
         ConcurrentHashMap<String, Integer> counter = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
         FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
@@ -63,13 +62,15 @@ public class FairKeyedLockTests extends ESTestCase {
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void checkCannotAcquireTwoLocksGlobal() throws InterruptedException {
+    public void testCannotAcquireTwoLocksGlobal() throws InterruptedException {
         FairKeyedLock.GlobalLockable<String> connectionLock = new FairKeyedLock.GlobalLockable<>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
         connectionLock.acquire(name);
         try {
             connectionLock.acquire(name);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Lock already acquired"));
         } finally {
             connectionLock.release(name);
             connectionLock.globalLock().lock();
@@ -77,15 +78,18 @@ public class FairKeyedLockTests extends ESTestCase {
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void checkCannotAcquireTwoLocks() throws InterruptedException {
+    public void testCannotAcquireTwoLocks() throws InterruptedException {
         FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
         connectionLock.acquire(name);
-        connectionLock.acquire(name);
+        try {
+            connectionLock.acquire(name);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Lock already acquired"));
+        }
     }
 
-    @Test
     public void testTryAquire() throws InterruptedException {
         final FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
         final String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
@@ -116,11 +120,15 @@ public class FairKeyedLockTests extends ESTestCase {
     }
 
 
-    @Test(expected = IllegalArgumentException.class)
-    public void checkCannotReleaseUnacquiredLock() throws InterruptedException {
+    public void testCannotReleaseUnacquiredLock() throws InterruptedException {
         FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
-        connectionLock.release(name);
+        try {
+            connectionLock.release(name);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("Lock not acquired"));
+        }
     }
 
     public static class AcquireAndReleaseThread extends Thread {
@@ -139,6 +147,7 @@ public class FairKeyedLockTests extends ESTestCase {
             this.safeCounter = safeCounter;
         }
 
+        @Override
         public void run() {
             try {
                 startLatch.await();

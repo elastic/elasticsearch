@@ -19,19 +19,20 @@ import org.elasticsearch.watcher.actions.hipchat.service.HipChatService;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.actions.ActionBuilders.hipchatAction;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  *
  */
 public class HipChatActionFactoryTests extends ESTestCase {
-
     private HipChatActionFactory factory;
     private HipChatService hipchatService;
 
@@ -41,9 +42,7 @@ public class HipChatActionFactoryTests extends ESTestCase {
         factory = new HipChatActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), hipchatService);
     }
 
-    @Test
     public void testParseAction() throws Exception {
-
         HipChatAccount account = mock(HipChatAccount.class);
         when(hipchatService.getAccount("_account1")).thenReturn(account);
 
@@ -58,21 +57,22 @@ public class HipChatActionFactoryTests extends ESTestCase {
         verify(account, times(1)).validateParsedTemplate("_w1", "_a1", action.message);
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParseAction_UnknownAccount() throws Exception {
-
+    public void testParseActionUnknownAccount() throws Exception {
         when(hipchatService.getAccount("_unknown")).thenReturn(null);
 
         HipChatAction action = hipchatAction("_unknown", "_body").build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
         XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         parser.nextToken();
-        factory.parseAction("_w1", "_a1", parser);
+        try {
+            factory.parseAction("_w1", "_a1", parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("could not parse [hipchat] action [_w1]. unknown hipchat account [_unknown]"));
+        }
     }
 
-    @Test
     public void testParser() throws Exception {
-
         XContentBuilder builder = jsonBuilder().startObject();
 
         String accountName = randomAsciiOfLength(10);
@@ -133,10 +133,7 @@ public class HipChatActionFactoryTests extends ESTestCase {
         assertThat(action.message, is(new HipChatMessage.Template(body, rooms, users, from, format, color, notify)));
     }
 
-
-    @Test
-    public void testParser_SelfGenerated() throws Exception {
-
+    public void testParserSelfGenerated() throws Exception {
         String accountName = randomAsciiOfLength(10);
         TextTemplate body = TextTemplate.inline("_body").build();
         HipChatMessage.Template.Builder templateBuilder = new HipChatMessage.Template.Builder(body);
@@ -199,11 +196,15 @@ public class HipChatActionFactoryTests extends ESTestCase {
         assertThat(parsedAction, is(action));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_Invalid() throws Exception {
+    public void testParserInvalid() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value");
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        HipChatAction.parse("_watch", "_action", parser);
+        try {
+            HipChatAction.parse("_watch", "_action", parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("failed to parse [hipchat] action [_watch/_action]. unexpected token [VALUE_STRING]"));
+        }
     }
 }

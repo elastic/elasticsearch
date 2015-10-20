@@ -12,13 +12,10 @@ import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.StreamsUtils;
-import org.junit.Test;
 
 public class NodeStatsRendererTests extends ESSingleNodeTestCase {
-
     private static final String SAMPLE_FILE = "/samples/node_stats.json";
 
-    @Test
     public void testNodeStatsRenderer() throws Exception {
         createIndex("index-0");
 

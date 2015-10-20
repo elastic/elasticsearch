@@ -15,18 +15,20 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.elasticsearch.transport.netty.NettyTransportChannel;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.elasticsearch.shield.support.Exceptions.authenticationError;
 import static org.elasticsearch.shield.support.Exceptions.authorizationError;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  *
  */
 public class ServerTransportFilterTests extends ESTestCase {
-
     private AuthenticationService authcService;
     private AuthorizationService authzService;
     private ServerTransportFilter filter;
@@ -41,7 +43,6 @@ public class ServerTransportFilterTests extends ESTestCase {
         filter = new ServerTransportFilter.NodeProfile(authcService, authzService, new ShieldActionMapper(), false);
     }
 
-    @Test
     public void testInbound() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
         User user = mock(User.class);
@@ -50,8 +51,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         verify(authzService).authorize(user, "_action", request);
     }
 
-    @Test
-    public void testInbound_AuthenticationException() throws Exception {
+    public void testInboundAuthenticationException() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
         doThrow(authenticationError("authc failed")).when(authcService).authenticate("_action", request, null);
         try {
@@ -63,8 +63,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         verifyZeroInteractions(authzService);
     }
 
-    @Test
-    public void testInbound_AuthorizationException() throws Exception {
+    public void testInboundAuthorizationException() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
         User user = mock(User.class);
         when(authcService.authenticate("_action", request, null)).thenReturn(user);
@@ -76,5 +75,4 @@ public class ServerTransportFilterTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("authz failed"));
         }
     }
-
 }

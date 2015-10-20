@@ -7,7 +7,6 @@ package org.elasticsearch.shield;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -15,11 +14,9 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.arrayContaining;
 
 public class ShieldPluginSettingsTests extends ESTestCase {
-
     private static final String TRIBE_T1_SHIELD_ENABLED = "tribe.t1." + ShieldPlugin.ENABLED_SETTING_NAME;
     private static final String TRIBE_T2_SHIELD_ENABLED = "tribe.t2." + ShieldPlugin.ENABLED_SETTING_NAME;
 
-    @Test
     public void testShieldIsMandatoryOnTribes() {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put("tribe.t2.cluster.name", "non_existing").build();
@@ -33,7 +30,6 @@ public class ShieldPluginSettingsTests extends ESTestCase {
         assertThat(additionalSettings.getAsArray("tribe.t2.plugin.mandatory", null), arrayContaining(ShieldPlugin.NAME));
     }
 
-    @Test
     public void testAdditionalMandatoryPluginsOnTribes() {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .putArray("tribe.t1.plugin.mandatory", "test_plugin").build();
@@ -50,7 +46,6 @@ public class ShieldPluginSettingsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testMandatoryPluginsOnTribesShieldAlreadyMandatory() {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .putArray("tribe.t1.plugin.mandatory", "test_plugin", ShieldPlugin.NAME).build();
@@ -67,7 +62,6 @@ public class ShieldPluginSettingsTests extends ESTestCase {
         assertThat(finalMandatoryPlugins[1], equalTo(ShieldPlugin.NAME));
     }
 
-    @Test
     public void testShieldIsEnabledByDefaultOnTribes() {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put("tribe.t2.cluster.name", "non_existing").build();
@@ -80,7 +74,6 @@ public class ShieldPluginSettingsTests extends ESTestCase {
         assertThat(additionalSettings.getAsBoolean(TRIBE_T2_SHIELD_ENABLED, null), equalTo(true));
     }
 
-    @Test
     public void testShieldDisabledOnATribe() {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put(TRIBE_T1_SHIELD_ENABLED, false)
@@ -96,7 +89,6 @@ public class ShieldPluginSettingsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testShieldDisabledOnTribesShieldAlreadyMandatory() {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put(TRIBE_T1_SHIELD_ENABLED, false)

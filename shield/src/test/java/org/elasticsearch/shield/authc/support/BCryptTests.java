@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,8 +21,6 @@ import static org.hamcrest.Matchers.is;
  * Tests for the Bcrypt implementation specifically around modifications we have made
  */
 public class BCryptTests extends ESTestCase {
-
-
     /*
      * This test checks that the BCrypt implementation can verify passwords correctly when being invoked from multiple
      * threads all the time. This attempts to simulate authentication of many clients at once (without a cache).
@@ -32,7 +29,6 @@ public class BCryptTests extends ESTestCase {
      * 100% reliable unless memory parameters are changed such as lowering the heap size to something really small like
      * 16M and the test is really slow since the issue depends on garbage collection and object finalization.
      */
-    @Test
     @AwaitsFix(bugUrl = "need a better way to test this")
     public void testUnderLoad() throws Exception {
         final String password = randomAsciiOfLengthBetween(10, 32);

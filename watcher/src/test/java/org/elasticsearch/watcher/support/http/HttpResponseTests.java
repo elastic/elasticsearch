@@ -10,7 +10,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -28,9 +27,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 public class HttpResponseTests extends ESTestCase {
-
-    @Test
-    public void testParse_SelfGenerated() throws Exception {
+    public void testParseSelfGenerated() throws Exception {
         int status = randomIntBetween(200, 600);
         Map<String, String[]> headers = emptyMap();
         if (randomBoolean()) {

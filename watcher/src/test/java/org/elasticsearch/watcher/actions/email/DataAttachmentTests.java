@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.actions.email;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
-import org.junit.Test;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -22,9 +21,7 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class DataAttachmentTests extends ESTestCase {
-
-    @Test
-    public void testCreate_Json() throws Exception {
+    public void testCreateJson() throws Exception {
         Map<String, Object> data = singletonMap("key", "value");
         Attachment attachment = DataAttachment.JSON.create(data);
         InputStream input = attachment.bodyPart().getDataHandler().getInputStream();
@@ -32,8 +29,7 @@ public class DataAttachmentTests extends ESTestCase {
         assertThat(content, is("{\n  \"key\" : \"value\"\n}"));
     }
 
-    @Test
-    public void testCreate_Yaml() throws Exception {
+    public void testCreateYaml() throws Exception {
         Map<String, Object> data = singletonMap("key", "value");
         Attachment attachment = DataAttachment.YAML.create(data);
         InputStream input = attachment.bodyPart().getDataHandler().getInputStream();

@@ -10,16 +10,17 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.junit.Before;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
 /**
  *
  */
 public class HipChatAccountsTests extends ESTestCase {
-
     private HttpClient httpClient;
 
     @Before
@@ -27,7 +28,6 @@ public class HipChatAccountsTests extends ESTestCase {
         httpClient = mock(HttpClient.class);
     }
 
-    @Test
     public void testSingleAccount() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "account1");
@@ -42,8 +42,7 @@ public class HipChatAccountsTests extends ESTestCase {
         assertThat(account.name, equalTo("account1"));
     }
 
-    @Test
-    public void testSingleAccount_NoExplicitDefault() throws Exception {
+    public void testSingleAccountNoExplicitDefault() throws Exception {
         Settings.Builder builder = Settings.builder();
         addAccountSettings("account1", builder);
 
@@ -56,7 +55,6 @@ public class HipChatAccountsTests extends ESTestCase {
         assertThat(account.name, equalTo("account1"));
     }
 
-    @Test
     public void testMultipleAccounts() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "account1");
@@ -75,8 +73,7 @@ public class HipChatAccountsTests extends ESTestCase {
         assertThat(account.name, equalTo("account1"));
     }
 
-    @Test
-    public void testMultipleAccounts_NoExplicitDefault() throws Exception {
+    public void testMultipleAccountsNoExplicitDefault() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "account1");
         addAccountSettings("account1", builder);
@@ -94,28 +91,39 @@ public class HipChatAccountsTests extends ESTestCase {
         assertThat(account.name, isOneOf("account1", "account2"));
     }
 
-    @Test(expected = SettingsException.class)
-    public void testMultipleAccounts_UnknownDefault() throws Exception {
+    public void testMultipleAccountsUnknownDefault() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "unknown");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
-        new HipChatAccounts(builder.build(), httpClient, logger);
+        try {
+            new HipChatAccounts(builder.build(), httpClient, logger);
+            fail("Expected SettingsException");
+        } catch (SettingsException e) {
+            assertThat(e.getMessage(), is("could not find default hipchat account [unknown]"));
+        }
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testNoAccount() throws Exception {
         Settings.Builder builder = Settings.builder();
         HipChatAccounts accounts = new HipChatAccounts(builder.build(), httpClient, logger);
-        accounts.account(null);
-        fail("no accounts are configured so trying to get the default account should throw an IllegalStateException");
+        try {
+            accounts.account(null);
+            fail("no accounts are configured so trying to get the default account should throw an IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("cannot find default hipchat account as no accounts have been configured"));
+        }
     }
 
-    @Test(expected = SettingsException.class)
-    public void testNoAccount_WithDefaultAccount() throws Exception {
+    public void testNoAccountWithDefaultAccount() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "unknown");
-        new HipChatAccounts(builder.build(), httpClient, logger);
+        try {
+            new HipChatAccounts(builder.build(), httpClient, logger);
+            fail("Expected SettingsException");
+        } catch (SettingsException e) {
+            assertThat(e.getMessage(), is("could not find default hipchat account [unknown]"));
+        }
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {

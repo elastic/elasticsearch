@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.actions.slack.service.message;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
 
@@ -15,8 +14,6 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class SlackMessageDefaultsTests extends ESTestCase {
-
-    @Test
     public void testConstructor() throws Exception {
         Settings settings = randomSettings();
         SlackMessageDefaults defaults = new SlackMessageDefaults(settings);
@@ -102,5 +99,4 @@ public class SlackMessageDefaultsTests extends ESTestCase {
         }
         return settings.build();
     }
-
 }

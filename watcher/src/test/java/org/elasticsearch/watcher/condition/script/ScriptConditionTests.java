@@ -29,7 +29,6 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -46,7 +45,6 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class ScriptConditionTests extends ESTestCase {
-
     ThreadPool tp = null;
 
     @Before
@@ -59,8 +57,6 @@ public class ScriptConditionTests extends ESTestCase {
         tp.shutdownNow();
     }
 
-
-    @Test
     public void testExecute() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("ctx.payload.hits.total > 1").build()), logger, scriptService);
@@ -69,8 +65,7 @@ public class ScriptConditionTests extends ESTestCase {
         assertFalse(condition.execute(ctx).met());
     }
 
-    @Test
-    public void testExecute_MergedParams() throws Exception {
+    public void testExecuteMergedParams() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         Script script = Script.inline("ctx.payload.hits.total > threshold").lang(ScriptService.DEFAULT_LANG).params(singletonMap("threshold", 1)).build();
         ExecutableScriptCondition executable = new ExecutableScriptCondition(new ScriptCondition(script), logger, scriptService);
@@ -79,8 +74,7 @@ public class ScriptConditionTests extends ESTestCase {
         assertFalse(executable.execute(ctx).met());
     }
 
-    @Test
-    public void testParser_Valid() throws Exception {
+    public void testParserValid() throws Exception {
         ScriptConditionFactory factory = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
 
         XContentBuilder builder = createConditionContent("ctx.payload.hits.total > 1", null, ScriptType.INLINE);
@@ -107,19 +101,22 @@ public class ScriptConditionTests extends ESTestCase {
         assertTrue(executable.execute(ctx).met());
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_InValid() throws Exception {
+    public void testParserInvalid() throws Exception {
         ScriptConditionFactory factory = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject().endObject();
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        factory.parseCondition("_id", parser);
-        fail("expected a condition exception trying to parse an invalid condition XContent");
+        try {
+            factory.parseCondition("_id", parser);
+            fail("expected a condition exception trying to parse an invalid condition XContent");
+        } catch (ElasticsearchParseException e) {
+            // TODO add these when the test if fixed
+            // assertThat(e.getMessage(), is("ASDF"));
+        }
     }
 
-    @Test(expected = ScriptException.class)
-    public void testScriptConditionParser_badScript() throws Exception {
+    public void testScriptConditionParserBadScript() throws Exception {
         ScriptConditionFactory conditionParser = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
@@ -136,11 +133,15 @@ public class ScriptConditionTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ScriptCondition scriptCondition = conditionParser.parseCondition("_watch", parser);
-        conditionParser.createExecutable(scriptCondition);
-        fail("expected a condition validation exception trying to create an executable with a bad or missing script");
+        try {
+            conditionParser.createExecutable(scriptCondition);
+            fail("expected a condition validation exception trying to create an executable with a bad or missing script");
+        } catch (ScriptException e) {
+            // TODO add these when the test if fixed
+            // assertThat(e.getMessage(), is("ASDF"));
+        }
     }
 
-    @Test(expected = ScriptException.class)
     public void testScriptConditionParser_badLang() throws Exception {
         ScriptConditionFactory conditionParser = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = ScriptType.INLINE;
@@ -149,11 +150,16 @@ public class ScriptConditionTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ScriptCondition scriptCondition = conditionParser.parseCondition("_watch", parser);
-        conditionParser.createExecutable(scriptCondition);
-        fail("expected a condition validation exception trying to create an executable with an invalid language");
+        try {
+            conditionParser.createExecutable(scriptCondition);
+            fail("expected a condition validation exception trying to create an executable with an invalid language");
+        } catch (ScriptException e) {
+            // TODO add these when the test if fixed
+            // assertThat(e.getMessage(), is("ASDF"));
+        }
     }
 
-    public void testScriptCondition_throwException() throws Exception {
+    public void testScriptConditionThrowException() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("assert false").build()), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
@@ -165,7 +171,7 @@ public class ScriptConditionTests extends ESTestCase {
         assertThat(result.reason(), containsString("Assertion"));
     }
 
-    public void testScriptCondition_returnObject() throws Exception {
+    public void testScriptConditionReturnObject() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("return new Object()").build()), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
@@ -177,8 +183,7 @@ public class ScriptConditionTests extends ESTestCase {
         assertThat(result.reason(), containsString("ScriptException"));
     }
 
-    @Test
-    public void testScriptCondition_accessCtx() throws Exception {
+    public void testScriptConditionAccessCtx() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("ctx.trigger.scheduled_time.getMillis() < System.currentTimeMillis() ").build()), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
@@ -211,5 +216,4 @@ public class ScriptConditionTests extends ESTestCase {
         }
         return builder.endObject();
     }
-
 }

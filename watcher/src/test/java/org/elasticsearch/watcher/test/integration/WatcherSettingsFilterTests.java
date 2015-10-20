@@ -17,7 +17,6 @@ import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,7 +32,6 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCase {
-
     private CloseableHttpClient httpClient = HttpClients.createDefault();
 
     @After
@@ -53,8 +51,7 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
                 .build();
     }
 
-    @Test
-    public void testGetSettings_SmtpPassword() throws Exception {
+    public void testGetSettingsSmtpPassword() throws Exception {
         String body = executeRequest("GET", "/_nodes/settings", null, null).getBody();
         Map<String, Object> response = JsonXContent.jsonXContent.createParser(body).map();
         Map<String, Object> nodes = (Map<String, Object>) response.get("nodes");

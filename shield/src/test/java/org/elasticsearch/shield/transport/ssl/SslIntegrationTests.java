@@ -27,22 +27,23 @@ import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
-import org.junit.Test;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
-import javax.net.ssl.TrustManagerFactory;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Locale;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.TrustManagerFactory;
+
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SslIntegrationTests extends ShieldIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
@@ -56,9 +57,8 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     }
 
     // no SSL exception as this is the exception is returned when connecting
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatUnconfiguredCiphersAreRejected() {
-        try(TransportClient transportClient = TransportClient.builder().settings(settingsBuilder()
+        try (TransportClient transportClient = TransportClient.builder().settings(settingsBuilder()
                 .put(transportClientSettings())
                 .put("name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
@@ -69,11 +69,13 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
             transportClient.addTransportAddress(transportAddress);
 
             transportClient.admin().cluster().prepareHealth().get();
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#"));
         }
     }
 
     // no SSL exception as this is the exception is returned when connecting
-    @Test(expected = NoNodeAvailableException.class)
     public void testThatTransportClientUsingSSLv3ProtocolIsRejected() {
         try(TransportClient transportClient = TransportClient.builder().settings(settingsBuilder()
                 .put(transportClientSettings())
@@ -86,10 +88,12 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
             transportClient.addTransportAddress(transportAddress);
 
             transportClient.admin().cluster().prepareHealth().get();
+            fail("Expected NoNodeAvailableException");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#"));
         }
     }
 
-    @Test
     public void testThatConnectionToHTTPWorks() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient");
         ClientSSLService service = new ClientSSLService(settings);
@@ -104,7 +108,6 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testThatHttpUsingSSLv3IsRejected() throws Exception {
         SSLContext sslContext = SSLContext.getInstance("SSL");
         TrustManagerFactory factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());

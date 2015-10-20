@@ -19,21 +19,19 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.watch.Payload;
-import org.junit.Test;
 
 import java.util.Map;
 
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.when;
 
 /**
  */
 public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestCase {
-
-    @Test
-    public void testExecute_withAggs() throws Exception {
-
+    public void testExecuteWithAggs() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .addMapping("my-type", "_timestamp", "enabled=true")
                 .get();
@@ -73,8 +71,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.rate.buckets.0.doc_count", (Object) 5));
     }
 
-    @Test
-    public void testExecute_accessHits() throws Exception {
+    public void testExecuteAccessHits() throws Exception {
         ExecutableCompareCondition condition = new ExecutableCompareCondition(new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1), logger, SystemClock.INSTANCE);
         InternalSearchHit hit = new InternalSearchHit(0, "1", new StringText("type"), null);
         hit.score(1f);
@@ -94,5 +91,4 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         assertThat(resolvedValues.size(), is(1));
         assertThat(resolvedValues, hasEntry(is("ctx.payload.hits.hits.0._score"), notNullValue()));
     }
-
 }

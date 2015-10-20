@@ -15,17 +15,17 @@ import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class ShieldPluginTests extends ShieldIntegTestCase {
-
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -34,7 +34,6 @@ public class ShieldPluginTests extends ShieldIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testThatPluginIsLoaded() throws IOException {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {

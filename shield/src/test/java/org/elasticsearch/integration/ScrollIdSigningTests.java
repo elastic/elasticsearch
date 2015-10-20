@@ -13,18 +13,17 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ShieldIntegTestCase;
-import org.junit.Test;
 
 import java.util.Locale;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ScrollIdSigningTests extends ShieldIntegTestCase {
-
-    @Test
     public void testSearchAndClearScroll() throws Exception {
         IndexRequestBuilder[] docs = new IndexRequestBuilder[randomIntBetween(20, 100)];
         for (int i = 0; i < docs.length; i++) {
@@ -54,8 +53,7 @@ public class ScrollIdSigningTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
-    public void testSearchScroll_WithTamperedScrollId() throws Exception {
+    public void testSearchScrollWithTamperedScrollId() throws Exception {
         IndexRequestBuilder[] docs = new IndexRequestBuilder[randomIntBetween(20, 100)];
         for (int i = 0; i < docs.length; i++) {
             docs[i] = client().prepareIndex("idx", "type").setSource("field", "value");
@@ -79,8 +77,7 @@ public class ScrollIdSigningTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
-    public void testClearScroll_WithTamperedScrollId() throws Exception {
+    public void testClearScrollWithTamperedScrollId() throws Exception {
         IndexRequestBuilder[] docs = new IndexRequestBuilder[randomIntBetween(20, 100)];
         for (int i = 0; i < docs.length; i++) {
             docs[i] = client().prepareIndex("idx", "type").setSource("field", "value");

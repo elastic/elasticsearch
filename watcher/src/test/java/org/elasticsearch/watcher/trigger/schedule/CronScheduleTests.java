@@ -10,24 +10,27 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.hasItemInArray;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
 public class CronScheduleTests extends ScheduleTestCase {
-
-    @Test(expected = IllegalArgumentException.class)
     public void testInvalid() throws Exception {
-        new CronSchedule("0 * * *");
-        fail("expecting a validation error to be thrown when creating a cron schedule with invalid cron expression");
+        try {
+            new CronSchedule("0 * * *");
+            fail("expecting a validation error to be thrown when creating a cron schedule with invalid cron expression");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("invalid cron expression [0 * * *]"));
+        }
     }
 
-    @Test
-    public void testParse_Single() throws Exception {
+    public void testParseSingle() throws Exception {
         XContentBuilder builder = jsonBuilder().value("0 0/5 * * * ?");
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -37,8 +40,7 @@ public class CronScheduleTests extends ScheduleTestCase {
         assertThat(schedule.crons()[0].expression(), is("0 0/5 * * * ?"));
     }
 
-    @Test
-    public void testParse_Multiple() throws Exception {
+    public void testParseMultiple() throws Exception {
         XContentBuilder builder = jsonBuilder().value(new String[] {
                 "0 0/1 * * * ?",
                 "0 0/2 * * * ?",
@@ -55,8 +57,7 @@ public class CronScheduleTests extends ScheduleTestCase {
         assertThat(crons, hasItemInArray("0 0/3 * * * ?"));
     }
 
-    @Test
-    public void testParse_Invalid_BadExpression() throws Exception {
+    public void testParseInvalidBadExpression() throws Exception {
         XContentBuilder builder = jsonBuilder().value("0 0/5 * * ?");
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -70,30 +71,42 @@ public class CronScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParse_Invalid_Empty() throws Exception {
+    public void testParseInvalidEmpty() throws Exception {
         XContentBuilder builder = jsonBuilder();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        new CronSchedule.Parser().parse(parser);
+        try {
+            new CronSchedule.Parser().parse(parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("could not parse [cron] schedule. expected either a cron string value or an array of cron string values, but found [null]"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParse_Invalid_Object() throws Exception {
+    public void testParseInvalidObject() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        new CronSchedule.Parser().parse(parser);
+        try {
+            new CronSchedule.Parser().parse(parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("could not parse [cron] schedule. expected either a cron string value or an array of cron string values, but found [START_OBJECT]"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParse_Invalid_EmptyArray() throws Exception {
+    public void testParseInvalidEmptyArray() throws Exception {
         XContentBuilder builder = jsonBuilder().value(new String[0]);
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        new CronSchedule.Parser().parse(parser);
+        try {
+            new CronSchedule.Parser().parse(parser);
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("could not parse [cron] schedule. no cron expression found in cron array"));
+        }
     }
 }

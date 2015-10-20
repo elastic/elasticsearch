@@ -6,16 +6,14 @@
 package org.elasticsearch.shield.audit.index;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.EnumSet;
 import java.util.Locale;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class IndexAuditLevelTests extends ESTestCase {
-
-    @Test
     public void testAllIndexAuditLevel() {
         EnumSet<IndexAuditLevel> enumSet = IndexAuditLevel.parse(new String[] { "_all" });
         IndexAuditLevel[] levels = IndexAuditLevel.values();
@@ -25,13 +23,11 @@ public class IndexAuditLevelTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testExcludeHasPreference() {
         EnumSet<IndexAuditLevel> enumSet = IndexAuditLevel.parse(new String[] { "_all" }, new String[] { "_all" });
         assertThat(enumSet.size(), is(0));
     }
 
-    @Test
     public void testExcludeHasPreferenceSingle() {
         String excluded = randomFrom(IndexAuditLevel.values()).toString().toLowerCase(Locale.ROOT);
         EnumSet<IndexAuditLevel> enumSet = IndexAuditLevel.parse(new String[] { "_all" }, new String[] { excluded });
@@ -39,5 +35,4 @@ public class IndexAuditLevelTests extends ESTestCase {
         expected.remove(IndexAuditLevel.valueOf(excluded.toUpperCase(Locale.ROOT)));
         assertThat(enumSet, equalTo(expected));
     }
-
 }

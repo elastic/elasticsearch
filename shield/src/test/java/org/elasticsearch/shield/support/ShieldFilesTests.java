@@ -7,10 +7,10 @@ package org.elasticsearch.shield.support;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
@@ -22,13 +22,17 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.Locale;
 import java.util.Set;
 
-import static java.nio.file.attribute.PosixFilePermission.*;
+import static java.nio.file.attribute.PosixFilePermission.GROUP_EXECUTE;
+import static java.nio.file.attribute.PosixFilePermission.OTHERS_EXECUTE;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_READ;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 import static org.elasticsearch.shield.support.ShieldFiles.openAtomicMoveWriter;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class ShieldFilesTests extends ESTestCase {
-
-    @Test
     public void testThatOriginalPermissionsAreKept() throws Exception {
         Path path = createTempFile();
 
@@ -53,7 +57,6 @@ public class ShieldFilesTests extends ESTestCase {
         assertThat(permissionsAfterWrite, is(perms));
     }
 
-    @Test
     public void testThatOwnerAndGroupAreChanged() throws Exception {
         Configuration jimFsConfiguration = Configuration.unix().toBuilder().setAttributeViews("basic", "owner", "posix", "unix").build();
         try (FileSystem fs = Jimfs.newFileSystem(jimFsConfiguration)) {

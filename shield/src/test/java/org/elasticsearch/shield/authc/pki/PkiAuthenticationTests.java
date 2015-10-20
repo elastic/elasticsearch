@@ -25,11 +25,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
-import org.junit.Test;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManagerFactory;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,14 +33,19 @@ import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Locale;
 
-import static org.hamcrest.Matchers.*;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Test authentication via PKI on both REST and Transport layers
  */
 @ClusterScope(numClientNodes = 0, numDataNodes = 1)
 public class PkiAuthenticationTests extends ShieldIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -67,7 +68,6 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
         return true;
     }
 
-    @Test
     public void testTransportClientCanAuthenticateViaPki() {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (TransportClient client = createTransportClient(settings)) {
@@ -81,16 +81,16 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
      * Test uses the testclient cert which is trusted by the SSL layer BUT it is not trusted by the PKI authentication
      * realm
      */
-    @Test(expected = NoNodeAvailableException.class)
     public void testTransportClientAuthenticationFailure() {
         try (TransportClient client = createTransportClient(Settings.EMPTY)) {
             client.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
             client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
             fail("transport client should not have been able to authenticate");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#"));
         }
     }
 
-    @Test
     public void testRestAuthenticationViaPki() throws Exception {
         SSLContext context = getRestSSLContext("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (CloseableHttpClient client = HttpClients.custom().setSslcontext(context).build()) {
@@ -102,7 +102,6 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
         }
     }
 
-    @Test
     public void testRestAuthenticationFailure() throws Exception {
         SSLContext context = getRestSSLContext("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient");
         try (CloseableHttpClient client = HttpClients.custom().setSslcontext(context).build()) {

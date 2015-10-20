@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.transport;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -20,11 +19,19 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportModule;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.elasticsearch.transport.netty.NettyTransportChannel;
-import org.junit.Test;
 import org.mockito.InOrder;
 
 import java.io.IOException;
@@ -35,18 +42,19 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  *
  */
 @ClusterScope(scope = SUITE, numDataNodes = 0)
 public class TransportFilterTests extends ESIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
@@ -69,7 +77,6 @@ public class TransportFilterTests extends ESIntegTestCase {
         return nodePlugins();
     }
 
-    @Test
     public void test() throws Exception {
         String source = internalCluster().startNode();
         DiscoveryNode sourceNode = internalCluster().getInstance(ClusterService.class, source).localNode();
@@ -103,7 +110,6 @@ public class TransportFilterTests extends ESIntegTestCase {
     }
 
     public static class InternalPlugin extends Plugin {
-
         @Override
         public String name() {
             return "test-transport-filter";
@@ -130,7 +136,6 @@ public class TransportFilterTests extends ESIntegTestCase {
     }
 
     public static class Request extends TransportRequest {
-
         private String msg;
 
         public Request() {
@@ -222,7 +227,6 @@ public class TransportFilterTests extends ESIntegTestCase {
     }
 
     static class RequestHandler implements TransportRequestHandler<Request> {
-
         private final Response response;
         private final CountDownLatch latch;
 
@@ -239,7 +243,6 @@ public class TransportFilterTests extends ESIntegTestCase {
     }
 
     class ResponseHandler implements TransportResponseHandler<Response> {
-
         private final Response response;
         private final CountDownLatch latch;
 
@@ -303,6 +306,7 @@ public class TransportFilterTests extends ESIntegTestCase {
             when(licenseState.securityEnabled()).thenReturn(true);
         }
 
+        @Override
         protected Map<String, ServerTransportFilter> initializeProfileFilters() {
             return Collections.<String, ServerTransportFilter>singletonMap(NettyTransport.DEFAULT_PROFILE, mock(ServerTransportFilter.NodeProfile.class));
         }

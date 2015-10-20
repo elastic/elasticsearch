@@ -44,7 +44,6 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
@@ -276,11 +275,6 @@ public class QueryPhase implements SearchPhase {
             allCollectors.add(collector);
             allCollectors.addAll(searchContext.queryCollectors().values());
             collector = MultiCollector.wrap(allCollectors);
-
-            // apply the minimum score after multi collector so we filter aggs as well
-            if (searchContext.minimumScore() != null) {
-                collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
-            }
 
             if (collector.getClass() == TotalHitCountCollector.class) {
                 // Optimize counts in simple cases to return in constant time

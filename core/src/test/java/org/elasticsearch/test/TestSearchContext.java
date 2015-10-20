@@ -31,6 +31,7 @@ import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.lucene.search.MinScoreQuery;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -129,6 +130,9 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public void preProcess() {
+        if (minScore != null) {
+            this.query = new MinScoreQuery(query, minScore);
+        }
     }
 
     @Override
@@ -373,11 +377,6 @@ public class TestSearchContext extends SearchContext {
     public SearchContext minimumScore(float minimumScore) {
         this.minScore = minimumScore;
         return this;
-    }
-
-    @Override
-    public Float minimumScore() {
-        return minScore;
     }
 
     @Override

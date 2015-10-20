@@ -24,7 +24,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -32,6 +31,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
@@ -39,14 +39,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
-import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
+import org.elasticsearch.common.lucene.search.MinScoreQuery;
+import org.elasticsearch.common.lucene.search.function.*;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
@@ -318,7 +312,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public Explanation getFunctionScoreExplanation(IndexSearcher searcher, ScoreFunction scoreFunction) throws IOException {
-        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new TermQuery(TERM), scoreFunction, 0.0f, CombineFunction.AVG, 100);
+        Query functionScoreQuery = new MinScoreQuery(new FunctionScoreQuery(new TermQuery(TERM), scoreFunction, CombineFunction.AVG, 100), 0f);
         Weight weight = searcher.createNormalizedWeight(functionScoreQuery, true);
         Explanation explanation = weight.explain(searcher.getIndexReader().leaves().get(0), 0);
         return explanation.getDetails()[1];
@@ -382,22 +376,22 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public Explanation getFiltersFunctionScoreExplanation(IndexSearcher searcher, ScoreFunction... scoreFunctions) throws IOException {
-        FiltersFunctionScoreQuery filtersFunctionScoreQuery = getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode.AVG, CombineFunction.AVG, scoreFunctions);
+        Query filtersFunctionScoreQuery = getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode.AVG, CombineFunction.AVG, scoreFunctions);
         return getExplanation(searcher, filtersFunctionScoreQuery).getDetails()[1];
     }
 
-    protected Explanation getExplanation(IndexSearcher searcher, FiltersFunctionScoreQuery filtersFunctionScoreQuery) throws IOException {
+    protected Explanation getExplanation(IndexSearcher searcher, Query filtersFunctionScoreQuery) throws IOException {
         Weight weight = searcher.createNormalizedWeight(filtersFunctionScoreQuery, true);
         return weight.explain(searcher.getIndexReader().leaves().get(0), 0);
     }
 
-    public FiltersFunctionScoreQuery getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode scoreMode, CombineFunction combineFunction, ScoreFunction... scoreFunctions) {
+    public Query getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode scoreMode, CombineFunction combineFunction, ScoreFunction... scoreFunctions) {
         FiltersFunctionScoreQuery.FilterFunction[] filterFunctions = new FiltersFunctionScoreQuery.FilterFunction[scoreFunctions.length];
         for (int i = 0; i < scoreFunctions.length; i++) {
             filterFunctions[i] = new FiltersFunctionScoreQuery.FilterFunction(
                     new TermQuery(TERM), scoreFunctions[i]);
         }
-        return new FiltersFunctionScoreQuery(new TermQuery(TERM), scoreMode, filterFunctions, Float.MAX_VALUE, Float.MAX_VALUE * -1, combineFunction);
+        return new MinScoreQuery(new FiltersFunctionScoreQuery(new TermQuery(TERM), scoreMode, filterFunctions, Float.MAX_VALUE, combineFunction), Float.MAX_VALUE * -1);
     }
 
     public void checkFiltersFunctionScoreExplanation(Explanation randomExplanation, String functionExpl, int whichFunction) {
@@ -471,7 +465,7 @@ public class FunctionScoreTests extends ESTestCase {
             weightFunctionStubs[i] = new WeightFactorFunction(weights[i], scoreFunctionStubs[i]);
         }
 
-        FiltersFunctionScoreQuery filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
+        Query filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.MULTIPLY
                 , CombineFunction.REPLACE
                 , weightFunctionStubs
@@ -554,8 +548,8 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(explainedScore / scoreWithWeight, is(1f));
     }
 
-    public void testWeightOnlyCreatesBoostFunction() throws IOException {
-        FunctionScoreQuery filtersFunctionScoreQueryWithWeights = new FunctionScoreQuery(new MatchAllDocsQuery(), new WeightFactorFunction(2), 0.0f, CombineFunction.MULTIPLY, 100);
+    public void checkWeightOnlyCreatesBoostFunction() throws IOException {
+        Query filtersFunctionScoreQueryWithWeights = new MinScoreQuery(new FunctionScoreQuery(new MatchAllDocsQuery(), new WeightFactorFunction(2), CombineFunction.MULTIPLY, 100), 0f);
         TopDocs topDocsWithWeights = searcher.search(filtersFunctionScoreQueryWithWeights, 1);
         float score = topDocsWithWeights.scoreDocs[0].score;
         assertThat(score, equalTo(2.0f));

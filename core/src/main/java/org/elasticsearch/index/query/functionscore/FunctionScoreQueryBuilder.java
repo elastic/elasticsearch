@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.MinScoreQuery;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -312,10 +313,17 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     combineFunction = DEFAULT_BOOST_MODE;
                 }
             }
-            return new FunctionScoreQuery(query, function, minScore, combineFunction, maxBoost);
+            query = new FunctionScoreQuery(query, function, combineFunction, maxBoost);
+        } else {
+            // in all other cases we create a FiltersFunctionScoreQuery
+            query = new FiltersFunctionScoreQuery(query, scoreMode, filterFunctions, maxBoost, boostMode == null ? DEFAULT_BOOST_MODE : boostMode);
         }
-        // in all other cases we create a FiltersFunctionScoreQuery
-        return new FiltersFunctionScoreQuery(query, scoreMode, filterFunctions, maxBoost, minScore, boostMode == null ? DEFAULT_BOOST_MODE : boostMode);
+
+        if (minScore != null) {
+            query = new MinScoreQuery(query, minScore);
+        }
+
+        return query;
     }
 
     /**

@@ -30,21 +30,12 @@ abstract class CustomBoostFactorScorer extends Scorer {
     final float maxBoost;
     final CombineFunction scoreCombiner;
 
-    Float minScore;
-    NextDoc nextDoc;
-
-    CustomBoostFactorScorer(Weight w, Scorer scorer, float maxBoost, CombineFunction scoreCombiner, Float minScore)
+    CustomBoostFactorScorer(Weight w, Scorer scorer, float maxBoost, CombineFunction scoreCombiner)
             throws IOException {
         super(w);
-        if (minScore == null) {
-            nextDoc = new AnyNextDoc();
-        } else {
-            nextDoc = new MinScoreNextDoc();
-        }
         this.scorer = scorer;
         this.maxBoost = maxBoost;
         this.scoreCombiner = scoreCombiner;
-        this.minScore = minScore;
     }
 
     @Override
@@ -54,20 +45,16 @@ abstract class CustomBoostFactorScorer extends Scorer {
 
     @Override
     public int advance(int target) throws IOException {
-        return nextDoc.advance(target);
+        return scorer.advance(target);
     }
 
     @Override
     public int nextDoc() throws IOException {
-        return nextDoc.nextDoc();
+        return scorer.nextDoc();
     }
-
-    public abstract float innerScore() throws IOException;
 
     @Override
-    public float score() throws IOException {
-        return nextDoc.score();
-    }
+    public abstract float score() throws IOException;
 
     @Override
     public int freq() throws IOException {
@@ -79,64 +66,4 @@ abstract class CustomBoostFactorScorer extends Scorer {
         return scorer.cost();
     }
 
-    public interface NextDoc {
-        public int advance(int target) throws IOException;
-
-        public int nextDoc() throws IOException;
-
-        public float score() throws IOException;
-    }
-
-    public class MinScoreNextDoc implements NextDoc {
-        float currentScore = Float.MAX_VALUE * -1.0f;
-
-        @Override
-        public int nextDoc() throws IOException {
-            int doc;
-            do {
-                doc = scorer.nextDoc();
-                if (doc == NO_MORE_DOCS) {
-                    return doc;
-                }
-                currentScore = innerScore();
-            } while (currentScore < minScore);
-            return doc;
-        }
-
-        @Override
-        public float score() throws IOException {
-            return currentScore;
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            int doc = scorer.advance(target);
-            if (doc == NO_MORE_DOCS) {
-                return doc;
-            }
-            currentScore = innerScore();
-            if (currentScore < minScore) {
-                return scorer.nextDoc();
-            }
-            return doc;
-        }
-    }
-
-    public class AnyNextDoc implements NextDoc {
-
-        @Override
-        public int nextDoc() throws IOException {
-            return scorer.nextDoc();
-        }
-
-        @Override
-        public float score() throws IOException {
-            return innerScore();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            return scorer.advance(target);
-        }
-    }
 }

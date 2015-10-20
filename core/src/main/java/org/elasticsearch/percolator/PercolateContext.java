@@ -479,11 +479,6 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public Float minimumScore() {
-        return null;
-    }
-
-    @Override
     public SearchContext sort(Sort sort) {
         this.sort = sort;
         return this;

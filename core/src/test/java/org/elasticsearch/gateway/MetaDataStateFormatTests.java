@@ -489,9 +489,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
             long temp;
             result = string.hashCode();
             result = 31 * result + aInt;
-            result = 31 * result + (int) (aLong ^ (aLong >>> 32));
+            result = 31 * result + Long.hashCode(aLong);
             temp = Double.doubleToLongBits(aDouble);
-            result = 31 * result + (int) (temp ^ (temp >>> 32));
+            result = 31 * result + Long.hashCode(temp);
             result = 31 * result + (aBoolean ? 1 : 0);
             return result;
         }

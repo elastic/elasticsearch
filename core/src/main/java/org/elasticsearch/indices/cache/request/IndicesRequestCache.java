@@ -344,7 +344,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         @Override
         public int hashCode() {
             int result = shard.hashCode();
-            result = 31 * result + (int) (readerVersion ^ (readerVersion >>> 32));
+            result = 31 * result + Long.hashCode(readerVersion);
             result = 31 * result + value.hashCode();
             return result;
         }
@@ -379,7 +379,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         @Override
         public int hashCode() {
             int result = indexShard.hashCode();
-            result = 31 * result + (int) (readerVersion ^ (readerVersion >>> 32));
+            result = 31 * result + Long.hashCode(readerVersion);
             return result;
         }
     }

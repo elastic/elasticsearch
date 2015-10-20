@@ -227,7 +227,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
     @Override
     public int hashCode() {
         int result = name.hashCode();
-        result = 31 * result + (int) (startTime ^ (startTime >>> 32));
+        result = 31 * result + Long.hashCode(startTime);
         return result;
     }
 

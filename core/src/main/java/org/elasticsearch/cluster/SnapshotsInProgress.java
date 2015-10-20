@@ -152,7 +152,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             result = 31 * result + shards.hashCode();
             result = 31 * result + indices.hashCode();
             result = 31 * result + waitingIndices.hashCode();
-            result = 31 * result + (int) (startTime ^ (startTime >>> 32));
+            result = 31 * result + Long.hashCode(startTime);
             return result;
         }
 

@@ -131,6 +131,6 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
     }
 
     private static int hash(long value) {
-        return (int) (value ^ (value >>> 32));
+        return Long.hashCode(value);
     }
 }

@@ -98,7 +98,7 @@ public class SitePluginIT extends ESIntegTestCase {
         notFoundUris.add("/_plugin/dummy/%2e%2e/%2e%2e/%2e%2e/%2e%2e/index.html");
         notFoundUris.add("/_plugin/dummy/%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2findex.html");
         notFoundUris.add("/_plugin/dummy/%2E%2E/%2E%2E/%2E%2E/%2E%2E/index.html");
-        notFoundUris.add("/_plugin/dummy/..\\..\\..\\..\\..\\log4j.properties");
+        notFoundUris.add("/_plugin/dummy/..%5C..%5C..%5C..%5C..%5Clog4j.properties");
 
         for (String uri : notFoundUris) {
             HttpResponse response = httpClient().path(uri).execute();

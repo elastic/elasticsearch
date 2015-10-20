@@ -86,14 +86,42 @@ public class HttpRequestBuilder {
         return this;
     }
 
+    /**
+     * Sets the path to send the request to. Url encoding needs to be applied by the caller.
+     * Use {@link #pathParts(String...)} instead if the path needs to be encoded, part by part.
+     */
     public HttpRequestBuilder path(String path) {
         this.path = path;
         return this;
     }
 
+    /**
+     * Sets the path by providing the different parts (without slashes), which will be properly encoded.
+     */
+    public HttpRequestBuilder pathParts(String... path) {
+        //encode rules for path and query string parameters are different. We use URI to encode the path, and URLEncoder for each query string parameter (see addParam).
+        //We need to encode each path part separately though, as each one might contain slashes that need to be escaped, which needs to be done manually.
+        if (path.length == 0) {
+            this.path = "/";
+            return this;
+        }
+        StringBuilder finalPath = new StringBuilder();
+        for (String pathPart : path) {
+            try {
+                finalPath.append('/');
+                URI uri = new URI(null, null, null, -1, pathPart, null, null);
+                //manually escape any slash that each part may contain
+                finalPath.append(uri.getRawPath().replaceAll("/", "%2F"));
+            } catch(URISyntaxException e) {
+                throw new RuntimeException("unable to build uri", e);
+            }
+        }
+        this.path = finalPath.toString();
+        return this;
+    }
+
     public HttpRequestBuilder addParam(String name, String value) {
         try {
-            //manually url encode params, since URI does it only partially (e.g. '+' stays as is)
             this.params.put(name, URLEncoder.encode(value, "utf-8"));
             return this;
         } catch (UnsupportedEncodingException e) {
@@ -181,19 +209,12 @@ public class HttpRequestBuilder {
     }
 
     private URI buildUri() {
-        try {
-            //url encode rules for path and query params are different. We use URI to encode the path, but we manually encode each query param through URLEncoder.
-            URI uri = new URI(protocol, null, host, port, path, null, null);
-            //String concatenation FTW. If we use the nicer multi argument URI constructor query parameters will get only partially encoded
-            //(e.g. '+' will stay as is) hence when trying to properly encode params manually they will end up double encoded (+ becomes %252B instead of %2B).
-            StringBuilder uriBuilder = new StringBuilder(protocol).append("://").append(host).append(":").append(port).append(uri.getRawPath());
-            if (params.size() > 0) {
-                uriBuilder.append("?").append(params.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&")));
-            }
-            return URI.create(uriBuilder.toString());
-        } catch(URISyntaxException e) {
-            throw new IllegalArgumentException("unable to build uri", e);
+        StringBuilder uriBuilder = new StringBuilder(protocol).append("://").append(host).append(":").append(port).append(path);
+        if (params.size() > 0) {
+            uriBuilder.append("?").append(params.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&")));
         }
+        //using this constructor no url encoding happens, as we did everything upfront in addParam and pathPart methods
+        return URI.create(uriBuilder.toString());
     }
 
     private HttpEntityEnclosingRequestBase addOptionalBody(HttpEntityEnclosingRequestBase requestBase) {

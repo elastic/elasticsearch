@@ -42,6 +42,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
 
 import java.io.IOException;
 import java.net.URL;
@@ -211,11 +212,25 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                 refreshInterval = TimeValue.timeValueSeconds(credential.getExpiresInSeconds()-1);
             }
 
-            // Once done, let's use this token
-            this.client = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null)
-                    .setApplicationName(Fields.VERSION)
-                    .setHttpRequestInitializer(credential)
-                    .build();
+            boolean ifRetry = settings.getAsBoolean(Fields.RETRY, true);
+            Compute.Builder builder = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null)
+                    .setApplicationName(Fields.VERSION);
+
+            if (ifRetry) {
+                int maxWait = settings.getAsInt(Fields.MAXWAIT, -1);
+                RetryHttpInitializerWrapper retryHttpInitializerWrapper;
+                if (maxWait > 0) {
+                    retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, maxWait);
+                } else {
+                    retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential);
+                }
+                builder.setHttpRequestInitializer(retryHttpInitializerWrapper);
+
+            } else {
+                builder.setHttpRequestInitializer(credential);
+            }
+
+            this.client = builder.build();
         } catch (Exception e) {
             logger.warn("unable to start GCE discovery service", e);
             throw new IllegalArgumentException("unable to start GCE discovery service", e);

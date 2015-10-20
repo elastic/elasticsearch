@@ -70,7 +70,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
-                throw new ElasticsearchException(e.getMessage(), e);
+                throw new ElasticsearchException(e);
             }
         }
     }

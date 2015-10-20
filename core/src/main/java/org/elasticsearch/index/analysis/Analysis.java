@@ -244,7 +244,7 @@ public class Analysis {
             return loadWordList(reader, "#");
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
-            throw new IllegalArgumentException(message);
+            throw new IllegalArgumentException(message, ioe);
         }
     }
 
@@ -291,7 +291,7 @@ public class Analysis {
             return FileSystemUtils.newBufferedReader(path.toUri().toURL(), StandardCharsets.UTF_8);
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
-            throw new IllegalArgumentException(message);
+            throw new IllegalArgumentException(message, ioe);
         }
     }
 

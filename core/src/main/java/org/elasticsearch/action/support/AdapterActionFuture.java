@@ -69,7 +69,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
         try {
             return get(timeout, unit);
         } catch (TimeoutException e) {
-            throw new ElasticsearchTimeoutException(e.getMessage());
+            throw new ElasticsearchTimeoutException(e);
         } catch (InterruptedException e) {
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {

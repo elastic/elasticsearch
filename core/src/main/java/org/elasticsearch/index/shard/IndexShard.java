@@ -166,7 +166,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
 
-    private final ShardEngineFailListener engineEventListener = new ShardEngineFailListener();
+    private final ShardEventListener shardEventListener = new ShardEventListener();
     private volatile boolean flushOnClose = true;
     private volatile int flushThresholdOperations;
     private volatile ByteSizeValue flushThresholdSize;
@@ -979,7 +979,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
 
     public void addShardFailureCallback(Callback<ShardFailure> onShardFailure) {
-        this.engineEventListener.delegates.add(onShardFailure);
+        this.shardEventListener.delegates.add(onShardFailure);
     }
 
     /** Change the indexing and translog buffer sizes.  If {@code IndexWriter} is currently using more than
@@ -1368,13 +1368,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         return this.currentEngineReference.get();
     }
 
-    class ShardEngineFailListener implements Engine.EventListener {
+    class ShardEventListener implements Engine.EventListener {
         private final CopyOnWriteArrayList<Callback<ShardFailure>> delegates = new CopyOnWriteArrayList<>();
 
         // called by the current engine
         @Override
         public void onFailedEngine(String reason, @Nullable Throwable failure) {
-            final ShardFailure shardFailure = new ShardFailure(shardRouting, reason, failure);
+            final ShardFailure shardFailure = new ShardFailure(shardRouting, reason, failure, getIndexUUID());
             for (Callback<ShardFailure> listener : delegates) {
                 try {
                     listener.handle(shardFailure);
@@ -1457,7 +1457,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         };
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettings, warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
-                mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, engineEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig);
+                mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig);
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {
@@ -1578,12 +1578,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     public static final class ShardFailure {
         public final ShardRouting routing;
         public final String reason;
+        @Nullable
         public final Throwable cause;
+        public final String indexUUID;
 
-        public ShardFailure(ShardRouting routing, String reason, Throwable cause) {
+        public ShardFailure(ShardRouting routing, String reason, @Nullable Throwable cause, String indexUUID) {
             this.routing = routing;
             this.reason = reason;
             this.cause = cause;
+            this.indexUUID = indexUUID;
         }
     }
 

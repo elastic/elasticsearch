@@ -488,7 +488,7 @@ public abstract class Engine implements Closeable {
     public abstract CommitId flush() throws EngineException;
 
     /**
-     * Optimizes to 1 segment
+     * Force merges to 1 segment
      */
     public void forceMerge(boolean flush) throws IOException {
         forceMerge(flush, 1, false, false, false);

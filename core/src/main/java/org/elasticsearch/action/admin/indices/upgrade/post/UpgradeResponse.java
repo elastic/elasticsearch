@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A response for optimize action.
+ * A response for the upgrade action.
  *
  *
  */

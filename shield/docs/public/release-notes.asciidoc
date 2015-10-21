@@ -160,7 +160,7 @@ works properly with Shield
 ==== 1.1.1
 
 .bug fixes
-* Several bug fixes including a fix to ensure that {ref}/disk.html[Disk-based Shard Allocation]
+* Several bug fixes including a fix to ensure that {ref-17}/disk.html[Disk-based Shard Allocation]
 works properly with Shield
 
 [float]

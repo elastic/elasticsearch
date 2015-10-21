@@ -35,7 +35,6 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
-import org.junit.Test;
 
 /**
  * Test if the computed tfidf in NaiveTFIDFScoreScript equals 0.0 for each
@@ -51,13 +50,11 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
     final static List<Double> weights = Arrays.asList(1.0, 1.0);
     final static int numDocs = 100;
 
-    @Test
     public void testNoOfShardsIs1() {
         assertAcked(prepareCreate("test").get());
         assertThat(client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_shards"), equalTo("1"));
     }
 
-    @Test
     public void testTFIDF() throws Exception {
 
         initData();
@@ -81,7 +78,6 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         }
     }
 
-    @Test
     public void testCosineSimilarity() throws Exception {
 
         initData();
@@ -106,7 +102,6 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         }
     }
 
-    @Test
     public void testPhraseScorer() throws Exception {
 
         initData();
@@ -132,7 +127,6 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         }
     }
 
-    @Test
     public void testLanguageModelScorer() throws Exception {
 
         initData();

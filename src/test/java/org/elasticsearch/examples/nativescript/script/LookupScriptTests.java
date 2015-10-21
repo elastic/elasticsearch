@@ -30,14 +30,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.sort.SortOrder;
-import org.junit.Test;
 
 /**
  */
 public class LookupScriptTests extends AbstractSearchScriptTestCase {
 
     @SuppressWarnings("unchecked")
-    @Test
     public void testLookup() throws Exception {
 
         // Create a new lookup index

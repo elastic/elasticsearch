@@ -19,7 +19,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,7 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class ScriptedMetricAggsScriptTests extends AbstractSearchScriptTestCase {
 
     @SuppressWarnings("unchecked")
-    @Test
     public void testScriptedMetricAggs() throws Exception {
 
         // Create a new lookup index

@@ -30,12 +30,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.junit.Test;
 
 /**
  */
 public class RandomSortScriptTests extends AbstractSearchScriptTestCase {
-    @Test
+
     public void testPseudoRandomScript() throws Exception {
       
         // Create a new index

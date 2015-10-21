@@ -36,13 +36,11 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.junit.Test;
 
 /**
  */
 public class PopularityScoreScriptTests extends AbstractSearchScriptTestCase {
 
-    @Test
     public void testPopularityScoring() throws Exception {
 
         // Create a new index

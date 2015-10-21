@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.sort.SortOrder;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,7 +36,6 @@ public class IsPrimeSearchScriptTests extends AbstractSearchScriptTestCase {
 
     public static int[] PRIMES_10 = new int[] { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29 };
 
-    @Test
     public void testIsPrimeScript() throws Exception {
       
         // Create a new index

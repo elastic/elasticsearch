@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.admin.indices.optimize;
+package org.elasticsearch.rest.action.admin.indices.forcemerge;
 
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -38,11 +38,18 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
-public class RestOptimizeAction extends BaseRestHandler {
+public class RestForceMergeAction extends BaseRestHandler {
 
     @Inject
-    public RestOptimizeAction(Settings settings, RestController controller, Client client) {
+    public RestForceMergeAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
+        controller.registerHandler(POST, "/_forcemerge", this);
+        controller.registerHandler(POST, "/{index}/_forcemerge", this);
+
+        controller.registerHandler(GET, "/_forcemerge", this);
+        controller.registerHandler(GET, "/{index}/_forcemerge", this);
+
+        // TODO: Remove for 3.0
         controller.registerHandler(POST, "/_optimize", this);
         controller.registerHandler(POST, "/{index}/_optimize", this);
 
@@ -52,14 +59,14 @@ public class RestOptimizeAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        OptimizeRequest optimizeRequest = new OptimizeRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        optimizeRequest.indicesOptions(IndicesOptions.fromRequest(request, optimizeRequest.indicesOptions()));
-        optimizeRequest.maxNumSegments(request.paramAsInt("max_num_segments", optimizeRequest.maxNumSegments()));
-        optimizeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", optimizeRequest.onlyExpungeDeletes()));
-        optimizeRequest.flush(request.paramAsBoolean("flush", optimizeRequest.flush()));
-        client.admin().indices().optimize(optimizeRequest, new RestBuilderListener<OptimizeResponse>(channel) {
+        ForceMergeRequest mergeRequest = new ForceMergeRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        mergeRequest.indicesOptions(IndicesOptions.fromRequest(request, mergeRequest.indicesOptions()));
+        mergeRequest.maxNumSegments(request.paramAsInt("max_num_segments", mergeRequest.maxNumSegments()));
+        mergeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", mergeRequest.onlyExpungeDeletes()));
+        mergeRequest.flush(request.paramAsBoolean("flush", mergeRequest.flush()));
+        client.admin().indices().forceMerge(mergeRequest, new RestBuilderListener<ForceMergeResponse>(channel) {
             @Override
-            public RestResponse buildResponse(OptimizeResponse response, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(ForceMergeResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 buildBroadcastShardsHeader(builder, request, response);
                 builder.endObject();

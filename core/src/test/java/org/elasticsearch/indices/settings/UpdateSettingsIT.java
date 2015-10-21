@@ -225,7 +225,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
         logger.info("test: optimize");
-        client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).get();
+        client().admin().indices().prepareForceMerge("test").setMaxNumSegments(1).get();
         logger.info("test: optimize done");
 
         // Record current throttling so far
@@ -263,7 +263,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         // when ESIntegTestCase.after tries to remove indices created by the test:
 
         // Wait for merges to finish
-        client().admin().indices().prepareOptimize("test").get();
+        client().admin().indices().prepareForceMerge("test").get();
         flush();
 
         logger.info("test: test done");

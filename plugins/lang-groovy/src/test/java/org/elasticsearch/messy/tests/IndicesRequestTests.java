@@ -31,6 +31,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
@@ -39,8 +41,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -386,15 +386,15 @@ public class IndicesRequestTests extends ESIntegTestCase {
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
 
-    public void testOptimize() {
-        String optimizeShardAction = OptimizeAction.NAME + "[n]";
-        interceptTransportActions(optimizeShardAction);
+    public void testForceMerge() {
+        String mergeShardAction = ForceMergeAction.NAME + "[n]";
+        interceptTransportActions(mergeShardAction);
 
-        OptimizeRequest optimizeRequest = new OptimizeRequest(randomIndicesOrAliases());
-        internalCluster().clientNodeClient().admin().indices().optimize(optimizeRequest).actionGet();
+        ForceMergeRequest mergeRequest = new ForceMergeRequest(randomIndicesOrAliases());
+        internalCluster().clientNodeClient().admin().indices().forceMerge(mergeRequest).actionGet();
 
         clearInterceptedActions();
-        assertSameIndices(optimizeRequest, optimizeShardAction);
+        assertSameIndices(mergeRequest, mergeShardAction);
     }
 
     public void testRefresh() {

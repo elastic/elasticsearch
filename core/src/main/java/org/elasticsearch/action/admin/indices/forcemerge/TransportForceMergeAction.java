@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.optimize;
+package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -41,18 +41,18 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Optimize index/indices action.
+ * ForceMerge index/indices action.
  */
-public class TransportOptimizeAction extends TransportBroadcastByNodeAction<OptimizeRequest, OptimizeResponse, TransportBroadcastByNodeAction.EmptyResult> {
+public class TransportForceMergeAction extends TransportBroadcastByNodeAction<ForceMergeRequest, ForceMergeResponse, TransportBroadcastByNodeAction.EmptyResult> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportOptimizeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportForceMergeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                    TransportService transportService, IndicesService indicesService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, OptimizeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                OptimizeRequest::new, ThreadPool.Names.OPTIMIZE);
+        super(settings, ForceMergeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+                ForceMergeRequest::new, ThreadPool.Names.FORCE_MERGE);
         this.indicesService = indicesService;
     }
 
@@ -62,21 +62,21 @@ public class TransportOptimizeAction extends TransportBroadcastByNodeAction<Opti
     }
 
     @Override
-    protected OptimizeResponse newResponse(OptimizeRequest request, int totalShards, int successfulShards, int failedShards, List<EmptyResult> responses, List<ShardOperationFailedException> shardFailures, ClusterState clusterState) {
-        return new OptimizeResponse(totalShards, successfulShards, failedShards, shardFailures);
+    protected ForceMergeResponse newResponse(ForceMergeRequest request, int totalShards, int successfulShards, int failedShards, List<EmptyResult> responses, List<ShardOperationFailedException> shardFailures, ClusterState clusterState) {
+        return new ForceMergeResponse(totalShards, successfulShards, failedShards, shardFailures);
     }
 
     @Override
-    protected OptimizeRequest readRequestFrom(StreamInput in) throws IOException {
-        final OptimizeRequest request = new OptimizeRequest();
+    protected ForceMergeRequest readRequestFrom(StreamInput in) throws IOException {
+        final ForceMergeRequest request = new ForceMergeRequest();
         request.readFrom(in);
         return request;
     }
 
     @Override
-    protected EmptyResult shardOperation(OptimizeRequest request, ShardRouting shardRouting) throws IOException {
+    protected EmptyResult shardOperation(ForceMergeRequest request, ShardRouting shardRouting) throws IOException {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex()).getShard(shardRouting.shardId().id());
-        indexShard.optimize(request);
+        indexShard.forceMerge(request);
         return EmptyResult.INSTANCE;
     }
 
@@ -84,17 +84,17 @@ public class TransportOptimizeAction extends TransportBroadcastByNodeAction<Opti
      * The refresh request works against *all* shards.
      */
     @Override
-    protected ShardsIterator shards(ClusterState clusterState, OptimizeRequest request, String[] concreteIndices) {
+    protected ShardsIterator shards(ClusterState clusterState, ForceMergeRequest request, String[] concreteIndices) {
         return clusterState.routingTable().allShards(concreteIndices);
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, OptimizeRequest request) {
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, ForceMergeRequest request) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, OptimizeRequest request, String[] concreteIndices) {
+    protected ClusterBlockException checkRequestBlock(ClusterState state, ForceMergeRequest request, String[] concreteIndices) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 }

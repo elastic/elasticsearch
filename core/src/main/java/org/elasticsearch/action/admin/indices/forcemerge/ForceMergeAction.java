@@ -27,7 +27,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class ForceMergeAction extends Action<ForceMergeRequest, ForceMergeResponse, ForceMergeRequestBuilder> {
 
     public static final ForceMergeAction INSTANCE = new ForceMergeAction();
-    public static final String NAME = "indices:admin/forcemerge";
+    public static final String NAME = "indices:admin/optimize";
 
     private ForceMergeAction() {
         super(NAME);

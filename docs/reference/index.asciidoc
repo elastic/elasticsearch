@@ -6,7 +6,7 @@
 :major-version: 2.x
 :jdk:       1.8.0_25
 :defguide:  https://www.elastic.co/guide/en/elasticsearch/guide/current
-:plugins:   https://www.elastic.co/guide/en/elasticsearch/plugins/master
+:plugins:   https://www.elastic.co/guide/en/elasticsearch/plugins/2.1
 
 include::getting-started.asciidoc[]
 

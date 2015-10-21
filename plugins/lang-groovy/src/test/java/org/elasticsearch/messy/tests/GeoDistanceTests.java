@@ -73,8 +73,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
     public void testSimpleDistance() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true)
-                .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject().endObject()
-                .endObject().endObject();
+                .endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
         ensureGreen();
 
@@ -225,8 +224,8 @@ public class GeoDistanceTests extends ESIntegTestCase {
     public void testDistanceSortingMVFields() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
-                .field("ignore_malformed", true).field("coerce", true).startObject("fielddata")
-                .field("format", randomNumericFieldDataFormat()).endObject().endObject().endObject().endObject().endObject();
+                .field("ignore_malformed", true).field("coerce", true)
+                .endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test")
                 .addMapping("type1", xContentBuilder));
         ensureGreen();
@@ -360,8 +359,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
-                .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject().endObject()
-                .endObject().endObject();
+                .endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
         ensureGreen();
 
@@ -492,7 +490,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 .startObject("properties")
                 .startObject("name").field("type", "string").endObject()
                 .startObject("location").field("type", "geo_point").field("lat_lon", true)
-                .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject()
+                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -659,9 +657,6 @@ public class GeoDistanceTests extends ESIntegTestCase {
                                 .field("geohash", true)
                                 .field("geohash_precision", 24)
                                 .field("lat_lon", true)
-                                .startObject("fielddata")
-                                    .field("format", randomNumericFieldDataFormat())
-                                .endObject()
                             .endObject()
                         .endObject()
                     .endObject()

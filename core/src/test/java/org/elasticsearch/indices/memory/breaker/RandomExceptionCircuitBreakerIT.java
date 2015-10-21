@@ -80,7 +80,6 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                         // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"
                 .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
                 .startObject("fielddata")
-                .field("format", randomNumericFieldDataFormat())
                 .endObject() // fielddata
                 .endObject() // test-num
                 .endObject() // properties

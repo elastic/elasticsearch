@@ -97,7 +97,6 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
@@ -409,7 +408,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         .startObject("template-longs")
                         .field("match_mapping_type", "long")
                         .startObject("mapping")
-                        .field("doc_values", randomBoolean())
                         .startObject("fielddata")
                         .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
@@ -420,7 +418,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         .startObject("template-doubles")
                         .field("match_mapping_type", "double")
                         .startObject("mapping")
-                        .field("doc_values", randomBoolean())
                         .startObject("fielddata")
                         .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
@@ -431,7 +428,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         .startObject("template-geo_points")
                         .field("match_mapping_type", "geo_point")
                         .startObject("mapping")
-                        .field("doc_values", randomBoolean())
                         .startObject("fielddata")
                         .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
@@ -443,7 +439,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         .field("match_mapping_type", "boolean")
                         .startObject("mapping")
                         .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
                         .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
@@ -1862,13 +1857,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         assert perTestRatio >= 0.0 && perTestRatio <= 1.0;
         return perTestRatio;
-    }
-
-    /**
-     * Returns a random numeric field data format from the choices of "array" or "doc_values".
-     */
-    public static String randomNumericFieldDataFormat() {
-        return randomFrom(Arrays.asList("array", "doc_values"));
     }
 
     /**

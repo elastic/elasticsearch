@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -33,7 +32,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
@@ -104,13 +102,7 @@ public abstract class DocValuesIndexFieldData {
                 assert numericType == null;
                 return new BinaryDVIndexFieldData(index, fieldNames, fieldType.fieldDataType());
             } else if (numericType != null) {
-                if (TimestampFieldMapper.NAME.equals(fieldNames.indexName())
-                        || Version.indexCreated(indexSettings).onOrAfter(Version.V_1_4_0_Beta1)) {
-                    return new SortedNumericDVIndexFieldData(index, fieldNames, numericType, fieldType.fieldDataType());
-                } else {
-                    // prior to ES 1.4: multi-valued numerics were boxed inside a byte[] as BINARY
-                    return new BinaryDVNumericIndexFieldData(index, fieldNames, numericType, fieldType.fieldDataType());
-                }
+                return new SortedNumericDVIndexFieldData(index, fieldNames, numericType, fieldType.fieldDataType());
             } else {
                 return new SortedSetDVOrdinalsIndexFieldData(index, cache, indexSettings, fieldNames, breakerService, fieldType.fieldDataType());
             }

@@ -28,7 +28,7 @@
             <useProjectArtifact>true</useProjectArtifact>
             <useTransitiveDependencies>false</useTransitiveDependencies>
             <includes>
-                <include>org.elasticsearch.plugin:marvel</include>
+                <include>org.elasticsearch.plugin:marvel-agent</include>
             </includes>
         </dependencySet>
     </dependencySets>

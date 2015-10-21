@@ -12,5 +12,5 @@
 
     - match:  { nodes.$master.plugins.0.name: license  }
     - match:  { nodes.$master.plugins.0.jvm: true  }
-    - match:  { nodes.$master.plugins.1.name: marvel  }
+    - match:  { nodes.$master.plugins.1.name: marvel-agent  }
     - match:  { nodes.$master.plugins.1.jvm: true  }

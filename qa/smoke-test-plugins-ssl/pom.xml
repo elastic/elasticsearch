@@ -25,7 +25,7 @@
     <elasticsearch.integ.antfile>${project.basedir}/integration-tests.xml</elasticsearch.integ.antfile>
     <tests.rest.suite>smoke_test_plugins_ssl</tests.rest.suite>
     <tests.rest.load_packaged>false</tests.rest.load_packaged>
-    <xplugins.list>license,marvel,shield,watcher</xplugins.list>
+    <xplugins.list>license,marvel-agent,shield,watcher</xplugins.list>
     <ssl.antfile>${project.basedir}/ssl-setup.xml</ssl.antfile>
     <keystore.path>${project.build.outputDirectory}/test-node.jks</keystore.path>
   </properties>
@@ -94,7 +94,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>marvel</artifactId>
+                   <artifactId>marvel-agent</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>

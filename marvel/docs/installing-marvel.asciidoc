@@ -42,8 +42,8 @@ specify the location of the configuration files by setting `-Des.path.conf`. For
 [source,shell]
 ----------------------------------------------------------
 cd /usr/share/elasticsearch
-sudo bin/plugin -i elasticsearch/license/latest -Des.path.conf=/etc/elasticsearch
-sudo bin/plugin -i elasticsearch/marvel/latest -Des.path.conf=/etc/elasticsearch
+sudo bin/plugin install license
+sudo bin/plugin install marvel-agent
 ----------------------------------------------------------
 
 [float]
@@ -60,8 +60,8 @@ To install Marvel on a machine that doesn't have Internet access:
 +
 ** https://download.elastic.co/elasticsearch/license/license-latest.zip[
 https://download.elastic.co/elasticsearch/license/license-latest.zip]
-** https://download.elastic.co/elasticsearch/marvel/marvel-latest.zip[
-https://download.elastic.co/elasticsearch/marvel/marvel-latest.zip]
+** https://download.elastic.co/elasticsearch/marvel/marvel-agent-latest.zip[
+https://download.elastic.co/elasticsearch/marvel/marvel-agent-latest.zip]
 
 . Transfer the zip files to the offline machine.
 
@@ -69,8 +69,8 @@ https://download.elastic.co/elasticsearch/marvel/marvel-latest.zip]
 +
 [source,shell]
 ----------------------------------------------------------
-bin/plugin -i license -u file:///path/to/file/license-latest.zip <1>
-bin/plugin -i marvel -u file:///path/to/file/marvel-latest.zip
+bin/plugin install file:///path/to/file/license-latest.zip <1>
+bin/plugin install file:///path/to/file/marvel-agent-latest.zip
 ----------------------------------------------------------
 <1> Note that you must specify an absolute path to the zip file after the `file://` protocol.
 
@@ -95,8 +95,8 @@ marvel.agent.enabled: false
 +
 [source,sh]
 ----------------
-bin/plugin -i elasticsearch/license/latest
-bin/plugin -i elasticsearch/marvel/latest
+bin/plugin install license
+bin/plugin install marvel-agent
 ----------------
 
 . Start Elasticsearch on the nodes in your monitoring cluster:
@@ -119,8 +119,8 @@ marvel.agent.exporter.es.hosts: ["es-mon-1:9200","es-mon-2:9200"]
 +
 [source,sh]
 ----------------
-bin/plugin -i elasticsearch/license/latest
-bin/plugin -i elasticsearch/marvel/latest
+bin/plugin install license
+bin/plugin install marvel-agent
 ----------------
 
 

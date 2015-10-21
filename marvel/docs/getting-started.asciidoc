@@ -12,14 +12,14 @@ To install Marvel:
 +
 [source,shell]
 ----------------------------------------------------------
-bin/plugin install elasticsearch/license/latest
+bin/plugin install license
 ----------------------------------------------------------
 
 .. Run `bin/plugin install` to install the Marvel plugin.
 +
 [source,shell]
 ----------------------------------------------------------
-bin/plugin install elasticsearch/marvel/latest
+bin/plugin install marvel-agent
 ----------------------------------------------------------
 +
 NOTE: If you are using a <<package-installation, DEB/RPM distribution>> of Elasticsearch, run the installation with superuser permissions. To perform an offline installation,  <<offline-installation, download the Marvel binaries>>. 

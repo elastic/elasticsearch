@@ -5,9 +5,9 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>marvel</artifactId>
-    <name>X-Plugins: Marvel</name>
-    <description>Elasticsearch Marvel</description>
+    <artifactId>marvel-agent</artifactId>
+    <name>X-Plugins: Marvel Agent</name>
+    <description>Elasticsearch Marvel Agent</description>
 
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>

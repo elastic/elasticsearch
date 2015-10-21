@@ -129,6 +129,10 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
@@ -142,10 +146,6 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
@@ -843,16 +843,19 @@ public class SecuredClient implements Client {
             return new PutMappingRequestBuilder(this, PutMappingAction.INSTANCE).setIndices(indices);
         }
 
-        public ActionFuture<OptimizeResponse> optimize(OptimizeRequest request) {
-            return this.execute(OptimizeAction.INSTANCE, request);
+        @Override
+        public ActionFuture<ForceMergeResponse> forceMerge(ForceMergeRequest request) {
+            return this.execute(ForceMergeAction.INSTANCE, request);
         }
 
-        public void optimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener) {
-            this.execute(OptimizeAction.INSTANCE, request, listener);
+        @Override
+        public void forceMerge(ForceMergeRequest request, ActionListener<ForceMergeResponse> listener) {
+            this.execute(ForceMergeAction.INSTANCE, request, listener);
         }
 
-        public OptimizeRequestBuilder prepareOptimize(String... indices) {
-            return (new OptimizeRequestBuilder(this, OptimizeAction.INSTANCE)).setIndices(indices);
+        @Override
+        public ForceMergeRequestBuilder prepareForceMerge(String... indices) {
+            return (new ForceMergeRequestBuilder(this, ForceMergeAction.INSTANCE)).setIndices(indices);
         }
 
         public ActionFuture<UpgradeResponse> upgrade(UpgradeRequest request) {

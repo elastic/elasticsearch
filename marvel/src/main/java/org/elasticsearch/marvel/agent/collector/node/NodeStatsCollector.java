@@ -10,10 +10,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.NodeEnvironment;
@@ -43,19 +40,17 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
     private final DiscoveryService discoveryService;
     private final NodeEnvironment nodeEnvironment;
 
-    // Use a provider in order to avoid Guice circular injection
-    // issues because AllocationDecider is not an interface and cannot be proxied
-    private final Provider<DiskThresholdDecider> diskThresholdDeciderProvider;
+    private final DiskThresholdDecider diskThresholdDecider;
 
     @Inject
     public NodeStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee marvelLicensee,
                               NodeService nodeService, DiscoveryService discoveryService, NodeEnvironment nodeEnvironment,
-                              Provider<DiskThresholdDecider> diskThresholdDeciderProvider) {
+                              DiskThresholdDecider diskThresholdDecider) {
         super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
         this.nodeService = nodeService;
         this.discoveryService = discoveryService;
         this.nodeEnvironment = nodeEnvironment;
-        this.diskThresholdDeciderProvider = diskThresholdDeciderProvider;
+        this.diskThresholdDecider = diskThresholdDecider;
     }
 
     @Override
@@ -68,13 +63,6 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
         List<MarvelDoc> results = new ArrayList<>(1);
 
         NodeStats nodeStats = nodeService.stats();
-
-        DiskThresholdDecider diskThresholdDecider = null;
-        try {
-            diskThresholdDecider = diskThresholdDeciderProvider.get();
-        } catch (ProvisionException | ConfigurationException e) {
-            logger.warn("unable to retrieve disk threshold decider information", e);
-        }
 
         // Here we are calling directly the DiskThresholdDecider to retrieve the high watermark value
         // It would be nicer to use a settings API like documented in #6732

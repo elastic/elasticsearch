@@ -8,7 +8,6 @@ package org.elasticsearch.marvel.agent.collector.node;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.NodeEnvironment;
@@ -95,11 +94,6 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(NodeService.class, nodeId),
                 internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(NodeEnvironment.class, nodeId),
-                new Provider<DiskThresholdDecider>() {
-                    @Override
-                    public DiskThresholdDecider get() {
-                        return internalCluster().getInstance(DiskThresholdDecider.class, nodeId);
-                    }
-                });
+                internalCluster().getInstance(DiskThresholdDecider.class, nodeId));
     }
 }

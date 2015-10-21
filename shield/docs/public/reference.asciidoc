@@ -25,7 +25,7 @@ stats, snapshot/restore status, pending cluster tasks
 [horizontal]
 `all`:: Any action on an index
 `manage`:: All `monitor` privileges plus index administration (aliases, analyze, cache clear, close, delete, exists,
-flush, mapping, open, optimize, refresh, settings, search shards, templates, validate, warmers)
+flush, mapping, open, force merge, refresh, settings, search shards, templates, validate, warmers)
 `monitor`:: All actions, that are required for monitoring and read-only (recovery, segments info, index stats & status)
 `data_access`:: A shortcut of all of the below privileges
 `crud`:: A shortcut of `read` and `write` privileges
@@ -113,11 +113,11 @@ NOTE: While indices template actions typically relate to indices, they are categ
 * `indices:admin/get`
 * `indices:admin/exists`
 * `indices:admin/flush`
+* `indices:admin/forcemerge`
 * `indices:admin/mapping/put`
 * `indices:admin/mappings/fields/get`
 * `indices:admin/mappings/get`
 * `indices:admin/open`
-* `indices:admin/optimize`
 * `indices:admin/refresh`
 * `indices:admin/settings/update`
 * `indices:admin/shards/search_shards`
@@ -136,7 +136,6 @@ NOTE: While indices template actions typically relate to indices, they are categ
 * `indices:monitor/shard_stores`
 * `indices:monitor/stats`
 * `indices:monitor/upgrade`
-* `indices:data/read/count`
 * `indices:data/read/exists`
 * `indices:data/read/explain`
 * `indices:data/read/field_stats`

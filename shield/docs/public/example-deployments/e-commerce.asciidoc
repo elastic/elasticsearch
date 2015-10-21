@@ -20,7 +20,7 @@ bulk:
 
 updater:
   indices:
-    'products': index, delete, indices:admin/optimize
+    'products': index, delete, indices:admin/forcemerge
 
 webshop:
   indices:

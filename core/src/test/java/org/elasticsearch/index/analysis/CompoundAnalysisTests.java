@@ -33,12 +33,11 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
-import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexNameAndSettingsModule;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -60,8 +59,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         AnalysisModule analysisModule = new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class));
         analysisModule.addTokenFilter("myfilter", MyFilterTokenFilterFactory.class);
         Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
+                new IndexNameAndSettingsModule(index, settings),
                 analysisModule)
                 .createChildInjector(parentInjector);
 
@@ -86,8 +84,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         AnalysisModule analysisModule = new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class));
         analysisModule.addTokenFilter("myfilter", MyFilterTokenFilterFactory.class);
         Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
+                new IndexNameAndSettingsModule(index, settings),
                 analysisModule)
                 .createChildInjector(parentInjector);
 

@@ -31,8 +31,8 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  *
@@ -40,21 +40,33 @@ import java.util.Set;
 public class IndexModule extends AbstractModule {
 
     private final IndexMetaData indexMetaData;
-    private final Settings settings;
+    private final IndexSettings indexSettings;
     // pkg private so tests can mock
     Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
     Class<? extends IndexSearcherWrapper> indexSearcherWrapper = null;
+    private final Set<Consumer<Settings>> settingsConsumers = new HashSet<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private IndexEventListener listener;
 
 
-    public IndexModule(Settings settings, IndexMetaData indexMetaData) {
+    public IndexModule(IndexSettings indexSettings, IndexMetaData indexMetaData) {
         this.indexMetaData = indexMetaData;
-        this.settings = settings;
+        this.indexSettings = indexSettings;
+    }
+
+    public void addIndexSettingsListener(Consumer<Settings> listener) {
+        if (listener == null) {
+            throw new IllegalArgumentException("listener must not be null");
+        }
+
+        if (settingsConsumers.contains(listener)) {
+            throw new IllegalStateException("listener already registered");
+        }
+        settingsConsumers.add(listener);
     }
 
     public Settings getIndexSettings() {
-        return settings;
+        return indexSettings.getSettings();
     }
 
     public void addIndexEventListener(IndexEventListener listener) {
@@ -74,7 +86,7 @@ public class IndexModule extends AbstractModule {
     public IndexEventListener freeze() {
         // TODO somehow we need to make this pkg private...
         if (listener == null) {
-            listener = new CompositeIndexEventListener(indexMetaData.getIndex(), settings, indexEventListeners);
+            listener = new CompositeIndexEventListener(indexSettings, indexEventListeners);
         }
         return listener;
     }
@@ -93,5 +105,7 @@ public class IndexModule extends AbstractModule {
         bind(IndexServicesProvider.class).asEagerSingleton();
         bind(MapperService.class).asEagerSingleton();
         bind(IndexFieldDataService.class).asEagerSingleton();
+        bind(IndexSettings.class).toInstance(new IndexSettings(indexSettings.getIndex(), indexSettings.getSettings(), settingsConsumers));
     }
+
 }

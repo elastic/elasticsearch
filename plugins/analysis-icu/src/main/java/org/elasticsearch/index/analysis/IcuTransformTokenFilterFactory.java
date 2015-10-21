@@ -25,8 +25,7 @@ import org.apache.lucene.analysis.icu.ICUTransformFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 
 /**
@@ -38,8 +37,8 @@ public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory {
     private final Transliterator transliterator;
 
     @Inject
-    public IcuTransformTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public IcuTransformTokenFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
         this.id = settings.get("id", "Null");
         String s = settings.get("dir", "forward");
         this.dir = "forward".equals(s) ? Transliterator.FORWARD : Transliterator.REVERSE;

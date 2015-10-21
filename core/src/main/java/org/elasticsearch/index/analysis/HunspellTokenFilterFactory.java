@@ -24,8 +24,7 @@ import org.apache.lucene.analysis.hunspell.HunspellStemFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.HunspellService;
 
 import java.util.Locale;
@@ -38,8 +37,8 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean longestOnly;
 
     @Inject
-    public HunspellTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings, HunspellService hunspellService)  {
-        super(index, indexSettings, name, settings);
+    public HunspellTokenFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings, HunspellService hunspellService)  {
+        super(indexSettings, name, settings);
 
         String locale = settings.get("locale", settings.get("language", settings.get("lang", null)));
         if (locale == null) {

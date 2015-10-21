@@ -26,8 +26,7 @@ import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 import org.tartarus.snowball.ext.DutchStemmer;
 
 /**
@@ -38,8 +37,8 @@ public class DutchStemTokenFilterFactory extends AbstractTokenFilterFactory {
     private final CharArraySet exclusions;
 
     @Inject
-    public DutchStemTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public DutchStemTokenFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
         this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
     }
 

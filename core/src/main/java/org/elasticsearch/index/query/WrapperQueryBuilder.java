@@ -108,7 +108,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
-            final QueryShardContext contextCopy = new QueryShardContext(context.index(), context.indexQueryParserService());
+            final QueryShardContext contextCopy = new QueryShardContext(context.indexQueryParserService());
             contextCopy.reset(qSourceParser);
             QueryBuilder result = contextCopy.parseContext().parseInnerQueryBuilder();
             context.combineNamedQueries(contextCopy);

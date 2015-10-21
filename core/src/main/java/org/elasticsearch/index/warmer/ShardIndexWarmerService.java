@@ -19,12 +19,10 @@
 
 package org.elasticsearch.index.warmer;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -37,7 +35,7 @@ public class ShardIndexWarmerService extends AbstractIndexShardComponent {
     private final CounterMetric current = new CounterMetric();
     private final MeanMetric warmerMetric = new MeanMetric();
 
-    public ShardIndexWarmerService(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public ShardIndexWarmerService(ShardId shardId, IndexSettings indexSettings) {
         super(shardId, indexSettings);
     }
 

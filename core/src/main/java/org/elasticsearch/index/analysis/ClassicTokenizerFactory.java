@@ -25,8 +25,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  * Factory for {@link ClassicTokenizer}
@@ -36,8 +35,8 @@ public class ClassicTokenizerFactory extends AbstractTokenizerFactory {
     private final int maxTokenLength;
 
     @Inject
-    public ClassicTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public ClassicTokenizerFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
         maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
     }
 

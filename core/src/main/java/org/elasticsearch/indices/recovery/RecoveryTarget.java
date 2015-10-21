@@ -45,10 +45,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -105,8 +103,7 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
     }
 
     @Override
-    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                       @IndexSettings Settings indexSettings) {
+    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
             onGoingRecoveries.cancelRecoveriesForShard(shardId, "shard closed");
         }

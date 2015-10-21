@@ -54,4 +54,5 @@ public abstract class ESTokenStreamTestCase extends BaseTokenStreamTestCase {
     public Settings.Builder newAnalysisSettingsBuilder() {
         return Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
     }
+
 }

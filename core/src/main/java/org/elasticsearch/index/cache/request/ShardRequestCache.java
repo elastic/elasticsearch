@@ -22,8 +22,7 @@ package org.elasticsearch.index.cache.request;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
@@ -37,7 +36,7 @@ public class ShardRequestCache extends AbstractIndexShardComponent implements Re
     final CounterMetric hitCount = new CounterMetric();
     final CounterMetric missCount = new CounterMetric();
 
-    public ShardRequestCache(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public ShardRequestCache(ShardId shardId, IndexSettings indexSettings) {
         super(shardId, indexSettings);
     }
 

@@ -26,8 +26,11 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -57,7 +60,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testGetForFieldDefaults() {
         final IndexService indexService = createIndex("test");
         final IndexFieldDataService ifdService = indexService.fieldData();
-        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType stringMapper = new StringFieldMapper.Builder("string").tokenized(false).build(ctx).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper);
@@ -88,7 +91,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testChangeFieldDataFormat() throws Exception {
         final IndexService indexService = createIndex("test");
         final IndexFieldDataService ifdService = indexService.fieldData();
-        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType mapper1 = MapperBuilders.stringField("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
         final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
@@ -119,10 +122,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndexService indexService = createIndex("test");
         IndexFieldDataService shardPrivateService = indexService.fieldData();
         // copy the ifdService since we can set the listener only once.
-        final IndexFieldDataService ifdService = new IndexFieldDataService(shardPrivateService.index(), shardPrivateService.indexSettings(),
+        final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
                 getInstanceFromNode(IndicesFieldDataCache.class), getInstanceFromNode(CircuitBreakerService.class), indexService.mapperService());
 
-        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType mapper1 = MapperBuilders.stringField("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
         final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
@@ -192,7 +195,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         ThreadPool threadPool = new ThreadPool("random_threadpool_name");
         try {
             IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null, threadPool);
-            IndexFieldDataService ifds = new IndexFieldDataService(new Index("test"), Settings.EMPTY, cache, null, null);
+            IndexFieldDataService ifds = new IndexFieldDataService(new IndexSettings(new Index("test"), Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), Collections.EMPTY_LIST), cache, null, null);
             ft.setNames(new Names("some_long"));
             ft.setHasDocValues(true);
             ifds.getForField(ft); // no exception

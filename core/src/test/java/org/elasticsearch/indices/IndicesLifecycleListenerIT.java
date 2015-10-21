@@ -30,7 +30,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -40,7 +39,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.MockIndexEventListener;
-import org.elasticsearch.test.transport.MockTransportService;
 import org.hamcrest.Matchers;
 
 import java.util.Collection;
@@ -84,7 +82,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
         IndexEventListener listener = new IndexEventListener() {
             @Override
-            public void beforeIndexAddedToCluster(Index index, @IndexSettings Settings indexSettings) {
+            public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
                 beforeAddedCount.incrementAndGet();
                 if (indexSettings.getAsBoolean("index.fail", false)) {
                     throw new ElasticsearchException("failing on purpose");
@@ -92,7 +90,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             }
 
             @Override
-            public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
+            public void beforeIndexCreated(Index index, Settings indexSettings) {
                 allCreatedCount.incrementAndGet();
             }
         };
@@ -128,7 +126,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         String node2 = internalCluster().startNode();
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node2).setNewDelegate(new IndexShardStateChangeListener() {
             @Override
-            public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
+            public void beforeIndexCreated(Index index, Settings indexSettings) {
                 throw new RuntimeException("FAIL");
             }
         });
@@ -253,7 +251,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         }
 
         @Override
-        public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
+        public void beforeIndexCreated(Index index, Settings indexSettings) {
             this.creationSettings = indexSettings;
             if (indexSettings.getAsBoolean("index.fail", false)) {
                 throw new ElasticsearchException("failing on purpose");
@@ -261,7 +259,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         }
 
         @Override
-        public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, @IndexSettings Settings indexSettings) {
+        public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
             this.afterCloseSettings = indexSettings;
         }
 

@@ -16,24 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.elasticsearch.index;
+package org.elasticsearch.test;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
-public class IndexNameModule extends AbstractModule {
+import java.util.Collections;
+
+public class IndexNameAndSettingsModule  extends AbstractModule {
 
     private final Index index;
+    private final Settings settings;
 
-    public IndexNameModule(Index index) {
+    public IndexNameAndSettingsModule(Index index, Settings settings) {
+        this.settings = settings;
         this.index = index;
-    }
 
+    }
     @Override
     protected void configure() {
-        bind(Index.class).toInstance(index);
+        bind(IndexSettings.class).toInstance(new IndexSettings(index, settings, Collections.EMPTY_LIST));
     }
 }

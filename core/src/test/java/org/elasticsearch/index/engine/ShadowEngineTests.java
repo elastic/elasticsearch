@@ -45,6 +45,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -70,11 +71,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
@@ -86,6 +87,8 @@ import static org.hamcrest.Matchers.nullValue;
  * TODO: document me!
  */
 public class ShadowEngineTests extends ESTestCase {
+
+    private static final IndexSettings INDEX_SETTINGS = new IndexSettings(new Index("index"), Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build(), Collections.emptyList());
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
@@ -106,7 +109,7 @@ public class ShadowEngineTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        CodecService codecService = new CodecService(shardId.index());
+        CodecService codecService = new CodecService(INDEX_SETTINGS, null);
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -178,8 +181,10 @@ public class ShadowEngineTests extends ESTestCase {
         return createStore(newMockFSDirectory(p));
     }
 
+
     protected Store createStore(final Directory directory) throws IOException {
-        final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
+        IndexSettings indexSettings = new IndexSettings(shardId.index(), Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), Collections.emptyList());
+        final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
             @Override
             public Directory newDirectory() throws IOException {
                 return directory;
@@ -190,7 +195,7 @@ public class ShadowEngineTests extends ESTestCase {
                 return 0;
             }
         };
-        return new Store(shardId, EMPTY_SETTINGS, directoryService, new DummyShardLock(shardId));
+        return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
     }
 
     protected SnapshotDeletionPolicy createSnapshotDeletionPolicy() {
@@ -219,10 +224,10 @@ public class ShadowEngineTests extends ESTestCase {
 
     public EngineConfig config(Settings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy) {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
-        EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, indexSettings), indexSettings
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, new IndexSettings(shardId.index(), indexSettings, Collections.EMPTY_LIST), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
+        EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, new IndexSettings(shardId.index(), indexSettings, Collections.EMPTY_LIST)), indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy, mergeSchedulerConfig,
-                iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(shardId.index()), new Engine.EventListener() {
+                iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(INDEX_SETTINGS, null), new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
@@ -912,7 +917,7 @@ public class ShadowEngineTests extends ESTestCase {
     }
 
     public void testSettings() {
-        CodecService codecService = new CodecService(shardId.index());
+        CodecService codecService = new CodecService(INDEX_SETTINGS, null);
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
     }
 

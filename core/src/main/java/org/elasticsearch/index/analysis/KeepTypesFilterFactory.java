@@ -25,8 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -48,9 +47,9 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
     private static final String KEEP_TYPES_KEY = "types";
 
     @Inject
-    public KeepTypesFilterFactory(Index index, @IndexSettings Settings indexSettings,
+    public KeepTypesFilterFactory(IndexSettings indexSettings,
                                  Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+        super(indexSettings, name, settings);
 
         final String[] arrayKeepTypes = settings.getAsArray(KEEP_TYPES_KEY, null);
         if ((arrayKeepTypes == null)) {

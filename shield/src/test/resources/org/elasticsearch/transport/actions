@@ -28,11 +28,11 @@ indices:admin/delete
 indices:admin/get
 indices:admin/exists
 indices:admin/flush
+indices:admin/forcemerge
 indices:admin/mapping/put
 indices:admin/mappings/fields/get
 indices:admin/mappings/get
 indices:admin/open
-indices:admin/optimize
 indices:admin/refresh
 indices:admin/settings/update
 indices:admin/shards/search_shards

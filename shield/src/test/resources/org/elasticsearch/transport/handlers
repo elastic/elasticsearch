@@ -10,11 +10,11 @@ cluster:admin/shield/realm/cache/clear
 cluster:admin/shield/realm/cache/clear[n]
 indices:admin/analyze[s]
 indices:admin/cache/clear[n]
+indices:admin/forcemerge[n]
 indices:admin/flush[s]
 indices:admin/flush[s][r]
 indices:admin/mappings/fields/get[index]
 indices:admin/mappings/fields/get[index][s]
-indices:admin/optimize[n]
 indices:admin/refresh[s]
 indices:admin/refresh[s][r]
 indices:admin/upgrade

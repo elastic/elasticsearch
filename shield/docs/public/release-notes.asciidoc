@@ -138,8 +138,7 @@ will be necessary. When upgrading from other versions of Shield, follow the norm
 * The `esusers` tool no longer warns about missing roles that are properly defined in the `roles.yml` file.
 * The period character, `.`, is now allowed in usernames and role names.
 * The {ref-17}/query-dsl-terms-filter.html#_caching_19[terms filter lookup cache] has been disabled to ensure all requests
-  are properly authorized. This removes the need to <<limitations-disable-cache,manually disable>> the terms filter
-  cache.
+  are properly authorized. This removes the need to manually disable the terms filter cache.
 * For LDAP client connections, only the protocols and ciphers specified in the `shield.ssl.supported_protocols` and
   `shield.ssl.ciphers` <<ref-ssl-tls-settings,settings>> will be used.
 * The auditing mechanism now logs authentication failed events when a request contains an invalid authentication token.

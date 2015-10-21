@@ -20,7 +20,6 @@ indices:admin/refresh[s][r]
 indices:admin/upgrade
 indices:admin/upgrade[n]
 indices:admin/validate/query[s]
-indices:data/read/exists[s]
 indices:data/read/explain[s]
 indices:data/read/field_stats[s]
 indices:data/read/get[s]

@@ -29,7 +29,7 @@ flush, mapping, open, force merge, refresh, settings, search shards, templates, 
 `monitor`:: All actions, that are required for monitoring and read-only (recovery, segments info, index stats & status)
 `data_access`:: A shortcut of all of the below privileges
 `crud`:: A shortcut of `read` and `write` privileges
-`read`:: Read only access to actions (count, explain, get, exists, mget, get indexed scripts, more like this, multi
+`read`:: Read only access to actions (count, explain, get, mget, get indexed scripts, more like this, multi
 percolate/search/termvector), percolate, scroll, clear_scroll, search, suggest, tv)
 `search`:: All of `suggest` and executing an arbitrary search request (including multi-search API)
 `get`:: Allow to execute a GET request for a single document or multiple documents via the multi-get API
@@ -136,7 +136,6 @@ NOTE: While indices template actions typically relate to indices, they are categ
 * `indices:monitor/shard_stores`
 * `indices:monitor/stats`
 * `indices:monitor/upgrade`
-* `indices:data/read/exists`
 * `indices:data/read/explain`
 * `indices:data/read/field_stats`
 * `indices:data/read/get`

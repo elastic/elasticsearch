@@ -409,7 +409,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     // admin refresh before executing
                     assertAccessIsAllowed("admin", "GET", "/" + index + "/_refresh");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_count");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/_search/exists", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsAllowed("admin", "GET", "/" + index + "/_search");
                     assertAccessIsAllowed("admin", "GET", "/" + index + "/foo/1");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
@@ -428,7 +427,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertUserIsAllowed(user, "search", index);
                 } else {
                     assertAccessIsDenied(user, "GET", "/" + index + "/_count");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/_search/exists");
+                    assertAccessIsDenied(user, "GET", "/" + index + "/_search");
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_termvector");
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/_percolate", "{ \"doc\" : { \"foo\" : \"bar\" } }");

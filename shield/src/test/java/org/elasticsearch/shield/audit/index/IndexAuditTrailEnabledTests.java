@@ -7,7 +7,7 @@ package org.elasticsearch.shield.audit.index;
 
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.exists.ExistsResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
@@ -57,7 +57,7 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
         awaitIndexTemplateCreation();
 
         // Wait for the index to be created since we have our own startup
-        awaitIndexCreation();
+        awaitAuditDocumentCreation();
     }
 
     public void testAuditTrailTemplateIsRecreatedAfterDelete() throws Exception {
@@ -70,21 +70,18 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
         awaitIndexTemplateCreation();
     }
 
-    void awaitIndexCreation() throws Exception {
+    void awaitAuditDocumentCreation() throws Exception {
         final String indexName = IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, DateTime.now(DateTimeZone.UTC), rollover);
         boolean success = awaitBusy(() -> {
             try {
-                ExistsResponse response =
-                        client().prepareExists(indexName).execute().actionGet();
-                return response.exists();
+                SearchResponse searchResponse = client().prepareSearch(indexName).setSize(0).setTerminateAfter(1).execute().actionGet();
+                return searchResponse.getHits().totalHits() > 0;
             } catch (Exception e) {
                 return false;
             }
         });
 
-        if (!success) {
-            fail("index [" + indexName + "] was not created");
-        }
+        assertThat("no audit document exists!", success, is(true));
     }
 
     void awaitIndexTemplateCreation() throws InterruptedException {
@@ -100,8 +97,6 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
             return false;
         });
 
-        if (!found) {
-            fail("index template [" + IndexAuditTrail.INDEX_TEMPLATE_NAME + "] was not created");
-        }
+        assertThat("index template [" + IndexAuditTrail.INDEX_TEMPLATE_NAME + "] was not created", found, is(true));
     }
 }

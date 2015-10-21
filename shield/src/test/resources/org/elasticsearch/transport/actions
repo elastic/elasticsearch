@@ -51,7 +51,6 @@ indices:monitor/settings/get
 indices:monitor/shard_stores
 indices:monitor/stats
 indices:monitor/upgrade
-indices:data/read/exists
 indices:data/read/explain
 indices:data/read/field_stats
 indices:data/read/get

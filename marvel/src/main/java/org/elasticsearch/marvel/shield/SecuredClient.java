@@ -218,10 +218,6 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.exists.ExistsAction;
-import org.elasticsearch.action.exists.ExistsRequest;
-import org.elasticsearch.action.exists.ExistsRequestBuilder;
-import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
@@ -498,18 +494,6 @@ public class SecuredClient implements Client {
 
     public MultiSearchRequestBuilder prepareMultiSearch() {
         return new MultiSearchRequestBuilder(this, MultiSearchAction.INSTANCE);
-    }
-
-    public ActionFuture<ExistsResponse> exists(ExistsRequest request) {
-        return this.execute(ExistsAction.INSTANCE, request);
-    }
-
-    public void exists(ExistsRequest request, ActionListener<ExistsResponse> listener) {
-        this.execute(ExistsAction.INSTANCE, request, listener);
-    }
-
-    public ExistsRequestBuilder prepareExists(String... indices) {
-        return new ExistsRequestBuilder(this, ExistsAction.INSTANCE).setIndices(indices);
     }
 
     public ActionFuture<SuggestResponse> suggest(SuggestRequest request) {

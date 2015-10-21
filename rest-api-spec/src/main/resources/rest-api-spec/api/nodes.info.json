@@ -1,6 +1,6 @@
 {
   "nodes.info": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-info.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/2.1/cluster-nodes-info.html",
     "methods": ["GET"],
     "url": {
       "path": "/_nodes",

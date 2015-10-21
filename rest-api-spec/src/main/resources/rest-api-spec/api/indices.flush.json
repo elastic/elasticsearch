@@ -1,6 +1,6 @@
 {
   "indices.flush": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-flush.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/2.1/indices-flush.html",
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_flush",

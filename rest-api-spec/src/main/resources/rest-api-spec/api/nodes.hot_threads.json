@@ -1,6 +1,6 @@
 {
   "nodes.hot_threads": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-hot-threads.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/2.1/cluster-nodes-hot-threads.html",
     "methods": ["GET"],
     "url": {
       "path": "/_nodes/hot_threads",

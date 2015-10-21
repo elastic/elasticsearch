@@ -1,6 +1,6 @@
 {
   "indices.delete": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-delete-index.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/2.1/indices-delete-index.html",
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}",

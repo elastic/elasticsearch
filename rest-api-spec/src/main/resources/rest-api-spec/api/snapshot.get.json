@@ -1,6 +1,6 @@
 {
   "snapshot.get": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/2.1/modules-snapshots.html",
     "methods": ["GET"],
     "url": {
       "path": "/_snapshot/{repository}/{snapshot}",

@@ -1,6 +1,6 @@
 {
   "search_exists": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-exists.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/2.1/search-exists.html",
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_search/exists",

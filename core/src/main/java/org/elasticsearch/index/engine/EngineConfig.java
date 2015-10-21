@@ -69,7 +69,7 @@ public final class EngineConfig {
     private final Analyzer analyzer;
     private final Similarity similarity;
     private final CodecService codecService;
-    private final Engine.FailedEngineListener failedEngineListener;
+    private final Engine.EventListener eventListener;
     private final boolean forceNewTranslog;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
@@ -117,7 +117,7 @@ public final class EngineConfig {
     public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService,
                         Settings indexSettings, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
-                        Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener,
+                        Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -131,7 +131,7 @@ public final class EngineConfig {
         this.analyzer = analyzer;
         this.similarity = similarity;
         this.codecService = codecService;
-        this.failedEngineListener = failedEngineListener;
+        this.eventListener = eventListener;
         this.compoundOnFlush = indexSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush);
         codecName = indexSettings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
         // We start up inactive and rely on IndexingMemoryController to give us our fair share once we start indexing:
@@ -310,8 +310,8 @@ public final class EngineConfig {
     /**
      * Returns a listener that should be called on engine failure
      */
-    public Engine.FailedEngineListener getFailedEngineListener() {
-        return failedEngineListener;
+    public Engine.EventListener getEventListener() {
+        return eventListener;
     }
 
     /**

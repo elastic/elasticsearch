@@ -24,7 +24,7 @@ bin/plugin install license
 bin/plugin install shield
 ----------------------------------------------------------
 +
-NOTE: If you are using a <<deb-rpm-install, DEB/RPM distribution>> of Elasticsearch, you need to specify the configuration directory and run the installation with superuser permissions. To perform an offline installation, <<offline-install,download the Shield binaries>>.
+NOTE: If you are using a <<deb-rpm-install, DEB/RPM distribution>> of Elasticsearch, you need to run the installation with superuser permissions. To perform an offline installation, <<offline-install,download the Shield binaries>>.
 
 . Start Elasticsearch.
 +

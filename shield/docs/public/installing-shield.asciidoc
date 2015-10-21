@@ -27,18 +27,14 @@ complete list of default paths, see {ref}/setup-dir-layout.html#_deb_and_rpm[Dir
 the Elasticsearch Reference.)
 
 To install the Shield and License plugins on a DEB/RPM package installation, you need to run 
-`bin/plugin -i` from the `/usr/share/elasticsearch` directory with superuser permissions, and 
-specify the location of the configuration files by setting `-Des.path.conf`. For example:
+`bin/plugin -i` from the `/usr/share/elasticsearch` directory with superuser permissions. For example:
 
 [source,shell]
 ----------------------------------------------------------
 cd /usr/share/elasticsearch
-sudo bin/plugin -i elasticsearch/license/latest -Des.path.conf=/etc/elasticsearch
-sudo bin/plugin -i elasticsearch/shield/latest -Des.path.conf=/etc/elasticsearch
+sudo bin/plugin -i license
+sudo bin/plugin -i shield
 ----------------------------------------------------------
-
-NOTE: If you are using a version of Shield prior to 1.3, you also need to specify the location
-of the configuration files when running `esusers` and `syskeygen`. 
 
 [float]
 [[offline-install]]
@@ -62,8 +58,8 @@ To install Shield on a machine that doesn't have Internet access:
 +
 [source,shell]
 ----------------------------------------------------------
-bin/plugin -i license -u file:///path/to/file/license-2.1.0.zip <1>
-bin/plugin -i shield -u file:///path/to/file/shield-2.1.0.zip
+bin/plugin install file:///path/to/file/license-2.1.0.zip <1>
+bin/plugin install file:///path/to/file/shield-2.1.0.zip
 ----------------------------------------------------------
 <1> Note that you must specify an absolute path to the zip file after the `file://` protocol.
 

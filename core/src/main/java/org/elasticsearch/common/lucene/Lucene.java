@@ -718,13 +718,6 @@ public class Lucene {
     }
 
     /**
-     * Is it an empty {@link DocIdSet}?
-     */
-    public static boolean isEmpty(@Nullable DocIdSet set) {
-        return set == null || set == DocIdSet.EMPTY;
-    }
-
-    /**
      * Given a {@link Scorer}, return a {@link Bits} instance that will match
      * all documents contained in the set. Note that the returned {@link Bits}
      * instance MUST be consumed in order.

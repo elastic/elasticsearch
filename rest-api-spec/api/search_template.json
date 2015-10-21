@@ -1,6 +1,6 @@
 {
   "search_template": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-template.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.2/search-template.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_search/template",

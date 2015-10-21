@@ -10,9 +10,9 @@ The simplest way to index an RSS feed is to use https://www.elastic.co/products/
 
 To install Logstash and set up the RSS input plugin:
 
-. https://www.elastic.co/downloads/logstash[Download Logstash 1.5.0 RC4+] and unpack the  archive file.
+. https://www.elastic.co/downloads/logstash[Download Logstash] and unpack the  archive file.
 . Go to the `logstash-<logstash_version>` directory and install the 
-http://www.elastic.co/guide/en/logstash/current/plugins-inputs-rss.html[RSS input]
+{logstash-ref}/plugins-inputs-rss.html[RSS input]
 plugin:
 +
 [source,shell]
@@ -40,7 +40,7 @@ output {
 ----------------------------------------------------------
 <1> Checks the feed every hour. 
 +
-For more information see {logstash-ref}/plugins-outputs-elasticsearch.html#plugins-outputs-elasticsearch-host[Elasticsearch output] in the Logstash Reference.
+For more information see {logstash-ref}/plugins-outputs-elasticsearch.html[Elasticsearch output] in the Logstash Reference.
 
 . Run Logstash with the `rss.conf` config file to start indexing the feed:
 +

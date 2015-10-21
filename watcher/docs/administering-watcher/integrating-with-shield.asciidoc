@@ -4,8 +4,6 @@
 Watcher can work alongside https://www.elastic.co/products/shield[Shield] and integrates with it.
 This integation is expected to be extended in future releases.
 
-IMPORTANT: Watcher 1.0.x requires Shield 1.2.2 or above
-
 When the Watcher plugin is installed along side Shield, it will automatically register an internal
 user - `__watcher_user`. All actions taken as part of a watch execution will be executed on behalf
 of this user.
@@ -33,7 +31,7 @@ watcher_admin:
 Once the relevant role was defined, adding the watcher administrator user requires the exact same
 process as adding any other user to to Shield. For example, if you are using the
 {shield-ref}/esusers.html[`esusers`] realm, use the `esusers`
-{shield-ref}/_managing_users_in_an_esusers_realm.html[command-line tool] to add
+{shield-ref}/managing-users.html[command-line tool] to add
 the user:
 
 [source,js]

@@ -52,15 +52,13 @@ import org.elasticsearch.indices.ttl.IndicesTTLService;
  */
 public class IndicesModule extends AbstractModule {
 
-    private final Settings settings;
 
     private final ExtensionPoint.ClassSet<QueryParser> queryParsers
         = new ExtensionPoint.ClassSet<>("query_parser", QueryParser.class);
     private final ExtensionPoint.InstanceMap<String, Dictionary> hunspellDictionaries
         = new ExtensionPoint.InstanceMap<>("hunspell_dictionary", String.class, Dictionary.class);
 
-    public IndicesModule(Settings settings) {
-        this.settings = settings;
+    public IndicesModule() {
         registerBuiltinQueryParsers();
     }
 
@@ -130,7 +128,6 @@ public class IndicesModule extends AbstractModule {
         bindQueryParsersExtension();
         bindHunspellExtension();
 
-        bind(IndicesLifecycle.class).to(InternalIndicesLifecycle.class).asEagerSingleton();
         bind(IndicesService.class).asEagerSingleton();
         bind(RecoverySettings.class).asEagerSingleton();
         bind(RecoveryTarget.class).asEagerSingleton();

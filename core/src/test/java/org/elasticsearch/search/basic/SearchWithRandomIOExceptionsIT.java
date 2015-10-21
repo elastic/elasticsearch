@@ -35,6 +35,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.store.MockFSIndexStore;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
@@ -103,7 +104,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         } else {
             Settings.Builder settings = settingsBuilder()
                 .put("index.number_of_replicas", randomIntBetween(0, 1))
-                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
+                .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false)
                 .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
                 .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate); // we cannot expect that the index will be valid
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());

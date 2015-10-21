@@ -36,10 +36,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Service responsible for submitting add and remove aliases requests
@@ -98,7 +95,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                     if (indexService == null) {
                                         // temporarily create the index and add mappings so we can parse the filter
                                         try {
-                                            indexService = indicesService.createIndex(indexMetaData);
+                                            indexService = indicesService.createIndex(indexMetaData, Collections.EMPTY_LIST);
                                             if (indexMetaData.getMappings().containsKey(MapperService.DEFAULT_MAPPING)) {
                                                 indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.getMappings().get(MapperService.DEFAULT_MAPPING).source(), false, false);
                                             }

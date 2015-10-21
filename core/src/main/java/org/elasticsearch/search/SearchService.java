@@ -65,8 +65,8 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
@@ -119,7 +119,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 /**
  *
  */
-public class SearchService extends AbstractLifecycleComponent<SearchService> {
+public class SearchService extends AbstractLifecycleComponent<SearchService> implements IndexEventListener {
 
     public static final String NORMS_LOADING_KEY = "index.norms.loading";
     public static final String DEFAULT_KEEPALIVE_KEY = "search.default_keep_alive";
@@ -173,27 +173,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
-            @Override
-            public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
-                // once an index is closed we can just clean up all the pending search context information
-                // to release memory and let references to the filesystem go etc.
-                IndexMetaData idxMeta = SearchService.this.clusterService.state().metaData().index(index.getName());
-                if (idxMeta != null && idxMeta.getState() == IndexMetaData.State.CLOSE) {
-                    // we need to check if it's really closed
-                    // since sometimes due to a relocation we already closed the shard and that causes the index to be closed
-                    // if we then close all the contexts we can get some search failures along the way which are not expected.
-                    // it's fine to keep the contexts open if the index is still "alive"
-                    // unfortunately we don't have a clear way to signal today why an index is closed.
-                    afterIndexDeleted(index, indexSettings);
-                }
-            }
-
-            @Override
-            public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
-                freeAllContextForIndex(index);
-            }
-        });
         this.indicesWarmer = indicesWarmer;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -233,6 +212,26 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 SearchService.this.defaultSearchTimeout = maybeNewDefaultSearchTimeout;
             }
         }
+    }
+
+    @Override
+    public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
+        // once an index is closed we can just clean up all the pending search context information
+        // to release memory and let references to the filesystem go etc.
+        IndexMetaData idxMeta = SearchService.this.clusterService.state().metaData().index(index.getName());
+        if (idxMeta != null && idxMeta.getState() == IndexMetaData.State.CLOSE) {
+            // we need to check if it's really closed
+            // since sometimes due to a relocation we already closed the shard and that causes the index to be closed
+            // if we then close all the contexts we can get some search failures along the way which are not expected.
+            // it's fine to keep the contexts open if the index is still "alive"
+            // unfortunately we don't have a clear way to signal today why an index is closed.
+            afterIndexDeleted(index, indexSettings);
+        }
+    }
+
+    @Override
+    public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
+        freeAllContextForIndex(index);
     }
 
     protected void putContext(SearchContext context) {

@@ -216,21 +216,3 @@ recommend consulting your JVM documentation for details on how to enable the PKC
 Another common source of this error is requesting cipher suites that use encrypting with a key length greater than 128 bits
 when running on an Oracle JDK. In this case, you will need to install the <<ciphers, JCE Unlimited Strength Jurisdiction Policy Files>>.
 --
-
-[float]
-=== Exceptions when unlicensed
-
-WARN: Failed to execute IndicesStatsAction for ClusterInfoUpdateJob::
-+
---
-This warning occurs in the logs every 30 seconds when the Shield license is expired or invalid. It is caused by a periodic
-internal request to gather disk usage information from the nodes and indices, to enable {ref}/disk.html[disk-based shard allocation].
-Disk-based shard allocation is not required, though it is enabled by default.
-
-If you are using Elasticsearch 1.4.3 or higher with disk-based shard allocation enabled, it will be automatically disabled when the Shield
-license is expired or invalid, and will be automatically re-enabled when a valid Shield license is installed.
-
-If you are using Elasticsearch 1.4.2 with disk-based shard allocation enabled, we recommend manually disabling disk-based shard
-allocation while your Shield license is expired, and re-enabling it after installing a valid Shield license. Instructions for
-disabling disk-based shard allocation are {ref}/disk.html[here].
---

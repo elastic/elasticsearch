@@ -3,7 +3,10 @@
 = Shield Reference
 
 :ref: http://www.elastic.co/guide/en/elasticsearch/reference/current
+:ref-17: http://www.elastic.co/guide/en/elasticsearch/reference/1.7
+
 :version: 2.1.0
+
 
 include::introduction.asciidoc[]
 

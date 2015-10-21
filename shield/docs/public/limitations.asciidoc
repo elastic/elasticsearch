@@ -29,68 +29,6 @@ indices, while Elasticsearch with Shield returns exceptions. Note that this beha
 multiple items will fail the entire set of operations if any one operation throws an exception due to wildcard 
 expansion resulting in an empty set of authorized indices.
 
-[[limitations-filtered-aliases]]
-[float]
-=== Filtered Index Aliases
-
-You can combine a secured index alias with a {ref}/query-dsl-filters.html[filter]
-to approximate document-level security. By manipulating the specific filtering, you can control the set of documents
-that users with privileges on that index alias can access.
-
-WARNING: Filtering secured index aliases does not provide security for documents retrieved through the
-{ref}/docs-get.html[get api]. Read
-https://github.com/elasticsearch/elasticsearch/issues/3861[Elasticsearch issue #3861] to learn more about this limitation.
-Users can obtain secure near-real-time get under this restriction with searches by document ID, using the
-{ref}/search-search.html[search api] instead. Restrict get operations when you use this approach by granting the `search`
-privilege and disallowing `get`.
-
-WARNING: In Elasticsearch, issuing a delete operation on an alias also deletes all of the indices that the alias
-points to, regardless of the filter that the alias might hold. Keep this behavior in mind when granting users
-administrative privileges to filtered index aliases. Read
-https://github.com/elasticsearch/elasticsearch/issues/2318[Elasticsearch issue #2318] to learn more about this limitation.
-
-WARNING: A filtered index alias will not provide document-level security for the {ref}/search-suggesters.html[suggesters apis]
-as they do not take into account the filters placed on aliases.
-
-WARNING: A filtered index alias will not provide document-level security when using a
-{ref}/search-aggregations-bucket-children-aggregation.html[Children Aggregation] as the filter from the alias is not used
-when computing the aggregation results.
-
-[float]
-=== Queries and Filters
-
-[[limitations-disable-cache]]
-[float]
-==== Elasticsearch 1.6+
-Elasticsearch 1.6 removes all of the limitations below with queries and filters with the exception of the {ref}/query-dsl-mlt-query.html[More Like This Query].
-*But* there is the possibility of authorization being bypassed when using a terms filter with the
-{ref}/query-dsl-terms-filter.html#_terms_lookup_mechanism[terms lookup mechanism]. The authorization that could be
-bypassed is for the index containing the terms when using Shield 1.2.0 and 1.2.1. If using Shield 1.2.0 or 1.2.1,
-add the following setting to your `elasticsearch.yml` file to ensure that requests are properly authorized:
-
-[source,yaml]
---------------------------------------------------
-indices.cache.filter.terms.size: 0
---------------------------------------------------
-
-Shield 1.2.2+ does not require this setting to be specified.
-
-Elasticsearch 1.6.2+ and 1.7.1+ remove the limitations on the {ref}/query-dsl-mlt-query.html[More Like This Query].
-
-[float]
-==== Elasticsearch pre-1.6.0
-Certain Elasticsearch requests execute other requests as part of their implementation. Some of these requests do not
-maintain the security context that the original request was made with. This causes an `AuthorizationException` even when
-the user has authorization to make the subsequent requests. The following requests have this behavior:
-
-* {ref}/query-dsl-mlt-query.html[More Like This Query]
-* {ref}/query-dsl-geo-shape-query.html[GeoShape Query] and {ref}/query-dsl-geo-shape-filter.html[GeoShape Filter] when
-  used with an {ref}/query-dsl-geo-shape-filter.html#_pre_indexed_shape[indexed shape]
-* {ref}/query-dsl-terms-filter.html[Terms Filter] when using the {ref}/query-dsl-terms-filter.html#_terms_lookup_mechanism[terms lookup mechanism]
-* {ref}/search-suggesters-phrase.html[Phrase Suggester] when specifying the `collate` field
-* Any query using {ref}/modules-scripting.html#_indexed_scripts[indexed scripts]
-* Queries using a {ref}/search-template.html[search template]
-
 [float]
 === Document Expiration (_ttl)
 
@@ -101,5 +39,4 @@ does not work with Shield. The document deletions will fail and the documents co
 === LDAP Realm
 
 The <<ldap, LDAP Realm>> does not currently support the discovery of nested LDAP Groups.  For example, if a user is a member
-of GroupA and GroupA is a member of GroupB, only GroupA will be discovered.  However, the <<active-directory, Active Directory Realm>> _does_
-support transitive group membership.
+of GroupA and GroupA is a member of GroupB, only GroupA will be discovered.  However, the <<active-directory, Active Directory Realm>> _does_ support transitive group membership.

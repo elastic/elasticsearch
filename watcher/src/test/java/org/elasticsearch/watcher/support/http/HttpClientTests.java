@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.support.http;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
@@ -21,29 +20,24 @@ import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
-import java.net.BindException;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.UnrecoverableKeyException;
 
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
-
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 
 /**
  */
 public class HttpClientTests extends ESTestCase {
+
     private MockWebServer webServer;
     private HttpClient httpClient;
     private HttpAuthRegistry authRegistry;
@@ -56,17 +50,9 @@ public class HttpClientTests extends ESTestCase {
     public void init() throws Exception {
         secretService = new SecretService.PlainText();
         authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(secretService)));
-        for (webPort = 9200; webPort < 9300; webPort++) {
-            try {
-                webServer = new MockWebServer();
-                webServer.start(webPort);
-                httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment).start();
-                return;
-            } catch (BindException be) {
-                logger.warn("port [{}] was already in use trying next port", webPort);
-            }
-        }
-        throw new ElasticsearchException("unable to find open port between 9200 and 9300");
+        webServer = startWebServer(9200, 9300);
+        webPort = webServer.getPort();
+        httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment).start();
     }
 
     @After
@@ -308,6 +294,76 @@ public class HttpClientTests extends ESTestCase {
         assertThat(response.status(), equalTo(200));
         assertThat(response.hasContent(), is(true));
         assertThat(response.body(), notNullValue());
+    }
+
+    public void testThatProxyCanBeConfigured() throws Exception {
+        // this test fakes a proxy server that sends a response instead of forwarding it to the mock web server
+        MockWebServer proxyServer = startWebServer(62000, 63000);
+        proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
+
+        try {
+            Settings settings = Settings.builder()
+                    .put(HttpClient.SETTINGS_PROXY_HOST, "localhost")
+                    .put(HttpClient.SETTINGS_PROXY_PORT, proxyServer.getPort())
+                    .build();
+            HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
+
+            HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
+                    .method(HttpMethod.GET)
+                    .path("/");
+
+            HttpResponse response = httpClient.execute(requestBuilder.build());
+            assertThat(response.status(), equalTo(200));
+            assertThat(response.body().toUtf8(), equalTo("fullProxiedContent"));
+
+            // ensure we hit the proxyServer and not the webserver
+            assertThat(webServer.getRequestCount(), equalTo(0));
+            assertThat(proxyServer.getRequestCount(), equalTo(1));
+        } finally {
+            proxyServer.shutdown();
+        }
+    }
+
+    public void testThatProxyCanBeOverriddenByRequest() throws Exception {
+        // this test fakes a proxy server that sends a response instead of forwarding it to the mock web server
+        MockWebServer proxyServer = startWebServer(62000, 63000);
+        proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
+
+        try {
+            Settings settings = Settings.builder()
+                    .put(HttpClient.SETTINGS_PROXY_HOST, "localhost")
+                    .put(HttpClient.SETTINGS_PROXY_PORT, proxyServer.getPort() + 1)
+                    .build();
+            HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
+
+            HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
+                    .method(HttpMethod.GET)
+                    .proxy(new HttpProxy("localhost", proxyServer.getPort()))
+                    .path("/");
+
+            HttpResponse response = httpClient.execute(requestBuilder.build());
+            assertThat(response.status(), equalTo(200));
+            assertThat(response.body().toUtf8(), equalTo("fullProxiedContent"));
+
+            // ensure we hit the proxyServer and not the webserver
+            assertThat(webServer.getRequestCount(), equalTo(0));
+            assertThat(proxyServer.getRequestCount(), equalTo(1));
+        } finally {
+            proxyServer.shutdown();
+        }
+    }
+
+    private MockWebServer startWebServer(int startPort, int endPort) throws IOException {
+        for (int port = startPort; port < endPort; port++) {
+            try {
+                MockWebServer mockWebServer = new MockWebServer();
+                mockWebServer.start(port);
+                return mockWebServer;
+            } catch (BindException be) {
+                logger.warn("port [{}] was already in use trying next port", webPort);
+            }
+        }
+        throw new ElasticsearchException("unable to find open port between 9200 and 9300");
     }
 
     static class ClientAuthRequiringSSLSocketFactory extends SSLSocketFactory {

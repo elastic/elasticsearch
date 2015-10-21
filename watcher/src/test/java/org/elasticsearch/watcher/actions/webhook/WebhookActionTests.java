@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.watcher.actions.webhook;
 
+import com.squareup.okhttp.mockwebserver.MockResponse;
+import com.squareup.okhttp.mockwebserver.MockWebServer;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
@@ -12,22 +14,15 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Action.Result.Status;
-import org.elasticsearch.watcher.actions.email.service.Attachment;
-import org.elasticsearch.watcher.actions.email.service.Authentication;
-import org.elasticsearch.watcher.actions.email.service.Email;
-import org.elasticsearch.watcher.actions.email.service.EmailService;
-import org.elasticsearch.watcher.actions.email.service.Profile;
+import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.support.http.HttpClient;
-import org.elasticsearch.watcher.support.http.HttpMethod;
-import org.elasticsearch.watcher.support.http.HttpRequest;
-import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.support.http.HttpResponse;
+import org.elasticsearch.watcher.support.http.*;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -45,28 +40,21 @@ import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Before;
 
+import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-
-import javax.mail.internet.AddressException;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 
 /**
@@ -282,6 +270,31 @@ public class WebhookActionTests extends ESTestCase {
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC), new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
         Action.Result result = executable.execute("_id", ctx, new Payload.Simple());
         assertThat(result, Matchers.instanceOf(WebhookAction.Result.Success.class));
+    }
+
+    public void testThatSelectingProxyWorks() throws Exception {
+        Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment).start();
+
+        MockWebServer proxyServer = new MockWebServer();
+        try {
+            proxyServer.start();
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
+
+            HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", 65535)
+                    .path("/").proxy(new HttpProxy("localhost", proxyServer.getPort()));
+            WebhookAction action = new WebhookAction(builder.build());
+
+            ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
+            String watchId = "test_url_encode" + randomAsciiOfLength(10);
+            Watch watch = createWatch(watchId, mock(ClientProxy.class), "account1");
+            WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC), new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
+            executable.execute("_id", ctx, new Payload.Simple());
+
+            assertThat(proxyServer.getRequestCount(), is(1));
+        } finally {
+            proxyServer.shutdown();
+        }
     }
 
     private Watch createWatch(String watchId, ClientProxy client, final String account) throws AddressException, IOException {

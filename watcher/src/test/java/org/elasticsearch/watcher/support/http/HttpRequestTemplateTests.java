@@ -6,10 +6,7 @@
 package org.elasticsearch.watcher.support.http;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
@@ -20,19 +17,20 @@ import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
+import static org.mockito.Mockito.mock;
 
 /**
  *
  */
 public class HttpRequestTemplateTests extends ESTestCase {
+
     public void testBodyWithXContent() throws Exception {
         XContentType type = randomFrom(XContentType.JSON, XContentType.YAML);
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
@@ -48,6 +46,34 @@ public class HttpRequestTemplateTests extends ESTestCase {
                 .build();
         HttpRequest request = template.render(new MockTextTemplateEngine(), emptyMap());
         assertThat(request.headers.size(), is(0));
+    }
+
+    public void testProxy() throws Exception {
+        HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
+                .proxy(new HttpProxy("localhost", 8080))
+                .build();
+        HttpRequest request = template.render(new MockTextTemplateEngine(), Collections.emptyMap());
+        assertThat(request.proxy().getHost(), is("localhost"));
+        assertThat(request.proxy().getPort(), is(8080));
+    }
+
+    public void testProxyParsing() throws Exception {
+        HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("_host", 1234);
+        builder.path("/path");
+        builder.method(randomFrom(HttpMethod.values()));
+        String proxyHost = randomAsciiOfLength(10);
+        int proxyPort = randomIntBetween(1, 65534);
+        builder.proxy(new HttpProxy(proxyHost, proxyPort));
+        HttpRequestTemplate template = builder.build();
+
+        XContentBuilder xContentBuilder = template.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
+        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(xContentBuilder.bytes());
+        xContentParser.nextToken();
+
+        HttpRequestTemplate.Parser parser = new HttpRequestTemplate.Parser(mock(HttpAuthRegistry.class));
+        HttpRequestTemplate parsedTemplate = parser.parse(xContentParser);
+        assertThat(parsedTemplate.proxy().getPort(), is(proxyPort));
+        assertThat(parsedTemplate.proxy().getHost(), is(proxyHost));
     }
 
     public void testParseSelfGenerated() throws Exception {
@@ -83,6 +109,10 @@ public class HttpRequestTemplateTests extends ESTestCase {
         long readTimeout = randomBoolean() ? 0 : randomIntBetween(5, 10);
         if (readTimeout > 0) {
             builder.readTimeout(TimeValue.timeValueSeconds(readTimeout));
+        }
+        boolean enableProxy = randomBoolean();
+        if (enableProxy) {
+            builder.proxy(new HttpProxy(randomAsciiOfLength(10), randomIntBetween(1, 65534)));
         }
 
         HttpRequestTemplate template = builder.build();

@@ -37,6 +37,12 @@ bin/plugin remove watcher
 === Change List
 
 [float]
+==== 2.1.0
+
+.Enhancement
+* Support for configuring a proxy in the webhook action, http input and configuring a default proxy (which is also used by the slack action), using the `watcher.http.proxy.host` and `watcher.http.proxy.port` settings.
+
+[[float]
 ==== 2.0.0
 
 .Bug fixes

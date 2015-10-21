@@ -11,11 +11,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
@@ -44,10 +40,12 @@ public class HttpRequest implements ToXContent {
     final @Nullable String body;
     final @Nullable TimeValue connectionTimeout;
     final @Nullable TimeValue readTimeout;
+    final @Nullable HttpProxy proxy;
 
     public HttpRequest(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable String path,
                        @Nullable Map<String, String> params, @Nullable Map<String, String> headers,
-                       @Nullable HttpAuth auth, @Nullable String body, @Nullable TimeValue connectionTimeout, @Nullable TimeValue readTimeout) {
+                       @Nullable HttpAuth auth, @Nullable String body, @Nullable TimeValue connectionTimeout, @Nullable TimeValue readTimeout,
+                       @Nullable HttpProxy proxy) {
         this.host = host;
         this.port = port;
         this.scheme = scheme != null ? scheme : Scheme.HTTP;
@@ -59,6 +57,7 @@ public class HttpRequest implements ToXContent {
         this.body = body;
         this.connectionTimeout = connectionTimeout;
         this.readTimeout = readTimeout;
+        this.proxy = proxy;
     }
 
     public Scheme scheme() {
@@ -109,6 +108,10 @@ public class HttpRequest implements ToXContent {
         return readTimeout;
     }
 
+    public HttpProxy proxy() {
+        return proxy;
+    }
+
     public static String encodeUrl(String text) {
         try {
             return URLEncoder.encode(text, "UTF-8");
@@ -153,6 +156,9 @@ public class HttpRequest implements ToXContent {
         if (readTimeout != null) {
             builder.field(Field.READ_TIMEOUT.getPreferredName(), readTimeout);
         }
+        if (proxy != null) {
+            builder.field(Field.PROXY.getPreferredName(), proxy);
+        }
         return builder.endObject();
     }
 
@@ -173,6 +179,7 @@ public class HttpRequest implements ToXContent {
         if (auth != null ? !auth.equals(that.auth) : that.auth != null) return false;
         if (connectionTimeout != null ? !connectionTimeout.equals(that.connectionTimeout) : that.connectionTimeout != null) return false;
         if (readTimeout != null ? !readTimeout.equals(that.readTimeout) : that.readTimeout != null) return false;
+        if (proxy != null ? !proxy.equals(that.proxy) : that.proxy != null) return false;
         return !(body != null ? !body.equals(that.body) : that.body != null);
 
     }
@@ -190,6 +197,7 @@ public class HttpRequest implements ToXContent {
         result = 31 * result + (connectionTimeout != null ? connectionTimeout.hashCode() : 0);
         result = 31 * result + (readTimeout != null ? readTimeout.hashCode() : 0);
         result = 31 * result + (body != null ? body.hashCode() : 0);
+        result = 31 * result + (proxy != null ? proxy.hashCode() : 0);
         return result;
     }
 
@@ -215,6 +223,9 @@ public class HttpRequest implements ToXContent {
         }
         sb.append("connection_timeout=[").append(connectionTimeout).append("], ");
         sb.append("read_timeout=[").append(readTimeout).append("], ");
+        if (proxy != null) {
+            sb.append("proxy=[").append(proxy).append("], ");
+        }
         sb.append("body=[").append(body).append("], ");
         return sb.toString();
     }
@@ -239,6 +250,12 @@ public class HttpRequest implements ToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PROXY)) {
+                    try {
+                        builder.proxy(HttpProxy.parse(parser));
+                    } catch (Exception e) {
+                        throw new ElasticsearchParseException("could not parse http request. could not parse [{}] field", currentFieldName);
+                    }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.AUTH)) {
                     builder.auth(httpAuthRegistry.parse(parser));
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CONNECTION_TIMEOUT)) {
@@ -313,6 +330,7 @@ public class HttpRequest implements ToXContent {
         private String body;
         private TimeValue connectionTimeout;
         private TimeValue readTimeout;
+        private HttpProxy proxy;
 
         private Builder(String host, int port) {
             this.host = host;
@@ -394,8 +412,13 @@ public class HttpRequest implements ToXContent {
             return this;
         }
 
+        public Builder proxy(HttpProxy proxy) {
+            this.proxy = proxy;
+            return this;
+        }
+
         public HttpRequest build() {
-            HttpRequest request = new HttpRequest(host, port, scheme, method, path, unmodifiableMap(params), unmodifiableMap(headers), auth, body, connectionTimeout, readTimeout);
+            HttpRequest request = new HttpRequest(host, port, scheme, method, path, unmodifiableMap(params), unmodifiableMap(headers), auth, body, connectionTimeout, readTimeout, proxy);
             params = null;
             headers = null;
             return request;
@@ -414,5 +437,6 @@ public class HttpRequest implements ToXContent {
         ParseField BODY = new ParseField("body");
         ParseField CONNECTION_TIMEOUT = new ParseField("connection_timeout");
         ParseField READ_TIMEOUT = new ParseField("read_timeout");
+        ParseField PROXY = new ParseField("proxy");
     }
 }

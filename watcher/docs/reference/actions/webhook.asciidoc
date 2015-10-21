@@ -134,6 +134,8 @@ holds an object where the keys serve as the header names and the values serve as
 | `request.params`                              | no        | -           | The URL query string parameters. The parameter values can be static text or include Mustache <<templates, templates>>.
 | `request.auth`                                | no        | -           | Authentication related HTTP headers. Currently, only basic authentication is supported.
 | `request.body`                                | no        | -           | The HTTP request body. The body can be static text or include Mustache <<templates, templates>>. When not specified, an empty body is sent.
+| `request.proxy.host`                          | no        | -           | The proxy host to use when connecting to the host.
+| `request.proxy.port`                          | no        | -           | The proxy port to use when connecting to the host.
 | `request.connection_timeout`                  | no        | 10s         | The timeout for setting up the http connection. If the connection could not be set up within this time, the action will timeout and fail. It is
                                                                             also possible to <<configuring-default-http-timeouts, configure>> the default connection timeout for all http connection timeouts.
 | `request.read_timeout`                        | no        | 10s         | The timeout for reading data from http connection. If no response was received within this time, the action will timeout and fail. It is

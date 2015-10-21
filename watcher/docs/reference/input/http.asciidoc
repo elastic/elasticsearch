@@ -35,6 +35,8 @@ NOTE:   If the body of the response from the HTTP endpoint is in the JSON or YAM
 | `request.headers`                             | no        | -           | The HTTP request headers. The header values can be static text or include `mustache` <<templates, templates>>.
 | `request.params`                              | no        | -           | The URL query string parameters. The parameter values can be static text or contain `mustache` <<templates, templates>>.
 | `request.auth`                                | no        | -           | Authentication related HTTP headers. Currently, only basic authentication is supported.
+| `request.proxy.host`                          | no        | -           | The proxy host to use when connecting to the host.
+| `request.proxy.port`                          | no        | -           | The proxy port to use when connecting to the host.
 | `request.connection_timeout`                  | no        | 10s         | The timeout for setting up the http connection. If the connection could not be set up within this time, the input will timeout and fail. It is
                                                                             also possible to <<configuring-default-http-timeouts, configure>> the default connection timeout for all http connection timeouts.
 | `request.read_timeout`                        | no        | 10s         | The timeout for reading data from http connection. If no response was received within this time, the input will timeout and fail. It is

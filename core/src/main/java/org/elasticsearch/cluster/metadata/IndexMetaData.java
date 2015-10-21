@@ -615,7 +615,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             this.state = indexMetaData.state;
             this.version = indexMetaData.version;
             this.settings = indexMetaData.getSettings();
-            this.primaryTerms = Arrays.copyOf(indexMetaData.primaryTerms, indexMetaData.primaryTerms.length);
+            this.primaryTerms = indexMetaData.primaryTerms.clone();
             this.mappings = ImmutableOpenMap.builder(indexMetaData.mappings);
             this.aliases = ImmutableOpenMap.builder(indexMetaData.aliases);
             this.customs = ImmutableOpenMap.builder(indexMetaData.customs);
@@ -759,7 +759,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
 
         private void primaryTerms(long[] primaryTerms) {
-            this.primaryTerms = primaryTerms;
+            this.primaryTerms = primaryTerms.clone();
         }
 
         private void initializePrimaryTerms() {

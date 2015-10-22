@@ -178,9 +178,7 @@ public class QueryPhase implements SearchPhase {
             Collector collector;
             Callable<TopDocs> topDocsCallable;
 
-            // nocommit TODO this assertion semi-breaks the rewrite phase of profiling, since it adds extra
-            // rewrite to the profile.  How critical is it?
-            //assert query == searcher.rewrite(query); // already rewritten
+            assert query == searcher.rewrite(query); // already rewritten
 
             if (searchContext.size() == 0) { // no matter what the value of from is
                 final TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();

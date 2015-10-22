@@ -444,7 +444,7 @@ The Snapshot/Restore API supports a number of different repository types for sto
 [float]
 === Circuit Breaker: Fielddata (STATUS: DONE, v1.0.0)
 
-Currently, the https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-fielddata.html[circuit breaker] protects against loading too much field data by estimating how much memory the field data will take to load, then aborting the request if the memory requirements are too high. This feature was added in Elasticsearch version 1.0.0.
+Currently, the circuit breaker protects against loading too much field data by estimating how much memory the field data will take to load, then aborting the request if the memory requirements are too high. This feature was added in Elasticsearch version 1.0.0.
 
 [float]
 === Use of Paginated Data Structures to Ease Garbage Collection (STATUS: DONE, v1.0.0 & v1.2.0)

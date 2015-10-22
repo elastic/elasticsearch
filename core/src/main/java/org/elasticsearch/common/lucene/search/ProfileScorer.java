@@ -23,7 +23,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.search.profile.InternalProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileBreakdown;
 
 import java.io.IOException;
@@ -53,31 +52,31 @@ final class ProfileScorer extends Scorer {
 
     @Override
     public int advance(int target) throws IOException {
-        profile.startTime(InternalProfileBreakdown.TimingType.ADVANCE);
+        profile.startTime(ProfileBreakdown.TimingType.ADVANCE);
         try {
             return scorer.advance(target);
         } finally {
-            profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.ADVANCE);
+            profile.stopAndRecordTime(ProfileBreakdown.TimingType.ADVANCE);
         }
     }
 
     @Override
     public int nextDoc() throws IOException {
-        profile.startTime(InternalProfileBreakdown.TimingType.NEXT_DOC);
+        profile.startTime(ProfileBreakdown.TimingType.NEXT_DOC);
         try {
             return scorer.nextDoc();
         } finally {
-            profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.NEXT_DOC);
+            profile.stopAndRecordTime(ProfileBreakdown.TimingType.NEXT_DOC);
         }
     }
 
     @Override
     public float score() throws IOException {
-        profile.startTime(InternalProfileBreakdown.TimingType.SCORE);
+        profile.startTime(ProfileBreakdown.TimingType.SCORE);
         try {
             return scorer.score();
         } finally {
-            profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.SCORE);
+            profile.stopAndRecordTime(ProfileBreakdown.TimingType.SCORE);
         }
     }
 
@@ -112,21 +111,21 @@ final class ProfileScorer extends Scorer {
 
             @Override
             public int advance(int target) throws IOException {
-                profile.startTime(InternalProfileBreakdown.TimingType.ADVANCE);
+                profile.startTime(ProfileBreakdown.TimingType.ADVANCE);
                 try {
                     return inApproximation.advance(target);
                 } finally {
-                    profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.ADVANCE);
+                    profile.stopAndRecordTime(ProfileBreakdown.TimingType.ADVANCE);
                 }
             }
 
             @Override
             public int nextDoc() throws IOException {
-                profile.startTime(InternalProfileBreakdown.TimingType.NEXT_DOC);
+                profile.startTime(ProfileBreakdown.TimingType.NEXT_DOC);
                 try {
                     return inApproximation.nextDoc();
                 } finally {
-                    profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.NEXT_DOC);
+                    profile.stopAndRecordTime(ProfileBreakdown.TimingType.NEXT_DOC);
                 }
             }
 
@@ -143,11 +142,11 @@ final class ProfileScorer extends Scorer {
         return new TwoPhaseIterator(approximation) {
             @Override
             public boolean matches() throws IOException {
-                profile.startTime(InternalProfileBreakdown.TimingType.MATCH);
+                profile.startTime(ProfileBreakdown.TimingType.MATCH);
                 try {
                     return in.matches();
                 } finally {
-                    profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.MATCH);
+                    profile.stopAndRecordTime(ProfileBreakdown.TimingType.MATCH);
                 }
             }
         };

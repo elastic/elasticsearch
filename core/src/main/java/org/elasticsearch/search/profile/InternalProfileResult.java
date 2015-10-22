@@ -31,8 +31,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * This class is the internal representation of a profiled query, corresponding
@@ -54,12 +56,12 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
 
     private String queryType;
     private String luceneDescription;
-    private InternalProfileBreakdown timings;
+    private Map<String, Long> timings;
     private long nodeTime = -1;     // Use -1 instead of Null so it can be serialized, and there should never be a negative time
     private long globalTime;
     private ArrayList<InternalProfileResult> children;
 
-    public InternalProfileResult(Query query, InternalProfileBreakdown timings) {
+    public InternalProfileResult(Query query, Map<String, Long> timings) {
         children = new ArrayList<>(5);
         this.queryType = query.getClass().getSimpleName();
         this.luceneDescription = query.toString();
@@ -107,7 +109,7 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
      * Overwrite the current timings with a new set of timings
      * @param timings The new set of timings to use
      */
-    public void setTimings(InternalProfileBreakdown timings) {
+    public void setTimings(Map<String, Long> timings) {
         this.timings = timings;
     }
 
@@ -120,8 +122,12 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
             return nodeTime;
         }
 
+        long nodeTime = 0;
+        for (long time : timings.values()) {
+            nodeTime += time;
+        }
         // Collect our local timings
-        nodeTime = timings.getTotalTime();
+        this.nodeTime = nodeTime;
 
         // Then add up our children
         for (InternalProfileResult child : children) {
@@ -147,7 +153,7 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
     }
 
     @Override
-    public ProfileBreakdown getTimeBreakdown() {
+    public Map<String, Long> getTimeBreakdown() {
         return timings;
     }
 
@@ -170,19 +176,35 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         return Collections.unmodifiableList(children);
     }
 
+    private Map<String, Long> readTimings(StreamInput in) throws IOException {
+        final int size = in.readVInt();
+        Map<String, Long> map = new HashMap<>(size);
+        for (int i = 0; i < size; ++i) {
+            map.put(in.readString(), in.readLong());
+        }
+        return Collections.unmodifiableMap(map);
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         queryType = in.readString();
         luceneDescription = in.readString();
-        timings = new InternalProfileBreakdown();
         nodeTime = in.readLong();
         globalTime = in.readVLong();
-        timings.readFrom(in);
+        timings = readTimings(in);
         int size = in.readVInt();
         children = new ArrayList<>(size);
 
         for (int i = 0; i < size; i++) {
             children.add(InternalProfileResult.readProfileResult(in));
+        }
+    }
+
+    private void writeTimings(Map<String, Long> timings, StreamOutput out) throws IOException {
+        out.writeVInt(timings.size());
+        for (Map.Entry<String, Long> entry : timings.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeLong(entry.getValue());
         }
     }
 
@@ -192,7 +214,7 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         out.writeString(luceneDescription);
         out.writeLong(nodeTime);            // not Vlong because can be negative
         out.writeVLong(globalTime);
-        timings.writeTo(out);
+        writeTimings(timings, out);
         out.writeVInt(children.size());
         for (InternalProfileResult child : children) {
             child.writeTo(out);
@@ -207,10 +229,7 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
                 .field(LUCENE_DESCRIPTION.getPreferredName(), luceneDescription)
                 .field(NODE_TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double)(nodeTime / 1000000.0)))
                 .field(RELATIVE_TIME.getPreferredName(), String.format(Locale.US, "%.10g%%", getRelativeTime() * 100.0))
-                .startObject(BREAKDOWN.getPreferredName());
-
-        builder = timings.toXContent(builder, params)
-                .endObject()
+                .field(BREAKDOWN.getPreferredName(), timings)
                 .startArray(CHILDREN.getPreferredName());
 
         for (InternalProfileResult child : children) {

@@ -26,7 +26,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.search.profile.InternalProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileBreakdown;
 
 import java.io.IOException;
@@ -50,12 +49,12 @@ public final class ProfileWeight extends Weight {
 
     @Override
     public Scorer scorer(LeafReaderContext context) throws IOException {
-        profile.startTime(InternalProfileBreakdown.TimingType.BUILD_SCORER);
+        profile.startTime(ProfileBreakdown.TimingType.BUILD_SCORER);
         final Scorer subQueryScorer;
         try {
             subQueryScorer = subQueryWeight.scorer(context);
         } finally {
-            profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.BUILD_SCORER);
+            profile.stopAndRecordTime(ProfileBreakdown.TimingType.BUILD_SCORER);
         }
         if (subQueryScorer == null) {
             return null;

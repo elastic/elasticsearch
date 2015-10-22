@@ -21,6 +21,7 @@ package org.elasticsearch.search.profile;
 
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Public interface used to access the profiled timing for a single query node
@@ -41,7 +42,7 @@ public interface ProfileResult {
     /**
      * Returns the timing breakdown for this particular query node
      */
-    ProfileBreakdown getTimeBreakdown();
+    Map<String, Long> getTimeBreakdown();
 
     /**
      * Returns the total time (inclusive of children) for this query node.

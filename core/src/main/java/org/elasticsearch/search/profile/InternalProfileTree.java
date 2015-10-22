@@ -28,12 +28,26 @@ import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * This class tracks the dependency tree for queries (scoring and rewriting) and
- * generates {@link InternalProfileBreakdown} for each node in the tree.  It also finalizes the tree
+ * generates {@link ProfileBreakdown} for each node in the tree.  It also finalizes the tree
  * and returns a list of {@link InternalProfileResult} that can be serialized back to the client
  */
 public class InternalProfileTree {
 
-    private ArrayList<InternalProfileBreakdown> timings;
+    private static Map<String, Long> mergeTimings(Iterable<Map<String, Long>> timings) {
+        Iterator<Map<String, Long>> timingIt = timings.iterator();
+        if (timingIt.hasNext() == false) {
+            return Collections.emptyMap();
+        }
+        Map<String, Long> merged = new HashMap<>(timingIt.next());
+        while (timingIt.hasNext()) {
+            for (Map.Entry<String, Long> entry : timingIt.next().entrySet()) {
+                merged.put(entry.getKey(), merged.get(entry.getKey()) + entry.getValue());
+            }
+        }
+        return Collections.unmodifiableMap(merged);
+    }
+
+    private ArrayList<ProfileBreakdown> timings;
 
     /** Maps the Query to it's list of children.  This is basically the dependency tree */
     private ArrayList<ArrayList<Integer>> tree;
@@ -62,8 +76,8 @@ public class InternalProfileTree {
     }
 
     /** Get the {@link ProfileBreakdown} for the given query, potentially creating it if it did not exist. */
-    public InternalProfileBreakdown getBreakDown(Query query, boolean rewrite) {
-        return rewrite ? new InternalProfileBreakdown(true) : getQueryBreakdown(query);
+    public ProfileBreakdown getBreakDown(Query query, boolean rewrite) {
+        return rewrite ? new ProfileBreakdown(true) : getQueryBreakdown(query);
     }
 
     /**
@@ -77,7 +91,7 @@ public class InternalProfileTree {
      * @param query The scoring query we wish to profile
      * @return      A ProfileBreakdown for this query
      */
-    private InternalProfileBreakdown getQueryBreakdown(Query query) {
+    private ProfileBreakdown getQueryBreakdown(Query query) {
         int token = currentToken;
 
         boolean stackEmpty = stack.size() == 0;
@@ -93,7 +107,7 @@ public class InternalProfileTree {
             if (parentToken != null) {
 
                 stack.add(parentToken);
-                InternalProfileBreakdown breakdown = timings.get(parentToken);
+                ProfileBreakdown breakdown = timings.get(parentToken);
 
                 // This breakdown no longer needs reconciling, since it will receive
                 // scoring times directly
@@ -127,15 +141,15 @@ public class InternalProfileTree {
      * Helper method to add a new node to the dependency tree.
      *
      * Initializes a new list in the dependency tree, saves the query and
-     * generates a new {@link InternalProfileBreakdown} to track the timings
+     * generates a new {@link ProfileBreakdown} to track the timings
      * of this query
      *
      * @param query             The query to profile
      * @param token             The assigned token for this query
      * @param needsReconciling  Whether this timing breakdown needs reconciliation after profiling completes
-     * @return                  A InternalProfileBreakdown to profile this query
+     * @return                  A ProfileBreakdown to profile this query
      */
-    private InternalProfileBreakdown addDependencyNode(Query query, int token, boolean needsReconciling) {
+    private ProfileBreakdown addDependencyNode(Query query, int token, boolean needsReconciling) {
 
         // Add a new slot in the dependency tree
         tree.add(new ArrayList<>(5));
@@ -143,7 +157,7 @@ public class InternalProfileTree {
         // Save our query for lookup later
         queries.add(query);
 
-        InternalProfileBreakdown queryTimings = new InternalProfileBreakdown(needsReconciling);
+        ProfileBreakdown queryTimings = new ProfileBreakdown(needsReconciling);
         timings.add(token, queryTimings);
         return queryTimings;
     }
@@ -160,14 +174,14 @@ public class InternalProfileTree {
      * @param original   The original query
      * @param rewritten  The query after rewriting
      */
-    public void setRewrittenQuery(Query original, Query rewritten, InternalProfileBreakdown breakdown) {
+    public void setRewrittenQuery(Query original, Query rewritten, ProfileBreakdown breakdown) {
 
         RewrittenQuery r = new RewrittenQuery(original, rewritten);
 
         // If the rewrite maps to itself, merge the timing in with the existin entry
         if (rewriteMap.containsKey(r)) {
             int token = rewriteMap.get(r);
-            InternalProfileBreakdown timing = timings.get(token);
+            ProfileBreakdown timing = timings.get(token);
             timing.merge(breakdown);
             return;
         }
@@ -216,18 +230,18 @@ public class InternalProfileTree {
     private InternalProfileResult doFinalizeProfileResults(int token) {
 
         Query query = queries.get(token);
-        InternalProfileBreakdown breakdown = timings.get(token);
-        InternalProfileResult rootNode =  new InternalProfileResult(query, breakdown);
+        ProfileBreakdown breakdown = timings.get(token);
+        InternalProfileResult rootNode =  new InternalProfileResult(query, breakdown.toTimingMap());
         ArrayList<Integer> children = tree.get(token);
 
         // If a Breakdown was generated during the rewrite phase, it will only
         // have timings for the rewrite.  We need to "reconcile" those timings by
         // merging our time with the time of our children
         boolean needsReconciling = breakdown.needsReconciling();
-        InternalProfileBreakdown reconciledBreakdown = null;
+        List<Map<String, Long>> timings = null;
 
         if (needsReconciling) {
-            reconciledBreakdown = new InternalProfileBreakdown(false);
+            timings = new ArrayList<>();
         }
 
         for (Integer child : children) {
@@ -235,13 +249,12 @@ public class InternalProfileTree {
             rootNode.addChild(childNode);
 
             if (needsReconciling) {
-                reconciledBreakdown.merge((InternalProfileBreakdown)childNode.getTimeBreakdown());
+                timings.add(childNode.getTimeBreakdown());
             }
         }
 
         if (needsReconciling) {
-            reconciledBreakdown.merge(breakdown);
-            rootNode.setTimings(reconciledBreakdown);
+            rootNode.setTimings(mergeTimings(timings));
         }
 
         return rootNode;
@@ -261,12 +274,12 @@ public class InternalProfileTree {
     }
 
     /**
-     * Convenience overload for {@link #addRewriteToTree(RewrittenQuery, Integer, InternalProfileBreakdown)}
+     * Convenience overload for {@link #addRewriteToTree(RewrittenQuery, Integer, ProfileBreakdown)}
      * when there is no parent to the query
      *
-     * @see #addRewriteToTree(RewrittenQuery, Integer, InternalProfileBreakdown) for more details
+     * @see #addRewriteToTree(RewrittenQuery, Integer, ProfileBreakdown) for more details
      */
-    private void addRewriteToTree(RewrittenQuery r, InternalProfileBreakdown breakdown) {
+    private void addRewriteToTree(RewrittenQuery r, ProfileBreakdown breakdown) {
         addRewriteToTree(r, null, breakdown);
     }
 
@@ -278,7 +291,7 @@ public class InternalProfileTree {
      * @param parentToken  The parent to this rewritten query, or null if there are no parents
      * @param breakdown    The profiled timings for this query
      */
-    private void addRewriteToTree(RewrittenQuery r, Integer parentToken, InternalProfileBreakdown breakdown) {
+    private void addRewriteToTree(RewrittenQuery r, Integer parentToken, ProfileBreakdown breakdown) {
 
         int token = currentToken;
         currentToken += 1;

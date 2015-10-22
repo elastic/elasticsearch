@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.CollectorResult.CollectorReason;
 
 import java.util.*;
-import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * This class acts as a thread-local storage for profiling a query.  It also
@@ -62,7 +61,7 @@ public class InternalProfiler {
      * This should only be used for queries that will be undergoing rewriting.  Do not use it to profile
      * the scoring phase
      */
-    public InternalProfileBreakdown getUnattachedRewriteBreakdown(Query query) {
+    public ProfileBreakdown getUnattachedRewriteBreakdown(Query query) {
         return queryTree.getBreakDown(query, true);
     }
 
@@ -82,7 +81,7 @@ public class InternalProfiler {
      * @param original   The original query
      * @param rewritten  The rewritten query
      */
-    public void addRewrittenQuery(Query original, Query rewritten, InternalProfileBreakdown breakdown) {
+    public void addRewrittenQuery(Query original, Query rewritten, ProfileBreakdown breakdown) {
         queryTree.setRewrittenQuery(original, rewritten, breakdown);
     }
 

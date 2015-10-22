@@ -27,9 +27,8 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.common.lucene.search.ProfileWeight;
-import org.elasticsearch.search.profile.InternalProfileBreakdown;
-import org.elasticsearch.search.profile.InternalProfiler;
 import org.elasticsearch.search.profile.ProfileBreakdown;
+import org.elasticsearch.search.profile.InternalProfiler;
 
 import java.io.IOException;
 
@@ -72,13 +71,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
-        InternalProfileBreakdown profile = null;
+        ProfileBreakdown profile = null;
         if (profiler != null) {
             // Rewrite Breakdowns are "unattached" to the profiler...we must
             // call `addRewrittenQuery` after the rewrite or else this timing will be
             // go to the great /dev/null in the sky
             profile = profiler.getUnattachedRewriteBreakdown(original);
-            profile.startTime(InternalProfileBreakdown.TimingType.REWRITE);
+            profile.startTime(ProfileBreakdown.TimingType.REWRITE);
         }
 
         Query rewritten = null;
@@ -86,7 +85,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return rewritten = in.rewrite(original);
         } finally {
             if (profiler != null) {
-                profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.REWRITE);
+                profile.stopAndRecordTime(ProfileBreakdown.TimingType.REWRITE);
 
                 // Unlike "scoring" queries, the rewriting queries cannot use a stack model. So we
                 // have to retroactively provide the profiler with the finished timing, and it will
@@ -121,10 +120,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // each invocation so that it can build an internal representation of the query
             // tree
             ProfileBreakdown profile = profiler.getQueryBreakdown(query);
-            profile.startTime(InternalProfileBreakdown.TimingType.WEIGHT);
+            profile.startTime(ProfileBreakdown.TimingType.WEIGHT);
             // nocommit: is it ok to not delegate to in?
             Weight weight = super.createWeight(query, needsScores);
-            profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.WEIGHT);
+            profile.stopAndRecordTime(ProfileBreakdown.TimingType.WEIGHT);
             profiler.pollLastQuery();
             return new ProfileWeight(query, weight, profile);
         } else {

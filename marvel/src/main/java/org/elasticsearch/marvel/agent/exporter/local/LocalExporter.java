@@ -160,19 +160,21 @@ public class LocalExporter extends Exporter implements ClusterStateListener {
     }
 
     boolean installedTemplateVersionIsSufficient(Version current, Version installed) {
+        // null indicates couldn't parse the version from the installed template, this means it is probably too old or invalid...
         if (installed == null) {
             return false;
         }
+        // ensure the template is not too old
         if (installed.before(MIN_SUPPORTED_TEMPLATE_VERSION)) {
             return false;
         }
-        if (current.after(installed)) {
-            return true;
-        }
-        if (current.equals(installed)) {
-            return current.snapshot();
-        }
-        return false;
+
+        // We do not enforce that versions are equivalent to the current version as we may be in a rolling upgrade scenario
+        // and until a master is elected with the new version, data nodes that have been upgraded will not be able to ship
+        // data. This means that there is an implication that the new shippers will ship data correctly even with an old template.
+        // There is also no upper bound and we rely on elasticsearch nodes not being able to connect to each other across major
+        // versions
+        return true;
     }
 
     boolean installedTemplateVersionMandatesAnUpdate(Version current, Version installed) {

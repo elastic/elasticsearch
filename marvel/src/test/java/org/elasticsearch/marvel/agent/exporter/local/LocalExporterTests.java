@@ -250,6 +250,40 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         awaitIndexExists(indexName);
     }
 
+    public void testInstalledTemplateVersionChecking() throws Exception {
+        Exporter.Config config = new Exporter.Config("_name", Settings.EMPTY, Settings.builder()
+                .put("type", "local").build());
+        Client client = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        boolean master = randomBoolean();
+        DiscoveryNode localNode = mock(DiscoveryNode.class);
+        when(localNode.masterNode()).thenReturn(master);
+        when(clusterService.localNode()).thenReturn(localNode);
+        RendererRegistry renderers = mock(RendererRegistry.class);
+        LocalExporter exporter = new LocalExporter(config, client, clusterService, renderers);
+
+        assertTrue("current template version should always be sufficient", exporter.installedTemplateVersionIsSufficient(Version.CURRENT, Version.CURRENT));
+        Version version = Version.fromId(Version.CURRENT.id + 1000000);
+        assertTrue("future versions should be considered sufficient in case of a rolling upgrade scenario",
+                exporter.installedTemplateVersionIsSufficient(Version.CURRENT, version));
+
+        // make sure we test at least one snapshot and non-snapshot
+        String versionStr = "2.0.1";
+        if (randomBoolean()) {
+            versionStr += "-SNAPSHOT";
+        }
+        Version version1 = Version.fromString(versionStr);
+        assertTrue("snapshots should not matter", exporter.installedTemplateVersionIsSufficient(version1, version1));
+
+        // test the minimum version
+        assertTrue("minimum template version should always be sufficient", exporter.installedTemplateVersionIsSufficient(Version.CURRENT, Exporter.MIN_SUPPORTED_TEMPLATE_VERSION));
+
+        // test a version below the minimum version
+        assertFalse("version below minimum should not be sufficient", exporter.installedTemplateVersionIsSufficient(Version.CURRENT, Version.V_2_0_0_beta1));
+
+        assertFalse("null version should not be sufficient", exporter.installedTemplateVersionIsSufficient(Version.CURRENT, null));
+    }
+
     private LocalExporter getLocalExporter(String name) throws Exception {
         final Exporter exporter = internalCluster().getInstance(Exporters.class).getExporter(name);
         assertThat(exporter, notNullValue());

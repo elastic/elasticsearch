@@ -42,20 +42,26 @@ POM_FILE = 'pom.xml'
 MAIL_TEMPLATE = """
 Hi all
 
-The new release candidate for %(version)s based on this commit[1]  is now available, including the x-plugins, and RPM/deb repos:
+The new release candidate for %(version)s is now available, including the x-plugins and RPM/deb repos.  This release is based on:
 
-   - ZIP [2]
-   - tar.gz [3]
-   - RPM [4]
-   - deb [5]
+ * Elasticsearch commit: %(hash)s - https://github.com/elastic/elasticsearch/commit/%(hash)s
+ * X-Plugins commit:     FILL_IN_X-PLUGINS_HASH - https://github.com/elastic/x-plugins/commit/FILL_IN_X-PLUGINS_HASH
 
-Plugins can be installed as follows,
+The packages may be downloaded from the following URLs:
+
+ * ZIP    - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip
+ * tar.gz - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/tar/elasticsearch/%(version)s/elasticsearch-%(version)s.tar.gz
+ * RPM    - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm
+ * deb    - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb
+
+Plugins can be installed as follows:
 
     bin/plugin -Des.plugins.staging=true install cloud-aws
 
 The same goes for the x-plugins:
 
     bin/plugin -Des.plugins.staging=true install license
+    bin/plugin -Des.plugins.staging=true install marvel-agent
     bin/plugin -Des.plugins.staging=true install shield
     bin/plugin -Des.plugins.staging=true install watcher
 
@@ -82,13 +88,8 @@ To smoke-test the release please run:
 
  python3 -B ./dev-tools/smoke_test_rc.py --version %(version)s --hash %(hash)s --plugins license,shield,watcher
 
-NOTE: this script requires JAVA_HOME to point to a Java 7 Runtime 
+NOTE: this script requires JAVA_HOME to point to a Java 7 Runtime
 
-[1] https://github.com/elastic/elasticsearch/commit/%(hash)s
-[2] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip
-[3] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/tar/elasticsearch/%(version)s/elasticsearch-%(version)s.tar.gz
-[4] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm
-[5] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb
 """
 
 # console colors

@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-bucket-script-aggregation]]
 === Bucket Script Aggregation
 
-coming[2.0.0-beta1]
-
 experimental[]
 
 A parent pipeline aggregation which executes a script which can perform per bucket computations on specified metrics 

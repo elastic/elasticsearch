@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-cumulative-sum-aggregation]]
 === Cumulative Sum Aggregation
 
-coming[2.0.0-beta1]
-
 experimental[]
 
 A parent pipeline aggregation which calculates the cumulative sum of a specified metric in a parent histogram (or date_histogram) 

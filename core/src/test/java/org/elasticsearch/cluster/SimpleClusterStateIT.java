@@ -172,14 +172,14 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         client().admin().indices().close(Requests.closeIndexRequest("fuu")).get();
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*").get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(1));
-        assertThat(clusterStateResponse.getState().metaData().index("foo").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(clusterStateResponse.getState().metaData().index("foo").getState(), equalTo(IndexMetaData.State.OPEN));
 
         // expand_wildcards_closed should toggle return only closed index fuu
         IndicesOptions expandCloseOptions = IndicesOptions.fromOptions(false, true, false, true);
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*")
                 .setIndicesOptions(expandCloseOptions).get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(1));
-        assertThat(clusterStateResponse.getState().metaData().index("fuu").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(clusterStateResponse.getState().metaData().index("fuu").getState(), equalTo(IndexMetaData.State.CLOSE));
 
         // ignore_unavailable set to true should not raise exception on fzzbzz
         IndicesOptions ignoreUnavailabe = IndicesOptions.fromOptions(true, true, true, false);

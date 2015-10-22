@@ -150,7 +150,8 @@ assert_file() {
     local file="$1"
     local type=$2
     local user=$3
-    local privileges=$4
+    local group=$4
+    local privileges=$5
 
     assert_file_exist "$file"
 
@@ -163,8 +164,13 @@ assert_file() {
     fi
 
     if [ "x$user" != "x" ]; then
-        realuser=$(ls -ld "$file" | awk '{print $3}')
+        realuser=$(find "$file" -maxdepth 0 -printf "%u")
         [ "$realuser" = "$user" ]
+    fi
+
+    if [ "x$group" != "x" ]; then
+        realgroup=$(find "$file" -maxdepth 0 -printf "%g")
+        [ "$realgroup" = "$group" ]
     fi
 
     if [ "x$privileges" != "x" ]; then
@@ -239,36 +245,13 @@ clean_before_test() {
 start_elasticsearch_service() {
     local desiredStatus=${1:-green}
 
-    if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
-        # su and the Elasticsearch init script work together to break bats.
-        # sudo isolates bats enough from the init script so everything continues
-        # to tick along
-        sudo -u elasticsearch /tmp/elasticsearch/bin/elasticsearch -d \
-            -p /tmp/elasticsearch/elasticsearch.pid
-    elif is_systemd; then
-        run systemctl daemon-reload
-        [ "$status" -eq 0 ]
-
-        run systemctl enable elasticsearch.service
-        [ "$status" -eq 0 ]
-
-        run systemctl is-enabled elasticsearch.service
-        [ "$status" -eq 0 ]
-
-        run systemctl start elasticsearch.service
-        [ "$status" -eq 0 ]
-
-    elif is_sysvinit; then
-        run service elasticsearch start
-        [ "$status" -eq 0 ]
-    fi
+    run_elasticsearch_service 0
 
     wait_for_elasticsearch_status $desiredStatus
 
     if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
         pid=$(cat /tmp/elasticsearch/elasticsearch.pid)
         [ "x$pid" != "x" ] && [ "$pid" -gt 0 ]
-
         echo "Looking for elasticsearch pid...."
         ps $pid
     elif is_systemd; then
@@ -281,6 +264,64 @@ start_elasticsearch_service() {
     elif is_sysvinit; then
         run service elasticsearch status
         [ "$status" -eq 0 ]
+    fi
+}
+
+# Start elasticsearch
+# $1 expected status code
+# $2 additional command line args
+run_elasticsearch_service() {
+    local expectedStatus=$1
+    local commandLineArgs=$2
+    # Set the CONF_DIR setting in case we start as a service
+    if [ ! -z "$CONF_DIR" ] ; then
+        if is_dpkg ; then
+            echo "CONF_DIR=$CONF_DIR" >> /etc/default/elasticsearch;
+        elif is_rpm; then
+            echo "CONF_DIR=$CONF_DIR" >> /etc/sysconfig/elasticsearch;
+        fi
+    fi
+
+    if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
+        if [ -z "$CONF_DIR" ]; then
+            local CONF_DIR=""
+        fi
+        # we must capture the exit code to compare so we don't want to start as background process in case we expect something other than 0
+        local background=""
+        local timeoutCommand=""
+        if [ "$expectedStatus" = 0 ]; then
+            background="-d"
+        else
+            timeoutCommand="timeout 60s "
+        fi
+        # su and the Elasticsearch init script work together to break bats.
+        # sudo isolates bats enough from the init script so everything continues
+        # to tick along
+        run sudo -u elasticsearch bash <<BASH
+# If jayatana is installed then we try to use it. Elasticsearch should ignore it even when we try.
+# If it doesn't ignore it then Elasticsearch will fail to start because of security errors.
+# This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
+[ -f /usr/share/java/jayatanaag.jar ] && export JAVA_TOOL_OPTIONS="-javaagent:/usr/share/java/jayatanaag.jar"
+# And now we can start Elasticsearch normally, in the background (-d) and with a pidfile (-p).
+$timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid -Des.path.conf=$CONF_DIR $commandLineArgs
+BASH
+        [ "$status" -eq "$expectedStatus" ]
+    elif is_systemd; then
+        run systemctl daemon-reload
+        [ "$status" -eq 0 ]
+
+        run systemctl enable elasticsearch.service
+        [ "$status" -eq 0 ]
+
+        run systemctl is-enabled elasticsearch.service
+        [ "$status" -eq 0 ]
+
+        run systemctl start elasticsearch.service
+        [ "$status" -eq "$expectedStatus" ]
+
+    elif is_sysvinit; then
+        run service elasticsearch start
+        [ "$status" -eq "$expectedStatus" ]
     fi
 }
 
@@ -319,7 +360,7 @@ wait_for_elasticsearch_status() {
           if [ -e "$ESLOG/elasticsearch.log" ]; then
               cat "$ESLOG/elasticsearch.log"
           else
-              echo "The elasticsearch log doesn't exist. Maybe /vag/log/messages has something:"
+              echo "The elasticsearch log doesn't exist. Maybe /var/log/messages has something:"
               tail -n20 /var/log/messages
           fi
           false

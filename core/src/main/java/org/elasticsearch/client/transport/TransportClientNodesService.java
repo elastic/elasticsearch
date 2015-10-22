@@ -286,7 +286,7 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private void ensureNodesAreAvailable(List<DiscoveryNode> nodes) {
         if (nodes.isEmpty()) {
-            String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", nodes);
+            String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", this.listedNodes);
             throw new NoNodeAvailableException(message);
         }
     }

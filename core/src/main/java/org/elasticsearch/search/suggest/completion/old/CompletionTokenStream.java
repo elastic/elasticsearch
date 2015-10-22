@@ -100,9 +100,7 @@ public final class CompletionTokenStream extends TokenStream {
 
     @Override
     public void close() throws IOException {
-        if (posInc == -1) {
-            input.close();
-        }
+        input.close();
     }
 
     public static interface ToFiniteStrings {

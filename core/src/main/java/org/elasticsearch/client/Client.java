@@ -21,9 +21,6 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateRequest;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateRequestBuilder;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -346,7 +343,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @param request The count request
      * @return The result future
      * @see Requests#countRequest(String...)
+     * @deprecated use {@link #search(SearchRequest)} instead and set size to 0
      */
+    @Deprecated
     ActionFuture<CountResponse> count(CountRequest request);
 
     /**
@@ -355,12 +354,16 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @param request  The count request
      * @param listener A listener to be notified of the result
      * @see Requests#countRequest(String...)
+     * @deprecated use {@link #search(SearchRequest, ActionListener)} instead and set size to 0
      */
+    @Deprecated
     void count(CountRequest request, ActionListener<CountResponse> listener);
 
     /**
      * A count of all the documents matching a specific query.
-     */
+     * @deprecated use {@link #prepareSearch(String...)} instead and set size to 0
+      */
+    @Deprecated
     CountRequestBuilder prepareCount(String... indices);
 
     /**
@@ -368,8 +371,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request The exists request
      * @return The result future
-     * @see Requests#existsRequest(String...)
+     * @deprecated use {@link #search(SearchRequest)} instead and set `size` to `0` and `terminate_after` to `1`
      */
+    @Deprecated
     ActionFuture<ExistsResponse> exists(ExistsRequest request);
 
     /**
@@ -377,13 +381,16 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request The exists request
      * @param listener A listener to be notified of the result
-     * @see Requests#existsRequest(String...)
+     * @deprecated use {@link #search(SearchRequest, ActionListener)} instead and set `size` to `0` and `terminate_after` to `1`
      */
+    @Deprecated
     void exists(ExistsRequest request, ActionListener<ExistsResponse> listener);
 
     /**
      * Checks existence of any documents matching a specific query.
+     * @deprecated use {@link #prepareSearch(String...)} instead and set `size` to `0` and `terminate_after` to `1`
      */
+    @Deprecated
     ExistsRequestBuilder prepareExists(String... indices);
 
     /**

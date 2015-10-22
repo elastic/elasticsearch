@@ -79,7 +79,6 @@ And here is a sample response:
 
 `terminate_after`::
 
-    experimental[The API for this feature may change in the future]
     The maximum number of documents to collect for each shard,
     upon reaching which the query execution will terminate early. If set, the
     response will have a boolean field `terminated_early` to indicate whether

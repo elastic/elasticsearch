@@ -79,6 +79,7 @@
                                         <include>bin/elasticsearch</include>
                                         <include>bin/elasticsearch.in.sh</include>
                                         <include>bin/plugin</include>
+                                        <include>bin/elasticsearch-systemd-pre-exec</include>
                                     </includes>
                                 </resource>
                             </resources>
@@ -127,6 +128,7 @@
                                         <include>elasticsearch</include>
                                         <include>elasticsearch.in.sh</include>
                                         <include>plugin</include>
+                                        <include>elasticsearch-systemd-pre-exec</include>
                                     </includes>
                                 </source>
                             </sources>
@@ -140,10 +142,14 @@
                                  that creates the conf.dir.-->
                             <directory>${packaging.elasticsearch.conf.dir}</directory>
                             <configuration>noreplace</configuration>
+                            <groupname>elasticsearch</groupname>
+                            <filemode>750</filemode>
                         </mapping>
                         <mapping>
                             <directory>${packaging.elasticsearch.conf.dir}/</directory>
                             <configuration>noreplace</configuration>
+                            <groupname>elasticsearch</groupname>
+                            <filemode>750</filemode>
                             <sources>
                                 <source>
                                     <location>${project.basedir}/../src/main/resources/config/</location>
@@ -156,6 +162,8 @@
                         <mapping>
                             <directory>${packaging.elasticsearch.conf.dir}/scripts</directory>
                             <configuration>noreplace</configuration>
+                            <groupname>elasticsearch</groupname>
+                            <filemode>750</filemode>
                         </mapping>
                         <!-- Add environment vars file -->
                         <mapping>

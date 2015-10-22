@@ -1,6 +1,6 @@
 {
   "indices.shard_stores": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-shards-stores.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/2.1/indices-shards-stores.html",
     "methods": ["GET"],
     "url": {
       "path": "/_shard_stores",

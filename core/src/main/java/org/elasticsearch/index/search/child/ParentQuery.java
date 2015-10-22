@@ -18,11 +18,7 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -122,7 +118,7 @@ public class ParentQuery extends IndexCacheableQuery {
         ChildWeight childWeight;
         boolean releaseCollectorResource = true;
         ParentOrdAndScoreCollector collector = null;
-        IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
+        IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal((DirectoryReader)searcher.getIndexReader());
         if (globalIfd == null) {
             // No docs of the specified type don't exist on this shard
             return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.util;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
@@ -29,7 +28,6 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -137,9 +135,8 @@ public class RestUtilsTests extends ESTestCase {
         assertCorsSettingRegexIsNull("/foo");
         assertCorsSettingRegexIsNull("foo");
         assertCorsSettingRegexIsNull("");
-        assertThat(RestUtils.getCorsSettingRegex(Settings.EMPTY), is(nullValue()));
     }
-    
+
     public void testCrazyURL() {
         Map<String, String> params = newHashMap();
 
@@ -151,15 +148,15 @@ public class RestUtilsTests extends ESTestCase {
     }
 
     private void assertCorsSettingRegexIsNull(String settingsValue) {
-        assertThat(RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build()), is(nullValue()));
+        assertThat(RestUtils.checkCorsSettingForRegex(settingsValue), is(nullValue()));
     }
 
     private void assertCorsSettingRegex(String settingsValue, Pattern pattern) {
-        assertThat(RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build()).toString(), is(pattern.toString()));
+        assertThat(RestUtils.checkCorsSettingForRegex(settingsValue).toString(), is(pattern.toString()));
     }
 
-    private void assertCorsSettingRegexMatches(String settingsValue, boolean expectMatch, String ... candidates) {
-        Pattern pattern = RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build());
+    private void assertCorsSettingRegexMatches(String settingsValue, boolean expectMatch, String... candidates) {
+        Pattern pattern = RestUtils.checkCorsSettingForRegex(settingsValue);
         for (String candidate : candidates) {
             assertThat(String.format(Locale.ROOT, "Expected pattern %s to match against %s: %s", settingsValue, candidate, expectMatch),
                     pattern.matcher(candidate).matches(), is(expectMatch));

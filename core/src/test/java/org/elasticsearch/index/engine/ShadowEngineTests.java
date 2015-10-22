@@ -862,7 +862,7 @@ public class ShadowEngineTests extends ESTestCase {
     @Test
     public void testExtractShardId() {
         try (Engine.Searcher test = replicaEngine.acquireSearcher("test")) {
-            ShardId shardId = ShardUtils.extractShardId(test.reader());
+            ShardId shardId = ShardUtils.extractShardId(test.getDirectoryReader());
             assertNotNull(shardId);
             assertEquals(shardId, replicaEngine.config().getShardId());
         }
@@ -971,5 +971,14 @@ public class ShadowEngineTests extends ESTestCase {
         assertTrue("ShadowEngine should have been able to be created", succeeded.get());
         // (shadow engine is already shut down in the try-with-resources)
         IOUtils.close(srStore, pEngine, pStore);
+    }
+
+    public void testNoTranslog() {
+        try {
+            replicaEngine.getTranslog();
+            fail("shadow engine has no translog");
+        } catch (UnsupportedOperationException ex) {
+            // all good
+        }
     }
 }

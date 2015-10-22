@@ -28,10 +28,10 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
-import org.elasticsearch.index.engine.IndexSearcherWrappingService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.IndexSearcherWrappingService;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
@@ -41,9 +41,11 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -67,13 +69,14 @@ public final class ShadowIndexShard extends IndexShard {
                             IndexService indexService, @Nullable IndicesWarmer warmer,
                             SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
                             EngineFactory factory, ClusterService clusterService,
-                            ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) throws IOException {
+                            ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService,
+                            IndexingMemoryController indexingMemoryController) throws IOException {
         super(shardId, indexSettingsService, indicesLifecycle, store, storeRecoveryService,
-                threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
-                indicesQueryCache, shardPercolateService, codecService,
-                termVectorsService, indexFieldDataService, indexService,
-                warmer, deletionPolicy, similarityService,
-                factory, clusterService, path, bigArrays, wrappingService);
+              threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
+              indicesQueryCache, shardPercolateService, codecService,
+              termVectorsService, indexFieldDataService, indexService,
+              warmer, deletionPolicy, similarityService,
+              factory, clusterService, path, bigArrays, wrappingService, indexingMemoryController);
     }
 
     /**
@@ -110,5 +113,10 @@ public final class ShadowIndexShard extends IndexShard {
 
     public boolean allowsPrimaryPromotion() {
         return false;
+    }
+
+    @Override
+    public TranslogStats translogStats() {
+        return null; // shadow engine has no translog
     }
 }

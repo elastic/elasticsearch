@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
@@ -101,15 +102,16 @@ public class PlainHighlighter implements Highlighter {
             for (Object textToHighlight : textsToHighlight) {
                 String text = textToHighlight.toString();
 
-                TokenStream tokenStream = analyzer.tokenStream(mapper.fieldType().names().indexName(), text);
-                if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
-                    // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
-                    continue;
-                }
-                TextFragment[] bestTextFragments = entry.getBestTextFragments(tokenStream, text, false, numberOfFragments);
-                for (TextFragment bestTextFragment : bestTextFragments) {
-                    if (bestTextFragment != null && bestTextFragment.getScore() > 0) {
-                        fragsList.add(bestTextFragment);
+                try (TokenStream tokenStream = analyzer.tokenStream(mapper.fieldType().names().indexName(), text)) {
+                    if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
+                        // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
+                        continue;
+                    }
+                    TextFragment[] bestTextFragments = entry.getBestTextFragments(tokenStream, text, false, numberOfFragments);
+                    for (TextFragment bestTextFragment : bestTextFragments) {
+                        if (bestTextFragment != null && bestTextFragment.getScore() > 0) {
+                            fragsList.add(bestTextFragment);
+                        }
                     }
                 }
             }
@@ -157,7 +159,7 @@ public class PlainHighlighter implements Highlighter {
             String fieldContents = textsToHighlight.get(0).toString();
             int end;
             try {
-                end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer.tokenStream(mapper.fieldType().names().indexName(), fieldContents));
+                end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer, mapper.fieldType().names().indexName(), fieldContents);
             } catch (Exception e) {
                 throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
             }
@@ -173,8 +175,8 @@ public class PlainHighlighter implements Highlighter {
         return true;
     }
 
-    private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, TokenStream tokenStream) throws IOException {
-        try {
+    private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, Analyzer analyzer, String fieldName, String contents) throws IOException {
+        try (TokenStream tokenStream = analyzer.tokenStream(fieldName, contents)) {
             if (!tokenStream.hasAttribute(OffsetAttribute.class)) {
                 // Can't split on term boundaries without offsets
                 return -1;
@@ -192,11 +194,9 @@ public class PlainHighlighter implements Highlighter {
                 }
                 end = attr.endOffset();
             }
+            tokenStream.end();
             // We've exhausted the token stream so we should just highlight everything.
             return end;
-        } finally {
-            tokenStream.end();
-            tokenStream.close();
         }
     }
 }

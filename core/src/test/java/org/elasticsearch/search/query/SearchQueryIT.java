@@ -145,7 +145,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "3").setSource("field1", "value3").get();
         ensureGreen();
         waitForRelocation();
-        optimize();
+        forceMerge();
         refresh();
         assertHitCount(
                 client().prepareSearch()

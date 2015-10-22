@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -259,7 +258,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * Returns the average of shards per node for the given index
          */
         public float avgShardsPerNode(String index) {
-            return ((float) metaData.index(index).totalNumberOfShards()) / nodes.size();
+            return ((float) metaData.index(index).getTotalNumberOfShards()) / nodes.size();
         }
 
         /**

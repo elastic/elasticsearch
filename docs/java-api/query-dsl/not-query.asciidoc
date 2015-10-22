@@ -1,6 +1,8 @@
 [[java-query-dsl-not-query]]
 ==== Not Query
 
+deprecated[2.1.0, Use `boolQuery()` with added `mustNot()` clause instead]
+
 See {ref}/query-dsl-not-query.html[Not Query]
 
 

@@ -1,6 +1,6 @@
 {
   "delete": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-delete.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/2.1/docs-delete.html",
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}/{type}/{id}",

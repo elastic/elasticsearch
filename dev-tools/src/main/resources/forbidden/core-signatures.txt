@@ -36,6 +36,10 @@ org.apache.lucene.index.IndexReader#decRef()
 org.apache.lucene.index.IndexReader#incRef()
 org.apache.lucene.index.IndexReader#tryIncRef()
 
+@defaultMessage Close listeners can only installed via ElasticsearchDirectoryReader#addReaderCloseListener
+org.apache.lucene.index.IndexReader#addReaderClosedListener(org.apache.lucene.index.IndexReader$ReaderClosedListener)
+org.apache.lucene.index.IndexReader#removeReaderClosedListener(org.apache.lucene.index.IndexReader$ReaderClosedListener)
+
 @defaultMessage Pass the precision step from the mappings explicitly instead
 org.apache.lucene.search.NumericRangeQuery#newDoubleRange(java.lang.String,java.lang.Double,java.lang.Double,boolean,boolean)
 org.apache.lucene.search.NumericRangeQuery#newFloatRange(java.lang.String,java.lang.Float,java.lang.Float,boolean,boolean)

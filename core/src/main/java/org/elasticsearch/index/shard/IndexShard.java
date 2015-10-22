@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
+
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.LeafReaderContext;
@@ -31,7 +32,7 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -84,8 +86,8 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.Store.MetadataSnapshot;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
@@ -101,6 +103,7 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.old.Completion090PostingsFormat;
@@ -118,6 +121,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class IndexShard extends AbstractIndexShardComponent {
@@ -192,13 +196,21 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
 
+    /** True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
+     *  IndexingMemoryController}). */
+    private final AtomicBoolean active = new AtomicBoolean();
+
+    private volatile long lastWriteNS;
+    private final IndexingMemoryController indexingMemoryController;
+
     @Inject
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, StoreRecoveryService storeRecoveryService,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
                       IndicesQueryCache indicesQueryCache, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService,
                       @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, EngineFactory factory,
-                      ClusterService clusterService, ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) {
+                      ClusterService clusterService, ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService,
+                      IndexingMemoryController indexingMemoryController) {
         super(shardId, indexSettingsService.getSettings());
         this.codecService = codecService;
         this.warmer = warmer;
@@ -292,6 +304,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
 
+        this.indexingMemoryController = indexingMemoryController;
+
+        // We start up inactive
+        active.set(false);
     }
 
     public Store store() {
@@ -509,7 +525,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public void create(Engine.Create create) {
-        writeAllowed(create.origin());
+        ensureWriteAllowed(create);
+        markLastWrite(create);
         create = indexingService.preCreate(create);
         try {
             if (logger.isTraceEnabled()) {
@@ -547,7 +564,8 @@ public class IndexShard extends AbstractIndexShardComponent {
      * updated.
      */
     public boolean index(Engine.Index index) {
-        writeAllowed(index.origin());
+        ensureWriteAllowed(index);
+        markLastWrite(index);
         index = indexingService.preIndex(index);
         final boolean created;
         try {
@@ -571,7 +589,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public void delete(Engine.Delete delete) {
-        writeAllowed(delete.origin());
+        ensureWriteAllowed(delete);
+        markLastWrite(delete);
         delete = indexingService.preDelete(delete);
         try {
             if (logger.isTraceEnabled()) {
@@ -725,12 +744,13 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     }
 
-    public void optimize(OptimizeRequest optimize) throws IOException {
+    public void forceMerge(ForceMergeRequest forceMerge) throws IOException {
         verifyStarted();
         if (logger.isTraceEnabled()) {
-            logger.trace("optimize with {}", optimize);
+            logger.trace("force merge with {}", forceMerge);
         }
-        engine().forceMerge(optimize.flush(), optimize.maxNumSegments(), optimize.onlyExpungeDeletes(), false, false);
+        engine().forceMerge(forceMerge.flush(), forceMerge.maxNumSegments(),
+                forceMerge.onlyExpungeDeletes(), false, false);
     }
 
     /**
@@ -954,7 +974,24 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    private void writeAllowed(Engine.Operation.Origin origin) throws IllegalIndexShardStateException {
+    /** Returns timestamp of last indexing operation */
+    public long getLastWriteNS() {
+        return lastWriteNS;
+    }
+
+    /** Records timestamp of the last write operation, possibly switching {@code active} to true if we were inactive. */
+    private void markLastWrite(Engine.Operation op) {
+        lastWriteNS = op.startTime();
+        if (active.getAndSet(true) == false) {
+            // We are currently inactive, but a new write operation just showed up, so we now notify IMC
+            // to wake up and fix our indexing buffer.  We could do this async instead, but cost should
+            // be low, and it's rare this happens.
+            indexingMemoryController.forceCheck();
+        }
+    }
+
+    private void ensureWriteAllowed(Engine.Operation op) throws IllegalIndexShardStateException {
+        Engine.Operation.Origin origin = op.origin();
         IndexShardState state = this.state; // one time volatile read
 
         if (origin == Engine.Operation.Origin.PRIMARY) {
@@ -1016,6 +1053,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.failedEngineListener.delegates.add(failedEngineListener);
     }
 
+    /** Change the indexing and translog buffer sizes.  If {@code IndexWriter} is currently using more than
+     *  the new buffering indexing size then we do a refresh to free up the heap. */
     public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
 
         final EngineConfig config = engineConfig;
@@ -1034,27 +1073,50 @@ public class IndexShard extends AbstractIndexShardComponent {
             // so we push changes these changes down to IndexWriter:
             engine.onSettingsChanged();
 
-            if (shardIndexingBufferSize == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER) {
-                // it's inactive: make sure we do a refresh / full IW flush in this case, since the memory
-                // changes only after a "data" change has happened to the writer
-                // the index writer lazily allocates memory and a refresh will clean it all up.
-                logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, shardIndexingBufferSize);
+            long iwBytesUsed = engine.indexWriterRAMBytesUsed();
+
+            String message = LoggerMessageFormat.format("updating index_buffer_size from [{}] to [{}]; IndexWriter now using [{}] bytes",
+                                                        preValue, shardIndexingBufferSize, iwBytesUsed);
+
+            if (iwBytesUsed > shardIndexingBufferSize.bytes()) {
+                // our allowed buffer was changed to less than we are currently using; we ask IW to refresh
+                // so it clears its buffers (otherwise it won't clear until the next indexing/delete op)
+                logger.debug(message + "; now refresh to clear IndexWriter memory");
+
+                // TODO: should IW have an API to move segments to disk, but not refresh?  Its flush method is protected...
                 try {
                     refresh("update index buffer");
                 } catch (Throwable e) {
-                    logger.warn("failed to refresh after setting shard to inactive", e);
+                    logger.warn("failed to refresh after decreasing index buffer", e);
                 }
             } else {
-                logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, shardIndexingBufferSize);
+                logger.debug(message);
             }
         }
 
         engine.getTranslog().updateBuffer(shardTranslogBufferSize);
     }
 
-    public void markAsInactive() {
-        updateBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER, TranslogConfig.INACTIVE_SHARD_TRANSLOG_BUFFER);
-        indicesLifecycle.onShardInactive(this);
+    /** Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
+     *  indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so.  This returns true
+     *  if the shard is inactive. */
+    public boolean checkIdle(long inactiveTimeNS) {
+        if (System.nanoTime() - lastWriteNS >= inactiveTimeNS) {
+            boolean wasActive = active.getAndSet(false);
+            if (wasActive) {
+                updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
+                logger.debug("shard is now inactive");
+                indicesLifecycle.onShardInactive(this);
+            }
+        }
+
+        return active.get() == false;
+    }
+
+    /** Returns {@code true} if this shard is active (has seen indexing ops in the last {@link
+     *  IndexingMemoryController#SHARD_INACTIVE_TIME_SETTING} (default 5 minutes), else {@code false}. */
+    public boolean getActive() {
+        return active.get();
     }
 
     public final boolean isFlushOnClose() {

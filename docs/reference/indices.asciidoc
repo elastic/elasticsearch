@@ -59,7 +59,7 @@ and warmers.
 * <<indices-clearcache>>
 * <<indices-refresh>>
 * <<indices-flush>>
-* <<indices-optimize>>
+* <<indices-forcemerge>>
 * <<indices-upgrade>>
 
 --
@@ -109,6 +109,8 @@ include::indices/clearcache.asciidoc[]
 include::indices/flush.asciidoc[]
 
 include::indices/refresh.asciidoc[]
+
+include::indices/forcemerge.asciidoc[]
 
 include::indices/optimize.asciidoc[]
 

@@ -21,10 +21,6 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
-import org.elasticsearch.action.admin.cluster.health.ClusterShardHealth;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -154,9 +150,9 @@ public class ClusterHealthResponsesTests extends ESTestCase {
     }
 
     IndexRoutingTable genIndexRoutingTable(IndexMetaData indexMetaData, ShardCounter counter) {
-        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetaData.index());
-        for (int shard = 0; shard < indexMetaData.numberOfShards(); shard++) {
-            builder.addIndexShard(genShardRoutingTable(indexMetaData.index(), shard, indexMetaData.getNumberOfReplicas(), counter));
+        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetaData.getIndex());
+        for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
+            builder.addIndexShard(genShardRoutingTable(indexMetaData.getIndex(), shard, indexMetaData.getNumberOfReplicas(), counter));
         }
         return builder.build();
     }

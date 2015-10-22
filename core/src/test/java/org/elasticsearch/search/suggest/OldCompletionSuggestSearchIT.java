@@ -24,8 +24,8 @@ import com.google.common.collect.Lists;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -923,13 +923,13 @@ public class OldCompletionSuggestSearchIT extends ESIntegTestCase {
         for (int i = 0; i < builders.length; i++) {
             builders[i] = client().prepareIndex(INDEX, TYPE, "" + i)
                     .setSource(jsonBuilder()
-                            .startObject().startObject(FIELD)
-                            .startArray("input").value(input[i]).endArray()
-                            .field("output", surface[i])
-                            .startObject("payload").field("id", i).endObject()
-                            .field("weight", 1) // WE FORCEFULLY INDEX A BOGUS WEIGHT
-                            .endObject()
-                            .endObject()
+                                    .startObject().startObject(FIELD)
+                                    .startArray("input").value(input[i]).endArray()
+                                    .field("output", surface[i])
+                                    .startObject("payload").field("id", i).endObject()
+                                    .field("weight", 1) // WE FORCEFULLY INDEX A BOGUS WEIGHT
+                                    .endObject()
+                                    .endObject()
                     );
         }
         indexRandom(false, builders);
@@ -937,13 +937,13 @@ public class OldCompletionSuggestSearchIT extends ESIntegTestCase {
         for (int i = 0; i < builders.length; i++) { // add them again to make sure we deduplicate on the surface form
             builders[i] = client().prepareIndex(INDEX, TYPE, "n" + i)
                     .setSource(jsonBuilder()
-                            .startObject().startObject(FIELD)
-                            .startArray("input").value(input[i]).endArray()
-                            .field("output", surface[i])
-                            .startObject("payload").field("id", i).endObject()
-                            .field("weight", weight[i])
-                            .endObject()
-                            .endObject()
+                                    .startObject().startObject(FIELD)
+                                    .startArray("input").value(input[i]).endArray()
+                                    .field("output", surface[i])
+                                    .startObject("payload").field("id", i).endObject()
+                                    .field("weight", weight[i])
+                                    .endObject()
+                                    .endObject()
                     );
         }
         indexRandom(false, builders);
@@ -952,7 +952,7 @@ public class OldCompletionSuggestSearchIT extends ESIntegTestCase {
         if (optimize) {
             // make sure merging works just fine
             client().admin().indices().prepareFlush(INDEX).execute().actionGet();
-            client().admin().indices().prepareOptimize(INDEX).setMaxNumSegments(randomIntBetween(1, 5)).get();
+            client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(randomIntBetween(1, 5)).get();
         }
     }
 
@@ -970,7 +970,7 @@ public class OldCompletionSuggestSearchIT extends ESIntegTestCase {
                 .field("somefield", "somevalue")
                 .endObject()
         ).get(); // we have 2 docs in a segment...
-        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).execute().actionGet();
+        ForceMergeResponse actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).execute().actionGet();
         assertAllSuccessful(actionGet);
         refresh();
         // update the first one and then merge.. the target segment will have no value in FIELD
@@ -979,7 +979,7 @@ public class OldCompletionSuggestSearchIT extends ESIntegTestCase {
                 .field("somefield", "somevalue")
                 .endObject()
         ).get();
-        actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).execute().actionGet();
+        actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).execute().actionGet();
         assertAllSuccessful(actionGet);
         refresh();
 

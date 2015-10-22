@@ -70,6 +70,7 @@ public class LogConfigurator {
             .put("socketHub", "org.apache.log4j.net.SocketHubAppender")
             .put("syslog", "org.apache.log4j.net.SyslogAppender")
             .put("telnet", "org.apache.log4j.net.TelnetAppender")
+            .put("terminal", "org.elasticsearch.common.logging.log4j.TerminalAppender")
                     // policies
             .put("timeBased", "org.apache.log4j.rolling.TimeBasedRollingPolicy")
             .put("sizeBased", "org.apache.log4j.rolling.SizeBasedTriggeringPolicy")
@@ -83,19 +84,30 @@ public class LogConfigurator {
             .put("xml", "org.apache.log4j.XMLLayout")
             .immutableMap();
 
-    public static void configure(Settings settings) {
+    /**
+     * Consolidates settings and converts them into actual log4j settings, then initializes loggers and appenders.
+     *
+     * @param settings      custom settings that should be applied
+     * @param resolveConfig controls whether the logging conf file should be read too or not.
+     */
+    public static void configure(Settings settings, boolean resolveConfig) {
         if (loaded) {
             return;
         }
         loaded = true;
         // TODO: this is partly a copy of InternalSettingsPreparer...we should pass in Environment and not do all this...
         Environment environment = new Environment(settings);
-        Settings.Builder settingsBuilder = settingsBuilder().put(settings);
-        resolveConfig(environment, settingsBuilder);
+
+        Settings.Builder settingsBuilder = settingsBuilder();
+        if (resolveConfig) {
+            resolveConfig(environment, settingsBuilder);
+        }
         settingsBuilder
                 .putProperties("elasticsearch.", System.getProperties())
-                .putProperties("es.", System.getProperties())
-                .replacePropertyPlaceholders();
+                .putProperties("es.", System.getProperties());
+        // add custom settings after config was added so that they are not overwritten by config
+        settingsBuilder.put(settings);
+        settingsBuilder.replacePropertyPlaceholders();
         Properties props = new Properties();
         for (Map.Entry<String, String> entry : settingsBuilder.build().getAsMap().entrySet()) {
             String key = "log4j." + entry.getKey();

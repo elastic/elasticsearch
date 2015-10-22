@@ -325,8 +325,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.metaData().index("test").mapping("type2"), notNullValue());
         assertThat(state.metaData().templates().get("template_1").template(), equalTo("te*"));
-        assertThat(state.metaData().index("test").aliases().get("test_alias"), notNullValue());
-        assertThat(state.metaData().index("test").aliases().get("test_alias").filter(), notNullValue());
+        assertThat(state.metaData().index("test").getAliases().get("test_alias"), notNullValue());
+        assertThat(state.metaData().index("test").getAliases().get("test_alias").filter(), notNullValue());
     }
 
     @Test
@@ -360,7 +360,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
         logger.info("Running Cluster Health");
         ensureGreen();
-        client().admin().indices().prepareOptimize("test").setMaxNumSegments(100).get(); // just wait for merges
+        client().admin().indices().prepareForceMerge("test").setMaxNumSegments(100).get(); // just wait for merges
         client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).get();
 
         boolean useSyncIds = randomBoolean();

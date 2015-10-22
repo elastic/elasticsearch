@@ -26,7 +26,9 @@ import java.util.Objects;
 
 /**
  * A filter that matches documents matching boolean combinations of other filters.
+ * @deprecated Use {@link BoolQueryBuilder#mustNot(QueryBuilder)} instead
  */
+@Deprecated
 public class NotQueryBuilder extends QueryBuilder {
 
     private final QueryBuilder filter;

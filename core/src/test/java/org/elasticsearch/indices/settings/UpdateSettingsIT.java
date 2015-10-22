@@ -63,8 +63,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
 
         IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
-        assertThat(indexMetaData.settings().get("index.refresh_interval"), nullValue());
-        assertThat(indexMetaData.settings().get("index.cache.filter.type"), nullValue());
+        assertThat(indexMetaData.getSettings().get("index.refresh_interval"), nullValue());
+        assertThat(indexMetaData.getSettings().get("index.cache.filter.type"), nullValue());
 
         // Now verify via dedicated get settings api:
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
@@ -78,7 +78,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
-        assertThat(indexMetaData.settings().get("index.refresh_interval"), equalTo("-1"));
+        assertThat(indexMetaData.getSettings().get("index.refresh_interval"), equalTo("-1"));
         // Now verify via dedicated get settings api:
         getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
         assertThat(getSettingsResponse.getSetting("test", "index.refresh_interval"), equalTo("-1"));
@@ -110,8 +110,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
-        assertThat(indexMetaData.settings().get("index.refresh_interval"), equalTo("1s"));
-        assertThat(indexMetaData.settings().get("index.cache.filter.type"), equalTo("none"));
+        assertThat(indexMetaData.getSettings().get("index.refresh_interval"), equalTo("1s"));
+        assertThat(indexMetaData.getSettings().get("index.cache.filter.type"), equalTo("none"));
 
         // Now verify via dedicated get settings api:
         getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
@@ -226,7 +226,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
         logger.info("test: optimize");
-        client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).get();
+        client().admin().indices().prepareForceMerge("test").setMaxNumSegments(1).get();
         logger.info("test: optimize done");
 
         // Record current throttling so far
@@ -264,7 +264,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         // when ESIntegTestCase.after tries to remove indices created by the test:
 
         // Wait for merges to finish
-        client().admin().indices().prepareOptimize("test").get();
+        client().admin().indices().prepareForceMerge("test").get();
         flush();
 
         logger.info("test: test done");

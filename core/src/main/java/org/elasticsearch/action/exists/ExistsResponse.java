@@ -27,6 +27,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * @deprecated use {@link org.elasticsearch.action.search.SearchRequest} instead and set `size` to `0` and `terminate_after` to `1`
+ */
+@Deprecated
 public class ExistsResponse extends BroadcastResponse {
 
     private boolean exists = false;

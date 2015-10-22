@@ -34,7 +34,7 @@ public final class ShardUtils {
      */
     @Nullable
     public static ShardId extractShardId(LeafReader reader) {
-        final ElasticsearchLeafReader esReader = getElasticsearchLeafReader(reader);
+        final ElasticsearchLeafReader esReader = ElasticsearchLeafReader.getElasticsearchLeafReader(reader);
         if (esReader != null) {
             assert reader.getRefCount() > 0 : "ElasticsearchLeafReader is already closed";
             return esReader.shardId();
@@ -47,45 +47,14 @@ public final class ShardUtils {
      * will return null.
      */
     @Nullable
-    public static ShardId extractShardId(IndexReader reader) {
-        final ElasticsearchDirectoryReader esReader = getElasticsearchDirectoryReader(reader);
+    public static ShardId extractShardId(DirectoryReader reader) {
+        final ElasticsearchDirectoryReader esReader = ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader);
         if (esReader != null) {
             return esReader.shardId();
         }
-        if (!reader.leaves().isEmpty()) {
-            return extractShardId(reader.leaves().get(0).reader());
-        }
-        return null;
+        throw new IllegalArgumentException("can't extract shard ID, can't unwrap ElasticsearchDirectoryReader");
     }
 
-    private static ElasticsearchLeafReader getElasticsearchLeafReader(LeafReader reader) {
-        if (reader instanceof FilterLeafReader) {
-            if (reader instanceof ElasticsearchLeafReader) {
-                return (ElasticsearchLeafReader) reader;
-            } else {
-                // We need to use FilterLeafReader#getDelegate and not FilterLeafReader#unwrap, because
-                // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
-                // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
-                // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
-                return getElasticsearchLeafReader(((FilterLeafReader) reader).getDelegate());
-            }
-        }
-        return null;
-    }
 
-    private static ElasticsearchDirectoryReader getElasticsearchDirectoryReader(IndexReader reader) {
-        if (reader instanceof FilterDirectoryReader) {
-            if (reader instanceof ElasticsearchDirectoryReader) {
-                return (ElasticsearchDirectoryReader) reader;
-            } else {
-                // We need to use FilterDirectoryReader#getDelegate and not FilterDirectoryReader#unwrap, because
-                // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
-                // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
-                // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
-                return getElasticsearchDirectoryReader(((FilterDirectoryReader) reader).getDelegate());
-            }
-        }
-        return null;
-    }
 
 }

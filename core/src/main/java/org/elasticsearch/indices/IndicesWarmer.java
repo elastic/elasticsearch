@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -80,7 +81,7 @@ public final class IndicesWarmer extends AbstractComponent {
         if (indexMetaData == null) {
             return;
         }
-        if (!indexMetaData.settings().getAsBoolean(INDEX_WARMER_ENABLED, settings.getAsBoolean(INDEX_WARMER_ENABLED, true))) {
+        if (!indexMetaData.getSettings().getAsBoolean(INDEX_WARMER_ENABLED, settings.getAsBoolean(INDEX_WARMER_ENABLED, true))) {
             return;
         }
         IndexService indexService = indicesService.indexService(context.shardId().index().name());
@@ -178,6 +179,10 @@ public final class IndicesWarmer extends AbstractComponent {
 
         public IndexReader reader() {
             return searcher.reader();
+        }
+
+        public DirectoryReader getDirectoryReader() {
+            return searcher.getDirectoryReader();
         }
 
         @Override

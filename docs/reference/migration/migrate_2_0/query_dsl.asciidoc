@@ -25,7 +25,7 @@ be cacheable. Filter context is introduced by:
   aggregations or index aliases
 --
 
-As a result of this change, he `execution` option of the `terms` filter is now
+As a result of this change, the `execution` option of the `terms` filter is now
 deprecated and ignored if provided.
 
 ==== `or` and `and` now implemented via `bool`
@@ -183,4 +183,3 @@ behaviour using the <<search-request-body,terminate_after>> parameter.
 Java plugins that register custom queries can do so by using the
 `IndicesQueriesModule#addQuery(Class<? extends QueryParser>)` method. Other
 ways to register custom queries are not supported anymore.
-

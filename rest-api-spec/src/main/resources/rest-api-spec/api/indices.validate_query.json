@@ -1,6 +1,6 @@
 {
   "indices.validate_query": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-validate.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/2.1/search-validate.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_validate/query",

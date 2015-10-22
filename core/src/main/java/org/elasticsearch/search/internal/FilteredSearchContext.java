@@ -29,7 +29,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -534,13 +533,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean profile() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Map<Class<?>, Collector> queryCollectors() { return in.queryCollectors();}
 
-    @Override
-    public QueryCache getQueryCache() { return in.getQueryCache();}
 }

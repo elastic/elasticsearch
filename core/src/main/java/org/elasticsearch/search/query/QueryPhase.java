@@ -134,7 +134,8 @@ public class QueryPhase implements SearchPhase {
         suggestPhase.execute(searchContext);
         aggregationPhase.execute(searchContext);
 
-        if (searchContext.profile()) {
+        final InternalProfiler profiler = searchContext.queryProfiler();
+        if (profiler != null) {
             List<InternalProfileResult> results = searchContext.queryProfiler().finalizeProfileResults();
             InternalProfileCollector collector = searchContext.queryProfiler().finalizeCollectors();
             searchContext.queryResult().profileResults(results, collector);
@@ -369,9 +370,9 @@ public class QueryPhase implements SearchPhase {
 
             queryResult.topDocs(topDocsCallable.call());
 
-            if (searchContext.profile()) {
-                List<InternalProfileResult> pResults = searchContext.queryProfiler().finalizeProfileResults();
-                InternalProfileCollector pCollector = searchContext.queryProfiler().finalizeCollectors();
+            if (profiler != null) {
+                List<InternalProfileResult> pResults = profiler.finalizeProfileResults();
+                InternalProfileCollector pCollector = profiler.finalizeCollectors();
                 searchContext.queryResult().profileResults(pResults, pCollector);
             }
 

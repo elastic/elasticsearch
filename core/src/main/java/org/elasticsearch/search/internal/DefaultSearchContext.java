@@ -35,8 +35,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.*;
-import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -131,7 +129,6 @@ public class DefaultSearchContext extends SearchContext {
     private List<RescoreSearchContext> rescore;
     private SearchLookup searchLookup;
     private volatile long keepAlive;
-    private ScoreDoc lastEmittedDoc;
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
     private InnerHitsContext innerHitsContext;
@@ -161,7 +158,7 @@ public class DefaultSearchContext extends SearchContext {
         this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
-        this.searcher = new ContextIndexSearcher(this, engineSearcher);
+        this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeoutInMillis = timeout.millis();
     }
@@ -730,14 +727,6 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Returns if this search context is being profiled
-     */
-    @Override
-    public boolean profile() {
-        return internalProfiler != null;
-    }
-
-    /**
      * Sets if this search context should be profiled.  This is needed
      * because we only find out about profiling from the request, which is parsed after
      * the searcher is built.  This prevents us from using a wrapper-style "ProfileIndexSearcher".
@@ -767,6 +756,4 @@ public class DefaultSearchContext extends SearchContext {
         return internalProfiler;
     }
 
-    @Override
-    public QueryCache getQueryCache() { return indexService.cache().query();}
 }

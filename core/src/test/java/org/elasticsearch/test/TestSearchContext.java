@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -295,7 +294,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     public void setSearcher(Engine.Searcher searcher) {
-        this.searcher = new ContextIndexSearcher(this, searcher);
+        this.searcher = new ContextIndexSearcher(searcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
     }
 
     @Override
@@ -674,11 +673,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean profile() {
-        return false;
-    }
-
-    @Override
     public InternalProfiler queryProfiler() {
         return null;
     }
@@ -686,6 +680,4 @@ public class TestSearchContext extends SearchContext {
     @Override
     public Map<Class<?>, Collector> queryCollectors() {return queryCollectors;}
 
-    @Override
-    public QueryCache getQueryCache() { return indexService.cache().query();}
 }

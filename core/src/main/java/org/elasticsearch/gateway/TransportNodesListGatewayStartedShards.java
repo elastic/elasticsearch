@@ -131,7 +131,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                 if (metaData != null) {
                     ShardPath shardPath = null;
                     try {
-                        IndexSettings indexSettings = new IndexSettings(new Index(metaData.getIndex()), Settings.settingsBuilder().put(settings).put(metaData.getSettings()).build(), Collections.EMPTY_LIST);
+                        IndexSettings indexSettings = new IndexSettings(shardId.index(), Settings.settingsBuilder().put(settings).put(metaData.getSettings()).build(), Collections.EMPTY_LIST);
                         shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
                         if (shardPath == null) {
                             throw new IllegalStateException(shardId + " no shard path found");

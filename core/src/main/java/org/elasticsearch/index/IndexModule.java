@@ -90,7 +90,7 @@ public class IndexModule extends AbstractModule {
      * Note: an index might be created on a node multiple times. For instance if the last shard from an index is
      * relocated to another node the internal representation will be destroyed which includes the registered listeners.
      * Once the node holds at least one shard of an index all modules are reloaded and listeners are registered again.
-     * Listeners can't be unregistered the will stay alive for the entire time the index is allocated on a node.
+     * Listeners can't be unregistered they will stay alive for the entire time the index is allocated on a node.
      * </p>
      */
     public void addIndexEventListener(IndexEventListener listener) {

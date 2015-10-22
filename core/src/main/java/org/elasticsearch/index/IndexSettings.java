@@ -112,25 +112,26 @@ public final class IndexSettings {
      *
      * @return <code>true</code> iff any setting has been updated otherwise <code>false</code>.
      */
-    synchronized boolean updateSettings(Settings settings) {
-        if (Version.indexCreated(settings) != version) {
-            throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + Version.indexCreated(settings));
+    synchronized boolean updateIndexSettings(Settings newSettings) {
+        if (Version.indexCreated(newSettings) != version) {
+            throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + Version.indexCreated(newSettings));
         }
-        final String newUUID = settings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+        final String newUUID = newSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
         if (newUUID.equals(getUUID()) == false) {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + uuid + " but was: " + newUUID);
         }
-
-        if (this.settings.getByPrefix(IndexMetaData.INDEX_SETTING_PREFIX).getAsMap().equals(settings.getByPrefix(IndexMetaData.INDEX_SETTING_PREFIX).getAsMap())) {
+        final Settings existingSettings = this.settings;
+        if (existingSettings.getByPrefix(IndexMetaData.INDEX_SETTING_PREFIX).getAsMap().equals(newSettings.getByPrefix(IndexMetaData.INDEX_SETTING_PREFIX).getAsMap())) {
             // nothing to update, same settings
             return false;
         }
-        this.settings = Settings.builder().put(this.settings).put(settings).build();
+        this.settings = Settings.builder().put(existingSettings).put(newSettings).build();
+        final Settings mergedSettings = this.settings;
         for (final Consumer<Settings> consumer : updateListeners) {
             try {
-                consumer.accept(settings);
+                consumer.accept(mergedSettings);
             } catch (Exception e) {
-                logger.warn("failed to refresh index settings for [{}]", e, settings);
+                logger.warn("failed to refresh index settings for [{}]", e, mergedSettings);
             }
         }
         return true;

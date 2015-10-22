@@ -57,7 +57,6 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -509,7 +508,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     public synchronized void updateMetaData(final IndexMetaData metadata) {
         this.indexMetaData = metadata;
         Settings settings = metadata.getSettings();
-        if (this.indexSettings.updateSettings(metadata.getSettings())) {
+        if (this.indexSettings.updateIndexSettings(metadata.getSettings())) {
             for (final IndexShard shard : this.shards.values()) {
                 try {
                     shard.onRefreshSettings(settings);

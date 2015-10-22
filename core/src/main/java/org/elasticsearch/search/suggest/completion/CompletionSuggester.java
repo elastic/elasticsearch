@@ -85,7 +85,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                         AtomicFieldData data = suggestionContext.getFieldData().getForField(fieldType).load(subReaderContext);
                         ScriptDocValues scriptValues = data.getScriptValues();
                         scriptValues.setNextDocId(subDocId);
-                        payload.put(field, scriptValues.getValues());
+                        payload.put(field, new ArrayList<>(scriptValues.getValues()));
                     } else {
                         throw new ElasticsearchException("Payload field [" + field + "] does not exist");
                     }

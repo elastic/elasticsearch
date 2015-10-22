@@ -24,9 +24,6 @@ setup:
                      "type" : "completion"
                   "suggest_6":
                      "type" : "completion"
-                  "count":
-                    "type" : "integer"
-                    "doc_values" : "true"
 
 ---
 "Simple suggestion should work":
@@ -246,7 +243,7 @@ setup:
             input: "bar"
             weight: 2
           title: "title_bar"
-          count: 2
+          count: 4
 
   - do:
       index:
@@ -279,5 +276,5 @@ setup:
   - match:  { result.0.options.0.payload.count: [3] }
   - match:  { result.0.options.1.text: "bar" }
   - match:  { result.0.options.1.payload.title: ["title_bar"] }
-  - match:  { result.0.options.1.payload.count: [2] }
+  - match:  { result.0.options.1.payload.count: [4] }
 

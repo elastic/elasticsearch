@@ -66,6 +66,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
+//@Seed("B3B136F0625F2CCD")
 @SuppressCodecs("*") // requires custom completion format
 public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
@@ -291,9 +292,10 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .field("count", 2)
                 .endObject();
         indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "2").setSource(source));
-        for (int i = 0; i < 5; i++) {
-            indexRandom(true, indexRequestBuilders);
-        }
+        indexRandom(true, indexRequestBuilders);
+        //for (int i = 0; i < 5; i++) {
+        //    indexRandom(true, indexRequestBuilders);
+        //}
 
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg").payload("title", "count");
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(prefix).execute().actionGet();

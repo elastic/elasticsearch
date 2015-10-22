@@ -35,7 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ClusterScope(scope= Scope.TEST, numDataNodes =2)
+@ClusterScope(scope=Scope.TEST, numDataNodes=2)
 public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
 
     @Test
@@ -100,7 +100,7 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
             client.admin().indices().prepareClose("test_no_close").execute().actionGet();
             fail("exception expected");
         } catch (IllegalStateException ex) {
-            assertEquals(ex.getMessage(), "closing indices is disabled - set [cluster.indices.close.enable: true] to enable it. NOTE: closed indices consume a significant amount of diskspace");
+            assertEquals(ex.getMessage(), "closing indices is disabled - set [cluster.indices.close.enable: true] to enable it. NOTE: closed indices still consume a significant amount of diskspace");
         }
     }
 

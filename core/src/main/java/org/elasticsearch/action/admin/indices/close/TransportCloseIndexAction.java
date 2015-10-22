@@ -73,7 +73,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     protected void doExecute(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         if (closeIndexEnabled == false) {
-            throw new IllegalStateException("closing indices is disabled - set [" + SETTING_CLUSTER_INDICES_CLOSE_ENABLE + ": true] to enable it. NOTE: closed indices consume a significant amount of diskspace");
+            throw new IllegalStateException("closing indices is disabled - set [" + SETTING_CLUSTER_INDICES_CLOSE_ENABLE + ": true] to enable it. NOTE: closed indices still consume a significant amount of diskspace");
         }
         super.doExecute(request, listener);
     }

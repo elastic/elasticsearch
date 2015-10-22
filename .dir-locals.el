@@ -27,6 +27,14 @@
             (forward-line -1)
             (if (search-forward " -> {" start t) t nil))))
 
+      (defun my/trailing-paren-p ()
+        "Returns true if point is a training paren and semicolon"
+        (save-excursion
+          (end-of-line)
+          (let ((endpoint (point)))
+            (beginning-of-line)
+            (if (re-search-forward "[ ]*);$" endpoint t) t nil))))
+
       (defun my/arglist-cont-nonempty-indentation (arg)
         (if (my/inside-java-lambda-p)
             '+
@@ -39,6 +47,8 @@
 
       (defun my/block-close (arg)
         (if (my/inside-java-lambda-p) '- 0))
+
+      (defun my/arglist-close (arg) (if (my/trailing-paren-p) 0 '--))
 
       (c-set-offset 'inline-open           0)
       (c-set-offset 'topmost-intro-cont    '+)
@@ -53,7 +63,7 @@
       (c-set-offset 'statement-cont        '++)
       (c-set-offset 'arglist-intro         0)
       (c-set-offset 'arglist-cont-nonempty '(my/arglist-cont-nonempty-indentation c-lineup-arglist))
-      (c-set-offset 'arglist-close         '--)
+      (c-set-offset 'arglist-close         'my/arglist-close)
       (c-set-offset 'inexpr-class          0)
       (c-set-offset 'access-label          0)
       (c-set-offset 'inher-intro           '++)

@@ -80,7 +80,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         int positionIncrementGap = StringFieldMapper.Defaults.positionIncrementGap(Version.indexCreated(indexSettings.getSettings()));
 
         if (analyzerSettings.getAsMap().containsKey("position_offset_gap")){
-            if (indexSettings.getVersion().before(Version.V_2_0_0)){
+            if (indexSettings.getIndexVersionCreated().before(Version.V_2_0_0)){
                 if (analyzerSettings.getAsMap().containsKey("position_increment_gap")){
                     throw new IllegalArgumentException("Custom Analyzer [" + name() +
                             "] defined both [position_offset_gap] and [position_increment_gap], use only [position_increment_gap]");

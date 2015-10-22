@@ -43,7 +43,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
     public PatternAnalyzerProvider(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(indexSettings, name, settings);
 
-        Version esVersion = indexSettings.getVersion();
+        Version esVersion = indexSettings.getIndexVersionCreated();
         final CharArraySet defaultStopwords;
         if (esVersion.onOrAfter(Version.V_1_0_0_RC1)) {
             defaultStopwords = CharArraySet.EMPTY_SET;

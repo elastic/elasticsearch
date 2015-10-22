@@ -60,7 +60,7 @@ public class MockFSIndexStore extends IndexStore {
         }
 
         public void onModule(IndexModule module) {
-            Settings indexSettings = module.getIndexSettings();
+            Settings indexSettings = module.getSettings();
             if ("mock".equals(indexSettings.get(IndexStoreModule.STORE_TYPE))) {
                 if (indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true)) {
                     module.addIndexEventListener(new Listener());

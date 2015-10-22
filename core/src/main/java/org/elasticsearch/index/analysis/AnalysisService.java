@@ -63,7 +63,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                            @Nullable Map<String, CharFilterFactoryFactory> charFilterFactoryFactories,
                            @Nullable Map<String, TokenFilterFactoryFactory> tokenFilterFactoryFactories) {
         super(indexSettings);
-        Settings defaultSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexSettings.getVersion()).build();
+        Settings defaultSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexSettings.getIndexVersionCreated()).build();
         Map<String, TokenizerFactory> tokenizers = new HashMap<>();
         if (tokenizerFactoryFactories != null) {
             Map<String, Settings> tokenizersSettings = this.indexSettings.getSettings().getGroups("index.analysis.tokenizer");
@@ -266,7 +266,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             throw new IllegalArgumentException("no default analyzer configured");
         }
         if (analyzers.containsKey("default_index")) {
-            final Version createdVersion = indexSettings.getVersion();
+            final Version createdVersion = indexSettings.getIndexVersionCreated();
             if (createdVersion.onOrAfter(Version.V_3_0_0)) {
                 throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index().getName() + "]");
             } else {

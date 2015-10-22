@@ -54,6 +54,9 @@ public class IndexModule extends AbstractModule {
         this.indexSettings = indexSettings;
     }
 
+    /**
+     * Adds a settings consumer for this index
+     */
     public void addIndexSettingsListener(Consumer<Settings> listener) {
         if (listener == null) {
             throw new IllegalArgumentException("listener must not be null");
@@ -65,10 +68,31 @@ public class IndexModule extends AbstractModule {
         settingsConsumers.add(listener);
     }
 
-    public Settings getIndexSettings() {
+    /**
+     * Returns the index {@link Settings} for this index
+     */
+    public Settings getSettings() {
         return indexSettings.getSettings();
     }
 
+    /**
+     * Returns the index this module is associated with
+     */
+    public Index getIndex() {
+        return indexSettings.getIndex();
+    }
+
+    /**
+     * Adds an {@link IndexEventListener} for this index. All listeners added here
+     * are maintained for the entire index lifecycle on this node. Once an index is closed or deleted these
+     * listeners go out of scope.
+     * <p>
+     * Note: an index might be created on a node multiple times. For instance if the last shard from an index is
+     * relocated to another node the internal representation will be destroyed which includes the registered listeners.
+     * Once the node holds at least one shard of an index all modules are reloaded and listeners are registered again.
+     * Listeners can't be unregistered the will stay alive for the entire time the index is allocated on a node.
+     * </p>
+     */
     public void addIndexEventListener(IndexEventListener listener) {
         if (this.listener != null) {
             throw new IllegalStateException("can't add listener after listeners are frozen");

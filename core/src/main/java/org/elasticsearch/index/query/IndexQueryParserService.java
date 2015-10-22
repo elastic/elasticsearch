@@ -207,7 +207,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
      * @return The lowest node version in the cluster when the index was created or <code>null</code> if that was unknown
      */
     public Version getIndexCreatedVersion() {
-        return indexSettings.getVersion();
+        return indexSettings.getIndexVersionCreated();
     }
 
     /**

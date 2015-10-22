@@ -40,7 +40,7 @@ public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stan
     @Inject
     public StandardAnalyzerProvider(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(indexSettings, name, settings);
-        this.esVersion = indexSettings.getVersion();
+        this.esVersion = indexSettings.getIndexVersionCreated();
         final CharArraySet defaultStopwords;
         if (esVersion.onOrAfter(Version.V_1_0_0_Beta1)) {
             defaultStopwords = CharArraySet.EMPTY_SET;

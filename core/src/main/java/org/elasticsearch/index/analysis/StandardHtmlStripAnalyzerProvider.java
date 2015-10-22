@@ -39,7 +39,7 @@ public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProv
     @Inject
     public StandardHtmlStripAnalyzerProvider(IndexSettings indexSettings, Environment env,  @Assisted String name, @Assisted Settings settings) {
         super(indexSettings, name, settings);
-        this.esVersion = indexSettings.getVersion();
+        this.esVersion = indexSettings.getIndexVersionCreated();
         final CharArraySet defaultStopwords;
         if (esVersion.onOrAfter(Version.V_1_0_0_RC1)) {
             defaultStopwords = CharArraySet.EMPTY_SET;

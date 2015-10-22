@@ -146,6 +146,8 @@ public class SimpleQueryStringParser implements QueryParser<SimpleQueryStringBui
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] unsupported field [" + parser.currentName() + "]");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 

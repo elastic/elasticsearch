@@ -20,11 +20,15 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,6 +39,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.support.QueryInnerHits;
+import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -44,7 +49,8 @@ import org.elasticsearch.test.TestSearchContext;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.containsString;
+
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -52,6 +58,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     protected static final String PARENT_TYPE = "parent";
     protected static final String CHILD_TYPE = "child";
 
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         MapperService mapperService = queryParserService().mapperService;
@@ -74,6 +81,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         ).string()), false, false);
     }
 
+    @Override
     protected void setSearchContext(String[] types) {
         final MapperService mapperService = queryParserService().mapperService;
         final IndexFieldDataService fieldData = queryParserService().fieldDataService;
@@ -302,5 +310,34 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         TermQuery typeTermQuery = (TermQuery) typeConstantScoreQuery.getQuery();
         assertThat(typeTermQuery.getTerm().field(), equalTo(TypeFieldMapper.NAME));
         assertThat(typeTermQuery.getTerm().text(), equalTo(type));
+    }
+
+    /**
+     * override superclass test, because here we need to take care that mutation doesn't happen inside
+     * `inner_hits` structure, because we don't parse them yet and so no exception will be triggered
+     * for any mutation there.
+     */
+    @Override
+    public void testUnknownObjectException() throws IOException {
+        String validQuery = createTestQueryBuilder().toString();
+        assertThat(validQuery, containsString("{"));
+        int endPosition = validQuery.indexOf("inner_hits");
+        if (endPosition == -1) {
+            endPosition = validQuery.length() - 1;
+        }
+        for (int insertionPosition = 0; insertionPosition < endPosition; insertionPosition++) {
+            if (validQuery.charAt(insertionPosition) == '{') {
+                String testQuery = validQuery.substring(0, insertionPosition) + "{ \"newField\" : " + validQuery.substring(insertionPosition) + "}";
+                try {
+                    parseQuery(testQuery);
+                    fail("some parsing exception expected for query: " + testQuery);
+                } catch (ParsingException | ScriptParseException | ElasticsearchParseException e) {
+                    // different kinds of exception wordings depending on location
+                    // of mutation, so no simple asserts possible here
+                } catch (JsonParseException e) {
+                    // mutation produced invalid json
+                }
+            }
+        }
     }
 }

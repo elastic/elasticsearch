@@ -55,7 +55,7 @@ public class MatchQueryParser implements QueryParser<MatchQueryBuilder> {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parser.getTokenLocation(), "[match] query malformed, no field");
+            throw new ParsingException(parser.getTokenLocation(), "[" + MatchQueryBuilder.NAME + "] query malformed, no field");
         }
         String fieldName = parser.currentName();
 
@@ -93,7 +93,7 @@ public class MatchQueryParser implements QueryParser<MatchQueryBuilder> {
                         } else if ("phrase_prefix".equals(tStr) || "phrasePrefix".equals(currentFieldName)) {
                             type = MatchQuery.Type.PHRASE_PREFIX;
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[match] query does not support type " + tStr);
+                            throw new ParsingException(parser.getTokenLocation(), "[" + MatchQueryBuilder.NAME + "] query does not support type " + tStr);
                         }
                     } else if ("analyzer".equals(currentFieldName)) {
                         analyzer = parser.text();
@@ -131,8 +131,10 @@ public class MatchQueryParser implements QueryParser<MatchQueryBuilder> {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "[match] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "[" + MatchQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                     }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + MatchQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
                 }
             }
             parser.nextToken();

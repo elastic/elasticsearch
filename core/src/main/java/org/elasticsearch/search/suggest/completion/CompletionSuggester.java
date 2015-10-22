@@ -138,34 +138,6 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         return query;
     }
 
-    /**
-     * num
-     * sorted List of Docs
-     *
-     * map of doc -> Doc
-     *
-     * NextReader:
-     *  for doc in map
-     *
-     *  clear doc map
-     *
-     *  Collect:
-     *      if doc in map
-     *          doc get map
-     *          update doc
-     *          map put doc
-     *      else
-     *          if size(map) == num
-     *              terminate
-     *          map put doc
-     *
-     *  Get:
-     *      NextReader()
-     *      return sorted List of Docs
-     *
-     *
-     *
-     */
     private static class TopDocumentsCollector extends TopSuggestDocsCollector {
 
         private static class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {

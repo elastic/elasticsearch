@@ -192,7 +192,7 @@ public abstract class ProfileQuery {
                 public int advance(int target) throws IOException {
                     profile.startTime(InternalProfileBreakdown.TimingType.ADVANCE);
                     try {
-                        return scorer.advance(target);
+                        return inApproximation.advance(target);
                     } finally {
                         profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.ADVANCE);
                     }
@@ -202,7 +202,7 @@ public abstract class ProfileQuery {
                 public int nextDoc() throws IOException {
                     profile.startTime(InternalProfileBreakdown.TimingType.NEXT_DOC);
                     try {
-                        return scorer.nextDoc();
+                        return inApproximation.nextDoc();
                     } finally {
                         profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.NEXT_DOC);
                     }

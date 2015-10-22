@@ -2,7 +2,7 @@
 == Facets
 
 Elasticsearch provides a full Java API to play with facets. See the
-{ref}/search-facets.html[Facets guide].
+{ref-deprecate}/search-facets.html[Facets guide].
 
 Use the factory for facet builders (`FacetBuilders`) and add each facet
 you want to compute when querying and add it to your search request:
@@ -16,7 +16,7 @@ SearchResponse sr = node.client().prepareSearch()
 --------------------------------------------------
 
 Note that you can add more than one facet. See
-{ref}/search-search.html[Search Java API] for details.
+{ref-deprecate}/search-search.html[Search Java API] for details.
 
 To build facet requests, use `FacetBuilders` helpers. Just import them
 in your class:
@@ -34,7 +34,7 @@ import org.elasticsearch.search.facet.FacetBuilders.*;
 ==== Terms Facet
 
 Here is how you can use
-{ref}/search-facets-terms-facet.html[Terms Facet]
+{ref-deprecate}/search-facets-terms-facet.html[Terms Facet]
 with Java API.
 
 
@@ -80,7 +80,7 @@ for (TermsFacet.Entry entry : f) {
 ==== Range Facet
 
 Here is how you can use
-{ref}/search-facets-range-facet.html[Range Facet]
+{ref-deprecate}/search-facets-range-facet.html[Range Facet]
 with Java API.
 
 
@@ -129,7 +129,7 @@ for (RangeFacet.Entry entry : f) {
 ==== Histogram Facet
 
 Here is how you can use
-{ref}/search-facets-histogram-facet.html[Histogram
+{ref-deprecate}/search-facets-histogram-facet.html[Histogram
 Facet] with Java API.
 
 
@@ -171,7 +171,7 @@ for (HistogramFacet.Entry entry : f) {
 ==== Date Histogram Facet
 
 Here is how you can use
-{ref}/search-facets-date-histogram-facet.html[Date
+{ref-deprecate}/search-facets-date-histogram-facet.html[Date
 Histogram Facet] with Java API.
 
 
@@ -214,7 +214,7 @@ for (DateHistogramFacet.Entry entry : f) {
 ==== Filter Facet (not facet filter)
 
 Here is how you can use
-{ref}/search-facets-filter-facet.html[Filter Facet]
+{ref-deprecate}/search-facets-filter-facet.html[Filter Facet]
 with Java API.
 
 If you are looking on how to apply a filter to a facet, have a look at
@@ -257,7 +257,7 @@ f.getCount();   // Number of docs that matched
 ==== Query Facet
 
 Here is how you can use
-{ref}/search-facets-query-facet.html[Query Facet]
+{ref-deprecate}/search-facets-query-facet.html[Query Facet]
 with Java API.
 
 
@@ -297,7 +297,7 @@ learn how to build queries using Java.
 ==== Statistical
 
 Here is how you can use the
-{ref}/search-facets-statistical-facet.html[Statistical
+{ref-deprecate}/search-facets-statistical-facet.html[Statistical
 Facet] with Java API.
 
 
@@ -341,7 +341,7 @@ f.getVariance();        // Variance
 ==== Terms Stats Facet
 
 Here is how you can use the
-{ref}/search-facets-terms-stats-facet.html[Terms
+{ref-deprecate}/search-facets-terms-stats-facet.html[Terms
 Stats Facet] with Java API.
 
 
@@ -390,7 +390,7 @@ for (TermsStatsFacet.Entry entry : f) {
 ==== Geo Distance Facet
 
 Here is how you can use
-the {ref}/search-facets-geo-distance-facet.html[Geo
+the {ref-deprecate}/search-facets-geo-distance-facet.html[Geo
 Distance Facet] with Java API.
 
 

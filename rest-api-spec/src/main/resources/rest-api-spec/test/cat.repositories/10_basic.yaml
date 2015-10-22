@@ -1,0 +1,45 @@
+---
+"Help":
+  - do:
+      cat.repositories:
+        help: true
+
+  - match:
+      $body: |
+               /^  id   .+ \n
+                   type .+ \n
+               $/
+---
+"Test cat repositories output":
+
+  - do:
+      cat.repositories: {}
+
+  - match:
+      $body: |
+               /^$/
+
+  - do:
+      snapshot.create_repository:
+        repository: repo1
+        body:
+          type: fs
+          settings:
+            location: "repo1_loc"
+
+  - do:
+      snapshot.create_repository:
+        repository: repo2
+        body:
+          type: fs
+          settings:
+            location: "repo2_loc"
+
+  - do:
+      cat.repositories: {}
+
+  - match:
+      $body: |
+               /^   repo1\s+ fs\s*\n
+                    repo2\s+ fs\s*\n
+               $/
